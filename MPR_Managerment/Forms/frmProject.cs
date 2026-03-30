@@ -32,7 +32,7 @@ namespace MPR_Managerment.Forms
 
         // Panels
         private Panel panelTop, panelForm, panelStats;
-        private Panel panelHead, panelDetail;
+        //private Panel panelHead, panelDetail;
 
         // Stats labels — hệ thống
         private Label lblMPRCount, lblPOCount, lblRIRCount, lblWeightTotal, lblBudgetTotal;
@@ -219,13 +219,13 @@ namespace MPR_Managerment.Forms
             AddLabel(panelForm, "Mã dự án (*):", 415, y);
             txtProjectCode = AddTxt(panelForm, 515, y, 140);
 
-            AddLabel(panelForm, "Workorder No:", 670, y);
-            txtWorkorderNo = AddTxt(panelForm, 770, y, 150);
+            AddLabel(panelForm, "Workorder.No:", 670, y);
+            txtWorkorderNo = AddTxt(panelForm, 780, y, 200);
 
-            AddLabel(panelForm, "Trạng thái:", 935, y);
+            AddLabel(panelForm, "Trạng thái:", 1000, y);
             cboStatus = new ComboBox
             {
-                Location = new Point(1020, y),
+                Location = new Point(1120, y),
                 Size = new Size(160, 25),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
@@ -243,12 +243,12 @@ namespace MPR_Managerment.Forms
             txtPOCode = AddTxt(panelForm, 410, y, 140);
 
             AddLabel(panelForm, "Mã MPR:", 565, y);
-            txtMPRCode = AddTxt(panelForm, 625, y, 140);
+            txtMPRCode = AddTxt(panelForm, 635, y, 200);
 
-            AddLabel(panelForm, "Tổng KG:", 780, y);
+            AddLabel(panelForm, "Tổng KG:", 840, y);
             nudWeight = new NumericUpDown
             {
-                Location = new Point(850, y),
+                Location = new Point(935, y),
                 Size = new Size(130, 25),
                 Font = new Font("Segoe UI", 9),
                 Maximum = 9999999,
@@ -257,10 +257,10 @@ namespace MPR_Managerment.Forms
             };
             panelForm.Controls.Add(nudWeight);
 
-            AddLabel(panelForm, "Budget:", 995, y);
+            AddLabel(panelForm, "Budget:", 1070, y);
             nudBudget = new NumericUpDown
             {
-                Location = new Point(1050, y),
+                Location = new Point(1150, y),
                 Size = new Size(140, 25),
                 Font = new Font("Segoe UI", 9),
                 Maximum = 999999999,
@@ -304,7 +304,17 @@ namespace MPR_Managerment.Forms
             var btnClearForm = CreateButton("🔄 Xóa form", Color.FromArgb(108, 117, 125), new Point(130, y), 110, 32);
             btnClearForm.Click += (s, e) => ClearForm();
             panelForm.Controls.Add(btnClearForm);
-           
+
+            //foreach (Panel panel in new[] { panelTop, panelForm, panelStats })
+            //{
+            //    foreach (Control c in panel.Controls)
+            //    {
+            //        if (c is TextBox || c is ComboBox || c is DateTimePicker || c is NumericUpDown)
+            //            c.BringToFront();
+            //    }
+            //}
+            Common.Common.AutoBringToFontControl(new[] { panelTop, panelForm, panelStats });
+
         }
 
         private Label AddStatCard(Panel parent, string title, string value, Color color, int x, int y)

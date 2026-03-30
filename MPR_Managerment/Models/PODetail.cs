@@ -9,9 +9,9 @@ namespace MPR_Managerment.Models
         public int Item_No { get; set; }
         public string Item_Name { get; set; } = "";
         public string Material { get; set; } = "";
-        public decimal Asize { get; set; }
-        public decimal Bsize { get; set; }
-        public decimal Csize { get; set; }
+        public string Asize { get; set; }
+        public string Bsize { get; set; }
+        public string Csize { get; set; }
         public int Qty_Per_Sheet { get; set; }
         public string UNIT { get; set; } = "";
         public decimal Weight_kg { get; set; }

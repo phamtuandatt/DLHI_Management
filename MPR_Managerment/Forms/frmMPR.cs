@@ -243,15 +243,9 @@ namespace MPR_Managerment.Forms
             dgvDetails.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
             BuildDetailColumns();
             panelDetail.Controls.Add(dgvDetails);
+
             // Đưa tất cả TextBox và ComboBox lên trên Label
-            //foreach (Panel panel in new[] { panelHead, panelTop, panelDetail })
-            //{
-            //    foreach (Control c in panel.Controls)
-            //    {
-            //        if (c is TextBox || c is ComboBox || c is DateTimePicker || c is NumericUpDown)
-            //            c.BringToFront();
-            //    }
-            //}
+            Common.Common.AutoBringToFontControl(new[] { panelTop, panelHeader, panelDetail });
         }
 
         private void BuildDetailColumns()
@@ -324,7 +318,8 @@ namespace MPR_Managerment.Forms
                 Text = text,
                 Location = new Point(x, y + 3),
                 Size = new Size(110, 20),
-                Font = new Font("Segoe UI", 9)
+                Font = new Font("Segoe UI", 9),
+                Margin = new Padding(10, 0, 0, 0)
             });
         }
 

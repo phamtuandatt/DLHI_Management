@@ -119,7 +119,7 @@ namespace MPR_Managerment.Forms
             panelHeader = new Panel
             {
                 Location = new Point(10, 230),
-                Size = new Size(1260, 215),
+                Size = new Size(1260, 245), // here
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
@@ -132,7 +132,7 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 120, 212),
                 Location = new Point(10, 8),
-                Size = new Size(350, 25)
+                Size = new Size(350, 25) // and here // 25
             });
 
             // Row 1
@@ -232,7 +232,7 @@ namespace MPR_Managerment.Forms
             // ===== PANEL DETAIL =====
             panelDetail = new Panel
             {
-                Location = new Point(10, 455),
+                Location = new Point(10, 500), // Here
                 Size = new Size(1260, 285),
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
@@ -1121,9 +1121,9 @@ namespace MPR_Managerment.Forms
                         Item_No = itemNo++,
                         Item_Name = row.Cells["Item_Name"].Value?.ToString() ?? "",
                         Material = row.Cells["Material"].Value?.ToString() ?? "",
-                        Asize = decimal.TryParse(row.Cells["Asize"].Value?.ToString(), out decimal a) ? a : 0,
-                        Bsize = decimal.TryParse(row.Cells["Bsize"].Value?.ToString(), out decimal b) ? b : 0,
-                        Csize = decimal.TryParse(row.Cells["Csize"].Value?.ToString(), out decimal c) ? c : 0,
+                        Asize = row.Cells["Asize"].Value?.ToString() ?? "",
+                        Bsize = row.Cells["Bsize"].Value?.ToString() ?? "",
+                        Csize = row.Cells["Csize"].Value?.ToString() ?? "",
                         Qty_Per_Sheet = int.TryParse(row.Cells["Qty"].Value?.ToString(), out int q) ? q : 0,
                         UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
                         Weight_kg = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal wk) ? wk : 0,
