@@ -185,7 +185,7 @@ namespace MPR_Managerment.Forms
             panelHeader.Controls.Add(nudRevise);
 
             AddLabel(panelHeader, "Ghi chú:", 610, y);
-            txtNotes = AddTxt(panelHeader, 680, y, 380);txtNotes.BringToFront();
+            txtNotes = AddTxt(panelHeader, 680, y, 380); txtNotes.BringToFront();
 
             txtNotes.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
@@ -576,7 +576,7 @@ namespace MPR_Managerment.Forms
             //    cboSupplier.BackColor = Color.White;
             //    lblSupplierError.Visible = false;
             //}
-            AutoCompleteComboboxValidating(sender as ComboBox, e);      
+            AutoCompleteComboboxValidating(sender as ComboBox, e);
         }
 
         private void CboSupplier_SelectedIndexChanged(object sender, EventArgs e)
@@ -796,6 +796,9 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No", Width = 90 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeliveryLocation", HeaderText = "Nơi giao", Width = 120 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú", FillWeight = 100 });
+
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", FillWeight = 100 }); // Add new
+            //dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeliveryLoc", HeaderText = "PO_ID", FillWeight = 100 }); // Add new
         }
 
         private void AddLabel(Panel p, string text, int x, int y)
@@ -898,7 +901,7 @@ namespace MPR_Managerment.Forms
                     row.Cells["Amount"].Value = d.Amount;
                     row.Cells["Received"].Value = d.Received;
                     row.Cells["MPSNo"].Value = d.MPSNo;
-                    row.Cells["DeliveryLoc"].Value = d.DeliveryLocation;
+                    row.Cells["DeliveryLocation"].Value = d.DeliveryLocation;
                     row.Cells["Remarks"].Value = d.Remarks;
                 }
 

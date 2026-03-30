@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 
 namespace MPR_Managerment.Forms
@@ -11,7 +12,6 @@ namespace MPR_Managerment.Forms
         private Panel panelContent;
         private Panel panelHeader;
         private Label lblUser;
-        private string _currentUser = "Admin";
         private Form _activeForm = null;
 
         public frmMain()
@@ -36,6 +36,9 @@ namespace MPR_Managerment.Forms
             ShowDashboard();
         }
 
+        // =====================================================================
+        //  HEADER
+        // =====================================================================
         private void BuildHeader()
         {
             panelHeader = new Panel
@@ -55,25 +58,34 @@ namespace MPR_Managerment.Forms
                 Size = new Size(500, 32)
             });
 
+            // Hiển thị user đang đăng nhập + Role
+            string userText = AppSession.CurrentUser != null
+                ? $"👤 {AppSession.CurrentUser.Full_Name}  [{AppSession.CurrentUser.Role_Name}]"
+                : "👤 Admin";
+
             lblUser = new Label
             {
-                Text = $"👤 {_currentUser}",
-                Font = new Font("Segoe UI", 10),
+                Text = userText,
+                Font = new Font("Segoe UI", 9),
                 ForeColor = Color.White,
-                Size = new Size(150, 25),
+                Size = new Size(280, 25),
                 TextAlign = ContentAlignment.MiddleRight,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            lblUser.Location = new Point(panelHeader.Width - 170, 15);
+            lblUser.Location = new Point(panelHeader.Width - 300, 15);
             panelHeader.Controls.Add(lblUser);
+
             panelHeader.Resize += (s, ev) =>
             {
                 panelHeader.Width = this.ClientSize.Width;
-                lblUser.Left = panelHeader.Width - 170;
+                lblUser.Left = panelHeader.Width - 300;
             };
             this.Controls.Add(panelHeader);
         }
 
+        // =====================================================================
+        //  MENU — ẩn/hiện theo quyền AppSession
+        // =====================================================================
         private void BuildMenu()
         {
             panelMenu = new Panel
@@ -95,16 +107,38 @@ namespace MPR_Managerment.Forms
             });
 
             int y = 55;
+
+            // Tổng quan — luôn hiện
             AddMenuBtn("🏠  Tổng quan", Color.FromArgb(0, 120, 212), y); y += 52;
             AddMenuBtn("📊  Dashboard", Color.FromArgb(30, 30, 45), y); y += 52;
-            AddMenuBtn("🗂  Dự án", Color.FromArgb(30, 30, 45), y); y += 52;
-            AddMenuBtn("🏢  Nhà cung cấp", Color.FromArgb(30, 30, 45), y); y += 52;
-            AddMenuBtn("📋  MPR", Color.FromArgb(30, 30, 45), y); y += 52;
-            AddMenuBtn("🛒  Đơn đặt hàng (PO)", Color.FromArgb(30, 30, 45), y); y += 52;
-            AddMenuBtn("📦  Kiểm tra (RIR)", Color.FromArgb(30, 30, 45), y); y += 52;
-            AddMenuBtn("🏭  Kho vật tư", Color.FromArgb(30, 30, 45), y); y += 52;
-            AddMenuBtn("🗄  Danh mục kho", Color.FromArgb(30, 30, 45), y); y += 52;
 
+            // Các module — kiểm tra quyền
+            if (AppSession.CanView("PROJECT"))
+            {
+                AddMenuBtn("🗂  Dự án", Color.FromArgb(30, 30, 45), y); y += 52;
+            }
+            if (AppSession.CanView("SUPPLIER"))
+            {
+                AddMenuBtn("🏢  Nhà cung cấp", Color.FromArgb(30, 30, 45), y); y += 52;
+            }
+            if (AppSession.CanView("MPR"))
+            {
+                AddMenuBtn("📋  MPR", Color.FromArgb(30, 30, 45), y); y += 52;
+            }
+            if (AppSession.CanView("PO"))
+            {
+                AddMenuBtn("🛒  Đơn đặt hàng (PO)", Color.FromArgb(30, 30, 45), y); y += 52;
+            }
+            if (AppSession.CanView("RIR"))
+            {
+                AddMenuBtn("📦  Kiểm tra (RIR)", Color.FromArgb(30, 30, 45), y); y += 52;
+            }
+            if (AppSession.CanView("WAREHOUSE"))
+            {
+                AddMenuBtn("🏭  Kho vật tư", Color.FromArgb(30, 30, 45), y); y += 52;
+            }
+
+            // Divider
             panelMenu.Controls.Add(new Label
             {
                 Location = new Point(10, y + 5),
@@ -113,7 +147,16 @@ namespace MPR_Managerment.Forms
             });
             y += 18;
 
+            // Quản lý User — chỉ Admin
+            if (AppSession.CanView("USER_MGT"))
+            {
+                AddMenuBtn("👤  Quản lý User", Color.FromArgb(63, 81, 181), y); y += 52;
+            }
+
+            // Đổi mật khẩu — luôn hiện
+            AddMenuBtn("🔑  Đổi mật khẩu", Color.FromArgb(30, 30, 45), y); y += 52;
             AddMenuBtn("❌  Thoát", Color.FromArgb(30, 30, 45), y);
+
             this.Controls.Add(panelMenu);
         }
 
@@ -139,6 +182,9 @@ namespace MPR_Managerment.Forms
             panelMenu.Controls.Add(btn);
         }
 
+        // =====================================================================
+        //  MENU CLICK
+        // =====================================================================
         private void MenuBtn_Click(object sender, EventArgs e)
         {
             var btn = sender as Button;
@@ -157,20 +203,30 @@ namespace MPR_Managerment.Forms
             else if (tag.Contains("MPR")) OpenForm(new frmMPR());
             else if (tag.Contains("PO")) OpenForm(new frmPO());
             else if (tag.Contains("RIR")) OpenForm(new frmRIR());
-            else if (tag.Contains("Danh mục kho")) OpenForm(new frmWarehouseSetup());
             else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouse());
-
-
-   
+            else if (tag.Contains("Quản lý User")) OpenForm(new frmUserManagement());
+            else if (tag.Contains("Đổi mật khẩu"))
+            {
+                if (AppSession.CurrentUser != null)
+                {
+                    var f = new frmChangePassword(AppSession.CurrentUser.User_ID);
+                    f.ShowDialog(this);
+                }
+            }
             else if (tag.Contains("Thoát"))
-
             {
                 if (MessageBox.Show("Bạn có chắc muốn thoát?", "Xác nhận",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    AppSession.Clear();
                     Application.Exit();
+                }
             }
         }
 
+        // =====================================================================
+        //  CONTENT
+        // =====================================================================
         private void BuildContent()
         {
             panelContent = new Panel
@@ -208,6 +264,10 @@ namespace MPR_Managerment.Forms
             panelContent.Controls.Add(_activeForm);
             _activeForm.Show();
         }
+
+        // =====================================================================
+        //  DASHBOARD
+        // =====================================================================
         private void ShowDashboard()
         {
             if (_activeForm != null)
@@ -217,7 +277,6 @@ namespace MPR_Managerment.Forms
             }
             panelContent.Controls.Clear();
 
-            // Tiêu đề
             panelContent.Controls.Add(new Label
             {
                 Text = "TỔNG QUAN HỆ THỐNG",
@@ -236,7 +295,6 @@ namespace MPR_Managerment.Forms
                 Size = new Size(600, 25)
             });
 
-            // Cards thống kê hàng 1
             try
             {
                 int supplierCount = new SupplierService().GetAll().Count;
@@ -287,11 +345,10 @@ namespace MPR_Managerment.Forms
                 Size = new Size(500, 28)
             });
 
-            string[] guides =
-            {
+            string[] guides = {
                 "1️⃣   Nhà cung cấp  →  Quản lý danh sách NCC, thông tin liên hệ, tài khoản ngân hàng",
                 "2️⃣   MPR            →  Tạo phiếu yêu cầu mua vật tư, quản lý chi tiết vật tư từng dự án",
-                "3️⃣   Đơn PO         →  Tạo đơn đặt hàng, import từ MPR, theo dõi Revise history",
+                "3️⃣   Đơn PO         →  Tạo đơn đặt hàng, import từ MPR, xuất Excel theo template",
                 "4️⃣   Kiểm tra RIR   →  Tạo phiếu kiểm tra hàng nhập, ghi nhận MTR No / Heat No / ID Code",
                 "5️⃣   Kho vật tư     →  Nhập kho từ PO, xuất kho cho dự án, theo dõi tồn kho"
             };
@@ -310,7 +367,7 @@ namespace MPR_Managerment.Forms
                 gy += 30;
             }
 
-            // Panel version
+            // Version bar
             var panelVersion = new Panel
             {
                 Location = new Point(30, 730),
@@ -318,10 +375,9 @@ namespace MPR_Managerment.Forms
                 BackColor = Color.FromArgb(30, 30, 45)
             };
             panelContent.Controls.Add(panelVersion);
-
             panelVersion.Controls.Add(new Label
             {
-                Text = "MPR Management System  v1.0  —  Developed with ❤ using C# Windows Forms + SQL Server 2025",
+                Text = "MPR Management System  v1.0  —  C# Windows Forms + SQL Server Azure",
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.FromArgb(180, 180, 200),
                 Location = new Point(15, 15),
@@ -361,7 +417,7 @@ namespace MPR_Managerment.Forms
 
             var lblSub = new Label
             {
-                Text = value == "📦 Xem" || value == "📈 Xem" ? "nhấn để mở" : "bản ghi",
+                Text = (value.Contains("Xem")) ? "nhấn để mở" : "bản ghi",
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.FromArgb(220, 255, 255, 255),
                 Location = new Point(0, 135),
@@ -374,49 +430,25 @@ namespace MPR_Managerment.Forms
             card.Controls.Add(lblSub);
             panelContent.Controls.Add(card);
 
-            // Click handler
             EventHandler clickHandler = (s, e) =>
             {
-                // Reset menu
                 foreach (Control c in panelMenu.Controls)
                     if (c is Button b) b.BackColor = Color.FromArgb(30, 30, 45);
 
-                // Highlight menu tương ứng & mở form
                 if (title.Contains("Nhà cung cấp"))
-                {
-                    HighlightMenu("Nhà cung cấp");
-                    OpenForm(new frmSupplier());
-                }
+                { HighlightMenu("Nhà cung cấp"); OpenForm(new frmSupplier()); }
                 else if (title.Contains("MPR"))
-                {
-                    HighlightMenu("MPR");
-                    OpenForm(new frmMPR());
-                }
+                { HighlightMenu("MPR"); OpenForm(new frmMPR()); }
                 else if (title.Contains("PO"))
-                {
-                    HighlightMenu("PO");
-                    OpenForm(new frmPO());
-                }
+                { HighlightMenu("PO"); OpenForm(new frmPO()); }
                 else if (title.Contains("RIR"))
-                {
-                    HighlightMenu("RIR");
-                    OpenForm(new frmRIR());
-                }
+                { HighlightMenu("RIR"); OpenForm(new frmRIR()); }
                 else if (title.Contains("Dự án"))
-                {
-                    HighlightMenu("Dự án");
-                    OpenForm(new frmProject());
-                }
+                { HighlightMenu("Dự án"); OpenForm(new frmProject()); }
                 else if (title.Contains("Kho"))
-                {
-                    HighlightMenu("Kho vật tư");
-                    OpenForm(new frmWarehouse());
-                }
+                { HighlightMenu("Kho vật tư"); OpenForm(new frmWarehouse()); }
                 else if (title.Contains("Dashboard"))
-                {
-                    HighlightMenu("Dashboard");
-                    OpenForm(new frmDashboard());
-                }
+                { HighlightMenu("Dashboard"); OpenForm(new frmDashboard()); }
             };
 
             card.Click += clickHandler;
@@ -424,10 +456,8 @@ namespace MPR_Managerment.Forms
             lblValue.Click += clickHandler;
             lblSub.Click += clickHandler;
 
-            // Hover
             EventHandler enterH = (s, e) => card.BackColor = ControlPaint.Dark(color, 0.1f);
             EventHandler leaveH = (s, e) => card.BackColor = color;
-
             card.MouseEnter += enterH; card.MouseLeave += leaveH;
             lblTitle.MouseEnter += enterH; lblTitle.MouseLeave += leaveH;
             lblValue.MouseEnter += enterH; lblValue.MouseLeave += leaveH;
