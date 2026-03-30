@@ -26,7 +26,9 @@ namespace MPR_Managerment.Forms
             this.Size = new Size(1400, 820);
             this.MinimumSize = new Size(1100, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
+            this.WindowState = FormWindowState.Maximized;
             this.BackColor = Color.FromArgb(245, 245, 245);
+            
 
             BuildHeader();
             BuildMenu();
@@ -203,7 +205,8 @@ namespace MPR_Managerment.Forms
             else if (tag.Contains("MPR")) OpenForm(new frmMPR());
             else if (tag.Contains("PO")) OpenForm(new frmPO());
             else if (tag.Contains("RIR")) OpenForm(new frmRIR());
-            else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouse());
+            //else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouse());
+            else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouses_v2());
             else if (tag.Contains("Quản lý User")) OpenForm(new frmUserManagement());
             else if (tag.Contains("Đổi mật khẩu"))
             {

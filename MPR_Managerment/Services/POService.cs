@@ -21,6 +21,24 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        public POHead GetPOByPONo(string poNO)
+        {
+            var poModel = new POHead();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("SELECT TOP 1 * FROM PO_head WHERE PONo LIKE @kw", conn);
+                cmd.Parameters.AddWithValue("@kw", $"%{poNO}%");
+                var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    poModel = MapHead(r);
+                    break;
+                }
+            }
+            return poModel;
+        }
+
         public List<POHead> Search(string keyword)
         {
             var list = new List<POHead>();
@@ -176,7 +194,8 @@ namespace MPR_Managerment.Services
                 Notes = r["Notes"]?.ToString() ?? "",
                 Revise = r["Revise"] != DBNull.Value ? Convert.ToInt32(r["Revise"]) : 0,
                 Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
-                Created_By = r["Created_By"]?.ToString() ?? ""
+                Created_By = r["Created_By"]?.ToString() ?? "",
+                Supplier_ID = Convert.ToInt32(r["Supplier_ID"])
             };
         }
 

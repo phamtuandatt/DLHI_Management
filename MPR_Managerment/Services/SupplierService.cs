@@ -60,6 +60,22 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        public Supplier GetBySupId(int supId)
+        {
+            var m = new Supplier();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand($"SELECT TOP 1 * FROM Suppliers WHERE Supplier_ID = {supId} ORDER BY Company_Name", conn);
+                var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    m = (MapSupplier(reader));
+                }
+            }
+            return m;
+        }
+
         // Tìm kiếm theo tên
         public List<Supplier> Search(string keyword)
         {

@@ -21,6 +21,20 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        public ProjectInfo GetByProjectCode(string projectCode)
+        {
+            var p = new ProjectInfo();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("SELECT TOP 1 * FROM ProjectInfo WHERE ProjectCode = @code", conn);
+                cmd.Parameters.AddWithValue("@code", $"{projectCode}");
+                var r = cmd.ExecuteReader();
+                while (r.Read()) p = (Map(r));
+            }
+            return p;
+        }
+
         public List<ProjectInfo> Search(string keyword)
         {
             var list = new List<ProjectInfo>();

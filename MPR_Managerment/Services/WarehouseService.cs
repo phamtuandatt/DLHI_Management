@@ -42,6 +42,27 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        public async Task<DataTable> GetImportRows(string keyword, string projectCode = "")
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = @"SELECT * FROM Warehouse_Import WHERE 1=1";
+                if (!string.IsNullOrEmpty(keyword))
+                    sql += $" AND (Import_No LIKE N'%{keyword}%' OR Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%')";
+                if (!string.IsNullOrEmpty(projectCode))
+                    sql += $" AND Project_Code = N'{projectCode}'";
+                sql += " ORDER BY Import_Date DESC";
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         public int InsertImport(WarehouseImport imp, string createdBy)
         {
             using (var conn = DatabaseHelper.GetConnection())
