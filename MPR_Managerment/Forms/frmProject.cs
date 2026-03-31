@@ -230,7 +230,7 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
-            cboStatus.Items.AddRange(new[] { "Đang thực hiện", "Hoàn thành", "Tạm dừng", "Hủy" });
+            cboStatus.Items.AddRange(new[] { "Active", "Completed", "Pending", "Cancel" });
             cboStatus.SelectedIndex = 0;
             panelForm.Controls.Add(cboStatus);
 
@@ -538,9 +538,9 @@ namespace MPR_Managerment.Forms
             {
                 string val = e.Value?.ToString() ?? "";
                 e.CellStyle.ForeColor =
-                    val == "Hoàn thành" ? Color.FromArgb(40, 167, 69) :
-                    val == "Đang thực hiện" ? Color.FromArgb(0, 120, 212) :
-                    val == "Tạm dừng" ? Color.FromArgb(255, 140, 0) :
+                    val == "Complete" ? Color.FromArgb(40, 167, 69) :
+                    val == "Active" ? Color.FromArgb(0, 120, 212) :
+                    val == "Pending" ? Color.FromArgb(255, 140, 0) :
                                               Color.FromArgb(220, 53, 69);
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
@@ -582,7 +582,7 @@ namespace MPR_Managerment.Forms
                     MPRCode = txtMPRCode.Text.Trim(),
                     PJWeight = nudWeight.Value,
                     PJBudget = nudBudget.Value,
-                    Status = cboStatus.SelectedItem?.ToString() ?? "Đang thực hiện",
+                    Status = cboStatus.SelectedItem?.ToString() ?? "Active",
                     Notes = txtNotes.Text.Trim(),
                     PO_Link = txtPOLink.Text.Trim(),
                     RIR_Link = txtRIRLink.Text.Trim(),
