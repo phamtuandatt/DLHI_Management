@@ -179,7 +179,7 @@ namespace MPR_Managerment.Services
         {
             return new POHead
             {
-                PO_ID = Convert.ToInt32(r["PO_ID"]),
+                PO_ID = r["PO_ID"] != DBNull.Value ? Convert.ToInt32(r["PO_ID"]) : 0,
                 Project_Name = r["Project_Name"]?.ToString() ?? "",
                 WorkorderNo = r["WorkorderNo"]?.ToString() ?? "",
                 MPR_No = r["MPR_No"]?.ToString() ?? "",
@@ -188,14 +188,15 @@ namespace MPR_Managerment.Services
                 Reviewed = r["Reviewed"]?.ToString() ?? "",
                 Agreement = r["Agreement"]?.ToString() ?? "",
                 Approved = r["Approved"]?.ToString() ?? "",
-                PO_Date = r["PO_Date"] != DBNull.Value ? Convert.ToDateTime(r["PO_Date"]) : null,
+                PO_Date = r["PO_Date"] != DBNull.Value ? Convert.ToDateTime(r["PO_Date"]) : (DateTime?)null,
                 Total_Amount = r["Total_Amount"] != DBNull.Value ? Convert.ToDecimal(r["Total_Amount"]) : 0,
                 Status = r["Status"]?.ToString() ?? "",
                 Notes = r["Notes"]?.ToString() ?? "",
                 Revise = r["Revise"] != DBNull.Value ? Convert.ToInt32(r["Revise"]) : 0,
-                Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
+                Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : (DateTime?)null,
                 Created_By = r["Created_By"]?.ToString() ?? "",
-                Supplier_ID = Convert.ToInt32(r["Supplier_ID"])
+                // Lỗi chính nằm ở dòng Supplier_ID này (khi PO mới tạo chưa có NCC)
+                Supplier_ID = r["Supplier_ID"] != DBNull.Value ? Convert.ToInt32(r["Supplier_ID"]) : 0
             };
         }
 
@@ -203,8 +204,8 @@ namespace MPR_Managerment.Services
         {
             return new PODetail
             {
-                PO_Detail_ID = Convert.ToInt32(r["PO_Detail_ID"]),
-                PO_ID = Convert.ToInt32(r["PO_ID"]),
+                PO_Detail_ID = r["PO_Detail_ID"] != DBNull.Value ? Convert.ToInt32(r["PO_Detail_ID"]) : 0,
+                PO_ID = r["PO_ID"] != DBNull.Value ? Convert.ToInt32(r["PO_ID"]) : 0,
                 Item_No = r["Item_No"] != DBNull.Value ? Convert.ToInt32(r["Item_No"]) : 0,
                 Item_Name = r["item_name"]?.ToString() ?? "",
                 Material = r["Material"]?.ToString() ?? "",
@@ -215,14 +216,14 @@ namespace MPR_Managerment.Services
                 UNIT = r["UNIT"]?.ToString() ?? "",
                 Weight_kg = r["Weight_kg"] != DBNull.Value ? Convert.ToDecimal(r["Weight_kg"]) : 0,
                 MPSNo = r["MPSNo"]?.ToString() ?? "",
-                RequestDay = r["RequestDay"] != DBNull.Value ? Convert.ToDateTime(r["RequestDay"]) : null,
+                RequestDay = r["RequestDay"] != DBNull.Value ? Convert.ToDateTime(r["RequestDay"]) : (DateTime?)null,
                 DeliveryLocation = r["DeliveryLocation"]?.ToString() ?? "",
                 Price = r["Price"] != DBNull.Value ? Convert.ToDecimal(r["Price"]) : 0,
                 Amount = r["Amount"] != DBNull.Value ? Convert.ToDecimal(r["Amount"]) : 0,
                 Received = r["Received"] != DBNull.Value ? Convert.ToInt32(r["Received"]) : 0,
                 VAT = r["VAT"] != DBNull.Value ? Convert.ToDecimal(r["VAT"]) : 0,
                 Remarks = r["Remarks"]?.ToString() ?? "",
-                MPR_Detail_ID = r["MPR_Detail_ID"] != DBNull.Value ? Convert.ToInt32(r["MPR_Detail_ID"]) : null
+                MPR_Detail_ID = r["MPR_Detail_ID"] != DBNull.Value ? Convert.ToInt32(r["MPR_Detail_ID"]) : (int?)null
             };
         }
     }
