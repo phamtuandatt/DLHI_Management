@@ -192,18 +192,23 @@ namespace MPR_Managerment.Forms
         private void BuildPOGridCols()
         {
             dgvPO.Columns.Clear();
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID", Visible = false });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_No", HeaderText = "PO No", Width = 110, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ngay_PO", HeaderText = "Ngày PO", Width = 85, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ten_DA", HeaderText = "Dự án", Width = 160, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "NCC", HeaderText = "Nhà CC", Width = 130, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Tong_PO", HeaderText = "Tổng PO", Width = 100, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Da_TT", HeaderText = "Đã TT", Width = 100, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Con_No", HeaderText = "Còn nợ", Width = 100, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Pct", HeaderText = "%", Width = 55, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "TT_Status", HeaderText = "Trạng thái", Width = 110, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Den_Han", HeaderText = "Đến hạn", Width = 85, ReadOnly = true });
-            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qua_Han", HeaderText = "Quá hạn", Width = 70, ReadOnly = true });
+
+            // 1. Tắt tính năng tự động sinh cột dư thừa
+            dgvPO.AutoGenerateColumns = false;
+
+            // 2. Thêm DataPropertyName vào từng cột để nối đúng với dữ liệu
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID", DataPropertyName = "ID", Visible = false });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_No", DataPropertyName = "PO_No", HeaderText = "PO No", Width = 110, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ngay_PO", DataPropertyName = "Ngay_PO", HeaderText = "Ngày PO", Width = 85, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ten_DA", DataPropertyName = "Ten_DA", HeaderText = "Dự án", Width = 160, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "NCC", DataPropertyName = "NCC", HeaderText = "Nhà CC", Width = 130, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Tong_PO", DataPropertyName = "Tong_PO", HeaderText = "Tổng PO", Width = 100, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Da_TT", DataPropertyName = "Da_TT", HeaderText = "Đã TT", Width = 100, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Con_No", DataPropertyName = "Con_No", HeaderText = "Còn nợ", Width = 100, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Pct", DataPropertyName = "Pct", HeaderText = "%", Width = 55, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "TT_Status", DataPropertyName = "TT_Status", HeaderText = "Trạng thái", Width = 110, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Den_Han", DataPropertyName = "Den_Han", HeaderText = "Đến hạn", Width = 85, ReadOnly = true });
+            dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qua_Han", DataPropertyName = "Qua_Han", HeaderText = "Quá hạn", Width = 70, ReadOnly = true });
         }
 
         private void BuildSchedCols()
