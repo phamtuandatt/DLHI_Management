@@ -53,7 +53,7 @@ namespace MPR_Managerment.Forms
 
             panelHeader.Controls.Add(new Label
             {
-                Text = "⚙ MPR MANAGEMENT SYSTEM",
+                Text = "⚙ DLHI ERP",
                 Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 ForeColor = Color.White,
                 Location = new Point(15, 12),
@@ -138,6 +138,10 @@ namespace MPR_Managerment.Forms
             if (AppSession.CanView("WAREHOUSE"))
             {
                 AddMenuBtn("🏭  Kho vật tư", Color.FromArgb(30, 30, 45), y); y += 52;
+
+            AddMenuBtn("💳  Thanh toán Debit", Color.FromArgb(30, 30, 45), y); y += 52;
+
+
             }
 
             // Divider
@@ -205,6 +209,7 @@ namespace MPR_Managerment.Forms
             else if (tag.Contains("MPR")) OpenForm(new frmMPR());
             else if (tag.Contains("PO")) OpenForm(new frmPO());
             else if (tag.Contains("RIR")) OpenForm(new frmRIR());
+            else if (tag.Contains("Thanh toán Debit")) OpenForm(new frmPayment());
             //else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouse());
             else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouses_v2());
             else if (tag.Contains("Quản lý User")) OpenForm(new frmUserManagement());
@@ -316,6 +321,8 @@ namespace MPR_Managerment.Forms
                 AddCard("🗂 Dự án", projectCount.ToString(), Color.FromArgb(0, 150, 136), 30, 310);
                 AddCard("🏭 Kho vật tư", "📦 Xem", Color.FromArgb(63, 81, 181), 260, 310);
                 AddCard("📊 Dashboard", "📈 Xem", Color.FromArgb(233, 30, 99), 490, 310);
+            
+
             }
             catch (Exception ex)
             {
