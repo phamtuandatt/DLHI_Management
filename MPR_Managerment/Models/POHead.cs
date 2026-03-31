@@ -22,5 +22,6 @@ namespace MPR_Managerment.Models
         public string Created_By { get; set; } = "";
 
         public int Supplier_ID { get; set; }    
+        public string ProjectCode {  get; set; }
     }
 }

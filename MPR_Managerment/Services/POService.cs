@@ -83,6 +83,8 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@Agreement", h.Agreement ?? "");
                 cmd.Parameters.AddWithValue("@Approved", h.Approved ?? "");
                 cmd.Parameters.AddWithValue("@Created_By", createdBy);
+                cmd.Parameters.AddWithValue("@SupplierID", h.Supplier_ID);
+                cmd.Parameters.AddWithValue("@ProjectCode", h.ProjectCode);
                 var r = cmd.ExecuteReader();
                 if (r.Read()) return Convert.ToInt32(r["NewPO_ID"]);
                 return 0;

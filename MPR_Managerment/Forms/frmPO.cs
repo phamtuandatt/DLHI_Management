@@ -38,6 +38,8 @@ namespace MPR_Managerment.Forms
         private System.Data.DataTable _supplierTable;
         private bool _isSearching = false;
 
+        private string _projectCodeImport = string.Empty;
+
         public frmPO()
         {
             InitializeComponent();
@@ -936,7 +938,11 @@ namespace MPR_Managerment.Forms
                     Notes = txtNotes.Text.Trim(),
                     PO_Date = dtpPODate.Value,
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
-                    Revise = (int)nudRevise.Value
+                    Revise = (int)nudRevise.Value,
+
+                    // Add SupplierID, ProjectCode
+                    Supplier_ID = Convert.ToInt32(cboSupplier.SelectedValue ?? 0),
+                    ProjectCode = _projectCodeImport
                 };
 
                 if (_selectedPO_ID == 0)
@@ -1081,7 +1087,7 @@ namespace MPR_Managerment.Forms
                         if (project != null)
                         {
                             txtWorkorderNo.Text = project.WorkorderNo ?? "";
-
+                            _projectCodeImport = project.ProjectCode;
                             string poCode = project.POCode ?? project.ProjectCode ?? "";
                             string autoPoNo = GenerateAutoPoNo(poCode);
                             txtPONo.Text = autoPoNo;
