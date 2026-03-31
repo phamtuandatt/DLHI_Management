@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.SqlClient;
+using MPR_Managerment.Forms.ItemCodeGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
@@ -278,6 +279,7 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.CellBeginEdit += DgvImportQueue_CellBeginEdit;
             dgvImportQueue.CellEndEdit += DgvImportQueue_CellEndEdit;
             dgvImportQueue.EditingControlShowing += DgvImportQueue_EditingControlShowing;
+            dgvImportQueue.CellDoubleClick += DgvImportQueue_CellDoubleClick;
 
             gbDetails.Controls.AddRange(new Control[] { lblDetail, btnDeleteRow, dgvImportQueue });
 
@@ -339,6 +341,22 @@ namespace MPR_Managerment.Forms
             dgvImport.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
 
             gbHistory.Controls.AddRange(new Control[] { lblHistory, btnPrintPNK,/* btnDeleteFullBill,*/ dgvImport });
+        }
+
+        private void DgvImportQueue_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= _importQueue.Count) return;
+            string colName = dgvImportQueue.Columns[e.ColumnIndex].Name;
+            if (colName != "ID_Code") return;
+
+            var item = _importQueue[e.RowIndex];
+            frmCreateItemCode frmCreateItemCode = new frmCreateItemCode();
+            frmCreateItemCode.ShowDialog();
+
+            if (string.IsNullOrEmpty(frmCreateItemCode.itemCode)) return;
+
+            _importQueue[e.RowIndex].ID_Code = frmCreateItemCode.itemCode;
+            dgvImportQueue.CurrentRow.Cells[colName].Value = frmCreateItemCode.itemCode;
         }
 
         private void BuildStockTab_V2(TabPage parent)
@@ -762,172 +780,37 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        //public void PrintBill(DataTable dtDetails)
-        //{
-        //    //Lấy thông tin PO
-        //    DataRowView row = (DataRowView)dgvImport.CurrentRow.DataBoundItem;
-        //    var billNo = row["Import_No"].ToString();
-        //    var poNO = billNo.Replace("PNK-", "");
-        //    var poModel = _poService.GetPOByPONo(poNO);
-
-        //    // Lấy thông tin supplier
-        //    var supplier = new SupplierService().GetBySupId(poModel.Supplier_ID);
-
-
-        //    // Lấy thông tin project
-        //    var projects = new ProjectService().GetByProjectCode(poModel.Notes);
-
-        //    // Đường dẫn template
-        //    string templatePath = Path.Combine(Application.StartupPath, "Templates", "pnk_template.xlsx");
-        //    if (!File.Exists(templatePath))
-        //    {
-        //        MessageBox.Show("Không tìm thấy file template!\nVui lòng đặt file template.xlsx vào thư mục Templates.", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        //        return;
-        //    }
-
-        //    // Chọn nơi lưu file
-        //    var saveDialog = new SaveFileDialog
-        //    {
-        //        Title = "Lưu file PO",
-        //        Filter = "Excel Files|*.xlsx",
-        //        FileName = $"{billNo}_{DateTime.Now:ddMMyyyy}",
-        //        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
-        //    };
-        //    if (saveDialog.ShowDialog() != DialogResult.OK) return;
-
-        //    // Thiết lập bản quyền EPPlus
-        //    ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
-
-        //    FileInfo templateFile = new FileInfo(templatePath);
-        //    FileInfo newFile = new FileInfo(savePath);
-
-        //    using (ExcelPackage package = new ExcelPackage(newFile, templateFile))
-        //    {
-        //        // Lấy Worksheet đầu tiên
-        //        ExcelWorksheet ws = package.Workbook.Worksheets[0];
-
-        //        // 1. ĐIỀN THÔNG TIN HEADER (Dựa trên các tag << >> trong template)
-        //        // Tìm và thay thế các biến trong vùng Header (Từ dòng 1 đến dòng 15)
-        //        var headerRange = ws.Cells["A1:J15"];
-        //        foreach (var cell in headerRange)
-        //        {
-        //            if (cell.Value == null) continue;
-        //            string txt = cell.Value.ToString();
-
-        //            if (txt.Contains("<<BILL_NO>>")) cell.Value = txt.Replace("<<BILL_NO>>", billNo);
-        //            if (txt.Contains("<<DATE>>")) cell.Value = txt.Replace("<<DATE>>", poModel.Created_Date.ToString());
-        //            if (txt.Contains("<<SUPPLIER_NAME>>")) cell.Value = txt.Replace("<<SUPPLIER_NAME>>", supplier.Company_Name);
-        //        }
-
-        //        // 2. ĐIỀN THÔNG TIN DỰ ÁN Ở PHẦN CUỐI (SHIPMENT DETAILS)
-        //        // Thông thường tag <<PROJECT_NAME>> nằm ở phía dưới bảng vật tư
-        //        var footerRange = ws.Cells["A20:J40"]; // Quét vùng rộng phía dưới
-        //        foreach (var cell in footerRange)
-        //        {
-        //            if (cell.Value == null) continue;
-        //            string txt = cell.Value.ToString();
-        //            if (txt.Contains("<<PROJECT_NAME>>")) cell.Value = txt.Replace("<<PROJECT_NAME>>", projects.ProjectName);
-        //            if (txt.Contains("<<PROJECT_CODE>>")) cell.Value = txt.Replace("<<PROJECT_CODE>>", projects.ProjectCode);
-        //            if (txt.Contains("<<PROJECT_WO_NO>>")) cell.Value = txt.Replace("<<PROJECT_WO_NO>>", projects.WorkorderNo);
-        //            if (txt.Contains("<<MPR_NO>>")) cell.Value = txt.Replace("<<MPR_NO>>", poModel.MPR_No);
-        //            if (txt.Contains("<<PO_NO>>")) cell.Value = txt.Replace("<<PO_NO>>", poModel.PONo);
-        //        }
-
-
-        //        // 3. ĐIỀN DANH SÁCH VẬT TƯ (BẮT ĐẦU TỪ DÒNG CÓ TIÊU ĐỀ "No.")
-        //        int startRow = 15; // Theo template, bảng bắt đầu khoảng dòng 15-16
-        //        for (int r = 1; r <= 20; r++)
-        //        {
-        //            if (ws.Cells[r, 1].Value?.ToString().Trim().ToUpper() == "NO.")
-        //            {
-        //                startRow = r + 1;
-        //                break;
-        //            }
-        //        }
-
-        //        int count = dtDetails.Rows.Count;
-        //        if (count > 1)
-        //        {
-        //            // Chèn thêm dòng nếu cần (giữ lại định dạng của dòng startRow)
-        //            ws.InsertRow(startRow + 1, count - 1);
-        //            for (int i = 1; i < count; i++)
-        //            {
-        //                ws.Cells[startRow, 1, startRow, 10].Copy(ws.Cells[startRow + i, 1]);
-        //            }
-        //        }
-
-        //        decimal totalSum = 0;
-
-        //        // Đổ dữ liệu từ DataTable/Grid vào bảng
-        //        for (int i = 0; i < count; i++)
-        //        {
-        //            DataRow dr = dtDetails.Rows[i];
-        //            int currentRow = startRow + i;
-
-        //            ws.Cells[currentRow, 1].Value = i + 1; // NO.
-        //            ws.Cells[currentRow, 2].Value = dr["Material_Code"];
-        //            ws.Cells[currentRow, 3].Value = dr["Material_Size"];
-        //            // Cột 4 thường để trống hoặc merge theo template
-        //            ws.Cells[currentRow, 5].Value = dr["Qty"];
-        //            ws.Cells[currentRow, 6].Value = dr["Unit"];
-        //            ws.Cells[currentRow, 7].Value = dr["Weight"];
-        //            ws.Cells[currentRow, 8].Value = dr["Price"];
-        //            ws.Cells[currentRow, 9].Value = dr["Amount"];
-        //            ws.Cells[currentRow, 10].Value = dr["Remarks"];
-
-        //            totalSum += Convert.ToDecimal(dr["Qty"] ?? 0);
-        //        }
-
-        //        // 4. ĐIỀN TỔNG CỘNG (Tag <<SUM>>)
-        //        // Tìm ô chứa <<SUM>> để điền tổng số lượng
-        //        var sumCell = ws.Cells["A1:J50"].FirstOrDefault(c => c.Value?.ToString().Contains("<<SUM>>") == true);
-        //        if (sumCell != null)
-        //        {
-        //            sumCell.Value = sumCell.Value.ToString().Replace("<<SUM>>", totalSum.ToString("N0"));
-        //        }
-
-        //        // Lưu file
-        //        if (!Directory.Exists(Path.GetDirectoryName(savePath)))
-        //        {
-        //            Directory.CreateDirectory(Path.GetDirectoryName(savePath));
-        //        }
-        //        package.Save();
-        //    }
-
-        //    // Tự động mở file sau khi xuất
-        //    //Process.Start(new ProcessStartInfo(savePath) { UseShellExecute = true });
-        //    // Mở file sau khi xuất
-        //    var result = MessageBox.Show(
-        //        $"✅ Xuất Excel thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file không?",
-        //        "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-        //    if (result == DialogResult.Yes)
-        //        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-        //        {
-        //            FileName = saveDialog.FileName,
-        //            UseShellExecute = true
-        //        });
-        //}
-
         private void BtnSave_Click(object? sender, EventArgs e)
         {
+            foreach (DataGridViewRow item in dgvImportQueue.Rows)
+            {
+                if (string.IsNullOrEmpty(item.Cells["ID_Code"].Value.ToString()))
+                {
+                    MessageBox.Show($"Hãy tạo code cho item: {item.Cells["Item_Name"].Value.ToString()}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+            }
+
             if (_importQueue.Count == 0) { MessageBox.Show("Danh sách phiếu đang trống!\nHãy thêm vật tư trước.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             try
             {
                 int saved = 0;
-                foreach (var imp in _importQueue) 
-                { 
-                    imp.Import_Date = DateTime.Now; 
+                foreach (var imp in _importQueue)
+                {
+                    imp.Import_Date = DateTime.Now;
                     _service.InsertImport(imp, _currentUser);
-                    saved++; 
+                    saved++;
                 }
                 MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
-                RefreshQueueGrid(); 
+                RefreshQueueGrid();
                 LoadAll();
             }
             catch (Exception ex) { MessageBox.Show("Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
 
         }
+
+
 
         private void LoadAll()
         {
