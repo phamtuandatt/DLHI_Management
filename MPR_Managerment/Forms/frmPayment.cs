@@ -49,6 +49,9 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvDebtSupp, dgvDebtDetail;
         private Label lblSumValue, lblSumPaid, lblSumDebt, lblSumOverdue;
         private Button btnExportDebt;
+        // Làm mới dữ liệu PO mỗi 5 phút
+        private Button btnRefreshPO;
+        
 
         // =====================================================================
         public frmPayment()
@@ -101,6 +104,12 @@ namespace MPR_Managerment.Forms
             cboStatusFilter = Cbo(pFilter, 363, 8, 180,
                 new[] { "Tất cả", "Chưa TT", "Một phần", "Đã TT đủ", "⚠ Quá hạn" });
             cboStatusFilter.SelectedIndexChanged += (s, e) => FilterAndBind();
+
+            btnRefreshPO = Btn("🔄 Làm mới", Color.FromArgb(0, 120, 212), 555, 8, 105, 26);
+            btnRefreshPO.Click += (s, e) => LoadPOSummary();
+            pFilter.Controls.Add(btnRefreshPO);
+
+
 
             // --- Grid PO list ---
             panelTop = P(tabPO, 5, 52, 0, 190, Color.White);
@@ -366,8 +375,15 @@ namespace MPR_Managerment.Forms
 
         private void LoadPOSummary()
         {
-            try { _poSummaries = _svc.GetPOSummaries();/* FilterAndBind();*/ }
-            catch (Exception ex) { Err(ex.Message); }
+            try
+            {
+                _poSummaries = _svc.GetPOSummaries();
+                FilterAndBind(); // Đã mở comment để tự áp dụng lại bộ lọc đang có
+            }
+            catch (Exception ex)
+            {
+                Err(ex.Message);
+            }
         }
 
         private void FilterAndBind()
@@ -376,33 +392,63 @@ namespace MPR_Managerment.Forms
             string status = cboStatusFilter.SelectedItem?.ToString() ?? "Tất cả";
 
             var list = _poSummaries;
+
+            // 1. Lọc theo từ khóa tìm kiếm trước
             if (!string.IsNullOrEmpty(kw))
+            {
                 list = list.FindAll(p =>
                     (p.PONo ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                     (p.Project_Name ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                     (p.Supplier_Name ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase));
+            }
 
-            if (status == "⚠ Quá hạn")
-                list = list.FindAll(p => p.Is_Overdue);
-            else if (status != "Tất cả")
-                list = list.FindAll(p => p.Payment_Status == status);
-
-            dgvPO.DataSource = list.ConvertAll(p => new
+            // 2. Khởi tạo danh sách hiển thị và TÍNH TOÁN LẠI các con số thực tế
+            // 2. Khởi tạo danh sách hiển thị và TÍNH TOÁN LẠI các con số thực tế
+            var displayList = list.ConvertAll(p =>
             {
-                ID = p.PO_ID,
-                PO_No = p.PONo,
-                Ngay_PO = p.PO_Date.HasValue ? p.PO_Date.Value.ToString("dd/MM/yyyy") : "",
-                Ten_DA = p.Project_Name,
-                NCC = p.Supplier_Name,
-                Tong_PO = p.Total_PO_Amount.ToString("N0"),
-                Da_TT = p.Total_Paid.ToString("N0"),
-                Con_No = p.Amount_Remaining.ToString("N0"),
-                Pct = p.Percent_Paid.ToString("N1") + "%",
-                TT_Status = p.Payment_Status,
-                Den_Han = p.Next_Due_Date.HasValue ? p.Next_Due_Date.Value.ToString("dd/MM/yyyy") : "—",
-                Qua_Han = p.Is_Overdue ? "⚠ Quá hạn" : ""
+                // --- Logic tính toán số dư và % (như đã làm ở bước trước) ---
+                decimal totalPO = p.Total_PO_Amount;
+                decimal totalPaid = p.Total_Paid;
+                decimal remain = totalPO - totalPaid;
+                if (remain < 0) remain = 0;
+
+                decimal pct = totalPO > 0 ? (totalPaid / totalPO) * 100 : 0;
+                if (pct > 100) pct = 100;
+
+                string realStatus = "Chưa TT";
+                if (totalPaid >= totalPO && totalPO > 0) realStatus = "Đã TT đủ";
+                else if (totalPaid > 0) realStatus = "Một phần";
+
+                // --- LOGIC MỚI: Kiểm tra xem PO có được tạo trong 3 ngày gần nhất không ---
+                bool isNew = p.PO_Date.HasValue && (DateTime.Now - p.PO_Date.Value).TotalDays <= 3;
+                string poDisplayObj = isNew ? $"🔥 {p.PONo} (Mới)" : p.PONo;
+
+                return new
+                {
+                    ID = p.PO_ID,
+                    PO_No = poDisplayObj,                // Hiển thị thêm chữ (Mới) nếu <= 3 ngày
+                    Ngay_PO = p.PO_Date.HasValue ? p.PO_Date.Value.ToString("dd/MM/yyyy") : "",
+                    Ten_DA = p.Project_Name,
+                    NCC = p.Supplier_Name,
+                    Tong_PO = totalPO.ToString("N0"),
+                    Da_TT = totalPaid.ToString("N0"),
+                    Con_No = remain.ToString("N0"),
+                    Pct = pct.ToString("N1") + "%",
+                    TT_Status = realStatus,
+                    Den_Han = p.Next_Due_Date.HasValue ? p.Next_Due_Date.Value.ToString("dd/MM/yyyy") : "—",
+                    Qua_Han = p.Is_Overdue ? "⚠ Quá hạn" : "",
+                    Is_Overdue = p.Is_Overdue
+                };
             });
-            if (dgvPO.Columns.Contains("ID")) dgvPO.Columns["ID"].Visible = false;
+
+            // 3. Lọc theo Combobox Trạng thái (áp dụng trên trạng thái THỰC TẾ vừa tính)
+            if (status == "⚠ Quá hạn")
+                displayList = displayList.FindAll(p => p.Is_Overdue);
+            else if (status != "Tất cả")
+                displayList = displayList.FindAll(p => p.TT_Status == status);
+
+            // 4. Đổ dữ liệu lên Grid
+            dgvPO.DataSource = displayList;
         }
 
         private void LoadSchedHist()
