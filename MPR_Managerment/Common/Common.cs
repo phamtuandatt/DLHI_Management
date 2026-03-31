@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,6 +19,47 @@ namespace MPR_Managerment.Common
                     if (c is TextBox || c is ComboBox || c is DateTimePicker || c is NumericUpDown)
                         c.BringToFront();
                 }
+            }
+        }
+
+        public static void AutoCompleteComboboxValidating(ComboBox sender, CancelEventArgs e)
+        {
+            var cb = sender as ComboBox;
+            string typedText = cb.Text?.Trim();
+
+            if (string.IsNullOrEmpty(typedText))
+            {
+                cb.SelectedIndex = 0;
+                return;
+            }
+
+            bool matched = false;
+            string displayMember = cb.DisplayMember;
+
+            foreach (var item in cb.Items)
+            {
+                if (item is DataRowView drv)
+                {
+                    string value = drv[displayMember]?.ToString();
+
+                    if (value != null && value.Equals(typedText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        cb.SelectedItem = item;
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+
+            //if (!matched &&
+            //    cb.SelectedItem is DataRowView selected &&
+            //    selected[displayMember]?.ToString() != typedText)
+            //{
+            //    cb.SelectedIndex = 0;
+            //}
+            if (!matched)
+            {
+                cb.SelectedIndex = 0;
             }
         }
     }

@@ -13,6 +13,53 @@ namespace MPR_Managerment.Services
 {
     public class ProductServices
     {
+
+        public async Task<bool> SaveProduct_Async(ProductModel product, bool isUpdate)
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                // Chọn Procedure tương ứng
+                string procName = isUpdate ? "sp_UpdateProduct" : "sp_InsertProduct";
+                SqlCommand cmd = new SqlCommand(procName, conn);
+                cmd.CommandType = CommandType.StoredProcedure;
+
+                // Truyền tham số
+                if (isUpdate) cmd.Parameters.AddWithValue("@id", product.Id);
+
+                cmd.Parameters.AddWithValue("@name", product.Name ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@des_2", product.Des2 ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@code", product.Code ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@prod_material_code", product.ProdMaterialCode ?? (object)DBNull.Value);
+
+                // Các thông số kỹ thuật (Decimal)
+                cmd.Parameters.AddWithValue("@a_thinkness", product.A_Thickness ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@b_depth", product.B_Depth ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@c_witdth", product.C_Width ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@d_web", product.D_Web ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@e_flag", product.E_Flag ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@f_length", product.F_Length ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@g_weight", product.G_Weight ?? (object)DBNull.Value);
+
+                cmd.Parameters.AddWithValue("@used_note", product.UsedNote ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@prod_origin_id", product.ProdOriginId);
+                cmd.Parameters.AddWithValue("@prod_standard_id", product.ProdStandardId);
+                cmd.Parameters.AddWithValue("@prod_material_cate_id", product.ProdMaterialCateId);
+                cmd.Parameters.AddWithValue("@prod_material_id", product.ProdMaterialId);
+                cmd.Parameters.AddWithValue("@prod_material_detail_id", product.ProdMaterialDetailId);
+
+                try
+                {
+                    await conn.OpenAsync();
+                    int rows = await cmd.ExecuteNonQueryAsync();
+                    return rows > 0;
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception("Lỗi Database: " + ex.Message);
+                }
+            }
+        }
+
         public async Task<DataTable> GetMaterialCates()
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())

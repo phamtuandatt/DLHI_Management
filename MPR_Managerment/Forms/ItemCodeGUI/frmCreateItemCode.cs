@@ -205,5 +205,26 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             itemCode = string.Empty;
             this.Close();
         }
+
+        private void cboMaterialCate_Validating(object sender, CancelEventArgs e)
+        {
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
+        private void cboMaterial_Validating(object sender, CancelEventArgs e)
+        {
+            if (cboMaterial.Items.Count <= 0) return;
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
+        private void cboOriginal_Validating(object sender, CancelEventArgs e)
+        {
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
+        private void cboStandard_Validating(object sender, CancelEventArgs e)
+        {
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
     }
 }

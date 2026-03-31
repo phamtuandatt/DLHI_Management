@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.SqlClient;
+using Microsoft.IdentityModel.Tokens;
 using MPR_Managerment.Forms.ItemCodeGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -37,6 +38,7 @@ namespace MPR_Managerment.Forms
         private POService _poService = new POService();
         private WarehouseLocationService _warehouseService = new WarehouseLocationService();
         private string _currentUser = "Admin";
+        private ProductServices _productServices = new ProductServices();
 
         private List<WarehouseImport> _imports = new List<WarehouseImport>();
         private List<WarehouseImport> _importQueue = new List<WarehouseImport>();
@@ -54,7 +56,7 @@ namespace MPR_Managerment.Forms
         private Label lblStockTotal, lblStockQty, lblStockWeight;
         private Panel panelStockSummary;
 
-        private POService _poServices = new POService();
+        //private POService _poServices = new POService();
 
         public frmWarehouses_v2()
         {
@@ -780,7 +782,7 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        private void BtnSave_Click(object? sender, EventArgs e)
+        private async void BtnSave_Click(object? sender, EventArgs e)
         {
             foreach (DataGridViewRow item in dgvImportQueue.Rows)
             {
@@ -800,6 +802,16 @@ namespace MPR_Managerment.Forms
                     imp.Import_Date = DateTime.Now;
                     _service.InsertImport(imp, _currentUser);
                     saved++;
+
+                    var pModel = new ProductModel()
+                    {
+                        Name = imp.Item_Name,
+                        Des2 = imp.Size,
+                        Code = imp.ID_Code,
+                        ProdMaterialCode = imp.Material
+                    };
+                    var rs = await _productServices.SaveProduct_Async(pModel, false);
+                        
                 }
                 MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;

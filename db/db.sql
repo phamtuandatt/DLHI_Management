@@ -109,3 +109,96 @@ BEGIN
     -- Return the next item number
     SELECT @NEXT_ITEM_NUMBER AS NEXT_ITEM_NUMBER
 END
+
+--=========================================================================================================
+CREATE PROCEDURE [dbo].[sp_InsertProduct]
+    @name NVARCHAR(255),
+    @des_2 NVARCHAR(MAX),
+    @code NVARCHAR(100),
+    @prod_material_code NVARCHAR(100),
+    @a_thinkness VARCHAR(50),
+    @b_depth VARCHAR(50),
+    @c_witdth VARCHAR(50),
+    @d_web VARCHAR(50),
+    @e_flag VARCHAR(50),
+    @f_length VARCHAR(50),
+    @g_weight VARCHAR(50),
+    @used_note NVARCHAR(MAX),
+    @prod_origin_id INT,
+    @prod_standard_id INT,
+    @prod_material_cate_id INT,
+    @prod_material_id INT,
+    @prod_material_detail_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO [dbo].[Products] (
+        [name], [des_2], [code], [prod_material_code],
+        [a_thinkness], [b_depth], [c_witdth], [d_web], [e_flag], [f_length], [g_weight],
+        [used_note], [prod_origin_id], [prod_standard_id], 
+        [prod_material_cate_id], [prod_material_id], [prod_material_detail_id]
+    )
+    VALUES (
+        @name, @des_2, @code, @prod_material_code,
+        @a_thinkness, @b_depth, @c_witdth, @d_web, @e_flag, @f_length, @g_weight,
+        @used_note, @prod_origin_id, @prod_standard_id, 
+        @prod_material_cate_id, @prod_material_id, @prod_material_detail_id
+    );
+
+    -- Trả về ID vừa tạo để sử dụng ở C# nếu cần
+    SELECT SCOPE_IDENTITY() AS NewID;
+END
+GO
+
+GO
+CREATE PROCEDURE [dbo].[sp_UpdateProduct]
+	@id INT, -- Cần ID để xác định dòng cần sửa
+    @name NVARCHAR(255),
+    @des_2 NVARCHAR(MAX),
+    @code NVARCHAR(100),
+    @prod_material_code NVARCHAR(100),
+    @a_thinkness VARCHAR(50),
+    @b_depth VARCHAR(50),
+    @c_witdth VARCHAR(50),
+    @d_web VARCHAR(50),
+    @e_flag VARCHAR(50),
+    @f_length VARCHAR(50),
+    @g_weight VARCHAR(50),
+    @used_note NVARCHAR(MAX),
+    @prod_origin_id INT,
+    @prod_standard_id INT,
+    @prod_material_cate_id INT,
+    @prod_material_id INT,
+    @prod_material_detail_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE [dbo].[Products]
+    SET 
+		[name] = @name,
+        [des_2] = @des_2,
+        [code] = @code,
+        [prod_material_code] = @prod_material_code,
+        [a_thinkness] = @a_thinkness,
+        [b_depth] = @b_depth,
+        [c_witdth] = @c_witdth,
+        [d_web] = @d_web,
+        [e_flag] = @e_flag,
+        [f_length] = @f_length,
+        [g_weight] = @g_weight,
+        [used_note] = @used_note,
+        [prod_origin_id] = @prod_origin_id,
+        [prod_standard_id] = @prod_standard_id,
+        [prod_material_cate_id] = @prod_material_cate_id,
+        [prod_material_id] = @prod_material_id,
+        [prod_material_detail_id] = @prod_material_detail_id
+    WHERE [id] = @id;
+END
+GO
+
+	SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
+	FROM Warehouse_Import
+	WHERE Project_Code = '2508-DPCII'
+	GROUP BY Item_Name, Material, Size, ID_Code
