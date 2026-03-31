@@ -62,7 +62,6 @@ namespace MPR_Managerment.Forms
                 Location = new Point(15, 10),
                 Size = new Size(500, 28)
             });
-
             var btnRefreshAll = new Button
             {
                 Text = "🔄 Làm mới tất cả",
@@ -93,7 +92,6 @@ namespace MPR_Managerment.Forms
                 Padding = new Point(20, 5),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
             };
-
             tabPO = new TabPage("🛒  Tiến độ giao hàng PO");
             tabMPR = new TabPage("📋  Tiến độ đặt hàng MPR");
             tabRIR = new TabPage("📦  Tiến độ kiểm tra RIR theo PO");
@@ -119,7 +117,6 @@ namespace MPR_Managerment.Forms
         private void BuildPOTab()
         {
             tabPO.BackColor = Color.FromArgb(245, 245, 245);
-
             panelPOSummary = new Panel
             {
                 Location = new Point(10, 10),
@@ -176,7 +173,6 @@ namespace MPR_Managerment.Forms
         private void BuildMPRTab()
         {
             tabMPR.BackColor = Color.FromArgb(245, 245, 245);
-
             panelMPRSummary = new Panel
             {
                 Location = new Point(10, 10),
@@ -226,13 +222,26 @@ namespace MPR_Managerment.Forms
 
             dgvMPR = BuildGrid(tabMPR, 150);
             dgvMPR.RowPrePaint += DgvMPR_RowPrePaint;
+            dgvMPR.CellDoubleClick += DgvMPR_CellDoubleClick; // MỞ FORM MPR KHI DOUBLE CLICK
+        }
+
+        private void DgvMPR_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            // Lấy MPR_ID từ dòng được click (cột này đã bị ẩn)
+            var row = dgvMPR.Rows[e.RowIndex];
+            int mprId = Convert.ToInt32(row.Cells["MPR_ID"].Value);
+
+            // Mở form frmMPR và truyền MPR_ID sang
+            var frm = new frmMPR(mprId);
+            frm.Show();
         }
 
         // ===== RIR TAB =====
         private void BuildRIRTab()
         {
             tabRIR.BackColor = Color.FromArgb(245, 245, 245);
-
             panelRIRSummary = new Panel
             {
                 Location = new Point(10, 10),
@@ -413,7 +422,9 @@ namespace MPR_Managerment.Forms
             var btn = new Button { Text = text, Location = loc, Size = new Size(w, h), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
             btn.FlatAppearance.BorderSize = 0;
             return btn;
-        }// ===== LOAD DATA =====
+        }
+
+        // ===== LOAD DATA =====
         private void LoadData()
         {
             LoadPOData();
@@ -437,26 +448,26 @@ namespace MPR_Managerment.Forms
                 string sql = $@"
                     SELECT
                         h.PO_ID,
-                        h.PONo                                              AS [PO No],
-                        h.Project_Name                                      AS [Dự án],
-                        h.MPR_No                                            AS [MPR No],
-                        h.PO_Date                                           AS [Ngày PO],
-                        h.Status                                            AS [Trạng thái],
-                        h.Revise                                            AS [Rev],
-                        COUNT(d.PO_Detail_ID)                               AS [Tổng items],
-                        ISNULL(SUM(d.Qty_Per_Sheet), 0)                    AS [Tổng SL đặt],
-                        ISNULL(SUM(d.Received), 0)                         AS [Tổng SL nhận],
+                        h.PONo                             AS [PO No],
+                        h.Project_Name                     AS [Dự án],
+                        h.MPR_No                           AS [MPR No],
+                        h.PO_Date                          AS [Ngày PO],
+                        h.Status                           AS [Trạng thái],
+                        h.Revise                           AS [Rev],
+                        COUNT(d.PO_Detail_ID)              AS [Tổng items],
+                        ISNULL(SUM(d.Qty_Per_Sheet), 0)    AS [Tổng SL đặt],
+                        ISNULL(SUM(d.Received), 0)         AS [Tổng SL nhận],
                         CASE
                             WHEN ISNULL(SUM(d.Qty_Per_Sheet), 0) = 0 THEN 0
                             ELSE CAST(SUM(d.Received) * 100.0 / SUM(d.Qty_Per_Sheet) AS DECIMAL(5,1))
-                        END                                                 AS [% Giao hàng],
-                        MIN(d.RequestDay)                                   AS [Ngày giao sớm nhất],
+                        END                                AS [% Giao hàng],
+                        MIN(d.RequestDay)                  AS [Ngày giao sớm nhất],
                         CASE
                             WHEN MIN(d.RequestDay) < GETDATE()
                              AND ISNULL(SUM(d.Received), 0) < ISNULL(SUM(d.Qty_Per_Sheet), 0)
                             THEN N'⚠ Quá hạn'
                             ELSE N'✅ Đúng hạn'
-                        END                                                 AS [Cảnh báo]
+                        END                                AS [Cảnh báo]
                     FROM PO_head h
                     LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
                     {where}
@@ -525,6 +536,7 @@ namespace MPR_Managerment.Forms
             var row = dgvPO.Rows[e.RowIndex];
             string canh = row.Cells["Cảnh báo"].Value?.ToString() ?? "";
             string status = row.Cells["Trạng thái"].Value?.ToString() ?? "";
+
             if (canh.Contains("Quá")) row.DefaultCellStyle.BackColor = Color.FromArgb(255, 235, 235);
             else if (status == "Completed") row.DefaultCellStyle.BackColor = Color.FromArgb(235, 255, 235);
             else if (status == "In Progress" || status == "Approved")
@@ -547,24 +559,24 @@ namespace MPR_Managerment.Forms
                 string sql = $@"
                     SELECT
                         h.MPR_ID,
-                        h.MPR_No                                            AS [MPR No],
-                        h.Project_Name                                      AS [Dự án],
-                        h.Requestor                                         AS [Người YC],
-                        h.Required_Date                                     AS [Ngày cần],
-                        h.Status                                            AS [Trạng thái],
-                        h.Rev                                               AS [Rev],
-                        COUNT(DISTINCT d.Detail_ID)                         AS [Tổng items],
-                        COUNT(DISTINCT po.PO_ID)                           AS [Số PO],
+                        h.MPR_No                           AS [MPR No],
+                        h.Project_Name                     AS [Dự án],
+                        h.Requestor                        AS [Người YC],
+                        h.Required_Date                    AS [Ngày cần],
+                        h.Status                           AS [Trạng thái],
+                        h.Rev                              AS [Rev],
+                        COUNT(DISTINCT d.Detail_ID)        AS [Tổng items],
+                        COUNT(DISTINCT po.PO_ID)           AS [Số PO],
                         CASE
                             WHEN COUNT(DISTINCT po.PO_ID) > 0 THEN N'✅ Đã có PO'
                             ELSE N'❌ Chưa có PO'
-                        END                                                 AS [Tình trạng PO],
+                        END                                AS [Tình trạng PO],
                         CASE
                             WHEN COUNT(DISTINCT d.Detail_ID) = 0 THEN 0
                             ELSE CAST(COUNT(DISTINCT pod.PO_Detail_ID) * 100.0 / COUNT(DISTINCT d.Detail_ID) AS DECIMAL(5,1))
-                        END                                                 AS [% Item đặt hàng],
+                        END                                AS [% Item đặt hàng],
                         DATEDIFF(DAY, h.Created_Date, MIN(po.Created_Date)) AS [Ngày đến PO],
-                        h.Created_Date                                      AS [Ngày tạo]
+                        h.Created_Date                     AS [Ngày tạo]
                     FROM MPR_Header h
                     LEFT JOIN MPR_Details d   ON h.MPR_ID = d.MPR_ID
                     LEFT JOIN PO_head po      ON po.MPR_No = h.MPR_No
@@ -641,6 +653,7 @@ namespace MPR_Managerment.Forms
             var row = dgvMPR.Rows[e.RowIndex];
             string tinh = row.Cells["Tình trạng PO"].Value?.ToString() ?? "";
             string status = row.Cells["Trạng thái"].Value?.ToString() ?? "";
+
             if (status == "Hoàn thành") row.DefaultCellStyle.BackColor = Color.FromArgb(235, 255, 235);
             else if (tinh.Contains("Chưa có")) row.DefaultCellStyle.BackColor = Color.FromArgb(255, 235, 235);
             else row.DefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
@@ -670,8 +683,8 @@ namespace MPR_Managerment.Forms
                         h.Customer                                          AS [Khách hàng],
                         h.Status                                            AS [Trạng thái],
                         COUNT(d.RIR_Detail_ID)                              AS [Tổng items],
-                        ISNULL(SUM(d.Qty_Required), 0)                     AS [Tổng SL YC],
-                        ISNULL(SUM(d.Qty_Received), 0)                     AS [Tổng SL nhận],
+                        ISNULL(SUM(d.Qty_Required), 0)                      AS [Tổng SL YC],
+                        ISNULL(SUM(d.Qty_Received), 0)                      AS [Tổng SL nhận],
                         COUNT(CASE WHEN d.Inspect_Result = 'Pass' THEN 1 END) AS [Pass],
                         COUNT(CASE WHEN d.Inspect_Result = 'Fail' THEN 1 END) AS [Fail],
                         COUNT(CASE WHEN d.Inspect_Result = 'Hold' THEN 1 END) AS [Hold],
@@ -748,11 +761,13 @@ namespace MPR_Managerment.Forms
             if (e.RowIndex < 0 || dgvRIR.Rows[e.RowIndex].IsNewRow) return;
             var row = dgvRIR.Rows[e.RowIndex];
             string status = row.Cells["Trạng thái"].Value?.ToString() ?? "";
+
             if (status == "Hoàn thành") row.DefaultCellStyle.BackColor = Color.FromArgb(235, 255, 235);
             else if (status == "Đang kiểm tra") row.DefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
             else row.DefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
         }
-    private void DgvRIR_SelectionChanged(object sender, EventArgs e)
+
+        private void DgvRIR_SelectionChanged(object sender, EventArgs e)
         {
             if (dgvRIR.SelectedRows.Count == 0) return;
             var row = dgvRIR.SelectedRows[0];
@@ -781,7 +796,7 @@ namespace MPR_Managerment.Forms
                         d.MTRno                                             AS [MTR No],
                         d.Heatno                                            AS [Heat No],
                         d.ID_Code                                           AS [ID Code],
-                        ISNULL(d.Inspect_Result, N'Chưa KT')               AS [Kết quả KT]
+                        ISNULL(d.Inspect_Result, N'Chưa KT')                AS [Kết quả KT]
                     FROM RIR_head h
                     INNER JOIN RIR_detail d ON h.RIR_ID = d.RIR_ID
                     WHERE h.PONo = N'{poNo}'
