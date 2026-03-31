@@ -642,10 +642,12 @@ namespace MPR_Managerment.Forms
                 var project = projects.Find(p => p.WorkorderNo == po.WorkorderNo);
 
                 // Đường dẫn template
-                string templatePath = Path.Combine(Application.StartupPath, "Templates", "template.xlsx");
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "po_template.xlsx");
+
                 if (!File.Exists(templatePath))
                 {
-                    MessageBox.Show("Không tìm thấy file template!\nVui lòng đặt file template.xlsx vào thư mục Templates.", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"Lỗi: Không tìm thấy file template!\nĐường dẫn dự kiến: {templatePath}",
+                                    "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 

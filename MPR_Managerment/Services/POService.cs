@@ -21,14 +21,14 @@ namespace MPR_Managerment.Services
             return list;
         }
 
-        public POHead GetPOByPONo(string poNO)
+        public POHead GetPOByPONo(int poId)
         {
             var poModel = new POHead();
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                var cmd = new SqlCommand("SELECT TOP 1 * FROM PO_head WHERE PONo LIKE @kw", conn);
-                cmd.Parameters.AddWithValue("@kw", $"%{poNO}%");
+                var cmd = new SqlCommand("SELECT TOP 1 * FROM PO_head WHERE PO_ID = @kw", conn);
+                cmd.Parameters.AddWithValue("@kw", $"{poId}");
                 var r = cmd.ExecuteReader();
                 while (r.Read())
                 {

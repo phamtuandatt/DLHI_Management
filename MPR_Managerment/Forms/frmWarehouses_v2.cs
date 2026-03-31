@@ -3,6 +3,7 @@ using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml;
+using OfficeOpenXml.Packaging.Ionic.Zlib;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -598,14 +599,14 @@ namespace MPR_Managerment.Forms
             if (dgvImport.Rows.Count <= 0) return;
             int rsl = dgvImport.CurrentRow.Index;
             var billNo = dgvImport.Rows[rsl].Cells[1].Value.ToString();
+            var poID = Convert.ToInt32(dgvImport.Rows[rsl].Cells[13].Value.ToString());
 
-            var dtImports = await _service.GetImportRows(billNo);
-
-            PrintBill(dtImports);
+            var dtImports = await _service.GetImportRows(billNo, poID);
+            PrintBill(dtImports, poID);
 
         }
 
-        public void PrintBill(DataTable dtDetails)
+        public void PrintBill(DataTable dtDetails, int poId)
         {
             try
             {
@@ -619,20 +620,22 @@ namespace MPR_Managerment.Forms
                 int rsl = dgvImport.CurrentRow.Index;
                 var billNo = dgvImport.Rows[rsl].Cells[1].Value.ToString();
                 // Giả sử logic lấy PO No của bạn là xóa tiền tố "PNK-"
-                var poNO = billNo.Replace("PNK-", "");
+                //var poNO = billNo.Replace("PNK-", "");
 
                 // Gọi Service lấy dữ liệu liên quan
-                var poModel = _poService.GetPOByPONo(poNO);
+                var poModel = _poService.GetPOByPONo(poId);
                 if (poModel == null) throw new Exception("Không tìm thấy thông tin PO tương ứng.");
 
                 var supplier = new SupplierService().GetBySupId(poModel.Supplier_ID);
                 var projects = new ProjectService().GetByProjectCode(poModel.Notes);
 
                 // 2. Thiết lập đường dẫn Template
-                string templatePath = Path.Combine(Application.StartupPath, "Templates", "pnk_template.xlsx");
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pnk_template.xlsx");
+
                 if (!File.Exists(templatePath))
                 {
-                    MessageBox.Show($"Không tìm thấy file template tại:\n{templatePath}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"Lỗi: Không tìm thấy file template!\nĐường dẫn dự kiến: {templatePath}",
+                                    "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -662,7 +665,7 @@ namespace MPR_Managerment.Forms
                     ExcelWorksheet ws = package.Workbook.Worksheets[0];
 
                     // --- ĐIỀN THÔNG TIN HEADER ---
-                    var headerRange = ws.Cells["A1:J15"];
+                    var headerRange = ws.Cells["A1:J13"];
                     foreach (var cell in headerRange)
                     {
                         if (cell.Value == null) continue;
@@ -674,7 +677,7 @@ namespace MPR_Managerment.Forms
                     }
 
                     // --- ĐIỀN THÔNG TIN FOOTER ---
-                    var footerRange = ws.Cells["A20:J50"];
+                    var footerRange = ws.Cells["A18:J50"];
                     foreach (var cell in footerRange)
                     {
                         if (cell.Value == null) continue;
@@ -1009,7 +1012,9 @@ namespace MPR_Managerment.Forms
                     ID_Code = i.ID_Code,
                     MTR_No = i.MTRno,
                     Ma_DA = i.Project_Code,
-                    Vi_Tri = i.Location
+                    Vi_Tri = i.Location,
+
+                    PO_ID = i.PO_ID
                 });
                 if (dgvImport.Columns.Contains("ID")) dgvImport.Columns["ID"].Visible = false;
                 //if (lblImportStatus != null) lblImportStatus.Text = $"Tổng: {_imports.Count} bản ghi";
