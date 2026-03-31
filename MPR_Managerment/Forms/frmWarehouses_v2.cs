@@ -1,5 +1,4 @@
 ﻿using Microsoft.Data.SqlClient;
-using MPR_Managerment.Forms.ItemCodeGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
@@ -279,7 +278,6 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.CellBeginEdit += DgvImportQueue_CellBeginEdit;
             dgvImportQueue.CellEndEdit += DgvImportQueue_CellEndEdit;
             dgvImportQueue.EditingControlShowing += DgvImportQueue_EditingControlShowing;
-            dgvImportQueue.CellDoubleClick += DgvImportQueue_CellDoubleClick;
 
             gbDetails.Controls.AddRange(new Control[] { lblDetail, btnDeleteRow, dgvImportQueue });
 
@@ -341,22 +339,6 @@ namespace MPR_Managerment.Forms
             dgvImport.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
 
             gbHistory.Controls.AddRange(new Control[] { lblHistory, btnPrintPNK,/* btnDeleteFullBill,*/ dgvImport });
-        }
-
-        private void DgvImportQueue_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex < 0 || e.RowIndex >= _importQueue.Count) return;
-            string colName = dgvImportQueue.Columns[e.ColumnIndex].Name;
-            if (colName != "ID_Code") return;
-
-            var item = _importQueue[e.RowIndex];
-            frmCreateItemCode frmCreateItemCode = new frmCreateItemCode();
-            frmCreateItemCode.ShowDialog();
-
-            if (string.IsNullOrEmpty(frmCreateItemCode.itemCode)) return;
-
-            _importQueue[e.RowIndex].ID_Code = frmCreateItemCode.itemCode;
-            dgvImportQueue.CurrentRow.Cells[colName].Value = frmCreateItemCode.itemCode;
         }
 
         private void BuildStockTab_V2(TabPage parent)
@@ -928,28 +910,24 @@ namespace MPR_Managerment.Forms
 
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            frmCreateItemCode frmCreateItemCode = new frmCreateItemCode();
-            frmCreateItemCode.ShowDialog();
-            //if (_importQueue.Count == 0) { MessageBox.Show("Danh sách phiếu đang trống!\nHãy thêm vật tư trước.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-            //try
-            //{
-            //    int saved = 0;
-            //    foreach (var imp in _importQueue) 
-            //    { 
-            //        imp.Import_Date = DateTime.Now; 
-            //        _service.InsertImport(imp, _currentUser);
-            //        saved++; 
-            //    }
-            //    MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            //    _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
-            //    RefreshQueueGrid(); 
-            //    LoadAll();
-            //}
-            //catch (Exception ex) { MessageBox.Show("Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            if (_importQueue.Count == 0) { MessageBox.Show("Danh sách phiếu đang trống!\nHãy thêm vật tư trước.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            try
+            {
+                int saved = 0;
+                foreach (var imp in _importQueue) 
+                { 
+                    imp.Import_Date = DateTime.Now; 
+                    _service.InsertImport(imp, _currentUser);
+                    saved++; 
+                }
+                MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
+                RefreshQueueGrid(); 
+                LoadAll();
+            }
+            catch (Exception ex) { MessageBox.Show("Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
 
         }
-
-
 
         private void LoadAll()
         {
