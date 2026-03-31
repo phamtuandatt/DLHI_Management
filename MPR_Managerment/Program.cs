@@ -6,6 +6,7 @@
 using System;
 using System.Windows.Forms;
 using MPR_Managerment.Forms;
+using MPR_Managerment.Forms.ItemCodeGUI;
 
 namespace MPR_Managerment
 {
@@ -26,6 +27,7 @@ namespace MPR_Managerment
 
             // Đăng nhập thành công → mở Main
             Application.Run(new frmMain());
+            //Application.Run(new frmCreateItemCode());
         }
     }
 }
