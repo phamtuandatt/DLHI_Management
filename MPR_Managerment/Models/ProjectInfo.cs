@@ -20,5 +20,7 @@ namespace MPR_Managerment.Models
         public string MPR_Link { get; set; } = "";
         public DateTime? CreatedDate { get; set; }
         public DateTime? ModifiedDate { get; set; }
+
+        public string PNK_Link { get; set; }
     }
 }

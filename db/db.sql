@@ -198,7 +198,14 @@ BEGIN
 END
 GO
 
-	SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
-	FROM Warehouse_Import
-	WHERE Project_Code = '2508-DPCII'
-	GROUP BY Item_Name, Material, Size, ID_Code
+-- GROUP ID_CODE TO SHOW QTY
+	--SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
+	--FROM Warehouse_Import
+	--WHERE Project_Code = '2508-DPCII'
+	--GROUP BY Item_Name, Material, Size, ID_Code
+
+-- THÊM LINK LƯU PHIẾU XUẤT KHO
+ALTER TABLE ProjectInfo
+ADD PNK_LINK NVARCHAR(MAX)
+
+SELECT *FROM ProjectInfo

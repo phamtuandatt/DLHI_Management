@@ -649,29 +649,52 @@ namespace MPR_Managerment.Forms
                 var supplier = new SupplierService().GetBySupId(poModel.Supplier_ID);
                 var projects = new ProjectService().GetByProjectCode(poModel.Notes);
 
-                // 2. Thiết lập đường dẫn Template
+                //// 2. Thiết lập đường dẫn Template
+                //string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pnk_template.xlsx");
+
+                //if (!File.Exists(templatePath))
+                //{
+                //    MessageBox.Show($"Lỗi: Không tìm thấy file template!\nĐường dẫn dự kiến: {templatePath}",
+                //                    "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                //    return;
+                //}
+
+                //// 3. Hiển thị hộp thoại Lưu file
+                //var saveDialog = new SaveFileDialog
+                //{
+                //    Title = "Lưu phiếu nhập kho",
+                //    Filter = "Excel Files|*.xlsx",
+                //    FileName = $"PNK_{billNo}_{DateTime.Now:ddMMyyyy}",
+                //    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                //};
+
+                //if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+                //// ĐƯỜNG DẪN LƯU THỰC TẾ
+                //string actualSavePath = saveDialog.FileName;
+
+                // 2.THIẾT LẬP ĐƯỜNG DẪN TỰ ĐỘNG
+                // Đường dẫn Template (như đã sửa ở bước trước)
                 string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pnk_template.xlsx");
+
+                // Đường dẫn lưu file chỉ định (Ví dụ: Ổ D:\PhanMem\Exports\)
+                string exportFolder = projects.PNK_Link;
+
+                // Kiểm tra và tạo thư mục nếu chưa tồn tại
+                if (!Directory.Exists(exportFolder))
+                {
+                    Directory.CreateDirectory(exportFolder);
+                }
+
+                // Tự động tạo tên file: PNK_SốPhiếu_NgàyGiờ.xlsx
+                string fileName = $"PNK_{billNo}_{DateTime.Now:ddMMyyyy}.xlsx";
+                string actualSavePath = Path.Combine(exportFolder, fileName);
 
                 if (!File.Exists(templatePath))
                 {
-                    MessageBox.Show($"Lỗi: Không tìm thấy file template!\nĐường dẫn dự kiến: {templatePath}",
-                                    "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
-
-                // 3. Hiển thị hộp thoại Lưu file
-                var saveDialog = new SaveFileDialog
-                {
-                    Title = "Lưu phiếu nhập kho",
-                    Filter = "Excel Files|*.xlsx",
-                    FileName = $"PNK_{billNo}_{DateTime.Now:ddMMyyyy}",
-                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
-                };
-
-                if (saveDialog.ShowDialog() != DialogResult.OK) return;
-
-                // ĐƯỜNG DẪN LƯU THỰC TẾ
-                string actualSavePath = saveDialog.FileName;
 
                 // 4. Tiến hành xuất Excel bằng EPPlus
                 ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
