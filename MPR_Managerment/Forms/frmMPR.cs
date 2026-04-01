@@ -517,6 +517,7 @@ namespace MPR_Managerment.Forms
         }
 
         // ===== LOAD TỔNG HỢP TIẾN ĐỘ PO =====
+        // ===== LOAD TỔNG HỢP TIẾN ĐỘ PO =====
         private void LoadPOProgress(string mprNo)
         {
             if (string.IsNullOrEmpty(mprNo))
@@ -527,6 +528,7 @@ namespace MPR_Managerment.Forms
 
             try
             {
+                // Đã cập nhật SQL: Lấy tổng Qty_Import trực tiếp từ bảng Warehouse_Import
                 string sql = @"
                     SELECT
                         h.PONo AS [PO No],
@@ -534,12 +536,17 @@ namespace MPR_Managerment.Forms
                         h.Status AS [Trạng thái],
                         CASE
                             WHEN ISNULL(SUM(d.Qty_Per_Sheet), 0) = 0 THEN 0
-                            ELSE CAST(SUM(d.Received) * 100.0 / SUM(d.Qty_Per_Sheet) AS DECIMAL(5,1))
+                            ELSE CAST(
+                                ISNULL(
+                                    (SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID), 
+                                    ISNULL(SUM(d.Received), 0)
+                                ) * 100.0 / SUM(d.Qty_Per_Sheet) 
+                            AS DECIMAL(5,1))
                         END AS [% Giao]
                     FROM PO_head h
                     LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
                     WHERE h.MPR_No = @mprNo
-                    GROUP BY h.PONo, h.PO_Date, h.Status
+                    GROUP BY h.PO_ID, h.PONo, h.PO_Date, h.Status
                     ORDER BY h.PO_Date DESC";
 
                 using (var conn = DatabaseHelper.GetConnection())
