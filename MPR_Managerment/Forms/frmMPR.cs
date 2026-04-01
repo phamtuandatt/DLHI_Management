@@ -50,14 +50,14 @@ namespace MPR_Managerment.Forms
             this.Resize += FrmMPR_Resize;
             this.WindowState = FormWindowState.Maximized;
 
+            // Nếu được mở từ Dashboard, tự động focus vào MPR đó
             if (_targetMprId > 0)
             {
                 SelectMPRById(_targetMprId);
             }
         }
 
-        /// Tự động Select MPR trên Grid và dán lên thanh tìm kiếm
-       // Tự động Select MPR trên Grid, dán lên thanh tìm kiếm và TỰ ĐỘNG LỌC
+        // Tự động Select MPR trên Grid, dán lên thanh tìm kiếm và TỰ ĐỘNG LỌC
         private void SelectMPRById(int id)
         {
             // 1. Tìm MPR trong danh sách dữ liệu gốc
@@ -71,7 +71,7 @@ namespace MPR_Managerment.Forms
                 BtnSearch_Click(null, null);
             }
 
-            // 2. Chọn và focus vào dòng kết quả trên Grid (lúc này Grid đã được lọc, thường chỉ còn 1 dòng)
+            // 2. Chọn và focus vào dòng kết quả trên Grid
             foreach (DataGridViewRow row in dgvMPR.Rows)
             {
                 if (Convert.ToInt32(row.Cells["ID"].Value) == id)
@@ -330,9 +330,28 @@ namespace MPR_Managerment.Forms
             dgvPOProgress.EnableHeadersVisualStyles = false;
             dgvPOProgress.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
             dgvPOProgress.CellFormatting += DgvPOProgress_CellFormatting;
+
+            // SỰ KIỆN MỚI: DOUBLE CLICK ĐỂ MỞ FORM PO
+            dgvPOProgress.CellDoubleClick += DgvPOProgress_CellDoubleClick;
+
             panelDetail.Controls.Add(dgvPOProgress);
 
             Common.Common.AutoBringToFontControl(new[] { panelTop, panelHeader, panelDetail });
+        }
+
+        private void DgvPOProgress_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            // Lấy cột "PO No" từ dòng được click
+            string poNo = dgvPOProgress.Rows[e.RowIndex].Cells["PO No"].Value?.ToString() ?? "";
+
+            if (!string.IsNullOrEmpty(poNo))
+            {
+                // Mở form frmPO và truyền số PO sang
+                var frm = new frmPO(poNo);
+                frm.Show();
+            }
         }
 
         private void BuildDetailColumns()
@@ -517,7 +536,6 @@ namespace MPR_Managerment.Forms
         }
 
         // ===== LOAD TỔNG HỢP TIẾN ĐỘ PO =====
-        // ===== LOAD TỔNG HỢP TIẾN ĐỘ PO =====
         private void LoadPOProgress(string mprNo)
         {
             if (string.IsNullOrEmpty(mprNo))
@@ -528,7 +546,6 @@ namespace MPR_Managerment.Forms
 
             try
             {
-                // Đã cập nhật SQL: Lấy tổng Qty_Import trực tiếp từ bảng Warehouse_Import
                 string sql = @"
                     SELECT
                         h.PONo AS [PO No],

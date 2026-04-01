@@ -19,6 +19,9 @@ namespace MPR_Managerment.Forms
         private int _selectedPO_ID = 0;
         private string _currentUser = "Admin";
 
+        // Biến nhận mã PO từ form khác truyền sang
+        private string _targetPoNo = "";
+
         private DataGridView dgvPO;
         private TextBox txtSearch;
         private Button btnSearch, btnNewPO, btnDeletePO, btnClearHeader, btnExport, btnSavePO;
@@ -38,14 +41,46 @@ namespace MPR_Managerment.Forms
         private System.Data.DataTable _supplierTable;
         private bool _isSearching = false;
 
+        // Khai báo biến tạm lưu ProjectCode khi Import MPR
         private string _projectCodeImport = string.Empty;
 
-        public frmPO()
+        public frmPO(string poNo = "")
         {
+            _targetPoNo = poNo;
             InitializeComponent();
             BuildUI();
             LoadPO();
             this.Resize += FrmPO_Resize;
+
+            // Tự động tìm và bôi xanh PO nếu được truyền mã PO vào
+            if (!string.IsNullOrEmpty(_targetPoNo))
+            {
+                SelectPOByNo(_targetPoNo);
+            }
+        }
+
+        private void SelectPOByNo(string poNo)
+        {
+            var targetPO = _poList.Find(p => p.PONo == poNo);
+            if (targetPO != null)
+            {
+                txtSearch.Text = targetPO.PONo;
+                BtnSearch_Click(null, null);
+            }
+
+            foreach (DataGridViewRow row in dgvPO.Rows)
+            {
+                if (row.Cells["PO_No"].Value?.ToString() == poNo)
+                {
+                    dgvPO.ClearSelection();
+                    row.Selected = true;
+
+                    if (row.Index >= 0)
+                        dgvPO.FirstDisplayedScrollingRowIndex = row.Index;
+
+                    break;
+                }
+            }
         }
 
         private void BuildUI()
@@ -151,7 +186,7 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "MPR No:", 780, y);
             txtMPRNo = AddTxt(panelHeader, 865, y, 250);
 
-            // Row 2 - thêm Supplier
+            // Row 2 - Supplier
             y += 38;
             AddLabel(panelHeader, "Nhà cung cấp:", 10, y);
             cboSupplier = new ComboBox
@@ -169,7 +204,7 @@ namespace MPR_Managerment.Forms
             cboSupplier.KeyDown += CboSupplier_KeyDown;
             LoadSupplierCombo();
 
-            // Row 2
+            // Row 2 continued
             y += 38;
             AddLabel(panelHeader, "Ngày PO:", 10, y);
             dtpPODate = new DateTimePicker { Location = new Point(90, y), Size = new Size(140, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
@@ -288,7 +323,10 @@ namespace MPR_Managerment.Forms
             dgvDetails.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvDetails.EnableHeadersVisualStyles = false;
             dgvDetails.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+
             dgvDetails.CellEndEdit += DgvDetails_CellEndEdit;
+            dgvDetails.KeyDown += DgvDetails_KeyDown; // SỰ KIỆN COPY PASTE TỪ EXCEL
+
             BuildDetailColumns();
             panelDetail.Controls.Add(dgvDetails);
         }
@@ -815,15 +853,97 @@ namespace MPR_Managerment.Forms
         }
 
         // ===== SỰ KIỆN =====
-        private void DgvDetails_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+
+        // Bắt sự kiện bấm Ctrl + V
+        private void DgvDetails_KeyDown(object sender, KeyEventArgs e)
         {
-            var row = dgvDetails.Rows[e.RowIndex];
+            if (e.Control && e.KeyCode == Keys.V)
+            {
+                PasteFromExcel();
+                e.Handled = true;
+            }
+        }
+
+        // Hàm xử lý cắt dán từ Clipboard
+        private void PasteFromExcel()
+        {
+            try
+            {
+                string copiedData = Clipboard.GetText();
+                if (string.IsNullOrEmpty(copiedData)) return;
+
+                string[] lines = copiedData.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                if (lines.Length == 0) return;
+
+                int startRow = 0;
+                int startCol = 0;
+
+                if (dgvDetails.CurrentCell != null)
+                {
+                    startRow = dgvDetails.CurrentCell.RowIndex;
+                    startCol = dgvDetails.CurrentCell.ColumnIndex;
+                }
+
+                foreach (string line in lines)
+                {
+                    string[] cells = line.Split('\t');
+
+                    if (startRow >= dgvDetails.Rows.Count)
+                    {
+                        int nextItem = dgvDetails.Rows.Count + 1;
+                        int newIdx = dgvDetails.Rows.Add();
+                        var r = dgvDetails.Rows[newIdx];
+
+                        r.Cells["Item_No"].Value = nextItem;
+                        r.Cells["PO_Detail_ID"].Value = 0;
+                        r.Cells["UNIT"].Value = "PCS";
+                        r.Cells["Qty"].Value = 0;
+                        r.Cells["Weight"].Value = 0;
+                        r.Cells["Price"].Value = 0;
+                        r.Cells["VAT"].Value = 0;
+                        r.Cells["Amount"].Value = 0;
+                        r.Cells["Received"].Value = 0;
+                    }
+
+                    int colIndex = startCol;
+                    for (int i = 0; i < cells.Length; i++)
+                    {
+                        if (colIndex < dgvDetails.Columns.Count)
+                        {
+                            if (dgvDetails.Columns[colIndex].Visible && !dgvDetails.Columns[colIndex].ReadOnly)
+                            {
+                                dgvDetails.Rows[startRow].Cells[colIndex].Value = cells[i].Trim();
+                            }
+                            colIndex++;
+                        }
+                    }
+
+                    RecalculateAmount(startRow);
+                    startRow++;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi khi dán dữ liệu: " + ex.Message, "Lỗi Paste", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void RecalculateAmount(int rowIndex)
+        {
+            var row = dgvDetails.Rows[rowIndex];
             decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty);
             decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal price);
             decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
+
             decimal amount = qty * price * (1 + vat / 100);
             row.Cells["Amount"].Value = Math.Round(amount, 0);
+
             UpdateTotal();
+        }
+
+        private void DgvDetails_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+            RecalculateAmount(e.RowIndex);
         }
 
         private void BtnSearch_Click(object sender, EventArgs e)
@@ -940,7 +1060,6 @@ namespace MPR_Managerment.Forms
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
                     Revise = (int)nudRevise.Value,
 
-                    // Add SupplierID, ProjectCode
                     Supplier_ID = Convert.ToInt32(cboSupplier.SelectedValue ?? 0),
                     ProjectCode = _projectCodeImport
                 };
@@ -990,7 +1109,6 @@ namespace MPR_Managerment.Forms
 
                 MessageBox.Show($"Đã lưu toàn bộ PO thành công!\n- Số PO: {finalPONo}\n- Số dòng vật tư: {dgvDetails.Rows.Count}",
                                 "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
                 LoadPO();
                 LoadDetails(_selectedPO_ID);
             }
@@ -1070,7 +1188,6 @@ namespace MPR_Managerment.Forms
 
                     txtProjectName.Text = mpr.Project_Name;
                     txtMPRNo.Text = mpr.MPR_No;
-
                     try
                     {
                         var projects = new ProjectService().GetAll();
