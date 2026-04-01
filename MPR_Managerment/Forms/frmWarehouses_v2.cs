@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
+using MPR_Managerment.Forms.ExportGUI;
 using MPR_Managerment.Forms.ItemCodeGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -66,6 +67,7 @@ namespace MPR_Managerment.Forms
 
             BuidUI();
             SetupImportLayout(pageImport);
+            SetupExportLayout(pageExport);
             TrackButtonClick();
             LoadComboboxProject();
             HandleComboBoxIndexChange();
@@ -347,6 +349,27 @@ namespace MPR_Managerment.Forms
             dgvImport.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
 
             gbHistory.Controls.AddRange(new Control[] { lblHistory, btnPrintPNK,/* btnDeleteFullBill,*/ dgvImport });
+        }
+
+        public void SetupExportLayout(TabPage parent)
+        {
+            // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
+            Panel mainScrollPanel = new Panel();
+            mainScrollPanel.Dock = DockStyle.Fill;
+            mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+            parent.Controls.Add(mainScrollPanel);
+
+            // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
+            Panel container = new Panel();
+            container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
+            container.Height = 1200; // Độ cao ước tính cho 4 phần
+            container.Location = new Point(0, 0);
+            mainScrollPanel.Controls.Add(container);
+
+            ucExportWarehouse ucExportWarehouse = new ucExportWarehouse();
+            ucExportWarehouse.Dock = DockStyle.Fill;
+            container.Controls.Add(ucExportWarehouse);
+            ucExportWarehouse.BringToFront();
         }
 
         private void BtnDeleteRow_Click(object? sender, EventArgs e)

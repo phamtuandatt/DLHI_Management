@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -8,6 +9,22 @@ namespace MPR_Managerment.Services
 {
     public class ProjectService
     {
+        public async Task<DataTable> GetProjects()
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = "SELECT Id, ProjectCode FROM ProjectInfo";
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         public List<ProjectInfo> GetAll()
         {
             var list = new List<ProjectInfo>();

@@ -111,7 +111,8 @@ BEGIN
     SELECT @NEXT_ITEM_NUMBER AS NEXT_ITEM_NUMBER
 END
 
---=========================================================================================================
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 CREATE PROCEDURE [dbo].[sp_InsertProduct]
     @name NVARCHAR(255),
     @des_2 NVARCHAR(MAX),
@@ -152,6 +153,8 @@ BEGIN
 END
 GO
 
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 GO
 CREATE PROCEDURE [dbo].[sp_UpdateProduct]
 	@id INT, -- Cần ID để xác định dòng cần sửa
@@ -199,8 +202,8 @@ BEGIN
 END
 GO
 
-/* TRIGGER UPDATE Amount sau khi add detail */
-/****** Object:  Trigger [dbo].[trg_PO_Detail_UpdateAmount]    Script Date: 01/04/2026 1:24:23 PM ******/
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -230,15 +233,83 @@ BEGIN
     WHERE h.PO_ID IN (SELECT PO_ID FROM inserted);
 END
 
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+GO
+CREATE PROCEDURE [dbo].[sp_InsertWarehouseExport]
+    @Export_No NVARCHAR(50),
+    @Export_Date DATETIME,
+    @Import_ID INT,
+    @Item_Name NVARCHAR(255),
+    @Material NVARCHAR(255),
+    @Size NVARCHAR(255),
+    @UNIT NVARCHAR(50),
+    @Qty_Export DECIMAL(18, 2),
+    @Weight_kg DECIMAL(18, 2),
+    @ID_Code NVARCHAR(100),
+    @Project_Code NVARCHAR(100),
+    @WorkorderNo NVARCHAR(100),
+    @Export_To NVARCHAR(255),
+    @Purpose NVARCHAR(MAX),
+    @Notes NVARCHAR(MAX),
+    @Created_By NVARCHAR(100),
+    @Warehouse_ID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Bắt đầu giao dịch để đảm bảo an toàn dữ liệu
+    BEGIN TRANSACTION;
+
+    BEGIN TRY
+        -- 1. Insert vào bảng Warehouse_Export
+        INSERT INTO [dbo].[Warehouse_Export] (
+            [Export_No], [Export_Date], [Import_ID], [Item_Name], [Material], [Size], 
+            [UNIT], [Qty_Export], [Weight_kg], [ID_Code], [Project_Code], 
+            [WorkorderNo], [Export_To], [Purpose], [Notes], [Created_By], 
+            [Created_Date], [Warehouse_ID]
+        )
+        VALUES (
+            @Export_No, @Export_Date, @Import_ID, @Item_Name, @Material, @Size, 
+            @UNIT, @Qty_Export, @Weight_kg, @ID_Code, @Project_Code, 
+            @WorkorderNo, @Export_To, @Purpose, @Notes, @Created_By, 
+            GETDATE(), @Warehouse_ID
+        );
+
+        -- 2. Cập nhật giảm số lượng ở bảng Warehouse_Import
+        -- Trừ Qty_Import dựa trên Import_ID được truyền vào
+        UPDATE [dbo].[Warehouse_Import]
+        SET [Qty_Import] = [Qty_Import] - @Qty_Export
+        WHERE [Import_ID] = @Import_ID;
+
+        -- Kiểm tra nếu số lượng sau khi trừ bị âm (Tùy chọn nghiệp vụ)
+        IF EXISTS (SELECT 1 FROM [dbo].[Warehouse_Import] WHERE [Import_ID] = @Import_ID AND [Qty_Import] < 0)
+        BEGIN
+            RAISERROR('Lỗi: Số lượng xuất vượt quá số lượng tồn kho hiện tại!', 16, 1);
+        END
+
+        -- Nếu mọi thứ ổn, xác nhận thay đổi
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        -- Nếu có bất kỳ lỗi nào, hủy bỏ toàn bộ quá trình
+        ROLLBACK TRANSACTION;
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+    END CATCH
+END
+GO
+
 -- GROUP ID_CODE TO SHOW QTY
 	--SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
 	--FROM Warehouse_Import
 	--WHERE Project_Code = '2508-DPCII'
 	--GROUP BY Item_Name, Material, Size, ID_Code
 
-SELECT *FROM Products
+ 
 SELECT *FROM Material_Detail
-SELECT *FROM Warehouse_Import
+SELECT * FROM Warehouse_Import WHERE Project_Code = '25G3-NGR'
 
 SELECT *FROM PO_head WHERE ProjectCode = '25G3-NGR' OR Notes = '25G3-NGR'
 UPDATE PO_head SET ProjectCode = '25G3-NGR' WHERE Notes = '25G3-NGR'

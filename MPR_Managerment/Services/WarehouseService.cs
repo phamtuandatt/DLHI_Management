@@ -9,6 +9,60 @@ namespace MPR_Managerment.Services
 {
     public class WarehouseService
     {
+        public async Task<bool> SaveExportList(DataTable dtSelected, string exportNo, string user)
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                await conn.OpenAsync();
+                foreach (DataRow row in dtSelected.Rows)
+                {
+                    using (SqlCommand cmd = new SqlCommand("sp_InsertWarehouseExport", conn))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+
+                        cmd.Parameters.AddWithValue("@Export_No", row["Export_No"]);
+                        cmd.Parameters.AddWithValue("@Export_Date", DateTime.Now);
+                        cmd.Parameters.AddWithValue("@Import_ID", row["Import_ID"]);
+                        cmd.Parameters.AddWithValue("@Item_Name", row["Item_Name"]);
+                        cmd.Parameters.AddWithValue("@Material", row["Material"]);
+                        cmd.Parameters.AddWithValue("@Size", row["Size"]);
+                        cmd.Parameters.AddWithValue("@UNIT", row["UNIT"]);
+                        cmd.Parameters.AddWithValue("@Qty_Export", row["Qty_Export"]);
+                        cmd.Parameters.AddWithValue("@Weight_kg", row["Weight_kg"]);
+                        cmd.Parameters.AddWithValue("@ID_Code", row["ID_Code"]);
+                        cmd.Parameters.AddWithValue("@Project_Code", row["Project_Code"]);
+                        cmd.Parameters.AddWithValue("@WorkorderNo", row["WorkorderNo"]);
+                        cmd.Parameters.AddWithValue("@Export_To", row["Export_To"] ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@Purpose", row["Purpose"] ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@Notes", row["Notes"] ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@Created_By", user);
+                        cmd.Parameters.AddWithValue("@Warehouse_ID", row["Warehouse_ID"]);
+
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            return true;
+        }
+
+        public async Task<DataTable> GetHistoryExportByProject(string projectCode)
+        {
+            string sqlQuery = string.Format("SELECT *FROM Warehouse_Export WHERE Project_Code = '{0}'", projectCode);
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         // ===== NHẬP KHO =====
         public List<WarehouseImport> GetAllImports()
         {
@@ -53,6 +107,26 @@ namespace MPR_Managerment.Services
                 //if (!string.IsNullOrEmpty(projectCode))
                 //    sql += $" AND Project_Code = N'{projectCode}'";
                 //sql += " ORDER BY Import_Date DESC";
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetImportForExport(string projectCode = "")
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = "SELECT * FROM Warehouse_Import WHERE 1=1";
+                if (!string.IsNullOrEmpty(projectCode))
+                    sql += $" AND Project_Code = N'{projectCode}'";
+                sql += " ORDER BY Import_Date DESC";
+
                 var cmd = new SqlCommand(sql, conn);
                 DataTable dt = new DataTable();
                 using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
