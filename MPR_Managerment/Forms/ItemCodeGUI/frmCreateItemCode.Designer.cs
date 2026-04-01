@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             panel1 = new Panel();
             groupBox1 = new GroupBox();
             dgvItemExist = new DataGridView();
@@ -100,6 +101,14 @@
             dgvItemExist.AllowUserToDeleteRows = false;
             dgvItemExist.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dgvItemExist.BackgroundColor = Color.White;
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle1.BackColor = Color.Blue;
+            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dataGridViewCellStyle1.ForeColor = Color.White;
+            dataGridViewCellStyle1.SelectionBackColor = SystemColors.GradientInactiveCaption;
+            dataGridViewCellStyle1.SelectionForeColor = SystemColors.HighlightText;
+            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
+            dgvItemExist.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgvItemExist.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvItemExist.Columns.AddRange(new DataGridViewColumn[] { material_detail_id, material_detail_number, material_detail_name, material_detail_code, item_code_existed });
             dgvItemExist.Dock = DockStyle.Fill;
@@ -109,6 +118,8 @@
             dgvItemExist.RowHeadersWidth = 51;
             dgvItemExist.Size = new Size(793, 246);
             dgvItemExist.TabIndex = 0;
+            dgvItemExist.RowPostPaint += dgvItemExist_RowPostPaint;
+            dgvItemExist.RowPrePaint += dgvItemExist_RowPrePaint;
             // 
             // material_detail_id
             // 
@@ -171,24 +182,30 @@
             // 
             // btnSave
             // 
+            btnSave.BackColor = Color.Lime;
             btnSave.Dock = DockStyle.Fill;
+            btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnSave.ForeColor = SystemColors.ButtonFace;
             btnSave.Location = new Point(299, 3);
             btnSave.Name = "btnSave";
             btnSave.Size = new Size(292, 47);
             btnSave.TabIndex = 0;
-            btnSave.Text = "SAVE";
-            btnSave.UseVisualStyleBackColor = true;
+            btnSave.Text = "💾 SAVE";
+            btnSave.UseVisualStyleBackColor = false;
             btnSave.Click += btnSave_Click;
             // 
             // btnCancel
             // 
+            btnCancel.BackColor = SystemColors.ActiveBorder;
             btnCancel.Dock = DockStyle.Fill;
+            btnCancel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnCancel.ForeColor = Color.Snow;
             btnCancel.Location = new Point(3, 3);
             btnCancel.Name = "btnCancel";
             btnCancel.Size = new Size(290, 47);
             btnCancel.TabIndex = 0;
-            btnCancel.Text = "Cancel";
-            btnCancel.UseVisualStyleBackColor = true;
+            btnCancel.Text = "🆕 Cancel";
+            btnCancel.UseVisualStyleBackColor = false;
             btnCancel.Click += btnCancel_Click;
             // 
             // tableLayoutPanel5
@@ -209,13 +226,16 @@
             // 
             // btnGenerate
             // 
+            btnGenerate.BackColor = Color.FromArgb(255, 128, 0);
             btnGenerate.Dock = DockStyle.Fill;
+            btnGenerate.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnGenerate.ForeColor = Color.White;
             btnGenerate.Location = new Point(445, 3);
             btnGenerate.Name = "btnGenerate";
             btnGenerate.Size = new Size(146, 33);
             btnGenerate.TabIndex = 4;
-            btnGenerate.Text = "Generate";
-            btnGenerate.UseVisualStyleBackColor = true;
+            btnGenerate.Text = "➕ Generate";
+            btnGenerate.UseVisualStyleBackColor = false;
             btnGenerate.Click += btnGenerate_Click;
             // 
             // label6

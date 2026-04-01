@@ -642,6 +642,7 @@ namespace MPR_Managerment.Forms
                     {
                         var d = details[i];
                         int row = startRow + i;
+                        ws.Row(row).Height = 25;
 
                         // ĐỌC THẺ ẨN ĐỂ XUẤT EXCEL CHÍNH XÁC GIÁ & GHI CHÚ
                         decimal q = d.Qty_Per_Sheet;
@@ -685,10 +686,14 @@ namespace MPR_Managerment.Forms
                                 ws.Cells[row, col].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
                                 ws.Cells[row, col].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
                                 ws.Cells[row, col].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                                ws.Cells[row, col].Style.Font.Name = "Arial";
+                                ws.Cells[row, col].Style.Font.Name = "Times New Roman";
                                 ws.Cells[row, col].Style.Font.Size = 9;
                             }
                             ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+                            ws.Cells[row, 13].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                            ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                             
+                             ws.Cells[row, 10, row, 11].Merge = true;
                         }
                     }
 

@@ -12,6 +12,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Design;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -802,6 +803,7 @@ namespace MPR_Managerment.Forms
                     {
                         DataRow dr = dtDetails.Rows[i];
                         int currentRow = startRow + i;
+                        ws.Row(currentRow).Height = 25;
 
                         ws.Cells[currentRow, 1].Value = i + 1;
                         ws.Cells[currentRow, 2].Value = dr["ID_Code"];
@@ -815,6 +817,21 @@ namespace MPR_Managerment.Forms
                         //ws.Cells[currentRow, 10].Value = dr["Remarks"];
 
                         totalSum += Convert.ToDecimal(dr["Qty_Import"] ?? 0);
+
+                        if (i > 0)
+                        {
+                            for (int col = 1; col <= 16; col++)
+                            {
+                                ws.Cells[currentRow, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[currentRow, col].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[currentRow, col].Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[currentRow, col].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[currentRow, col].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                ws.Cells[currentRow, col].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                                ws.Cells[currentRow, col].Style.Font.Name = "Times New Roman";
+                                ws.Cells[currentRow, col].Style.Font.Size = 9;
+                            }
+                        }
                     }
 
                     // --- ĐIỀN TỔNG CỘNG ---

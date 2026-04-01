@@ -282,5 +282,15 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             var dtItemExistedList = await _productServices.GetitemExistedList(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
             dgvItemExist.DataSource = dtItemExistedList;
         }
+
+        private void dgvItemExist_RowPrePaint(object sender, DataGridViewRowPrePaintEventArgs e)
+        {
+
+        }
+
+        private void dgvItemExist_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
+        {
+            Common.Common.RenderNumbering(sender, e);    
+        }
     }
 }

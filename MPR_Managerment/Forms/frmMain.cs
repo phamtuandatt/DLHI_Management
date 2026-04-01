@@ -456,7 +456,7 @@ namespace MPR_Managerment.Forms
                 else if (title.Contains("Dự án"))
                 { HighlightMenu("Dự án"); OpenForm(new frmProject()); }
                 else if (title.Contains("Kho"))
-                { HighlightMenu("Kho vật tư"); OpenForm(new frmWarehouse()); }
+                { HighlightMenu("Kho vật tư"); OpenForm(new frmWarehouses_v2()); }
                 else if (title.Contains("Dashboard"))
                 { HighlightMenu("Dashboard"); OpenForm(new frmDashboard()); }
             };
