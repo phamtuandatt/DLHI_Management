@@ -35,7 +35,7 @@ namespace MPR_Managerment.Forms
 
         private DataGridView dgvDetails;
         private Button btnAddDetail, btnDeleteDetail;
-        private Label lblTotal;
+        private Label lblTotal, lblSubTotal;
         private Panel panelTop, panelHeader, panelDetail;
         private ComboBox cboSupplier;
         private System.Data.DataTable _supplierTable;
@@ -296,10 +296,19 @@ namespace MPR_Managerment.Forms
             panelDetail.Controls.Add(btnDeleteDetail);
             panelDetail.Controls.Add(btnExport);
 
-            lblTotal = new Label
+            lblSubTotal = new Label
             {
                 Location = new Point(390, 45),
-                Size = new Size(500, 22),
+                Size = new Size(250, 22),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 53, 69) // Màu đỏ cảnh báo
+            };
+            panelDetail.Controls.Add(lblSubTotal);
+
+            lblTotal = new Label
+            {
+                Location = new Point(650, 45),
+                Size = new Size(300, 22),
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 120, 212)
             };
@@ -328,9 +337,72 @@ namespace MPR_Managerment.Forms
 
             dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
             dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
+            dgvDetails.CellFormatting += DgvDetails_CellFormatting;
 
             BuildDetailColumns();
             panelDetail.Controls.Add(dgvDetails);
+        }
+
+        // =========================================================================================
+        // ĐÃ KHẮC PHỤC: HÀM CÂN CHỈNH CỘT (BAO GỒM CẢ CỘT GHI CHÚ)
+        // =========================================================================================
+        private void AutoAdjustColumnWidths()
+        {
+            if (dgvDetails.Columns.Count == 0) return;
+
+            dgvDetails.SuspendLayout();
+            dgvDetails.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+
+            using (Graphics g = dgvDetails.CreateGraphics())
+            {
+                Font headerFont = dgvDetails.ColumnHeadersDefaultCellStyle.Font ?? dgvDetails.Font;
+
+                foreach (DataGridViewColumn col in dgvDetails.Columns)
+                {
+                    // Lần này KHÔNG bỏ qua cột Remarks nữa, chỉ bỏ qua các cột bị ẩn (Visible = false)
+                    if (!col.Visible) continue;
+
+                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+
+                    // 1. Đo kích thước chữ của Header, cộng thêm 20px (10px padding mỗi bên)
+                    SizeF headerSize = g.MeasureString(col.HeaderText, headerFont);
+                    int minWidth = (int)Math.Ceiling(headerSize.Width) + 20;
+                    int maxWidth = minWidth;
+
+                    // 2. Quét từng ô dữ liệu để tìm chiều dài nội dung lớn nhất
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    {
+                        if (row.IsNewRow) continue;
+
+                        string cellValue = row.Cells[col.Index].Value?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(cellValue))
+                        {
+                            SizeF size = g.MeasureString(cellValue, dgvDetails.Font);
+                            int cellWidth = (int)Math.Ceiling(size.Width) + 15;
+
+                            if (cellWidth > maxWidth)
+                            {
+                                maxWidth = cellWidth;
+                            }
+                        }
+                    }
+
+                    // 3. Giới hạn chiều rộng Max ở mức 200px
+                    if (maxWidth > 200)
+                    {
+                        col.Width = 200;
+                        col.DefaultCellStyle.WrapMode = DataGridViewTriState.True; // Dài quá 200 thì rớt dòng
+                    }
+                    else
+                    {
+                        col.Width = maxWidth;
+                        col.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
+                    }
+                }
+            }
+
+            dgvDetails.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
+            dgvDetails.ResumeLayout();
         }
 
         private void DgvDetails_CurrentCellDirtyStateChanged(object sender, EventArgs e)
@@ -346,6 +418,20 @@ namespace MPR_Managerment.Forms
             if (e.RowIndex >= 0 && dgvDetails.Columns[e.ColumnIndex].Name == "Calc_Method")
             {
                 RecalculateAmount(e.RowIndex);
+            }
+        }
+
+        private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            if (dgvDetails.Columns[e.ColumnIndex].Name == "Ordered_PO")
+            {
+                string val = e.Value?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(val))
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69);
+                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                }
             }
         }
 
@@ -644,7 +730,6 @@ namespace MPR_Managerment.Forms
                         int row = startRow + i;
                         ws.Row(row).Height = 25;
 
-                        // ĐỌC THẺ ẨN ĐỂ XUẤT EXCEL CHÍNH XÁC GIÁ & GHI CHÚ
                         decimal q = d.Qty_Per_Sheet;
                         decimal wk = d.Weight_kg;
                         decimal realPrice = d.Price;
@@ -672,9 +757,9 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 10].Value = d.MPSNo ?? "";
                         ws.Cells[row, 11].Value = d.RequestDay;
                         ws.Cells[row, 12].Value = "Kho DLHI";
-                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0); // Giá thực
-                        ws.Cells[row, 14].Value = d.Amount;               // Thành tiền Database
-                        ws.Cells[row, 16].Value = rem;                    // Ghi chú sạch
+                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
+                        ws.Cells[row, 14].Value = d.Amount;
+                        ws.Cells[row, 16].Value = rem;
 
                         if (i > 0)
                         {
@@ -741,31 +826,41 @@ namespace MPR_Managerment.Forms
         private void BuildDetailColumns()
         {
             dgvDetails.Columns.Clear();
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeliveryLocation", HeaderText = "Nơi giao", Width = 120 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_No", HeaderText = "STT", Width = 45, ReadOnly = true });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên hàng", Width = 180 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material", HeaderText = "Vật liệu", Width = 90 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Asize", HeaderText = "A(mm)", Width = 65 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Bsize", HeaderText = "B(mm)", Width = 65 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Csize", HeaderText = "C(mm)", Width = 65 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty", HeaderText = "SL", Width = 55 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT", Width = 55 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight", HeaderText = "KG", Width = 60 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Price", HeaderText = "Đơn giá", Width = 90 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "VAT", HeaderText = "VAT(%)", Width = 65 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Amount", HeaderText = "Thành tiền", Width = 100, ReadOnly = true });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận", Width = 70 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No", Width = 90 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú", FillWeight = 100 });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeliveryLocation", HeaderText = "Nơi giao" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_No", HeaderText = "STT", ReadOnly = true });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên hàng" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material", HeaderText = "Vật liệu" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Asize", HeaderText = "A(mm)" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Bsize", HeaderText = "B(mm)" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Csize", HeaderText = "C(mm)" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty", HeaderText = "SL" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight", HeaderText = "KG" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Price", HeaderText = "Đơn giá" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "VAT", HeaderText = "VAT(%)" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Amount", HeaderText = "Thành tiền", ReadOnly = true });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú" });
 
             var colCalc = new DataGridViewComboBoxColumn();
             colCalc.Name = "Calc_Method";
             colCalc.HeaderText = "Cách tính";
-            colCalc.Width = 85;
             colCalc.Items.AddRange("Theo SL", "Theo KG");
             dgvDetails.Columns.Add(colCalc);
 
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", FillWeight = 100, Visible = false });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ordered_PO", HeaderText = "Đã lên PO", ReadOnly = true });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
+
+            // Set default widths before auto sizing to avoid visual glitches
+            foreach (DataGridViewColumn col in dgvDetails.Columns)
+            {
+                col.Width = 60;
+            }
+            dgvDetails.Columns["Item_No"].Width = 40;
+            dgvDetails.Columns["Item_Name"].Width = 150;
+
+            AutoAdjustColumnWidths();
         }
 
         private void AddLabel(Panel p, string text, int x, int y)
@@ -847,7 +942,6 @@ namespace MPR_Managerment.Forms
             {
                 _details = new POService().GetDetails(poId);
 
-                // Tạm ngắt sự kiện tính toán tự động để bảo vệ số tiền gốc DB
                 dgvDetails.CellValueChanged -= DgvDetails_CellValueChanged;
                 dgvDetails.Rows.Clear();
 
@@ -856,7 +950,6 @@ namespace MPR_Managerment.Forms
                     int idx = dgvDetails.Rows.Add();
                     var row = dgvDetails.Rows[idx];
 
-                    // XỬ LÝ DỊCH NGƯỢC THẺ ẨN (SMART INFERENCE)
                     string remarks = d.Remarks ?? "";
                     string calcMethod = "Theo SL";
                     decimal realPrice = d.Price;
@@ -869,7 +962,7 @@ namespace MPR_Managerment.Forms
                         remarks = remarks.Replace("[CALC:KG]", "").Trim();
                         if (wk > 0 && q > 0)
                         {
-                            realPrice = Math.Round((d.Price * q) / wk, 2); // Khôi phục giá gốc
+                            realPrice = Math.Round((d.Price * q) / wk, 2);
                         }
                     }
                     else if (remarks.Contains("[CALC:SL]"))
@@ -879,7 +972,6 @@ namespace MPR_Managerment.Forms
                     }
                     else
                     {
-                        // Giữ cơ chế cũ để đọc các đơn PO được tạo trước hôm nay
                         decimal amtByKG = wk * d.Price * (1 + d.VAT / 100);
                         decimal amtBySL = q * d.Price * (1 + d.VAT / 100);
                         if (Math.Abs(d.Amount - amtByKG) < Math.Abs(d.Amount - amtBySL))
@@ -898,19 +990,20 @@ namespace MPR_Managerment.Forms
                     row.Cells["Qty"].Value = d.Qty_Per_Sheet;
                     row.Cells["UNIT"].Value = d.UNIT;
                     row.Cells["Weight"].Value = d.Weight_kg;
-                    row.Cells["Price"].Value = realPrice; // Giá thực
+                    row.Cells["Price"].Value = realPrice;
                     row.Cells["VAT"].Value = d.VAT;
-                    row.Cells["Amount"].Value = d.Amount; // Giữ nguyên Amount tuyệt đối từ DB
+                    row.Cells["Amount"].Value = d.Amount;
                     row.Cells["Received"].Value = d.Received;
                     row.Cells["MPSNo"].Value = d.MPSNo;
                     row.Cells["DeliveryLocation"].Value = d.DeliveryLocation;
-                    row.Cells["Remarks"].Value = remarks; // Ghi chú đã làm sạch thẻ
+                    row.Cells["Remarks"].Value = remarks;
                     row.Cells["Calc_Method"].Value = calcMethod;
+                    row.Cells["Ordered_PO"].Value = "";
                 }
 
-                // Bật lại sự kiện
                 dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
                 UpdateTotal();
+                AutoAdjustColumnWidths();
             }
             catch (Exception ex)
             {
@@ -918,15 +1011,36 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        // ĐÃ KHẮC PHỤC: HÀM TÍNH TOÁN TỔNG TIỀN THEO NGUYÊN TẮC TOÁN HỌC TRỰC TIẾP
         private void UpdateTotal()
         {
-            decimal total = 0;
+            decimal total = 0;      // Tổng sau VAT
+            decimal subTotal = 0;   // Tổng trước VAT
+
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
-                decimal.TryParse(row.Cells["Amount"].Value?.ToString(), out decimal amt);
-                total += amt;
+                if (row.IsNewRow) continue;
+
+                // Đọc các giá trị gốc trên lưới
+                decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty);
+                decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal weight);
+                decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal price);
+                decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
+
+                // Xác định số lượng dùng để tính toán
+                string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo SL";
+                decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
+
+                // Tính toán độc lập để không phụ thuộc vào chu kỳ làm tròn của cột Amount
+                decimal rowSubTotal = Math.Round(baseValue * price, 0);
+                decimal rowTotalAmount = Math.Round(rowSubTotal * (1 + vat / 100), 0);
+
+                subTotal += rowSubTotal;
+                total += rowTotalAmount;
             }
-            lblTotal.Text = $"Tổng tiền: {total:N0} VND";
+
+            if (lblSubTotal != null) lblSubTotal.Text = $"Trước VAT: {subTotal:N0} VND";
+            if (lblTotal != null) lblTotal.Text = $"Sau VAT: {total:N0} VND";
         }
 
         private void DgvDetails_KeyDown(object sender, KeyEventArgs e)
@@ -977,6 +1091,7 @@ namespace MPR_Managerment.Forms
                         r.Cells["Amount"].Value = 0;
                         r.Cells["Received"].Value = 0;
                         r.Cells["Calc_Method"].Value = "Theo SL";
+                        r.Cells["Ordered_PO"].Value = "";
                     }
 
                     int colIndex = startCol;
@@ -1002,6 +1117,8 @@ namespace MPR_Managerment.Forms
                     RecalculateAmount(startRow);
                     startRow++;
                 }
+
+                AutoAdjustColumnWidths();
             }
             catch (Exception ex)
             {
@@ -1030,6 +1147,7 @@ namespace MPR_Managerment.Forms
         private void DgvDetails_CellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
             RecalculateAmount(e.RowIndex);
+            AutoAdjustColumnWidths();
         }
 
         private void BtnSearch_Click(object sender, EventArgs e)
@@ -1082,14 +1200,14 @@ namespace MPR_Managerment.Forms
             ClearHeader();
             _selectedPO_ID = 0;
             dgvDetails.Rows.Clear();
-            lblTotal.Text = "";
+            UpdateTotal();
             txtPONo.Focus();
             lblStatus.Text = "Đang tạo đơn PO mới...";
         }
 
         private void BtnSavePO_Click(object sender, EventArgs e)
         {
-            dgvDetails.EndEdit(); // CHỐT SỐ LIỆU ĐANG NHẬP DỞ
+            dgvDetails.EndEdit();
 
             if (string.IsNullOrWhiteSpace(txtPONo.Text))
             {
@@ -1163,7 +1281,7 @@ namespace MPR_Managerment.Forms
                 txtPONo.Text = finalPONo;
 
                 // ==========================================
-                // PHẦN 2: LƯU CHI TIẾT ĐƠN HÀNG (TRICK DATABASE)
+                // PHẦN 2: LƯU CHI TIẾT ĐƠN HÀNG 
                 // ==========================================
                 var oldDetails = _service.GetDetails(_selectedPO_ID);
                 foreach (var d in oldDetails)
@@ -1187,13 +1305,12 @@ namespace MPR_Managerment.Forms
 
                     decimal dbPrice = p;
 
-                    // KIỂM TRA NẾU LÀ THEO KG -> THAO TÚC GIÁ GỬI XUỐNG DB
                     if (calcMethod == "Theo KG")
                     {
                         remarks += " [CALC:KG]";
                         if (q > 0 && wk > 0)
                         {
-                            dbPrice = (wk * p) / q; // Để khi DB lấy (SL * dbPrice) nó sẽ bằng (KG * Price_thực)
+                            dbPrice = (wk * p) / q;
                         }
                     }
                     else
@@ -1212,13 +1329,13 @@ namespace MPR_Managerment.Forms
                         Qty_Per_Sheet = (int)q,
                         UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
                         Weight_kg = wk,
-                        Price = dbPrice, // GIÁ ẢO TRICK DB
+                        Price = dbPrice,
                         VAT = vat,
-                        Amount = 0, // Bỏ qua, DB tự tính
+                        Amount = 0,
                         Received = int.TryParse(row.Cells["Received"].Value?.ToString(), out int rec) ? rec : 0,
                         MPSNo = row.Cells["MPSNo"].Value?.ToString() ?? "",
                         DeliveryLocation = row.Cells["DeliveryLocation"].Value?.ToString() ?? "",
-                        Remarks = remarks.Trim() // GẮN THẺ ẨN
+                        Remarks = remarks.Trim()
                     };
                     _service.InsertDetail(detail, _selectedPO_ID);
                 }
@@ -1254,7 +1371,7 @@ namespace MPR_Managerment.Forms
 
                     ClearHeader();
                     dgvDetails.Rows.Clear();
-                    lblTotal.Text = "Tổng tiền: 0 VND";
+                    UpdateTotal();
                     _selectedPO_ID = 0;
 
                     LoadPO();
@@ -1288,9 +1405,11 @@ namespace MPR_Managerment.Forms
             r.Cells["MPSNo"].Value = "";
             r.Cells["Remarks"].Value = "";
             r.Cells["Calc_Method"].Value = "Theo SL";
+            r.Cells["Ordered_PO"].Value = "";
             r.Cells["PO_Detail_ID"].Value = 0;
 
             dgvDetails.CurrentCell = r.Cells["Item_Name"];
+            AutoAdjustColumnWidths();
         }
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
@@ -1333,12 +1452,66 @@ namespace MPR_Managerment.Forms
                     }
 
                     UpdateTotal();
+                    AutoAdjustColumnWidths();
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
+        }
+
+        private Dictionary<int, string> GetPoMappingForMpr(int mprId)
+        {
+            var dict = new Dictionary<int, string>();
+            if (mprId <= 0) return dict;
+
+            try
+            {
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = @"
+                        SELECT pod.MPR_Detail_ID, poh.PONo
+                        FROM PO_Detail pod
+                        INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID
+                        WHERE pod.MPR_Detail_ID IS NOT NULL
+                          AND pod.MPR_Detail_ID IN (
+                              SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId
+                          )";
+
+                    using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@mprId", mprId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                if (reader["MPR_Detail_ID"] != DBNull.Value)
+                                {
+                                    int detailId = Convert.ToInt32(reader["MPR_Detail_ID"]);
+                                    string poNo = reader["PONo"]?.ToString() ?? "";
+
+                                    if (dict.ContainsKey(detailId))
+                                    {
+                                        if (!dict[detailId].Contains(poNo))
+                                            dict[detailId] += ", " + poNo;
+                                    }
+                                    else
+                                    {
+                                        dict[detailId] = poNo;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Lỗi lấy PO Mapping: " + ex.Message);
+            }
+            return dict;
         }
 
         private void BtnImportMPR_Click(object sender, EventArgs e)
@@ -1354,6 +1527,8 @@ namespace MPR_Managerment.Forms
 
                     var mpr = dlg.SelectedMPR;
                     var details = dlg.SelectedDetails;
+
+                    var poMapping = GetPoMappingForMpr(mpr.MPR_ID);
 
                     txtProjectName.Text = mpr.Project_Name;
                     txtMPRNo.Text = mpr.MPR_No;
@@ -1394,15 +1569,27 @@ namespace MPR_Managerment.Forms
                     int itemNo = 1;
                     foreach (var d in details)
                     {
+                        string orderedPo = poMapping.ContainsKey(d.Detail_ID) ? poMapping[d.Detail_ID] : "";
+
+                        // -- XỬ LÝ GHÉP KÍCH THƯỚC (A, B, C) --
+                        string aSize = d.Thickness_mm > 0 ? d.Thickness_mm.ToString() : (d.Depth_mm > 0 ? d.Depth_mm.ToString() : "");
+                        string bSize = d.C_Width_mm > 0 ? d.C_Width_mm.ToString() : "";
+
+                        string cSize = $"{d.D_Web_mm}x{d.E_Flange_mm}x{d.F_Length_mm}";
+                        if (d.D_Web_mm == 0 && d.E_Flange_mm == 0)
+                        {
+                            cSize = d.F_Length_mm > 0 ? d.F_Length_mm.ToString() : "";
+                        }
+
                         int newIdx = dgvDetails.Rows.Add();
                         var r = dgvDetails.Rows[newIdx];
                         r.Cells["DeliveryLocation"].Value = d.Usage_Location;
                         r.Cells["Item_No"].Value = itemNo++;
                         r.Cells["Item_Name"].Value = d.Item_Name;
                         r.Cells["Material"].Value = d.Material;
-                        r.Cells["Asize"].Value = d.Thickness_mm;
-                        r.Cells["Bsize"].Value = d.C_Width_mm;
-                        r.Cells["Csize"].Value = d.F_Length_mm;
+                        r.Cells["Asize"].Value = aSize;
+                        r.Cells["Bsize"].Value = bSize;
+                        r.Cells["Csize"].Value = cSize;
                         r.Cells["Qty"].Value = d.Qty_Per_Sheet;
                         r.Cells["UNIT"].Value = d.UNIT;
                         r.Cells["Weight"].Value = d.Weight_kg;
@@ -1413,8 +1600,12 @@ namespace MPR_Managerment.Forms
                         r.Cells["MPSNo"].Value = d.MPS_Info;
                         r.Cells["Remarks"].Value = d.Remarks;
                         r.Cells["Calc_Method"].Value = "Theo SL";
+                        r.Cells["Ordered_PO"].Value = orderedPo;
                         r.Cells["PO_Detail_ID"].Value = 0;
                     }
+
+                    UpdateTotal(); // Tính toán lại số tiền khi Import
+                    AutoAdjustColumnWidths();
 
                     MessageBox.Show(
                         $"✅ Đã import {details.Count} dòng từ MPR {mpr.MPR_No}!\n" +
@@ -1458,7 +1649,7 @@ namespace MPR_Managerment.Forms
         {
             ClearHeader();
             dgvDetails.Rows.Clear();
-            lblTotal.Text = "";
+            UpdateTotal();
             _selectedPO_ID = 0;
             LoadPO();
         }
