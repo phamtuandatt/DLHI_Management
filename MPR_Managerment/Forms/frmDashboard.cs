@@ -601,6 +601,7 @@ namespace MPR_Managerment.Forms
                 if (filter != "Tất cả")
                     where += $" AND h.Status = N'{filter}'";
 
+                // ĐÃ CẬP NHẬT: Thay đổi ở phần [Tình trạng PO] để nối với số lượng đếm được
                 string sql = $@"
                     SELECT
                         h.MPR_ID,
@@ -613,7 +614,7 @@ namespace MPR_Managerment.Forms
                         COUNT(DISTINCT d.Detail_ID)        AS [Tổng items],
                         COUNT(DISTINCT po.PO_ID)           AS [Số PO],
                         CASE
-                            WHEN COUNT(DISTINCT po.PO_ID) > 0 THEN N'✅ Đã có PO'
+                            WHEN COUNT(DISTINCT po.PO_ID) > 0 THEN N'✅ ' + CAST(COUNT(DISTINCT po.PO_ID) AS NVARCHAR(10)) + N' PO'
                             ELSE N'❌ Chưa có PO'
                         END                                AS [Tình trạng PO],
                         CASE
@@ -644,14 +645,16 @@ namespace MPR_Managerment.Forms
                     dgvMPR.CellFormatting -= DgvMPR_CellFormatting;
                     dgvMPR.CellFormatting += DgvMPR_CellFormatting;
 
-                    // Summary
+                    // Summary (Đã cập nhật logic kiểm tra Contains("Chưa có"))
                     int total = dt.Rows.Count, hasPO = 0, noPO = 0, completed = 0;
                     foreach (DataRow row in dt.Rows)
                     {
                         string tinh = row["Tình trạng PO"]?.ToString() ?? "";
                         string status = row["Trạng thái"]?.ToString() ?? "";
-                        if (tinh.Contains("Đã có")) hasPO++;
+
+                        if (!tinh.Contains("Chưa có")) hasPO++;
                         else noPO++;
+
                         if (status == "Hoàn thành") completed++;
                     }
                     lblMPRTotal.Text = total.ToString();
@@ -670,6 +673,7 @@ namespace MPR_Managerment.Forms
         {
             if (e.RowIndex < 0) return;
             string col = dgvMPR.Columns[e.ColumnIndex].Name;
+
             if (col == "% Item đặt hàng")
             {
                 if (decimal.TryParse(e.Value?.ToString(), out decimal pct))
@@ -682,7 +686,8 @@ namespace MPR_Managerment.Forms
             }
             if (col == "Tình trạng PO")
             {
-                e.CellStyle.ForeColor = e.Value?.ToString().Contains("Đã có") == true ? Color.FromArgb(40, 167, 69) : Color.FromArgb(220, 53, 69);
+                // Đã cập nhật màu theo cấu trúc text mới
+                e.CellStyle.ForeColor = e.Value?.ToString().Contains("Chưa có") == true ? Color.FromArgb(220, 53, 69) : Color.FromArgb(40, 167, 69);
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
             if (col == "Ngày đến PO")

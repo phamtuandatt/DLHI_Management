@@ -52,7 +52,6 @@ namespace MPR_Managerment.Forms
             LoadPO();
             this.Resize += FrmPO_Resize;
 
-            // Tự động tìm và bôi xanh PO nếu được truyền mã PO vào
             if (!string.IsNullOrEmpty(_targetPoNo))
             {
                 SelectPOByNo(_targetPoNo);
@@ -327,7 +326,6 @@ namespace MPR_Managerment.Forms
             dgvDetails.CellEndEdit += DgvDetails_CellEndEdit;
             dgvDetails.KeyDown += DgvDetails_KeyDown;
 
-            // Cập nhật tính toán tức thì khi chọn Dropdown
             dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
             dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
 
@@ -335,7 +333,6 @@ namespace MPR_Managerment.Forms
             panelDetail.Controls.Add(dgvDetails);
         }
 
-        // Bắt sự kiện thay đổi ComboBox Cách Tính để tính ngay lập tức
         private void DgvDetails_CurrentCellDirtyStateChanged(object sender, EventArgs e)
         {
             if (dgvDetails.IsCurrentCellDirty && dgvDetails.CurrentCell.OwningColumn.Name == "Calc_Method")
@@ -640,10 +637,27 @@ namespace MPR_Managerment.Forms
 
                     if (detailCount > 1)
                         ws.InsertRow(startRow + 1, detailCount - 1);
+
                     for (int i = 0; i < detailCount; i++)
                     {
                         var d = details[i];
                         int row = startRow + i;
+
+                        // ĐỌC THẺ ẨN ĐỂ XUẤT EXCEL CHÍNH XÁC GIÁ & GHI CHÚ
+                        decimal q = d.Qty_Per_Sheet;
+                        decimal wk = d.Weight_kg;
+                        decimal realPrice = d.Price;
+                        string rem = d.Remarks ?? "";
+
+                        if (rem.Contains("[CALC:KG]"))
+                        {
+                            rem = rem.Replace("[CALC:KG]", "").Trim();
+                            if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
+                        }
+                        else if (rem.Contains("[CALC:SL]"))
+                        {
+                            rem = rem.Replace("[CALC:SL]", "").Trim();
+                        }
 
                         ws.Cells[row, 1].Value = i + 1;
                         ws.Cells[row, 2].Value = d.Item_Name ?? "";
@@ -657,9 +671,9 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 10].Value = d.MPSNo ?? "";
                         ws.Cells[row, 11].Value = d.RequestDay;
                         ws.Cells[row, 12].Value = "Kho DLHI";
-                        ws.Cells[row, 13].Value = d.Price;
-                        ws.Cells[row, 14].Value = d.Amount;
-                        ws.Cells[row, 16].Value = d.Remarks ?? "";
+                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0); // Giá thực
+                        ws.Cells[row, 14].Value = d.Amount;               // Thành tiền Database
+                        ws.Cells[row, 16].Value = rem;                    // Ghi chú sạch
 
                         if (i > 0)
                         {
@@ -739,7 +753,6 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No", Width = 90 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú", FillWeight = 100 });
 
-            // CỘT CÁCH TÍNH: Đặt trước cột PO_Detail_ID ẩn
             var colCalc = new DataGridViewComboBoxColumn();
             colCalc.Name = "Calc_Method";
             colCalc.HeaderText = "Cách tính";
@@ -828,12 +841,47 @@ namespace MPR_Managerment.Forms
             try
             {
                 _details = new POService().GetDetails(poId);
+
+                // Tạm ngắt sự kiện tính toán tự động để bảo vệ số tiền gốc DB
+                dgvDetails.CellValueChanged -= DgvDetails_CellValueChanged;
                 dgvDetails.Rows.Clear();
 
                 foreach (var d in _details)
                 {
                     int idx = dgvDetails.Rows.Add();
                     var row = dgvDetails.Rows[idx];
+
+                    // XỬ LÝ DỊCH NGƯỢC THẺ ẨN (SMART INFERENCE)
+                    string remarks = d.Remarks ?? "";
+                    string calcMethod = "Theo SL";
+                    decimal realPrice = d.Price;
+                    decimal q = d.Qty_Per_Sheet;
+                    decimal wk = d.Weight_kg;
+
+                    if (remarks.Contains("[CALC:KG]"))
+                    {
+                        calcMethod = "Theo KG";
+                        remarks = remarks.Replace("[CALC:KG]", "").Trim();
+                        if (wk > 0 && q > 0)
+                        {
+                            realPrice = Math.Round((d.Price * q) / wk, 2); // Khôi phục giá gốc
+                        }
+                    }
+                    else if (remarks.Contains("[CALC:SL]"))
+                    {
+                        calcMethod = "Theo SL";
+                        remarks = remarks.Replace("[CALC:SL]", "").Trim();
+                    }
+                    else
+                    {
+                        // Giữ cơ chế cũ để đọc các đơn PO được tạo trước hôm nay
+                        decimal amtByKG = wk * d.Price * (1 + d.VAT / 100);
+                        decimal amtBySL = q * d.Price * (1 + d.VAT / 100);
+                        if (Math.Abs(d.Amount - amtByKG) < Math.Abs(d.Amount - amtBySL))
+                        {
+                            calcMethod = "Theo KG";
+                        }
+                    }
 
                     row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID;
                     row.Cells["Item_No"].Value = d.Item_No;
@@ -845,34 +893,18 @@ namespace MPR_Managerment.Forms
                     row.Cells["Qty"].Value = d.Qty_Per_Sheet;
                     row.Cells["UNIT"].Value = d.UNIT;
                     row.Cells["Weight"].Value = d.Weight_kg;
-                    row.Cells["Price"].Value = d.Price;
+                    row.Cells["Price"].Value = realPrice; // Giá thực
                     row.Cells["VAT"].Value = d.VAT;
-                    row.Cells["Amount"].Value = d.Amount;
+                    row.Cells["Amount"].Value = d.Amount; // Giữ nguyên Amount tuyệt đối từ DB
                     row.Cells["Received"].Value = d.Received;
                     row.Cells["MPSNo"].Value = d.MPSNo;
                     row.Cells["DeliveryLocation"].Value = d.DeliveryLocation;
-                    row.Cells["Remarks"].Value = d.Remarks;
-
-                    // THUẬT TOÁN NHẬN DIỆN THÔNG MINH CHO CỘT "CÁCH TÍNH"
-                    string calcMethod = "Theo SL";
-                    decimal w = d.Weight_kg;
-                    decimal p = d.Price;
-                    decimal q = d.Qty_Per_Sheet;
-                    decimal v = d.VAT;
-                    decimal amt = d.Amount;
-
-                    if (w > 0 && p > 0)
-                    {
-                        decimal amtByKG = Math.Round(w * p * (1 + v / 100), 0);
-                        decimal amtBySL = Math.Round(q * p * (1 + v / 100), 0);
-                        if (amt == amtByKG && amt != amtBySL)
-                        {
-                            calcMethod = "Theo KG";
-                        }
-                    }
+                    row.Cells["Remarks"].Value = remarks; // Ghi chú đã làm sạch thẻ
                     row.Cells["Calc_Method"].Value = calcMethod;
                 }
 
+                // Bật lại sự kiện
+                dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
                 UpdateTotal();
             }
             catch (Exception ex)
@@ -1052,6 +1084,8 @@ namespace MPR_Managerment.Forms
 
         private void BtnSavePO_Click(object sender, EventArgs e)
         {
+            dgvDetails.EndEdit(); // CHỐT SỐ LIỆU ĐANG NHẬP DỞ
+
             if (string.IsNullOrWhiteSpace(txtPONo.Text))
             {
                 MessageBox.Show("Vui lòng nhập PO No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1124,7 +1158,7 @@ namespace MPR_Managerment.Forms
                 txtPONo.Text = finalPONo;
 
                 // ==========================================
-                // PHẦN 2: LƯU CHI TIẾT ĐƠN HÀNG
+                // PHẦN 2: LƯU CHI TIẾT ĐƠN HÀNG (TRICK DATABASE)
                 // ==========================================
                 var oldDetails = _service.GetDetails(_selectedPO_ID);
                 foreach (var d in oldDetails)
@@ -1135,6 +1169,33 @@ namespace MPR_Managerment.Forms
                 int itemNo = 1;
                 foreach (DataGridViewRow row in dgvDetails.Rows)
                 {
+                    if (row.IsNewRow) continue;
+
+                    decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
+                    decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
+                    decimal p = decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal _p) ? _p : 0;
+                    decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vat) ? _vat : 0;
+
+                    string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo SL";
+                    string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
+                    remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
+
+                    decimal dbPrice = p;
+
+                    // KIỂM TRA NẾU LÀ THEO KG -> THAO TÚC GIÁ GỬI XUỐNG DB
+                    if (calcMethod == "Theo KG")
+                    {
+                        remarks += " [CALC:KG]";
+                        if (q > 0 && wk > 0)
+                        {
+                            dbPrice = (wk * p) / q; // Để khi DB lấy (SL * dbPrice) nó sẽ bằng (KG * Price_thực)
+                        }
+                    }
+                    else
+                    {
+                        remarks += " [CALC:SL]";
+                    }
+
                     var detail = new PODetail
                     {
                         Item_No = itemNo++,
@@ -1143,15 +1204,16 @@ namespace MPR_Managerment.Forms
                         Asize = row.Cells["Asize"].Value?.ToString() ?? "",
                         Bsize = row.Cells["Bsize"].Value?.ToString() ?? "",
                         Csize = row.Cells["Csize"].Value?.ToString() ?? "",
-                        Qty_Per_Sheet = int.TryParse(row.Cells["Qty"].Value?.ToString(), out int q) ? q : 0,
+                        Qty_Per_Sheet = (int)q,
                         UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
-                        Weight_kg = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal wk) ? wk : 0,
-                        Price = decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal p) ? p : 0,
-                        VAT = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat) ? vat : 0,
+                        Weight_kg = wk,
+                        Price = dbPrice, // GIÁ ẢO TRICK DB
+                        VAT = vat,
+                        Amount = 0, // Bỏ qua, DB tự tính
                         Received = int.TryParse(row.Cells["Received"].Value?.ToString(), out int rec) ? rec : 0,
                         MPSNo = row.Cells["MPSNo"].Value?.ToString() ?? "",
                         DeliveryLocation = row.Cells["DeliveryLocation"].Value?.ToString() ?? "",
-                        Remarks = row.Cells["Remarks"].Value?.ToString() ?? ""
+                        Remarks = remarks.Trim() // GẮN THẺ ẨN
                     };
                     _service.InsertDetail(detail, _selectedPO_ID);
                 }
@@ -1167,9 +1229,6 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // ========================================================
-        // NÚT XÓA PO (HEADER)
-        // ========================================================
         private void BtnDeletePO_Click(object sender, EventArgs e)
         {
             if (dgvPO.SelectedRows.Count == 0 || _selectedPO_ID == 0)
@@ -1229,9 +1288,6 @@ namespace MPR_Managerment.Forms
             dgvDetails.CurrentCell = r.Cells["Item_Name"];
         }
 
-        // ========================================================
-        // NÚT XÓA NHIỀU DÒNG CHI TIẾT (MULTIPLE DELETE)
-        // ========================================================
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
         {
             if (dgvDetails.SelectedRows.Count == 0)
@@ -1248,23 +1304,20 @@ namespace MPR_Managerment.Forms
             {
                 try
                 {
-                    // Lấy danh sách các dòng cần xóa ra trước để tránh lỗi khi duyệt mảng
                     var rowsToDelete = new List<DataGridViewRow>();
                     foreach (DataGridViewRow row in dgvDetails.SelectedRows)
                     {
-                        if (!row.IsNewRow) // Bỏ qua dòng mới cuối cùng nếu có
+                        if (!row.IsNewRow)
                         {
                             rowsToDelete.Add(row);
                         }
                     }
 
-                    // Xóa các dòng
                     foreach (var row in rowsToDelete)
                     {
                         dgvDetails.Rows.Remove(row);
                     }
 
-                    // Cập nhật lại số thứ tự (STT) cho toàn bộ danh sách để không bị ngắt quãng
                     int itemNo = 1;
                     foreach (DataGridViewRow row in dgvDetails.Rows)
                     {
