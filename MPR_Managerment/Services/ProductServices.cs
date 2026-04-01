@@ -157,7 +157,7 @@ namespace MPR_Managerment.Services
 
         public async Task<string> GetCodeExistedByMaterilDetail(int materialId)
         {
-            string sqlQuery = string.Format("SELECT TOP 1 item_code_existed FROM Material_Detail WHERE material_detail_code = {0}", materialId);
+            string sqlQuery = string.Format("SELECT TOP 1 * FROM Material_Detail WHERE material_detail_code = {0} ORDER BY material_detail_number DESC", materialId);
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
                 SqlCommand cmd = new SqlCommand(sqlQuery, conn);

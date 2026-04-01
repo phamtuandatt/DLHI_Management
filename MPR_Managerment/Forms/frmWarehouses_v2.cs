@@ -885,7 +885,7 @@ namespace MPR_Managerment.Forms
                         var material_Detail = new Material_Detail()
                         {
                             Material_Detail_Number = imp.Material_Detail_Number,
-                            Material_Detail_Name = imp.Item_Name,
+                            Material_Detail_Name = $"{imp.Item_Name} {imp.Size}",
                             Material_Detail_Code = imp.Material_Detail_ID.ToString(), // material ID
                             Item_Code_Existed = imp.ID_Code
                         };
