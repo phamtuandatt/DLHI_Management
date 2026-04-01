@@ -48,6 +48,7 @@ namespace MPR_Managerment.Forms
 
         private Dictionary<string, string> _importList = new Dictionary<string, string>();
         private object oldValue = null;
+        private bool _useItemCodeExisted = false;
 
         // ===== TỒN KHO =====
         private DataGridView dgvStock;
@@ -230,6 +231,7 @@ namespace MPR_Managerment.Forms
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat
             };
+            btnCancel.Click += BtnCancel_Click;
             gbActions.Controls.AddRange(new Control[] { btnAdd, btnSave, btnCancel });
 
             // =========================================================================
@@ -258,6 +260,7 @@ namespace MPR_Managerment.Forms
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat
             };
+            btnDeleteRow.Click += BtnDeleteRow_Click;
             dgvImportQueue = new DataGridView()
             {
                 Location = new Point(15, 60),
@@ -345,6 +348,33 @@ namespace MPR_Managerment.Forms
             gbHistory.Controls.AddRange(new Control[] { lblHistory, btnPrintPNK,/* btnDeleteFullBill,*/ dgvImport });
         }
 
+        private void BtnDeleteRow_Click(object? sender, EventArgs e)
+        {
+            if (dgvImportQueue.SelectedRows.Count == 0) return;
+            int idx = dgvImportQueue.SelectedRows[0].Index;
+            if (idx >= 0 && idx < _importQueue.Count)
+            {
+                var key = $"{dgvImportQueue.SelectedRows[0].Cells[0].Value.ToString().Trim()}_{dgvImportQueue.SelectedRows[0].Cells[1].Value.ToString().Trim().ToLower()}";
+                _importList.Remove(key);
+                _importQueue.RemoveAt(idx);
+                if (_importQueue.Count == 0) _currentBatchNo = "";
+                RefreshQueueGrid();
+            }
+        }
+
+        private void BtnCancel_Click(object? sender, EventArgs e)
+        {
+            if (_importQueue.Count > 0)
+                if (MessageBox.Show($"Bạn có {_importQueue.Count} items chưa lưu. Tạo phiếu mới sẽ xóa danh sách. Tiếp tục?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
+            ClearImportItemForm(); RefreshQueueGrid();
+        }
+
+        private void ClearImportItemForm()
+        {
+            _importList.Clear();
+        }
+
         private void DgvImportQueue_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.RowIndex >= _importQueue.Count) return;
@@ -356,9 +386,18 @@ namespace MPR_Managerment.Forms
             frmCreateItemCode.ShowDialog();
 
             if (string.IsNullOrEmpty(frmCreateItemCode.itemCode)) return;
+            _useItemCodeExisted = frmCreateItemCode.isUseCodeAvailable;
 
             _importQueue[e.RowIndex].ID_Code = frmCreateItemCode.itemCode;
+            if (!_useItemCodeExisted)
+            {
+                _importQueue[e.RowIndex].Material_Detail_ID = frmCreateItemCode.itemDetailId;
+                _importQueue[e.RowIndex].Material_Detail_Number = frmCreateItemCode.itemDetailNumber;
+            }
+
             dgvImportQueue.CurrentRow.Cells[colName].Value = frmCreateItemCode.itemCode;
+            dgvImportQueue.CurrentRow.Cells["Material_Detail_Id"].Value = frmCreateItemCode.itemDetailId;
+            dgvImportQueue.CurrentRow.Cells["Material_Detail_Number"].Value = frmCreateItemCode.itemDetailNumber;
         }
 
         private void BuildStockTab_V2(TabPage parent)
@@ -605,6 +644,10 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight_kg", HeaderText = "KG", Width = 75 });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100, ReadOnly = true });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ma_Phieu", HeaderText = "Mã phiếu", Width = 160, ReadOnly = true });
+
+
+            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Id", HeaderText = "Material Detail Id", Width = 160, ReadOnly = true });
+            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Number", HeaderText = "Material Detail Number", Width = 160, ReadOnly = true });
         }
 
         public void TrackButtonClick()
@@ -761,7 +804,7 @@ namespace MPR_Managerment.Forms
                         int currentRow = startRow + i;
 
                         ws.Cells[currentRow, 1].Value = i + 1;
-                        ws.Cells[currentRow, 2].Value = "NOT";
+                        ws.Cells[currentRow, 2].Value = dr["ID_Code"];
                         //ws.Cells[currentRow, 2].Value = dr["Material_Code"];
                         ws.Cells[currentRow, 3].Value = dr["Item_Name"];
                         ws.Cells[currentRow, 5].Value = dr["Qty_Import"];
@@ -833,13 +876,29 @@ namespace MPR_Managerment.Forms
                         Code = imp.ID_Code,
                         ProdMaterialCode = imp.Material
                     };
+
                     var rs = await _productServices.SaveProduct_Async(pModel, false);
-                        
+
+                    // if use item code existed do not add material detail
+                    if (!_useItemCodeExisted)
+                    {
+                        var material_Detail = new Material_Detail()
+                        {
+                            Material_Detail_Number = imp.Material_Detail_Number,
+                            Material_Detail_Name = imp.Item_Name,
+                            Material_Detail_Code = imp.Material_Detail_ID.ToString(), // material ID
+                            Item_Code_Existed = imp.ID_Code
+                        };
+
+                        var rs_detail = await _productServices.InsertMaterialTypeDetailItem(material_Detail);
+                    }
+
                 }
                 MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
                 RefreshQueueGrid();
                 LoadAll();
+                _importList.Clear();
             }
             catch (Exception ex) { MessageBox.Show("Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
 

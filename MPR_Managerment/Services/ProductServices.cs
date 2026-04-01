@@ -155,10 +155,33 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public async Task<string> GetCodeExistedByMaterilDetail(int materialId)
+        {
+            string sqlQuery = string.Format("SELECT TOP 1 item_code_existed FROM Material_Detail WHERE material_detail_code = {0}", materialId);
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                var itemCOde = "";
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        itemCOde = row[0].ToString().Trim();
+                    }
+                }
+                return itemCOde;
+            }
+        }
+
         public async Task<int> InsertMaterialTypeDetailItem(Material_Detail item)
         {
-            string sqlQuery = string.Format("INSERT INTO Material_Detail (material_detail_id, material_detail_number, material_detail_name, material_detail_code) " +
-                "VALUES ({0}, '{1}', '{2}', '{3}')", item.Material_Detail_Id, item.Material_Detail_Number, item.Material_Detail_Name, item.Material_Detail_Code);
+            string sqlQuery = string.Format("INSERT INTO Material_Detail (material_detail_number, material_detail_name, material_detail_code, item_code_existed) " +
+                "VALUES ('{0}', '{1}', '{2}')", item.Material_Detail_Number, item.Material_Detail_Name, item.Material_Detail_Code, item.Item_Code_Existed);
 
             using (var conn = DatabaseHelper.GetConnection())
             {

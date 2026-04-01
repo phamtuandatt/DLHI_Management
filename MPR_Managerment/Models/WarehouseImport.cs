@@ -25,5 +25,8 @@ namespace MPR_Managerment.Models
         public string Notes { get; set; } = "";
         public string Created_By { get; set; } = "";
         public DateTime? Created_Date { get; set; }
+
+        public string Material_Detail_ID { get; set; }
+        public string Material_Detail_Number { get; set; }
     }
 }

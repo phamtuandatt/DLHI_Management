@@ -44,10 +44,11 @@ CREATE TABLE Materials (
 );
 -- Chi tiết vật tư 
 CREATE TABLE Material_Detail (
-	material_detail_id		INT PRIMARY KEY,
+	material_detail_id		INT IDENTITY(1,1) PRIMARY KEY,
 	material_detail_number	VARCHAR(5),
 	material_detail_name	NVARCHAR(100),
 	material_detail_code	VARCHAR(50),
+	item_code_existed		VARCHAR(50)
 
 	CONSTRAINT FK_Material_Detail_Materials FOREIGN KEY (material_detail_id) REFERENCES Materials(material_id)
 )
@@ -93,7 +94,7 @@ BEGIN
     -- Get the maximum item_number for the given type_id
     SELECT @MAX_ITEM_NUMBER = MAX(material_detail_number)
     FROM Material_Detail
-    WHERE material_detail_id = @MMATERIAL_ID
+    WHERE material_detail_code = @MMATERIAL_ID
 
     -- If no data exists for the type_id, set the next value to '001'
     IF @MAX_ITEM_NUMBER IS NULL

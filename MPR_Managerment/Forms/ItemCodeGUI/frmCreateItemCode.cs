@@ -1,5 +1,6 @@
 ﻿using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using OfficeOpenXml.ConditionalFormatting.Contracts;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -17,8 +18,12 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         private ProductServices _productServices = new ProductServices();
         private bool _isLoaded = false;
         private string itemNumberOfMaterial = "";
+        
 
         public string itemCode { get; set; } = string.Empty;
+        public string itemDetailId { get; set; } = string.Empty;
+        public string itemDetailNumber {  get; set; } = string.Empty;
+        public bool isUseCodeAvailable { get; set; } = false;
 
         public frmCreateItemCode()
         {
@@ -103,7 +108,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                 // Nên dùng tên cột từ Database thay vì chỉ số 0, 1 để tránh nhầm lẫn
                 // Giả sử dr[0] là ID, dr[1] là Code, dr[2] là Name
                 r["ID"] = dr[0];
-                r["NAME"] = $"{dr[1]}-{dr[2]}"; // Ghép mã và tên hiển thị
+                r["NAME"] = $"{dr[2]}|{dr[1]}"; // Ghép mã và tên hiển thị
 
                 dtCbo.Rows.Add(r);
             }
@@ -155,6 +160,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         private async void btnSave_Click(object sender, EventArgs e)
         {
             itemCode = txtCode.Text.Trim();
+
             this.Close();
             //var material_Detail = new Material_Detail()
             //{
@@ -191,18 +197,34 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
         private async void btnGenerate_Click(object sender, EventArgs e)
         {
-            itemNumberOfMaterial = await _productServices.GetItemNumberOfMaterialType(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
-            var orgiCode = cboOriginal.Text.ToString().Trim().Split('-')[0];
-            var stanCode = cboStandard.Text.ToString().Trim().Split('-')[0];
-            var materialCode = cboMaterial.Text.ToString().Trim().Split('-')[0];
-
-            var itemCOde = orgiCode + materialCode + itemNumberOfMaterial + stanCode;
-            txtCode.Text = itemCOde;
+            frmOptions frmOptions = new frmOptions(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+            frmOptions.ShowDialog();
+            // option 1: use code exist
+            if (!string.IsNullOrEmpty(frmOptions.ItemCode))
+            {
+                txtCode.Text = frmOptions.ItemCode;
+                isUseCodeAvailable = true;
+            }
+            else
+            {
+                // option 2: create code
+                itemNumberOfMaterial = await _productServices.GetItemNumberOfMaterialType(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+                var orgiCode = cboOriginal.Text.ToString().Trim().Split('-')[0];
+                var stanCode = cboStandard.Text.ToString().Trim().Split('|')[0];
+                var materialCode = cboMaterial.Text.ToString().Trim().Split('-')[0];
+                itemDetailNumber = itemNumberOfMaterial;
+                itemDetailId = cboMaterial.SelectedValue.ToString().Trim();
+            
+                var itemCOde = orgiCode + materialCode + itemNumberOfMaterial + stanCode;
+                txtCode.Text = itemCOde;
+            }
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
         {
             itemCode = string.Empty;
+            itemDetailId = string.Empty;
+            itemDetailNumber = string.Empty;
             this.Close();
         }
 

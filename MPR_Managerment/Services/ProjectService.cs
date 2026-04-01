@@ -173,7 +173,8 @@ namespace MPR_Managerment.Services
                 RIR_Link = r["RIR_link"]?.ToString() ?? "",
                 MPR_Link = r["MPR_link"]?.ToString() ?? "",
                 CreatedDate = r["CreatedDate"] != DBNull.Value ? Convert.ToDateTime(r["CreatedDate"]) : null,
-                ModifiedDate = r["ModifiedDate"] != DBNull.Value ? Convert.ToDateTime(r["ModifiedDate"]) : null
+                ModifiedDate = r["ModifiedDate"] != DBNull.Value ? Convert.ToDateTime(r["ModifiedDate"]) : null,
+                PNK_Link = r["PNK_LINK"]?.ToString() ?? "",
             };
         }
     }
