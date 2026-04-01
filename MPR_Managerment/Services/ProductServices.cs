@@ -157,7 +157,7 @@ namespace MPR_Managerment.Services
 
         public async Task<string> GetCodeExistedByMaterilDetail(int materialId)
         {
-            string sqlQuery = string.Format("SELECT TOP 1 * FROM Material_Detail WHERE material_detail_code = {0} ORDER BY material_detail_number DESC", materialId);
+            string sqlQuery = string.Format("SELECT TOP 1 item_code_existed FROM Material_Detail WHERE material_detail_code = {0} ORDER BY material_detail_number DESC", materialId);
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
                 SqlCommand cmd = new SqlCommand(sqlQuery, conn);
@@ -175,6 +175,24 @@ namespace MPR_Managerment.Services
                     }
                 }
                 return itemCOde;
+            }
+        }
+
+        public async Task<DataTable> GetitemExistedList(int materialId)
+        {
+            string sqlQuery = string.Format("SELECT * FROM Material_Detail WHERE material_detail_code = {0} ORDER BY material_detail_number DESC", materialId);
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
             }
         }
 

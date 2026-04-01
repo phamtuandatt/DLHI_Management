@@ -29,6 +29,13 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
+            groupBox1 = new GroupBox();
+            dgvItemExist = new DataGridView();
+            material_detail_id = new DataGridViewTextBoxColumn();
+            material_detail_number = new DataGridViewTextBoxColumn();
+            material_detail_name = new DataGridViewTextBoxColumn();
+            material_detail_code = new DataGridViewTextBoxColumn();
+            item_code_existed = new DataGridViewTextBoxColumn();
             tableLayoutPanel9 = new TableLayoutPanel();
             btnSave = new Button();
             btnCancel = new Button();
@@ -50,6 +57,8 @@
             cboMaterialCate = new ComboBox();
             label1 = new Label();
             panel1.SuspendLayout();
+            groupBox1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvItemExist).BeginInit();
             tableLayoutPanel9.SuspendLayout();
             tableLayoutPanel5.SuspendLayout();
             tableLayoutPanel4.SuspendLayout();
@@ -60,6 +69,7 @@
             // 
             // panel1
             // 
+            panel1.Controls.Add(groupBox1);
             panel1.Controls.Add(tableLayoutPanel9);
             panel1.Controls.Add(tableLayoutPanel5);
             panel1.Controls.Add(tableLayoutPanel4);
@@ -70,13 +80,83 @@
             panel1.Dock = DockStyle.Fill;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(603, 355);
+            panel1.Size = new Size(1417, 352);
             panel1.TabIndex = 0;
             panel1.Paint += panel1_Paint;
             // 
+            // groupBox1
+            // 
+            groupBox1.Controls.Add(dgvItemExist);
+            groupBox1.Location = new Point(606, 69);
+            groupBox1.Name = "groupBox1";
+            groupBox1.Size = new Size(799, 272);
+            groupBox1.TabIndex = 2;
+            groupBox1.TabStop = false;
+            groupBox1.Text = "Items";
+            // 
+            // dgvItemExist
+            // 
+            dgvItemExist.AllowUserToAddRows = false;
+            dgvItemExist.AllowUserToDeleteRows = false;
+            dgvItemExist.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvItemExist.BackgroundColor = Color.White;
+            dgvItemExist.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvItemExist.Columns.AddRange(new DataGridViewColumn[] { material_detail_id, material_detail_number, material_detail_name, material_detail_code, item_code_existed });
+            dgvItemExist.Dock = DockStyle.Fill;
+            dgvItemExist.Location = new Point(3, 23);
+            dgvItemExist.Name = "dgvItemExist";
+            dgvItemExist.ReadOnly = true;
+            dgvItemExist.RowHeadersWidth = 51;
+            dgvItemExist.Size = new Size(793, 246);
+            dgvItemExist.TabIndex = 0;
+            // 
+            // material_detail_id
+            // 
+            material_detail_id.DataPropertyName = "material_detail_id";
+            material_detail_id.HeaderText = "ID";
+            material_detail_id.MinimumWidth = 6;
+            material_detail_id.Name = "material_detail_id";
+            material_detail_id.ReadOnly = true;
+            material_detail_id.Visible = false;
+            // 
+            // material_detail_number
+            // 
+            material_detail_number.DataPropertyName = "material_detail_number";
+            material_detail_number.FillWeight = 20F;
+            material_detail_number.HeaderText = "Number";
+            material_detail_number.MinimumWidth = 6;
+            material_detail_number.Name = "material_detail_number";
+            material_detail_number.ReadOnly = true;
+            // 
+            // material_detail_name
+            // 
+            material_detail_name.DataPropertyName = "material_detail_name";
+            material_detail_name.FillWeight = 49.5095673F;
+            material_detail_name.HeaderText = "Name";
+            material_detail_name.MinimumWidth = 6;
+            material_detail_name.Name = "material_detail_name";
+            material_detail_name.ReadOnly = true;
+            // 
+            // material_detail_code
+            // 
+            material_detail_code.DataPropertyName = "material_detail_code";
+            material_detail_code.HeaderText = "Material ID";
+            material_detail_code.MinimumWidth = 6;
+            material_detail_code.Name = "material_detail_code";
+            material_detail_code.ReadOnly = true;
+            material_detail_code.Visible = false;
+            // 
+            // item_code_existed
+            // 
+            item_code_existed.DataPropertyName = "item_code_existed";
+            item_code_existed.HeaderText = "Code";
+            item_code_existed.MinimumWidth = 6;
+            item_code_existed.Name = "item_code_existed";
+            item_code_existed.ReadOnly = true;
+            item_code_existed.Visible = false;
+            // 
             // tableLayoutPanel9
             // 
-            tableLayoutPanel9.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             tableLayoutPanel9.ColumnCount = 2;
             tableLayoutPanel9.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 49.91511F));
             tableLayoutPanel9.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50.08489F));
@@ -86,15 +166,15 @@
             tableLayoutPanel9.Name = "tableLayoutPanel9";
             tableLayoutPanel9.RowCount = 1;
             tableLayoutPanel9.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel9.Size = new Size(589, 53);
+            tableLayoutPanel9.Size = new Size(594, 53);
             tableLayoutPanel9.TabIndex = 1;
             // 
             // btnSave
             // 
             btnSave.Dock = DockStyle.Fill;
-            btnSave.Location = new Point(297, 3);
+            btnSave.Location = new Point(299, 3);
             btnSave.Name = "btnSave";
-            btnSave.Size = new Size(289, 47);
+            btnSave.Size = new Size(292, 47);
             btnSave.TabIndex = 0;
             btnSave.Text = "SAVE";
             btnSave.UseVisualStyleBackColor = true;
@@ -105,7 +185,7 @@
             btnCancel.Dock = DockStyle.Fill;
             btnCancel.Location = new Point(3, 3);
             btnCancel.Name = "btnCancel";
-            btnCancel.Size = new Size(288, 47);
+            btnCancel.Size = new Size(290, 47);
             btnCancel.TabIndex = 0;
             btnCancel.Text = "Cancel";
             btnCancel.UseVisualStyleBackColor = true;
@@ -113,7 +193,6 @@
             // 
             // tableLayoutPanel5
             // 
-            tableLayoutPanel5.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             tableLayoutPanel5.ColumnCount = 3;
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31.8906612F));
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68.10934F));
@@ -125,13 +204,13 @@
             tableLayoutPanel5.Name = "tableLayoutPanel5";
             tableLayoutPanel5.RowCount = 1;
             tableLayoutPanel5.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel5.Size = new Size(589, 39);
+            tableLayoutPanel5.Size = new Size(594, 39);
             tableLayoutPanel5.TabIndex = 1;
             // 
             // btnGenerate
             // 
             btnGenerate.Dock = DockStyle.Fill;
-            btnGenerate.Location = new Point(440, 3);
+            btnGenerate.Location = new Point(445, 3);
             btnGenerate.Name = "btnGenerate";
             btnGenerate.Size = new Size(146, 33);
             btnGenerate.TabIndex = 4;
@@ -144,7 +223,7 @@
             label6.Dock = DockStyle.Fill;
             label6.Location = new Point(3, 0);
             label6.Name = "label6";
-            label6.Size = new Size(133, 39);
+            label6.Size = new Size(135, 39);
             label6.TabIndex = 2;
             label6.Text = "Code:";
             label6.TextAlign = ContentAlignment.MiddleLeft;
@@ -152,15 +231,14 @@
             // txtCode
             // 
             txtCode.Dock = DockStyle.Fill;
-            txtCode.Location = new Point(142, 5);
+            txtCode.Location = new Point(144, 5);
             txtCode.Margin = new Padding(3, 5, 3, 3);
             txtCode.Name = "txtCode";
-            txtCode.Size = new Size(292, 27);
+            txtCode.Size = new Size(295, 27);
             txtCode.TabIndex = 3;
             // 
             // tableLayoutPanel4
             // 
-            tableLayoutPanel4.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             tableLayoutPanel4.ColumnCount = 2;
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
@@ -170,7 +248,7 @@
             tableLayoutPanel4.Name = "tableLayoutPanel4";
             tableLayoutPanel4.RowCount = 1;
             tableLayoutPanel4.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel4.Size = new Size(589, 39);
+            tableLayoutPanel4.Size = new Size(594, 39);
             tableLayoutPanel4.TabIndex = 1;
             // 
             // label5
@@ -178,7 +256,7 @@
             label5.Dock = DockStyle.Fill;
             label5.Location = new Point(3, 0);
             label5.Name = "label5";
-            label5.Size = new Size(134, 39);
+            label5.Size = new Size(135, 39);
             label5.TabIndex = 2;
             label5.Text = "Standard:";
             label5.TextAlign = ContentAlignment.MiddleLeft;
@@ -189,16 +267,15 @@
             cboStandard.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboStandard.Dock = DockStyle.Fill;
             cboStandard.FormattingEnabled = true;
-            cboStandard.Location = new Point(143, 8);
+            cboStandard.Location = new Point(144, 8);
             cboStandard.Margin = new Padding(3, 8, 3, 3);
             cboStandard.Name = "cboStandard";
-            cboStandard.Size = new Size(443, 28);
+            cboStandard.Size = new Size(447, 28);
             cboStandard.TabIndex = 3;
             cboStandard.Validating += cboStandard_Validating;
             // 
             // tableLayoutPanel3
             // 
-            tableLayoutPanel3.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             tableLayoutPanel3.ColumnCount = 2;
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
@@ -208,7 +285,7 @@
             tableLayoutPanel3.Name = "tableLayoutPanel3";
             tableLayoutPanel3.RowCount = 1;
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel3.Size = new Size(589, 39);
+            tableLayoutPanel3.Size = new Size(594, 39);
             tableLayoutPanel3.TabIndex = 1;
             // 
             // label4
@@ -216,7 +293,7 @@
             label4.Dock = DockStyle.Fill;
             label4.Location = new Point(3, 0);
             label4.Name = "label4";
-            label4.Size = new Size(134, 39);
+            label4.Size = new Size(135, 39);
             label4.TabIndex = 2;
             label4.Text = "Original:";
             label4.TextAlign = ContentAlignment.MiddleLeft;
@@ -227,16 +304,15 @@
             cboOriginal.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboOriginal.Dock = DockStyle.Fill;
             cboOriginal.FormattingEnabled = true;
-            cboOriginal.Location = new Point(143, 8);
+            cboOriginal.Location = new Point(144, 8);
             cboOriginal.Margin = new Padding(3, 8, 3, 3);
             cboOriginal.Name = "cboOriginal";
-            cboOriginal.Size = new Size(443, 28);
+            cboOriginal.Size = new Size(447, 28);
             cboOriginal.TabIndex = 3;
             cboOriginal.Validating += cboOriginal_Validating;
             // 
             // tableLayoutPanel2
             // 
-            tableLayoutPanel2.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             tableLayoutPanel2.ColumnCount = 2;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
@@ -246,7 +322,7 @@
             tableLayoutPanel2.Name = "tableLayoutPanel2";
             tableLayoutPanel2.RowCount = 1;
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel2.Size = new Size(589, 39);
+            tableLayoutPanel2.Size = new Size(594, 39);
             tableLayoutPanel2.TabIndex = 1;
             // 
             // label3
@@ -254,7 +330,7 @@
             label3.Dock = DockStyle.Fill;
             label3.Location = new Point(3, 0);
             label3.Name = "label3";
-            label3.Size = new Size(134, 39);
+            label3.Size = new Size(135, 39);
             label3.TabIndex = 2;
             label3.Text = "Material:";
             label3.TextAlign = ContentAlignment.MiddleLeft;
@@ -265,16 +341,16 @@
             cboMaterial.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboMaterial.Dock = DockStyle.Fill;
             cboMaterial.FormattingEnabled = true;
-            cboMaterial.Location = new Point(143, 8);
+            cboMaterial.Location = new Point(144, 8);
             cboMaterial.Margin = new Padding(3, 8, 3, 3);
             cboMaterial.Name = "cboMaterial";
-            cboMaterial.Size = new Size(443, 28);
+            cboMaterial.Size = new Size(447, 28);
             cboMaterial.TabIndex = 3;
+            cboMaterial.SelectedIndexChanged += cboMaterial_SelectedIndexChanged;
             cboMaterial.Validating += cboMaterial_Validating;
             // 
             // tableLayoutPanel1
             // 
-            tableLayoutPanel1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             tableLayoutPanel1.ColumnCount = 2;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
@@ -284,7 +360,7 @@
             tableLayoutPanel1.Name = "tableLayoutPanel1";
             tableLayoutPanel1.RowCount = 1;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel1.Size = new Size(589, 39);
+            tableLayoutPanel1.Size = new Size(594, 39);
             tableLayoutPanel1.TabIndex = 1;
             // 
             // label2
@@ -292,7 +368,7 @@
             label2.Dock = DockStyle.Fill;
             label2.Location = new Point(3, 0);
             label2.Name = "label2";
-            label2.Size = new Size(134, 39);
+            label2.Size = new Size(135, 39);
             label2.TabIndex = 2;
             label2.Text = "Material Category:";
             label2.TextAlign = ContentAlignment.MiddleLeft;
@@ -303,10 +379,10 @@
             cboMaterialCate.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboMaterialCate.Dock = DockStyle.Fill;
             cboMaterialCate.FormattingEnabled = true;
-            cboMaterialCate.Location = new Point(143, 8);
+            cboMaterialCate.Location = new Point(144, 8);
             cboMaterialCate.Margin = new Padding(3, 8, 3, 3);
             cboMaterialCate.Name = "cboMaterialCate";
-            cboMaterialCate.Size = new Size(443, 28);
+            cboMaterialCate.Size = new Size(447, 28);
             cboMaterialCate.TabIndex = 3;
             cboMaterialCate.SelectedIndexChanged += cboMaterialCate_SelectedIndexChanged;
             cboMaterialCate.Validating += cboMaterialCate_Validating;
@@ -319,7 +395,7 @@
             label1.ForeColor = Color.White;
             label1.Location = new Point(0, 0);
             label1.Name = "label1";
-            label1.Size = new Size(603, 65);
+            label1.Size = new Size(1417, 65);
             label1.TabIndex = 0;
             label1.Text = "TẠO CODE";
             label1.TextAlign = ContentAlignment.MiddleCenter;
@@ -328,12 +404,14 @@
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(603, 355);
+            ClientSize = new Size(1417, 352);
             Controls.Add(panel1);
             Name = "frmCreateItemCode";
             Text = "frmCreateItemCode";
             Load += frmCreateItemCode_Load;
             panel1.ResumeLayout(false);
+            groupBox1.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvItemExist).EndInit();
             tableLayoutPanel9.ResumeLayout(false);
             tableLayoutPanel5.ResumeLayout(false);
             tableLayoutPanel5.PerformLayout();
@@ -367,5 +445,12 @@
         private TableLayoutPanel tableLayoutPanel2;
         private Label label3;
         private ComboBox cboMaterial;
+        private GroupBox groupBox1;
+        private DataGridView dgvItemExist;
+        private DataGridViewTextBoxColumn material_detail_id;
+        private DataGridViewTextBoxColumn material_detail_number;
+        private DataGridViewTextBoxColumn material_detail_name;
+        private DataGridViewTextBoxColumn material_detail_code;
+        private DataGridViewTextBoxColumn item_code_existed;
     }
 }

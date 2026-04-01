@@ -18,16 +18,20 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         private ProductServices _productServices = new ProductServices();
         private bool _isLoaded = false;
         private string itemNumberOfMaterial = "";
-        
+
 
         public string itemCode { get; set; } = string.Empty;
         public string itemDetailId { get; set; } = string.Empty;
-        public string itemDetailNumber {  get; set; } = string.Empty;
+        public string itemDetailNumber { get; set; } = string.Empty;
         public bool isUseCodeAvailable { get; set; } = false;
 
         public frmCreateItemCode()
         {
             InitializeComponent();
+            // Đăng ký sự kiện Shown thay vì gọi trực tiếp ở đây
+            this.Shown += (s, e) => {
+                SetTabOrder();
+            };
             this.Text = "Cấu hình Item Code";
             //this.Size = new Size(450, 650); // Tăng nhẹ chiều cao để cân đối khoảng cách
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -44,6 +48,29 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             }
             await LoadOriginals();
             await LoadStandards();
+        }
+
+        private void SetTabOrder()
+        {
+            // 1. Thiết lập thứ tự từ trên xuống dưới theo yêu cầu của bạn
+            cboMaterialCate.TabIndex = 0;
+            cboMaterial.TabIndex = 1;
+            cboOriginal.TabIndex = 2;
+            cboStandard.TabIndex = 3;
+            txtCode.TabIndex = 4;
+            btnGenerate.TabIndex = 5;
+
+            // 2. Các nút phụ ở Footer (nếu có) nên để số lớn hơn
+            btnSave.TabIndex = 6;
+            btnCancel.TabIndex = 7;
+
+            // 3. Đảm bảo thuộc tính TabStop là true (mặc định là true)
+            // Nếu TabStop = false, phím Tab sẽ nhảy qua control đó.
+            cboMaterialCate.TabStop = true;
+            txtCode.TabStop = true;
+
+            // 4. Focus vào control đầu tiên khi mở Form
+            this.ActiveControl = cboMaterialCate;
         }
 
         private async Task LoadMaterialCate()
@@ -210,11 +237,11 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                 // option 2: create code
                 itemNumberOfMaterial = await _productServices.GetItemNumberOfMaterialType(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
                 var orgiCode = cboOriginal.Text.ToString().Trim().Split('-')[0];
-                var stanCode = cboStandard.Text.ToString().Trim().Split('|')[0];
+                var stanCode = cboStandard.Text.ToString().Trim().Split('|')[1];
                 var materialCode = cboMaterial.Text.ToString().Trim().Split('-')[0];
                 itemDetailNumber = itemNumberOfMaterial;
                 itemDetailId = cboMaterial.SelectedValue.ToString().Trim();
-            
+
                 var itemCOde = orgiCode + materialCode + itemNumberOfMaterial + stanCode;
                 txtCode.Text = itemCOde;
             }
@@ -247,6 +274,13 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         private void cboStandard_Validating(object sender, CancelEventArgs e)
         {
             Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
+        private async void cboMaterial_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!_isLoaded || cboMaterial.Items.Count <= 0 || cboMaterial.SelectedValue.ToString() is null) return;
+            var dtItemExistedList = await _productServices.GetitemExistedList(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+            dgvItemExist.DataSource = dtItemExistedList;
         }
     }
 }
