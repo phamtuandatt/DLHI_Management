@@ -29,9 +29,9 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         {
             InitializeComponent();
             // Đăng ký sự kiện Shown thay vì gọi trực tiếp ở đây
-            this.Shown += (s, e) => {
-                SetTabOrder();
-            };
+            //this.Shown += (s, e) => {
+            //    SetTabOrder();
+            //};
             this.Text = "Cấu hình Item Code";
             //this.Size = new Size(450, 650); // Tăng nhẹ chiều cao để cân đối khoảng cách
             this.StartPosition = FormStartPosition.CenterScreen;

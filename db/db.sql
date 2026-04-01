@@ -199,14 +199,46 @@ BEGIN
 END
 GO
 
+/* TRIGGER UPDATE Amount sau khi add detail */
+/****** Object:  Trigger [dbo].[trg_PO_Detail_UpdateAmount]    Script Date: 01/04/2026 1:24:23 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- Tạo trigger để tự động cập nhật Amount khi Price hoặc Qty thay đổi
+ALTER TRIGGER [dbo].[trg_PO_Detail_UpdateAmount]
+ON [dbo].[PO_Detail]
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    UPDATE d
+    SET d.Amount = d.Qty_Per_Sheet * d.Price * (1 + d.VAT/100)
+    FROM dbo.PO_Detail d
+    INNER JOIN inserted i ON d.PO_Detail_ID = i.PO_Detail_ID;
+    
+    -- Cập nhật Total_Amount trong PO_head
+    UPDATE h
+    SET h.Total_Amount = (
+        SELECT ISNULL(SUM(Amount), 0)
+        FROM dbo.PO_Detail
+        WHERE PO_ID = h.PO_ID
+    )
+    FROM dbo.PO_head h
+    WHERE h.PO_ID IN (SELECT PO_ID FROM inserted);
+END
+
 -- GROUP ID_CODE TO SHOW QTY
 	--SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
 	--FROM Warehouse_Import
 	--WHERE Project_Code = '2508-DPCII'
 	--GROUP BY Item_Name, Material, Size, ID_Code
 
--- THÊM LINK LƯU PHIẾU XUẤT KHO
-ALTER TABLE ProjectInfo
-ADD PNK_LINK NVARCHAR(MAX)
+SELECT *FROM Products
+SELECT *FROM Material_Detail
+SELECT *FROM Warehouse_Import
 
-SELECT *FROM ProjectInfo
+SELECT *FROM PO_head WHERE ProjectCode = '25G3-NGR' OR Notes = '25G3-NGR'
+UPDATE PO_head SET ProjectCode = '25G3-NGR' WHERE Notes = '25G3-NGR'

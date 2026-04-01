@@ -90,7 +90,7 @@
             groupBox1.Location = new Point(606, 69);
             groupBox1.Name = "groupBox1";
             groupBox1.Size = new Size(799, 272);
-            groupBox1.TabIndex = 2;
+            groupBox1.TabIndex = 25;
             groupBox1.TabStop = false;
             groupBox1.Text = "Items";
             // 
@@ -205,7 +205,7 @@
             tableLayoutPanel5.RowCount = 1;
             tableLayoutPanel5.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel5.Size = new Size(594, 39);
-            tableLayoutPanel5.TabIndex = 1;
+            tableLayoutPanel5.TabIndex = 24;
             // 
             // btnGenerate
             // 
@@ -235,7 +235,7 @@
             txtCode.Margin = new Padding(3, 5, 3, 3);
             txtCode.Name = "txtCode";
             txtCode.Size = new Size(295, 27);
-            txtCode.TabIndex = 3;
+            txtCode.TabIndex = 30;
             // 
             // tableLayoutPanel4
             // 
@@ -249,7 +249,7 @@
             tableLayoutPanel4.RowCount = 1;
             tableLayoutPanel4.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel4.Size = new Size(594, 39);
-            tableLayoutPanel4.TabIndex = 1;
+            tableLayoutPanel4.TabIndex = 23;
             // 
             // label5
             // 
@@ -271,7 +271,7 @@
             cboStandard.Margin = new Padding(3, 8, 3, 3);
             cboStandard.Name = "cboStandard";
             cboStandard.Size = new Size(447, 28);
-            cboStandard.TabIndex = 3;
+            cboStandard.TabIndex = 29;
             cboStandard.Validating += cboStandard_Validating;
             // 
             // tableLayoutPanel3
@@ -286,7 +286,7 @@
             tableLayoutPanel3.RowCount = 1;
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel3.Size = new Size(594, 39);
-            tableLayoutPanel3.TabIndex = 1;
+            tableLayoutPanel3.TabIndex = 22;
             // 
             // label4
             // 
@@ -308,7 +308,7 @@
             cboOriginal.Margin = new Padding(3, 8, 3, 3);
             cboOriginal.Name = "cboOriginal";
             cboOriginal.Size = new Size(447, 28);
-            cboOriginal.TabIndex = 3;
+            cboOriginal.TabIndex = 28;
             cboOriginal.Validating += cboOriginal_Validating;
             // 
             // tableLayoutPanel2
@@ -323,7 +323,7 @@
             tableLayoutPanel2.RowCount = 1;
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.Size = new Size(594, 39);
-            tableLayoutPanel2.TabIndex = 1;
+            tableLayoutPanel2.TabIndex = 21;
             // 
             // label3
             // 
@@ -345,7 +345,7 @@
             cboMaterial.Margin = new Padding(3, 8, 3, 3);
             cboMaterial.Name = "cboMaterial";
             cboMaterial.Size = new Size(447, 28);
-            cboMaterial.TabIndex = 3;
+            cboMaterial.TabIndex = 27;
             cboMaterial.SelectedIndexChanged += cboMaterial_SelectedIndexChanged;
             cboMaterial.Validating += cboMaterial_Validating;
             // 
@@ -361,7 +361,7 @@
             tableLayoutPanel1.RowCount = 1;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.Size = new Size(594, 39);
-            tableLayoutPanel1.TabIndex = 1;
+            tableLayoutPanel1.TabIndex = 20;
             // 
             // label2
             // 
@@ -383,7 +383,7 @@
             cboMaterialCate.Margin = new Padding(3, 8, 3, 3);
             cboMaterialCate.Name = "cboMaterialCate";
             cboMaterialCate.Size = new Size(447, 28);
-            cboMaterialCate.TabIndex = 3;
+            cboMaterialCate.TabIndex = 26;
             cboMaterialCate.SelectedIndexChanged += cboMaterialCate_SelectedIndexChanged;
             cboMaterialCate.Validating += cboMaterialCate_Validating;
             // 
