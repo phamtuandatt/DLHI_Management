@@ -853,7 +853,7 @@ namespace MPR_Managerment.Forms
                     row.Cells["DeliveryLocation"].Value = d.DeliveryLocation;
                     row.Cells["Remarks"].Value = d.Remarks;
 
-                    // THUẬT TOÁN NHẬN DIỆN THÔNG MINH CHO CỘT "CÁCH TÍNH" (KHÔNG CẦN SỬA DB)
+                    // THUẬT TOÁN NHẬN DIỆN THÔNG MINH CHO CỘT "CÁCH TÍNH"
                     string calcMethod = "Theo SL";
                     decimal w = d.Weight_kg;
                     decimal p = d.Price;
@@ -865,7 +865,6 @@ namespace MPR_Managerment.Forms
                     {
                         decimal amtByKG = Math.Round(w * p * (1 + v / 100), 0);
                         decimal amtBySL = Math.Round(q * p * (1 + v / 100), 0);
-                        // Nếu tính theo KG ra đúng số tiền đang lưu, tự động gán là Theo KG
                         if (amt == amtByKG && amt != amtBySL)
                         {
                             calcMethod = "Theo KG";
@@ -940,7 +939,7 @@ namespace MPR_Managerment.Forms
                         r.Cells["VAT"].Value = 0;
                         r.Cells["Amount"].Value = 0;
                         r.Cells["Received"].Value = 0;
-                        r.Cells["Calc_Method"].Value = "Theo SL"; // Mặc định khi thêm dòng mới
+                        r.Cells["Calc_Method"].Value = "Theo SL";
                     }
 
                     int colIndex = startCol;
@@ -948,7 +947,6 @@ namespace MPR_Managerment.Forms
                     {
                         if (colIndex < dgvDetails.Columns.Count)
                         {
-                            // Nếu ô đó hiển thị, không bị khóa, và KHÔNG PHẢI là combobox Cách tính (để bảo vệ form paste cũ)
                             if (dgvDetails.Columns[colIndex].Visible && !dgvDetails.Columns[colIndex].ReadOnly)
                             {
                                 if (!(dgvDetails.Columns[colIndex] is DataGridViewComboBoxColumn))
@@ -957,8 +955,7 @@ namespace MPR_Managerment.Forms
                                 }
                                 else
                                 {
-                                    // Bỏ qua cột ComboBox nếu paste lướt qua nó, để dữ liệu Price không bị paste nhầm vào Cách tính
-                                    i--; // Lùi lại 1 step data để dán vào cột tiếp theo
+                                    i--;
                                 }
                             }
                             colIndex++;
@@ -975,7 +972,6 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // Cập nhật tính toán Thành tiền dựa trên SL hoặc KG
         private void RecalculateAmount(int rowIndex)
         {
             var row = dgvDetails.Rows[rowIndex];
@@ -986,7 +982,6 @@ namespace MPR_Managerment.Forms
 
             string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo SL";
 
-            // Nếu chọn "Theo KG", lấy cột Trọng lượng nhân Đơn giá. Nếu không, lấy SL nhân Đơn giá.
             decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
 
             decimal amount = baseValue * price * (1 + vat / 100);
@@ -1172,30 +1167,37 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        // ========================================================
+        // NÚT XÓA PO (HEADER)
+        // ========================================================
         private void BtnDeletePO_Click(object sender, EventArgs e)
         {
-            if (_selectedPO_ID == 0)
+            if (dgvPO.SelectedRows.Count == 0 || _selectedPO_ID == 0)
             {
-                MessageBox.Show("Vui lòng chọn đơn PO cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Vui lòng chọn một đơn PO trong 'Danh sách đơn đặt hàng' để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (MessageBox.Show("Xóa đơn PO này và toàn bộ chi tiết?", "Xác nhận",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            string poNo = dgvPO.SelectedRows[0].Cells["PO_No"].Value?.ToString() ?? "";
+
+            if (MessageBox.Show($"Bạn có chắc chắn muốn xóa đơn PO '{poNo}' và toàn bộ chi tiết vật tư bên trong không?\nHành động này không thể hoàn tác!",
+                "Xác nhận xóa PO", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes)
             {
                 try
                 {
                     _service.DeletePO(_selectedPO_ID);
-                    MessageBox.Show("Xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show($"Đã xóa thành công đơn PO '{poNo}'!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
                     ClearHeader();
                     dgvDetails.Rows.Clear();
-                    lblTotal.Text = "";
+                    lblTotal.Text = "Tổng tiền: 0 VND";
                     _selectedPO_ID = 0;
+
                     LoadPO();
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Lỗi khi xóa PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -1227,16 +1229,51 @@ namespace MPR_Managerment.Forms
             dgvDetails.CurrentCell = r.Cells["Item_Name"];
         }
 
+        // ========================================================
+        // NÚT XÓA NHIỀU DÒNG CHI TIẾT (MULTIPLE DELETE)
+        // ========================================================
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
         {
-            if (dgvDetails.SelectedRows.Count == 0) return;
-            if (MessageBox.Show("Xóa dòng này?", "Xác nhận",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            if (dgvDetails.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string msg = dgvDetails.SelectedRows.Count == 1
+                ? "Bạn có chắc chắn muốn xóa dòng này?"
+                : $"Bạn có chắc chắn muốn xóa {dgvDetails.SelectedRows.Count} dòng đã chọn?";
+
+            if (MessageBox.Show(msg, "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 try
                 {
-                    var row = dgvDetails.SelectedRows[0];
-                    dgvDetails.Rows.Remove(row);
+                    // Lấy danh sách các dòng cần xóa ra trước để tránh lỗi khi duyệt mảng
+                    var rowsToDelete = new List<DataGridViewRow>();
+                    foreach (DataGridViewRow row in dgvDetails.SelectedRows)
+                    {
+                        if (!row.IsNewRow) // Bỏ qua dòng mới cuối cùng nếu có
+                        {
+                            rowsToDelete.Add(row);
+                        }
+                    }
+
+                    // Xóa các dòng
+                    foreach (var row in rowsToDelete)
+                    {
+                        dgvDetails.Rows.Remove(row);
+                    }
+
+                    // Cập nhật lại số thứ tự (STT) cho toàn bộ danh sách để không bị ngắt quãng
+                    int itemNo = 1;
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    {
+                        if (!row.IsNewRow)
+                        {
+                            row.Cells["Item_No"].Value = itemNo++;
+                        }
+                    }
+
                     UpdateTotal();
                 }
                 catch (Exception ex)
