@@ -83,7 +83,7 @@ namespace MPR_Managerment.Forms
             };
             this.Controls.Add(panelHeader);
 
-            // Tab Control — đặt dưới header
+            // Tab Control
             tabMain = new TabControl
             {
                 Location = new Point(0, 45),
@@ -101,7 +101,6 @@ namespace MPR_Managerment.Forms
             tabMain.TabPages.Add(tabRIR);
             this.Controls.Add(tabMain);
 
-            // Resize TabControl theo form
             this.Resize += (s, e) =>
             {
                 panelHeader.Width = this.ClientSize.Width;
@@ -167,6 +166,20 @@ namespace MPR_Managerment.Forms
 
             dgvPO = BuildGrid(tabPO, 150);
             dgvPO.RowPrePaint += DgvPO_RowPrePaint;
+            dgvPO.CellDoubleClick += DgvPO_CellDoubleClick;
+        }
+
+        private void DgvPO_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            string poNo = dgvPO.Rows[e.RowIndex].Cells["PO No"].Value?.ToString() ?? "";
+
+            if (!string.IsNullOrEmpty(poNo))
+            {
+                var frm = new frmPO(poNo);
+                frm.Show();
+            }
         }
 
         // ===== MPR TAB =====
@@ -222,18 +235,16 @@ namespace MPR_Managerment.Forms
 
             dgvMPR = BuildGrid(tabMPR, 150);
             dgvMPR.RowPrePaint += DgvMPR_RowPrePaint;
-            dgvMPR.CellDoubleClick += DgvMPR_CellDoubleClick; // MỞ FORM MPR KHI DOUBLE CLICK
+            dgvMPR.CellDoubleClick += DgvMPR_CellDoubleClick;
         }
 
         private void DgvMPR_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
 
-            // Lấy MPR_ID từ dòng được click (cột này đã bị ẩn)
             var row = dgvMPR.Rows[e.RowIndex];
             int mprId = Convert.ToInt32(row.Cells["MPR_ID"].Value);
 
-            // Mở form frmMPR và truyền MPR_ID sang
             var frm = new frmMPR(mprId);
             frm.Show();
         }
@@ -256,7 +267,6 @@ namespace MPR_Managerment.Forms
             lblRIRInspecting = AddSummaryCard(panelRIRSummary, "Đang kiểm tra", "0", Color.FromArgb(102, 51, 153), 440);
             lblRIRDone = AddSummaryCard(panelRIRSummary, "Hoàn thành", "0", Color.FromArgb(40, 167, 69), 660);
 
-            // Filter row
             int fy = 115;
             AddLabel(tabRIR, "Tìm kiếm:", 10, fy);
             txtSearchRIR = new TextBox
@@ -290,7 +300,6 @@ namespace MPR_Managerment.Forms
             btnClear.Click += (s, e) => { txtSearchRIR.Text = ""; cboFilterRIR.SelectedIndex = 0; LoadRIRData(); };
             tabRIR.Controls.Add(btnClear);
 
-            // Label tiêu đề grid trên
             tabRIR.Controls.Add(new Label
             {
                 Text = "DANH SÁCH PO & TIẾN ĐỘ RIR",
@@ -300,7 +309,6 @@ namespace MPR_Managerment.Forms
                 Size = new Size(300, 20)
             });
 
-            // Grid trên — danh sách PO kèm tiến độ RIR
             dgvRIR = new DataGridView
             {
                 Location = new Point(10, 173),
@@ -324,7 +332,6 @@ namespace MPR_Managerment.Forms
             dgvRIR.SelectionChanged += DgvRIR_SelectionChanged;
             tabRIR.Controls.Add(dgvRIR);
 
-            // Label tiêu đề grid dưới
             var lblDetailTitle = new Label
             {
                 Text = "CHI TIẾT RIR THEO PO (click vào PO ở trên để xem)",
@@ -336,7 +343,6 @@ namespace MPR_Managerment.Forms
             };
             tabRIR.Controls.Add(lblDetailTitle);
 
-            // Grid dưới — chi tiết RIR theo PO được chọn
             dgvRIRDetail = new DataGridView
             {
                 Location = new Point(10, 404),
@@ -439,40 +445,69 @@ namespace MPR_Managerment.Forms
                 string search = txtSearchPO.Text.Trim();
                 string filter = cboFilterPO.SelectedItem?.ToString() ?? "Tất cả";
 
-                string where = "WHERE 1=1";
+                string searchCondition = "";
                 if (!string.IsNullOrEmpty(search))
-                    where += $" AND (h.PONo LIKE N'%{search}%' OR h.MPR_No LIKE N'%{search}%' OR h.Project_Name LIKE N'%{search}%')";
-                if (filter != "Tất cả")
-                    where += $" AND h.Status = N'{filter}'";
+                {
+                    searchCondition = $" AND (h.PONo LIKE N'%{search}%' OR h.MPR_No LIKE N'%{search}%' OR h.Project_Name LIKE N'%{search}%')";
+                }
 
+                string filterCondition = "";
+                if (filter != "Tất cả")
+                {
+                    filterCondition = $" WHERE [Trạng thái] = N'{filter}'";
+                }
+
+                // SQL dùng CTE (WITH) để tính toán trạng thái hoàn toàn tự động theo %
                 string sql = $@"
-                    SELECT
-                        h.PO_ID,
-                        h.PONo                             AS [PO No],
-                        h.Project_Name                     AS [Dự án],
-                        h.MPR_No                           AS [MPR No],
-                        h.PO_Date                          AS [Ngày PO],
-                        h.Status                           AS [Trạng thái],
-                        h.Revise                           AS [Rev],
-                        COUNT(d.PO_Detail_ID)              AS [Tổng items],
-                        ISNULL(SUM(d.Qty_Per_Sheet), 0)    AS [Tổng SL đặt],
-                        ISNULL(SUM(d.Received), 0)         AS [Tổng SL nhận],
-                        CASE
-                            WHEN ISNULL(SUM(d.Qty_Per_Sheet), 0) = 0 THEN 0
-                            ELSE CAST(SUM(d.Received) * 100.0 / SUM(d.Qty_Per_Sheet) AS DECIMAL(5,1))
-                        END                                AS [% Giao hàng],
-                        MIN(d.RequestDay)                  AS [Ngày giao sớm nhất],
-                        CASE
-                            WHEN MIN(d.RequestDay) < GETDATE()
-                             AND ISNULL(SUM(d.Received), 0) < ISNULL(SUM(d.Qty_Per_Sheet), 0)
-                            THEN N'⚠ Quá hạn'
-                            ELSE N'✅ Đúng hạn'
-                        END                                AS [Cảnh báo]
-                    FROM PO_head h
-                    LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
-                    {where}
-                    GROUP BY h.PO_ID, h.PONo, h.Project_Name, h.MPR_No, h.PO_Date, h.Status, h.Revise
-                    ORDER BY h.PO_Date DESC";
+                    WITH POStats AS (
+                        SELECT
+                            h.PO_ID,
+                            h.PONo                             AS [PO No],
+                            h.Project_Name                     AS [Dự án],
+                            h.MPR_No                           AS [MPR No],
+                            h.PO_Date                          AS [Ngày PO],
+                            h.Revise                           AS [Rev],
+                            COUNT(d.PO_Detail_ID)              AS [Tổng items],
+                            ISNULL(SUM(d.Qty_Per_Sheet), 0)    AS [Tổng SL đặt],
+                            ISNULL((SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID), ISNULL(SUM(d.Received), 0)) AS [Tổng SL nhận],
+                            MIN(d.RequestDay)                  AS [Ngày giao sớm nhất],
+                            h.Status                           AS [TrangThaiDB]
+                        FROM PO_head h
+                        LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
+                        WHERE 1=1 {searchCondition}
+                        GROUP BY h.PO_ID, h.PONo, h.Project_Name, h.MPR_No, h.PO_Date, h.Status, h.Revise
+                    ),
+                    CalculatedPO AS (
+                        SELECT
+                            PO_ID,
+                            [PO No],
+                            [Dự án],
+                            [MPR No],
+                            [Ngày PO],
+                            -- ÉP TRẠNG THÁI THEO SỐ LƯỢNG NHẬN --
+                            CASE
+                                WHEN [Tổng SL đặt] > 0 AND CAST([Tổng SL nhận] * 100.0 / [Tổng SL đặt] AS DECIMAL(5,1)) >= 100 THEN N'Completed'
+                                WHEN [Tổng SL đặt] > 0 AND CAST([Tổng SL nhận] * 100.0 / [Tổng SL đặt] AS DECIMAL(5,1)) > 0 THEN N'Pending'
+                                ELSE [TrangThaiDB]
+                            END AS [Trạng thái],
+                            [Rev],
+                            [Tổng items],
+                            [Tổng SL đặt],
+                            [Tổng SL nhận],
+                            CASE
+                                WHEN [Tổng SL đặt] = 0 THEN 0
+                                ELSE CAST([Tổng SL nhận] * 100.0 / [Tổng SL đặt] AS DECIMAL(5,1))
+                            END AS [% Giao hàng],
+                            [Ngày giao sớm nhất],
+                            CASE
+                                WHEN [Ngày giao sớm nhất] < GETDATE() AND [Tổng SL nhận] < [Tổng SL đặt] THEN N'⚠ Quá hạn'
+                                ELSE N'✅ Đúng hạn'
+                            END AS [Cảnh báo]
+                        FROM POStats
+                    )
+                    SELECT * FROM CalculatedPO
+                    {filterCondition}
+                    ORDER BY [Ngày PO] DESC";
 
                 using (var conn = DatabaseHelper.GetConnection())
                 {
@@ -493,6 +528,7 @@ namespace MPR_Managerment.Forms
                     {
                         decimal pct = row["% Giao hàng"] != DBNull.Value ? Convert.ToDecimal(row["% Giao hàng"]) : 0;
                         string canh = row["Cảnh báo"]?.ToString() ?? "";
+
                         if (pct >= 100) completed++;
                         else if (canh.Contains("Quá")) overdue++;
                         else if (pct > 0) inProgress++;
@@ -513,19 +549,28 @@ namespace MPR_Managerment.Forms
         {
             if (e.RowIndex < 0) return;
             string col = dgvPO.Columns[e.ColumnIndex].Name;
+
             if (col == "% Giao hàng")
             {
                 if (decimal.TryParse(e.Value?.ToString(), out decimal pct))
                 {
-                    e.CellStyle.ForeColor = pct >= 100 ? Color.FromArgb(40, 167, 69) : pct >= 50 ? Color.FromArgb(255, 140, 0) : Color.FromArgb(220, 53, 69);
+                    e.CellStyle.ForeColor = pct >= 100 ? Color.FromArgb(40, 167, 69) : pct > 0 ? Color.FromArgb(255, 140, 0) : Color.FromArgb(220, 53, 69);
                     e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                     e.Value = $"{pct}%";
                     e.FormattingApplied = true;
                 }
             }
-            if (col == "Cảnh báo")
+            else if (col == "Cảnh báo")
             {
                 e.CellStyle.ForeColor = e.Value?.ToString().Contains("Quá") == true ? Color.Red : Color.FromArgb(40, 167, 69);
+                e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
+            else if (col == "Trạng thái")
+            {
+                // Bôi màu thêm cho cột Trạng thái để đồng nhất với %
+                string val = e.Value?.ToString() ?? "";
+                if (val == "Completed") e.CellStyle.ForeColor = Color.FromArgb(40, 167, 69);
+                else if (val == "Pending") e.CellStyle.ForeColor = Color.FromArgb(255, 140, 0);
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
         }
@@ -539,7 +584,7 @@ namespace MPR_Managerment.Forms
 
             if (canh.Contains("Quá")) row.DefaultCellStyle.BackColor = Color.FromArgb(255, 235, 235);
             else if (status == "Completed") row.DefaultCellStyle.BackColor = Color.FromArgb(235, 255, 235);
-            else if (status == "In Progress" || status == "Approved")
+            else if (status == "In Progress" || status == "Approved" || status == "Pending")
                 row.DefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
         }
 

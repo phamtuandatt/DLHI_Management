@@ -325,10 +325,31 @@ namespace MPR_Managerment.Forms
             dgvDetails.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
 
             dgvDetails.CellEndEdit += DgvDetails_CellEndEdit;
-            dgvDetails.KeyDown += DgvDetails_KeyDown; // SỰ KIỆN COPY PASTE TỪ EXCEL
+            dgvDetails.KeyDown += DgvDetails_KeyDown;
+
+            // Cập nhật tính toán tức thì khi chọn Dropdown
+            dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
+            dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
 
             BuildDetailColumns();
             panelDetail.Controls.Add(dgvDetails);
+        }
+
+        // Bắt sự kiện thay đổi ComboBox Cách Tính để tính ngay lập tức
+        private void DgvDetails_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            if (dgvDetails.IsCurrentCellDirty && dgvDetails.CurrentCell.OwningColumn.Name == "Calc_Method")
+            {
+                dgvDetails.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        }
+
+        private void DgvDetails_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && dgvDetails.Columns[e.ColumnIndex].Name == "Calc_Method")
+            {
+                RecalculateAmount(e.RowIndex);
+            }
         }
 
         public static void AutoCompleteComboboxValidating(ComboBox sender, CancelEventArgs e)
@@ -374,8 +395,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải nhà cung cấp: " + ex.Message, "Lỗi",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi tải nhà cung cấp: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -413,8 +433,7 @@ namespace MPR_Managerment.Forms
                 string name = row["Name"].ToString();
                 string nameNorm = RemoveDiacritics(name).ToLower();
 
-                if (nameNorm.Contains(keywordNorm) ||
-                    name.ToLower().Contains(keyword.ToLower()))
+                if (nameNorm.Contains(keywordNorm) || name.ToLower().Contains(keyword.ToLower()))
                 {
                     filtered.Rows.Add(row["ID"], row["Name"]);
                 }
@@ -604,7 +623,6 @@ namespace MPR_Managerment.Forms
                 {
                     var ws = package.Workbook.Worksheets[0];
 
-                    // ===== HEADER =====
                     ReplaceCell(ws, "<<PROJECT_NAME>>", project?.ProjectName ?? po.Project_Name ?? "");
                     ReplaceCell(ws, "<<WO-NO>>", po.WorkorderNo ?? "");
                     ReplaceCell(ws, "<<REV.NUM>>", po.Revise.ToString() ?? "0");
@@ -612,13 +630,11 @@ namespace MPR_Managerment.Forms
                     ReplaceCell(ws, "<<MPR-NO>>", po.MPR_No ?? "");
                     ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
 
-                    // Supplier info
                     string supplierInfo = supplier != null
                         ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}"
                         : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
 
-                    // ===== DETAIL ROWS =====
                     int startRow = 8;
                     int detailCount = details.Count;
 
@@ -662,7 +678,6 @@ namespace MPR_Managerment.Forms
                         }
                     }
 
-                    // ===== SUB-TOTAL & VAT =====
                     int subTotalRow = startRow + detailCount;
                     int vatRow = subTotalRow + 1;
 
@@ -723,6 +738,15 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận", Width = 70 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No", Width = 90 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú", FillWeight = 100 });
+
+            // CỘT CÁCH TÍNH: Đặt trước cột PO_Detail_ID ẩn
+            var colCalc = new DataGridViewComboBoxColumn();
+            colCalc.Name = "Calc_Method";
+            colCalc.HeaderText = "Cách tính";
+            colCalc.Width = 85;
+            colCalc.Items.AddRange("Theo SL", "Theo KG");
+            dgvDetails.Columns.Add(colCalc);
+
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", FillWeight = 100, Visible = false });
         }
 
@@ -748,7 +772,6 @@ namespace MPR_Managerment.Forms
             return new Button { Text = text, Location = loc, Size = new Size(w, h), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
         }
 
-        // ===== RESIZE =====
         private void FrmPO_Resize(object sender, EventArgs e)
         {
             int w = this.ClientSize.Width - 20;
@@ -769,7 +792,6 @@ namespace MPR_Managerment.Forms
             txtNotes.Width = panelHeader.Width - txtNotes.Left - 20;
         }
 
-        // ===== LOAD DỮ LIỆU =====
         private void LoadPO()
         {
             try
@@ -830,14 +852,33 @@ namespace MPR_Managerment.Forms
                     row.Cells["MPSNo"].Value = d.MPSNo;
                     row.Cells["DeliveryLocation"].Value = d.DeliveryLocation;
                     row.Cells["Remarks"].Value = d.Remarks;
+
+                    // THUẬT TOÁN NHẬN DIỆN THÔNG MINH CHO CỘT "CÁCH TÍNH" (KHÔNG CẦN SỬA DB)
+                    string calcMethod = "Theo SL";
+                    decimal w = d.Weight_kg;
+                    decimal p = d.Price;
+                    decimal q = d.Qty_Per_Sheet;
+                    decimal v = d.VAT;
+                    decimal amt = d.Amount;
+
+                    if (w > 0 && p > 0)
+                    {
+                        decimal amtByKG = Math.Round(w * p * (1 + v / 100), 0);
+                        decimal amtBySL = Math.Round(q * p * (1 + v / 100), 0);
+                        // Nếu tính theo KG ra đúng số tiền đang lưu, tự động gán là Theo KG
+                        if (amt == amtByKG && amt != amtBySL)
+                        {
+                            calcMethod = "Theo KG";
+                        }
+                    }
+                    row.Cells["Calc_Method"].Value = calcMethod;
                 }
 
                 UpdateTotal();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải chi tiết PO: " + ex.Message, "Lỗi",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi tải chi tiết PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -852,9 +893,6 @@ namespace MPR_Managerment.Forms
             lblTotal.Text = $"Tổng tiền: {total:N0} VND";
         }
 
-        // ===== SỰ KIỆN =====
-
-        // Bắt sự kiện bấm Ctrl + V
         private void DgvDetails_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Control && e.KeyCode == Keys.V)
@@ -864,7 +902,6 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // Hàm xử lý cắt dán từ Clipboard
         private void PasteFromExcel()
         {
             try
@@ -903,6 +940,7 @@ namespace MPR_Managerment.Forms
                         r.Cells["VAT"].Value = 0;
                         r.Cells["Amount"].Value = 0;
                         r.Cells["Received"].Value = 0;
+                        r.Cells["Calc_Method"].Value = "Theo SL"; // Mặc định khi thêm dòng mới
                     }
 
                     int colIndex = startCol;
@@ -910,9 +948,18 @@ namespace MPR_Managerment.Forms
                     {
                         if (colIndex < dgvDetails.Columns.Count)
                         {
+                            // Nếu ô đó hiển thị, không bị khóa, và KHÔNG PHẢI là combobox Cách tính (để bảo vệ form paste cũ)
                             if (dgvDetails.Columns[colIndex].Visible && !dgvDetails.Columns[colIndex].ReadOnly)
                             {
-                                dgvDetails.Rows[startRow].Cells[colIndex].Value = cells[i].Trim();
+                                if (!(dgvDetails.Columns[colIndex] is DataGridViewComboBoxColumn))
+                                {
+                                    dgvDetails.Rows[startRow].Cells[colIndex].Value = cells[i].Trim();
+                                }
+                                else
+                                {
+                                    // Bỏ qua cột ComboBox nếu paste lướt qua nó, để dữ liệu Price không bị paste nhầm vào Cách tính
+                                    i--; // Lùi lại 1 step data để dán vào cột tiếp theo
+                                }
                             }
                             colIndex++;
                         }
@@ -928,14 +975,21 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        // Cập nhật tính toán Thành tiền dựa trên SL hoặc KG
         private void RecalculateAmount(int rowIndex)
         {
             var row = dgvDetails.Rows[rowIndex];
             decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty);
+            decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal weight);
             decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal price);
             decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
 
-            decimal amount = qty * price * (1 + vat / 100);
+            string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo SL";
+
+            // Nếu chọn "Theo KG", lấy cột Trọng lượng nhân Đơn giá. Nếu không, lấy SL nhân Đơn giá.
+            decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
+
+            decimal amount = baseValue * price * (1 + vat / 100);
             row.Cells["Amount"].Value = Math.Round(amount, 0);
 
             UpdateTotal();
@@ -1149,8 +1203,28 @@ namespace MPR_Managerment.Forms
         private void BtnAddDetail_Click(object sender, EventArgs e)
         {
             int nextItem = dgvDetails.Rows.Count + 1;
-            dgvDetails.Rows.Add(0, nextItem, "", "", 0, 0, 0, 0, "PCS", 0, 0, 0, 0, 0, "", "", "");
-            dgvDetails.CurrentCell = dgvDetails.Rows[dgvDetails.Rows.Count - 1].Cells["Item_Name"];
+            int newIdx = dgvDetails.Rows.Add();
+            var r = dgvDetails.Rows[newIdx];
+            r.Cells["DeliveryLocation"].Value = "";
+            r.Cells["Item_No"].Value = nextItem;
+            r.Cells["Item_Name"].Value = "";
+            r.Cells["Material"].Value = "";
+            r.Cells["Asize"].Value = "";
+            r.Cells["Bsize"].Value = "";
+            r.Cells["Csize"].Value = "";
+            r.Cells["Qty"].Value = 0;
+            r.Cells["UNIT"].Value = "PCS";
+            r.Cells["Weight"].Value = 0;
+            r.Cells["Price"].Value = 0;
+            r.Cells["VAT"].Value = 0;
+            r.Cells["Amount"].Value = 0;
+            r.Cells["Received"].Value = 0;
+            r.Cells["MPSNo"].Value = "";
+            r.Cells["Remarks"].Value = "";
+            r.Cells["Calc_Method"].Value = "Theo SL";
+            r.Cells["PO_Detail_ID"].Value = 0;
+
+            dgvDetails.CurrentCell = r.Cells["Item_Name"];
         }
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
@@ -1225,13 +1299,26 @@ namespace MPR_Managerment.Forms
                     int itemNo = 1;
                     foreach (var d in details)
                     {
-                        dgvDetails.Rows.Add(
-                            0, itemNo++, d.Item_Name, d.Material,
-                            d.Thickness_mm, d.C_Width_mm, d.F_Length_mm,
-                            d.Qty_Per_Sheet, d.UNIT, d.Weight_kg,
-                            0, 0, 0, 0,
-                            d.MPS_Info, d.Usage_Location, d.Remarks
-                        );
+                        int newIdx = dgvDetails.Rows.Add();
+                        var r = dgvDetails.Rows[newIdx];
+                        r.Cells["DeliveryLocation"].Value = d.Usage_Location;
+                        r.Cells["Item_No"].Value = itemNo++;
+                        r.Cells["Item_Name"].Value = d.Item_Name;
+                        r.Cells["Material"].Value = d.Material;
+                        r.Cells["Asize"].Value = d.Thickness_mm;
+                        r.Cells["Bsize"].Value = d.C_Width_mm;
+                        r.Cells["Csize"].Value = d.F_Length_mm;
+                        r.Cells["Qty"].Value = d.Qty_Per_Sheet;
+                        r.Cells["UNIT"].Value = d.UNIT;
+                        r.Cells["Weight"].Value = d.Weight_kg;
+                        r.Cells["Price"].Value = 0;
+                        r.Cells["VAT"].Value = 0;
+                        r.Cells["Amount"].Value = 0;
+                        r.Cells["Received"].Value = 0;
+                        r.Cells["MPSNo"].Value = d.MPS_Info;
+                        r.Cells["Remarks"].Value = d.Remarks;
+                        r.Cells["Calc_Method"].Value = "Theo SL";
+                        r.Cells["PO_Detail_ID"].Value = 0;
                     }
 
                     MessageBox.Show(
