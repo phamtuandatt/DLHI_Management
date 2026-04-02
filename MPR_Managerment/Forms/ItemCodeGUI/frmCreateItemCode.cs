@@ -18,7 +18,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         private ProductServices _productServices = new ProductServices();
         private bool _isLoaded = false;
         private string itemNumberOfMaterial = "";
-
+        private bool _isStandardLoaded = false;
 
         public string itemCode { get; set; } = string.Empty;
         public string itemDetailId { get; set; } = string.Empty;
@@ -146,6 +146,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             cboStandard.DisplayMember = "NAME";
             cboStandard.ValueMember = "ID";
             cboStandard.DataSource = dtCbo;
+            _isStandardLoaded = true;
         }
 
         private async Task LoadMaterialByCate(int cateId)
@@ -310,6 +311,12 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
             DataGridViewRow row = dgvItemExist.Rows[e.RowIndex];
             txtCode.Text = row.Cells[4].Value.ToString();
+        }
+
+        private void cboStandard_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!_isStandardLoaded) return;
+            txtCode.Text = !string.IsNullOrEmpty(txtCode.Text) ? txtCode.Text.Substring(0, 9) + cboStandard.Text.ToString().Trim().Split('|')[1] : "";
         }
     }
 }

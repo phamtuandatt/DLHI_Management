@@ -113,10 +113,10 @@ END
 
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
-CREATE PROCEDURE [dbo].[sp_InsertProduct]
+CREATE PROCEDURE [dbo].[sp_InsertProductWithCheck]
     @name NVARCHAR(255),
     @des_2 NVARCHAR(MAX),
-    @code NVARCHAR(100),
+    @code NVARCHAR(100), -- Đây là ProductCode dùng để kiểm tra trùng
     @prod_material_code NVARCHAR(100),
     @a_thinkness VARCHAR(50),
     @b_depth VARCHAR(50),
@@ -135,21 +135,30 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO [dbo].[Products] (
-        [name], [des_2], [code], [prod_material_code],
-        [a_thinkness], [b_depth], [c_witdth], [d_web], [e_flag], [f_length], [g_weight],
-        [used_note], [prod_origin_id], [prod_standard_id], 
-        [prod_material_cate_id], [prod_material_id], [prod_material_detail_id]
-    )
-    VALUES (
-        @name, @des_2, @code, @prod_material_code,
-        @a_thinkness, @b_depth, @c_witdth, @d_web, @e_flag, @f_length, @g_weight,
-        @used_note, @prod_origin_id, @prod_standard_id, 
-        @prod_material_cate_id, @prod_material_id, @prod_material_detail_id
-    );
+    -- Kiểm tra nếu Code chưa tồn tại trong bảng Products
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[Products] WHERE [code] = @code)
+    BEGIN
+        INSERT INTO [dbo].[Products] (
+            [name], [des_2], [code], [prod_material_code],
+            [a_thinkness], [b_depth], [c_witdth], [d_web], [e_flag], [f_length], [g_weight],
+            [used_note], [prod_origin_id], [prod_standard_id], 
+            [prod_material_cate_id], [prod_material_id], [prod_material_detail_id]
+        )
+        VALUES (
+            @name, @des_2, @code, @prod_material_code,
+            @a_thinkness, @b_depth, @c_witdth, @d_web, @e_flag, @f_length, @g_weight,
+            @used_note, @prod_origin_id, @prod_standard_id, 
+            @prod_material_cate_id, @prod_material_id, @prod_material_detail_id
+        );
 
-    -- Trả về ID vừa tạo để sử dụng ở C# nếu cần
-    SELECT SCOPE_IDENTITY() AS NewID;
+        -- Trả về ID vừa tạo
+        SELECT SCOPE_IDENTITY() AS ResultStatus; -- Trả về ID dương là insert thành công
+    END
+    ELSE
+    BEGIN
+        -- Trả về 0 hoặc -1 để báo hiệu ở code C# rằng dữ liệu đã tồn tại
+        SELECT 0 AS ResultStatus;
+    END
 END
 GO
 
@@ -299,6 +308,117 @@ BEGIN
         RAISERROR(@ErrorMessage, 16, 1);
     END CATCH
 END
+GO
+
+CREATE PROCEDURE [dbo].[sp_InsertProductFull]
+    -- Tham số cho bảng Products
+    @name NVARCHAR(255),
+    @des_2 NVARCHAR(MAX),
+    @code NVARCHAR(100),
+    @prod_material_code NVARCHAR(100),
+    @a_thinkness VARCHAR(50),
+    @b_depth VARCHAR(50),
+    @c_witdth VARCHAR(50),
+    @d_web VARCHAR(50),
+    @e_flag VARCHAR(50),
+    @f_length VARCHAR(50),
+    @g_weight VARCHAR(50),
+    @used_note NVARCHAR(MAX),
+    @prod_origin_id INT,
+    @prod_standard_id INT,
+    @prod_material_cate_id INT,
+    @prod_material_id INT,
+    @prod_material_detail_id INT,
+    
+    -- Tham số bổ sung cho bảng Material_Detail
+    @mat_detail_number NVARCHAR(100),
+    @mat_detail_name NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRANSACTION;
+    BEGIN TRY
+        -- 1. Chèn vào bảng Products
+        INSERT INTO [dbo].[Products] (
+            [name], [des_2], [code], [prod_material_code],
+            [a_thinkness], [b_depth], [c_witdth], [d_web], [e_flag], [f_length], [g_weight],
+            [used_note], [prod_origin_id], [prod_standard_id], 
+            [prod_material_cate_id], [prod_material_id], [prod_material_detail_id]
+        )
+        VALUES (
+            @name, @des_2, @code, @prod_material_code,
+            @a_thinkness, @b_depth, @c_witdth, @d_web, @e_flag, @f_length, @g_weight,
+            @used_note, @prod_origin_id, @prod_standard_id, 
+            @prod_material_cate_id, @prod_material_id, @prod_material_detail_id
+        );
+
+        -- Lấy ID sản phẩm vừa tạo (nếu cần dùng làm code hoặc mapping)
+        DECLARE @NewProductID INT = SCOPE_IDENTITY();
+
+        -- 2. Chèn vào bảng Material_Detail
+        -- Sử dụng @code của Product làm item_code_existed
+        INSERT INTO Material_Detail (
+            material_detail_number, 
+            material_detail_name, 
+            material_detail_code, 
+            item_code_existed
+        ) 
+        VALUES (
+            @mat_detail_number, 
+            @mat_detail_name, 
+            @prod_material_code, -- material_detail_code lấy theo mã vật liệu
+            @code                -- item_code_existed lấy theo mã sản phẩm
+        );
+
+        COMMIT TRANSACTION;
+
+        -- Trả về ID sản phẩm để ứng dụng C# nhận biết thành công
+        SELECT @NewProductID AS NewID;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END
+
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+GO
+
+DECLARE @RC int
+DECLARE @name nvarchar(255) = N'Thép Tấm SS400'
+DECLARE @des_2 nvarchar(max) = N'Mô tả chi tiết sản phẩm'
+DECLARE @code nvarchar(100) = N'PRD-001'
+DECLARE @prod_material_code nvarchar(100) = N'MAT-SS400'
+DECLARE @a_thinkness varchar(50) = '10'
+DECLARE @b_depth varchar(50) = '100'
+DECLARE @c_witdth varchar(50) = '200'
+DECLARE @d_web varchar(50) = '0'
+DECLARE @e_flag varchar(50) = '0'
+DECLARE @f_length varchar(50) = '6000'
+DECLARE @g_weight varchar(50) = '94.2'
+DECLARE @used_note nvarchar(max) = N'Ghi chú sử dụng'
+DECLARE @prod_origin_id int = 1
+DECLARE @prod_standard_id int = 1
+DECLARE @prod_material_cate_id int = 1
+DECLARE @prod_material_id int = 1
+DECLARE @prod_material_detail_id int = 1
+
+-- Tham số cho Material_Detail
+DECLARE @mat_detail_number nvarchar(100) = N'DET-0001'
+DECLARE @mat_detail_name nvarchar(255) = N'Chi tiết vật tư thép'
+
+EXECUTE @RC = [dbo].[sp_InsertProductFull] 
+   @name, @des_2, @code, @prod_material_code,
+   @a_thinkness, @b_depth, @c_witdth, @d_web, @e_flag, @f_length, @g_weight,
+   @used_note, @prod_origin_id, @prod_standard_id, 
+   @prod_material_cate_id, @prod_material_id, @prod_material_detail_id,
+   @mat_detail_number, @mat_detail_name
+
+   
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 GO
 
 -- GROUP ID_CODE TO SHOW QTY
