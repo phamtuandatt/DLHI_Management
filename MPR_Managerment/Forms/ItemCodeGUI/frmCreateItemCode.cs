@@ -16,9 +16,10 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
     public partial class frmCreateItemCode : Form
     {
         private ProductServices _productServices = new ProductServices();
-        private bool _isLoaded = false;
+        private bool _isLoadedMaterialCate = false;
         private string itemNumberOfMaterial = "";
         private bool _isStandardLoaded = false;
+        private bool _isClickGrid = false;
 
         public string itemCode { get; set; } = string.Empty;
         public string itemDetailId { get; set; } = string.Empty;
@@ -42,7 +43,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         private async void frmCreateItemCode_Load(object sender, EventArgs e)
         {
             await LoadMaterialCate();
-            if (_isLoaded)
+            if (_isLoadedMaterialCate)
             {
                 await LoadMaterialByCate(Convert.ToInt32(cboMaterialCate.SelectedValue.ToString()));
             }
@@ -81,7 +82,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             cboMaterialCate.DataSource = dtCates;
             if (cboMaterialCate.Items.Count > 0)
             {
-                _isLoaded = true;
+                _isLoadedMaterialCate = true;
                 //cboMaterial.SelectedIndex = 0;
             }
         }
@@ -187,7 +188,13 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
         private async void btnSave_Click(object sender, EventArgs e)
         {
-            itemCode = txtCode.Text.Trim();
+            if (txtCode.Text.Trim().Length < 9)
+            {
+                MessageBox.Show($"Item code chưa đúng định dạng !\nHãy chọn lại Standard !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+
+            }
+           itemCode = txtCode.Text.Trim();
 
             this.Close();
             //var material_Detail = new Material_Detail()
@@ -217,7 +224,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
         private async void cboMaterialCate_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_isLoaded)
+            if (_isLoadedMaterialCate)
             {
                 await LoadMaterialByCate(Convert.ToInt32(cboMaterialCate.SelectedValue.ToString()));
             }
@@ -291,9 +298,9 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
         private async void cboMaterial_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (!_isLoaded || cboMaterial.Items.Count <= 0 || cboMaterial.SelectedValue.ToString() is null) return;
-            var dtItemExistedList = await _productServices.GetitemExistedList(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
-            dgvItemExist.DataSource = dtItemExistedList;
+            //if (!_isLoaded || cboMaterial.Items.Count <= 0) return;
+            //var dtItemExistedList = await _productServices.GetitemExistedList(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+            //dgvItemExist.DataSource = dtItemExistedList;
         }
 
         private void dgvItemExist_RowPrePaint(object sender, DataGridViewRowPrePaintEventArgs e)
@@ -312,12 +319,19 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
             DataGridViewRow row = dgvItemExist.Rows[e.RowIndex];
             txtCode.Text = row.Cells[4].Value.ToString();
+            _isClickGrid = true;
         }
 
         private void cboStandard_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (!_isStandardLoaded) return;
             txtCode.Text = !string.IsNullOrEmpty(txtCode.Text) ? txtCode.Text.Substring(0, 9) + cboStandard.Text.ToString().Trim().Split('|')[1] : "";
+        }
+
+        private async void btnShowExisted_Click(object sender, EventArgs e)
+        {
+            var dtItemExistedList = await _productServices.GetitemExistedList(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+            dgvItemExist.DataSource = dtItemExistedList;
         }
     }
 }

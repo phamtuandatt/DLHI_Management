@@ -51,6 +51,7 @@
             label4 = new Label();
             cboOriginal = new ComboBox();
             tableLayoutPanel2 = new TableLayoutPanel();
+            btnShowExisted = new Button();
             label3 = new Label();
             cboMaterial = new ComboBox();
             tableLayoutPanel1 = new TableLayoutPanel();
@@ -349,9 +350,11 @@
             // 
             // tableLayoutPanel2
             // 
-            tableLayoutPanel2.ColumnCount = 2;
-            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
-            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
+            tableLayoutPanel2.ColumnCount = 3;
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 26.7973862F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 73.2026138F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60F));
+            tableLayoutPanel2.Controls.Add(btnShowExisted, 2, 0);
             tableLayoutPanel2.Controls.Add(label3, 0, 0);
             tableLayoutPanel2.Controls.Add(cboMaterial, 1, 0);
             tableLayoutPanel2.Location = new Point(5, 85);
@@ -361,6 +364,22 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.Size = new Size(520, 29);
             tableLayoutPanel2.TabIndex = 21;
+            // 
+            // btnShowExisted
+            // 
+            btnShowExisted.BackColor = Color.FromArgb(255, 128, 0);
+            btnShowExisted.Dock = DockStyle.Fill;
+            btnShowExisted.FlatStyle = FlatStyle.Flat;
+            btnShowExisted.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnShowExisted.ForeColor = Color.White;
+            btnShowExisted.Location = new Point(462, 2);
+            btnShowExisted.Margin = new Padding(3, 2, 3, 2);
+            btnShowExisted.Name = "btnShowExisted";
+            btnShowExisted.Size = new Size(55, 25);
+            btnShowExisted.TabIndex = 28;
+            btnShowExisted.Text = "➕ Generate";
+            btnShowExisted.UseVisualStyleBackColor = false;
+            btnShowExisted.Click += btnShowExisted_Click;
             // 
             // label3
             // 
@@ -381,7 +400,7 @@
             cboMaterial.Location = new Point(126, 6);
             cboMaterial.Margin = new Padding(3, 6, 3, 2);
             cboMaterial.Name = "cboMaterial";
-            cboMaterial.Size = new Size(391, 23);
+            cboMaterial.Size = new Size(330, 23);
             cboMaterial.TabIndex = 27;
             cboMaterial.SelectedIndexChanged += cboMaterial_SelectedIndexChanged;
             cboMaterial.Validating += cboMaterial_Validating;
@@ -491,5 +510,6 @@
         private DataGridViewTextBoxColumn material_detail_name;
         private DataGridViewTextBoxColumn material_detail_code;
         private DataGridViewTextBoxColumn item_code_existed;
+        private Button btnShowExisted;
     }
 }
