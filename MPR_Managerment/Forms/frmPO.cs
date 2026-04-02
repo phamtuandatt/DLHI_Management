@@ -933,21 +933,38 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        // =====================================================================
+        // ĐÃ CẬP NHẬT: Thêm cột NCC (Tên viết tắt nhà cung cấp) sau cột PO_No
+        // =====================================================================
         private void BindPOGrid(List<POHead> list)
         {
-            dgvPO.DataSource = list.ConvertAll(h => new
+            // Lấy danh sách supplier 1 lần để tra cứu Short_Name
+            var suppliers = new SupplierService().GetAll();
+
+            dgvPO.DataSource = list.ConvertAll(h =>
             {
-                ID = h.PO_ID,
-                PO_No = h.PONo,
-                Du_An = h.Project_Name,
-                MPR_No = h.MPR_No,
-                Workorder = h.WorkorderNo,
-                Ngay_PO = h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
-                Trang_Thai = h.Status,
-                Tong_Tien = h.Total_Amount.ToString("N0"),
-                Revise = h.Revise,
-                Ngay_Tao = h.Created_Date.HasValue ? h.Created_Date.Value.ToString("dd/MM/yyyy") : ""
+                var supplier = suppliers.Find(s => s.Supplier_ID == h.Supplier_ID);
+                string shortName = supplier?.Short_Name ?? "";
+
+                return new
+                {
+                    ID = h.PO_ID,
+                    PO_No = h.PONo,
+                    NCC = shortName,          // ← Cột tên viết tắt nhà cung cấp
+                    Du_An = h.Project_Name,
+                    MPR_No = h.MPR_No,
+                    Workorder = h.WorkorderNo,
+                    Ngay_PO = h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
+                    Trang_Thai = h.Status,
+                    Tong_Tien = h.Total_Amount.ToString("N0"),
+                    Revise = h.Revise,
+                    Ngay_Tao = h.Created_Date.HasValue ? h.Created_Date.Value.ToString("dd/MM/yyyy") : ""
+                };
             });
+
+            // Ẩn cột ID (chỉ dùng nội bộ để tra cứu)
+            if (dgvPO.Columns.Contains("ID"))
+                dgvPO.Columns["ID"].Visible = false;
         }
 
         private void LoadDetails(int poId)

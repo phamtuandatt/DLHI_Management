@@ -598,14 +598,27 @@ namespace MPR_Managerment.Forms
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+                    // Chỉ lấy PO có Revise cao nhất cho mỗi MPR_Detail_ID
+                    // Hiển thị kèm _RevX nếu Revise > 0
                     string sql = @"
-                        SELECT pod.MPR_Detail_ID, poh.PONo
-                        FROM PO_Detail pod
-                        INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID
-                        WHERE pod.MPR_Detail_ID IS NOT NULL
-                          AND pod.MPR_Detail_ID IN (
-                              SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId
-                          )";
+                        SELECT pod.MPR_Detail_ID, poh.PONo, poh.Revise
+                        FROM (
+                            SELECT pod2.MPR_Detail_ID, pod2.PO_ID,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY pod2.MPR_Detail_ID
+                                       ORDER BY poh2.Revise DESC, poh2.PO_Date DESC
+                                   ) AS rn
+                            FROM PO_Detail pod2
+                            INNER JOIN PO_head poh2 ON pod2.PO_ID = poh2.PO_ID
+                            WHERE pod2.MPR_Detail_ID IS NOT NULL
+                              AND pod2.MPR_Detail_ID IN (
+                                  SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId
+                              )
+                        ) ranked
+                        INNER JOIN PO_Detail pod  ON pod.PO_ID = ranked.PO_ID
+                                                  AND pod.MPR_Detail_ID = ranked.MPR_Detail_ID
+                        INNER JOIN PO_head   poh  ON poh.PO_ID = ranked.PO_ID
+                        WHERE ranked.rn = 1";
 
                     using (var cmd = new SqlCommand(sql, conn))
                     {
@@ -616,16 +629,12 @@ namespace MPR_Managerment.Forms
                             {
                                 int detailId = Convert.ToInt32(reader["MPR_Detail_ID"]);
                                 string poNo = reader["PONo"]?.ToString() ?? "";
+                                int revise = reader["Revise"] != DBNull.Value
+                                                  ? Convert.ToInt32(reader["Revise"]) : 0;
 
-                                if (dict.ContainsKey(detailId))
-                                {
-                                    if (!dict[detailId].Contains(poNo))
-                                        dict[detailId] += ", " + poNo;
-                                }
-                                else
-                                {
-                                    dict[detailId] = poNo;
-                                }
+                                // Hiển thị _RevX nếu Revise > 0
+                                string display = revise > 0 ? $"{poNo}_Rev{revise}" : poNo;
+                                dict[detailId] = display;
                             }
                         }
                     }
