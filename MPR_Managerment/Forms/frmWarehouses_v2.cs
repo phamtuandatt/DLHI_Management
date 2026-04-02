@@ -115,9 +115,10 @@ namespace MPR_Managerment.Forms
             pageWarehouse.Text = "  📦  Tồn kho  ";
             pageWarehouse.BackColor = Color.White;
 
+            // 5. Thêm các Page vào TabControl
+            mainTabControl.TabPages.Add(pageWarehouse);
             mainTabControl.TabPages.Add(pageImport);
             mainTabControl.TabPages.Add(pageExport);
-            mainTabControl.TabPages.Add(pageWarehouse);
 
             this.Controls.Add(mainTabControl);
         }
@@ -839,10 +840,10 @@ namespace MPR_Managerment.Forms
                         Code = imp.ID_Code,
                         ProdMaterialCode = imp.Material
                     };
-                    var rs = await _productServices.SaveProduct_Async(pModel, false);
 
                     if (!_useItemCodeExisted)
                     {
+                        var rs = await _productServices.SaveProduct_Async(pModel, false);
                         var material_Detail = new Material_Detail()
                         {
                             Material_Detail_Number = imp.Material_Detail_Number,

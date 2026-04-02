@@ -307,9 +307,10 @@ GO
 	--WHERE Project_Code = '2508-DPCII'
 	--GROUP BY Item_Name, Material, Size, ID_Code
 
- 
+ SELECT *FROM Products
 SELECT *FROM Material_Detail
 SELECT * FROM Warehouse_Import WHERE Project_Code = '25G3-NGR'
-
+SELECT *FROM ProjectInfo
 SELECT *FROM PO_head WHERE ProjectCode = '25G3-NGR' OR Notes = '25G3-NGR'
 UPDATE PO_head SET ProjectCode = '25G3-NGR' WHERE Notes = '25G3-NGR'
+SELECT *FROM MPR_Header

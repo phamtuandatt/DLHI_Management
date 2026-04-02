@@ -55,6 +55,7 @@
             label3 = new Label();
             cboProjectCheck = new ComboBox();
             label7 = new Label();
+            button1 = new Button();
             groupBox1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvKho).BeginInit();
             groupBox2.SuspendLayout();
@@ -75,10 +76,8 @@
             groupBox1.Controls.Add(label1);
             groupBox1.Dock = DockStyle.Top;
             groupBox1.Location = new Point(0, 0);
-            groupBox1.Margin = new Padding(3, 2, 3, 2);
             groupBox1.Name = "groupBox1";
-            groupBox1.Padding = new Padding(3, 2, 3, 2);
-            groupBox1.Size = new Size(1226, 308);
+            groupBox1.Size = new Size(1401, 411);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             // 
@@ -92,12 +91,11 @@
             dgvKho.BorderStyle = BorderStyle.None;
             dgvKho.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
             dgvKho.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvKho.Location = new Point(14, 95);
-            dgvKho.Margin = new Padding(3, 2, 3, 2);
+            dgvKho.Location = new Point(16, 127);
             dgvKho.Name = "dgvKho";
             dgvKho.ReadOnly = true;
             dgvKho.RowHeadersWidth = 51;
-            dgvKho.Size = new Size(1196, 201);
+            dgvKho.Size = new Size(1367, 268);
             dgvKho.TabIndex = 5;
             dgvKho.CellClick += dgvKho_CellClick;
             dgvKho.CellDoubleClick += dgvKho_CellDoubleClick;
@@ -109,10 +107,9 @@
             btnCancelSer.FlatStyle = FlatStyle.Flat;
             btnCancelSer.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnCancelSer.ForeColor = Color.White;
-            btnCancelSer.Location = new Point(438, 42);
-            btnCancelSer.Margin = new Padding(3, 2, 3, 2);
+            btnCancelSer.Location = new Point(501, 56);
             btnCancelSer.Name = "btnCancelSer";
-            btnCancelSer.Size = new Size(101, 33);
+            btnCancelSer.Size = new Size(115, 44);
             btnCancelSer.TabIndex = 4;
             btnCancelSer.Text = "✖ Xóa lọc";
             btnCancelSer.UseVisualStyleBackColor = false;
@@ -123,10 +120,9 @@
             btnSearch.FlatStyle = FlatStyle.Flat;
             btnSearch.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnSearch.ForeColor = Color.White;
-            btnSearch.Location = new Point(336, 42);
-            btnSearch.Margin = new Padding(3, 2, 3, 2);
+            btnSearch.Location = new Point(384, 56);
             btnSearch.Name = "btnSearch";
-            btnSearch.Size = new Size(101, 33);
+            btnSearch.Size = new Size(115, 44);
             btnSearch.TabIndex = 3;
             btnSearch.Text = "🔍 Tìm kiếm";
             btnSearch.UseVisualStyleBackColor = false;
@@ -135,10 +131,9 @@
             // cboProject
             // 
             cboProject.FormattingEnabled = true;
-            cboProject.Location = new Point(80, 48);
-            cboProject.Margin = new Padding(3, 2, 3, 2);
+            cboProject.Location = new Point(91, 64);
             cboProject.Name = "cboProject";
-            cboProject.Size = new Size(238, 23);
+            cboProject.Size = new Size(271, 28);
             cboProject.TabIndex = 2;
             // 
             // lblStatus
@@ -146,18 +141,18 @@
             lblStatus.AutoSize = true;
             lblStatus.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblStatus.ForeColor = Color.LimeGreen;
-            lblStatus.Location = new Point(14, 77);
+            lblStatus.Location = new Point(16, 103);
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(42, 15);
+            lblStatus.Size = new Size(53, 20);
             lblStatus.TabIndex = 1;
             lblStatus.Text = "Status";
             // 
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(14, 51);
+            label2.Location = new Point(16, 68);
             label2.Name = "label2";
-            label2.Size = new Size(41, 15);
+            label2.Size = new Size(52, 20);
             label2.TabIndex = 1;
             label2.Text = "Dự án:";
             // 
@@ -168,9 +163,9 @@
             label1.Dock = DockStyle.Top;
             label1.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             label1.ForeColor = Color.Blue;
-            label1.Location = new Point(3, 18);
+            label1.Location = new Point(3, 23);
             label1.Name = "label1";
-            label1.Size = new Size(441, 21);
+            label1.Size = new Size(560, 28);
             label1.TabIndex = 0;
             label1.Text = "CHỌN VẬT TƯ TỪ KHO ĐỂ XUẤT - Click vào dòng để xuất";
             // 
@@ -179,16 +174,15 @@
             groupBox2.BackColor = Color.White;
             groupBox2.Controls.Add(dgvExportQue);
             groupBox2.Controls.Add(btnClear);
+            groupBox2.Controls.Add(button1);
             groupBox2.Controls.Add(btnXuatKHO);
             groupBox2.Controls.Add(btnXoaRow);
             groupBox2.Controls.Add(lblInfoKho);
             groupBox2.Controls.Add(label5);
             groupBox2.Dock = DockStyle.Top;
-            groupBox2.Location = new Point(0, 308);
-            groupBox2.Margin = new Padding(3, 2, 3, 2);
+            groupBox2.Location = new Point(0, 411);
             groupBox2.Name = "groupBox2";
-            groupBox2.Padding = new Padding(3, 2, 3, 2);
-            groupBox2.Size = new Size(1226, 260);
+            groupBox2.Size = new Size(1401, 347);
             groupBox2.TabIndex = 1;
             groupBox2.TabStop = false;
             // 
@@ -202,25 +196,22 @@
             dgvExportQue.BorderStyle = BorderStyle.None;
             dgvExportQue.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
             dgvExportQue.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvExportQue.Location = new Point(14, 49);
-            dgvExportQue.Margin = new Padding(3, 2, 3, 2);
+            dgvExportQue.Location = new Point(16, 65);
             dgvExportQue.Name = "dgvExportQue";
             dgvExportQue.ReadOnly = true;
             dgvExportQue.RowHeadersWidth = 51;
-            dgvExportQue.Size = new Size(1196, 207);
+            dgvExportQue.Size = new Size(1367, 276);
             dgvExportQue.TabIndex = 5;
             // 
             // btnClear
             // 
-            btnClear.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnClear.BackColor = Color.FromArgb(108, 117, 125);
             btnClear.FlatStyle = FlatStyle.Flat;
             btnClear.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnClear.ForeColor = Color.White;
-            btnClear.Location = new Point(304, 16);
-            btnClear.Margin = new Padding(3, 2, 3, 2);
+            btnClear.Location = new Point(384, 21);
             btnClear.Name = "btnClear";
-            btnClear.Size = new Size(109, 29);
+            btnClear.Size = new Size(125, 39);
             btnClear.TabIndex = 4;
             btnClear.Text = "🔄 Xóa form";
             btnClear.UseVisualStyleBackColor = false;
@@ -233,10 +224,9 @@
             btnXuatKHO.FlatStyle = FlatStyle.Flat;
             btnXuatKHO.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnXuatKHO.ForeColor = Color.White;
-            btnXuatKHO.Location = new Point(191, 16);
-            btnXuatKHO.Margin = new Padding(3, 2, 3, 2);
+            btnXuatKHO.Location = new Point(255, 21);
             btnXuatKHO.Name = "btnXuatKHO";
-            btnXuatKHO.Size = new Size(109, 29);
+            btnXuatKHO.Size = new Size(125, 39);
             btnXuatKHO.TabIndex = 4;
             btnXuatKHO.Text = "💾 Lưu xuất kho";
             btnXuatKHO.UseVisualStyleBackColor = false;
@@ -246,12 +236,12 @@
             // 
             btnXoaRow.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnXoaRow.BackColor = Color.FromArgb(220, 53, 69);
+            btnXoaRow.FlatStyle = FlatStyle.Flat;
             btnXoaRow.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnXoaRow.ForeColor = Color.White;
-            btnXoaRow.Location = new Point(1101, 16);
-            btnXoaRow.Margin = new Padding(3, 2, 3, 2);
+            btnXoaRow.Location = new Point(1258, 21);
             btnXoaRow.Name = "btnXoaRow";
-            btnXoaRow.Size = new Size(109, 29);
+            btnXoaRow.Size = new Size(125, 39);
             btnXoaRow.TabIndex = 4;
             btnXoaRow.Text = "🗑 Xóa dòng";
             btnXoaRow.UseVisualStyleBackColor = false;
@@ -262,9 +252,9 @@
             lblInfoKho.AutoSize = true;
             lblInfoKho.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblInfoKho.ForeColor = Color.LimeGreen;
-            lblInfoKho.Location = new Point(419, 21);
+            lblInfoKho.Location = new Point(526, 30);
             lblInfoKho.Name = "lblInfoKho";
-            lblInfoKho.Size = new Size(42, 15);
+            lblInfoKho.Size = new Size(53, 20);
             lblInfoKho.TabIndex = 1;
             lblInfoKho.Text = "Status";
             // 
@@ -275,9 +265,9 @@
             label5.Dock = DockStyle.Top;
             label5.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             label5.ForeColor = Color.FromArgb(220, 53, 69);
-            label5.Location = new Point(3, 18);
+            label5.Location = new Point(3, 23);
             label5.Name = "label5";
-            label5.Size = new Size(182, 21);
+            label5.Size = new Size(232, 28);
             label5.TabIndex = 0;
             label5.Text = "THÔNG TIN XUẤT KHO";
             // 
@@ -296,39 +286,34 @@
             groupBox3.Controls.Add(cboProjectCheck);
             groupBox3.Controls.Add(label7);
             groupBox3.Dock = DockStyle.Top;
-            groupBox3.Location = new Point(0, 568);
-            groupBox3.Margin = new Padding(3, 2, 3, 2);
+            groupBox3.Location = new Point(0, 758);
             groupBox3.Name = "groupBox3";
-            groupBox3.Padding = new Padding(3, 2, 3, 2);
-            groupBox3.Size = new Size(1226, 395);
+            groupBox3.Size = new Size(1401, 527);
             groupBox3.TabIndex = 1;
             groupBox3.TabStop = false;
             groupBox3.Enter += groupBox3_Enter;
             // 
             // txtSearch
             // 
-            txtSearch.Location = new Point(820, 21);
-            txtSearch.Margin = new Padding(3, 2, 3, 2);
+            txtSearch.Location = new Point(937, 28);
             txtSearch.Name = "txtSearch";
-            txtSearch.Size = new Size(134, 23);
+            txtSearch.Size = new Size(153, 27);
             txtSearch.TabIndex = 7;
             // 
             // dtpTo
             // 
             dtpTo.Format = DateTimePickerFormat.Short;
-            dtpTo.Location = new Point(425, 21);
-            dtpTo.Margin = new Padding(3, 2, 3, 2);
+            dtpTo.Location = new Point(486, 28);
             dtpTo.Name = "dtpTo";
-            dtpTo.Size = new Size(114, 23);
+            dtpTo.Size = new Size(130, 27);
             dtpTo.TabIndex = 6;
             // 
             // dtpStart
             // 
             dtpStart.Format = DateTimePickerFormat.Short;
-            dtpStart.Location = new Point(241, 21);
-            dtpStart.Margin = new Padding(3, 2, 3, 2);
+            dtpStart.Location = new Point(275, 28);
             dtpStart.Name = "dtpStart";
-            dtpStart.Size = new Size(114, 23);
+            dtpStart.Size = new Size(130, 27);
             dtpStart.TabIndex = 6;
             // 
             // dgvHis
@@ -341,31 +326,28 @@
             dgvHis.BorderStyle = BorderStyle.None;
             dgvHis.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
             dgvHis.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvHis.Location = new Point(14, 74);
-            dgvHis.Margin = new Padding(3, 2, 3, 2);
+            dgvHis.Location = new Point(16, 99);
             dgvHis.Name = "dgvHis";
             dgvHis.ReadOnly = true;
             dgvHis.RowHeadersWidth = 51;
-            dgvHis.Size = new Size(1196, 309);
+            dgvHis.Size = new Size(1367, 412);
             dgvHis.TabIndex = 5;
             dgvHis.CellFormatting += dgvHis_CellFormatting;
             // 
             // btnClearSearch
             // 
-            btnClearSearch.Location = new Point(1066, 20);
-            btnClearSearch.Margin = new Padding(3, 2, 3, 2);
+            btnClearSearch.Location = new Point(1218, 27);
             btnClearSearch.Name = "btnClearSearch";
-            btnClearSearch.Size = new Size(90, 24);
+            btnClearSearch.Size = new Size(103, 32);
             btnClearSearch.TabIndex = 4;
             btnClearSearch.Text = "Xóa";
             btnClearSearch.UseVisualStyleBackColor = true;
             // 
             // btnSearchHis
             // 
-            btnSearchHis.Location = new Point(973, 20);
-            btnSearchHis.Margin = new Padding(3, 2, 3, 2);
+            btnSearchHis.Location = new Point(1112, 27);
             btnSearchHis.Name = "btnSearchHis";
-            btnSearchHis.Size = new Size(90, 24);
+            btnSearchHis.Size = new Size(103, 32);
             btnSearchHis.TabIndex = 3;
             btnSearchHis.Text = "Tìm kiếm";
             btnSearchHis.UseVisualStyleBackColor = true;
@@ -376,9 +358,9 @@
             lblInfoXK.AutoSize = true;
             lblInfoXK.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblInfoXK.ForeColor = Color.FromArgb(0, 120, 212);
-            lblInfoXK.Location = new Point(14, 52);
+            lblInfoXK.Location = new Point(16, 69);
             lblInfoXK.Name = "lblInfoXK";
-            lblInfoXK.Size = new Size(42, 15);
+            lblInfoXK.Size = new Size(53, 20);
             lblInfoXK.TabIndex = 1;
             lblInfoXK.Text = "Status";
             // 
@@ -389,50 +371,62 @@
             label6.Dock = DockStyle.Top;
             label6.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             label6.ForeColor = Color.FromArgb(220, 53, 69);
-            label6.Location = new Point(3, 18);
+            label6.Location = new Point(3, 23);
             label6.Name = "label6";
-            label6.Size = new Size(155, 21);
+            label6.Size = new Size(196, 28);
             label6.TabIndex = 0;
             label6.Text = "LỊCH SỬ XUẤT KHO";
             // 
             // label3
             // 
             label3.AutoSize = true;
-            label3.Location = new Point(372, 23);
+            label3.Location = new Point(425, 31);
             label3.Name = "label3";
-            label3.Size = new Size(41, 15);
+            label3.Size = new Size(52, 20);
             label3.TabIndex = 1;
             label3.Text = "Dự án:";
             // 
             // cboProjectCheck
             // 
             cboProjectCheck.FormattingEnabled = true;
-            cboProjectCheck.Location = new Point(559, 20);
-            cboProjectCheck.Margin = new Padding(3, 2, 3, 2);
+            cboProjectCheck.Location = new Point(639, 27);
             cboProjectCheck.Name = "cboProjectCheck";
-            cboProjectCheck.Size = new Size(238, 23);
+            cboProjectCheck.Size = new Size(271, 28);
             cboProjectCheck.TabIndex = 2;
             // 
             // label7
             // 
             label7.AutoSize = true;
-            label7.Location = new Point(190, 23);
+            label7.Location = new Point(217, 31);
             label7.Name = "label7";
-            label7.Size = new Size(41, 15);
+            label7.Size = new Size(52, 20);
             label7.TabIndex = 1;
             label7.Text = "Dự án:";
             // 
+            // button1
+            // 
+            button1.BackColor = Color.FromArgb(255, 128, 0);
+            button1.FlatStyle = FlatStyle.Flat;
+            button1.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            button1.ForeColor = Color.White;
+            button1.Location = new Point(255, 21);
+            button1.Name = "button1";
+            button1.Size = new Size(125, 39);
+            button1.TabIndex = 4;
+            button1.Text = "💾 Lưu xuất kho";
+            button1.UseVisualStyleBackColor = false;
+            button1.Click += btnXuatKHO_Click;
+            // 
             // ucExportWarehouse
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             Controls.Add(groupBox3);
             Controls.Add(groupBox2);
             Controls.Add(groupBox1);
-            Margin = new Padding(3, 2, 3, 2);
             Name = "ucExportWarehouse";
-            Size = new Size(1226, 992);
+            Size = new Size(1401, 1323);
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvKho).EndInit();
@@ -474,5 +468,6 @@
         private DataGridView dgvKho;
         private Button btnClear;
         private Button btnXuatKHO;
+        private Button button1;
     }
 }
