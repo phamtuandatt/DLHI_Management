@@ -274,6 +274,11 @@ namespace MPR_Managerment.Forms
             btnSaveDetail.Click += BtnSaveDetail_Click;
             panelDetail.Controls.Add(btnSaveDetail);
 
+            // Nút Tạo PO — mở frmPO và tự động import MPR hiện tại
+            var btnCreatePO = CreateButton("🛒 Tạo PO", Color.FromArgb(255, 140, 0), new Point(400, 38), 120, 30);
+            btnCreatePO.Click += BtnCreatePO_Click;
+            panelDetail.Controls.Add(btnCreatePO);
+
             // Lưới chi tiết vật tư (Bên Trái)
             dgvDetails = new DataGridView
             {
@@ -813,6 +818,24 @@ namespace MPR_Managerment.Forms
             dgvDetails.Rows.Clear();
             dgvPOProgress.DataSource = null;
             _details.Clear();
+        }
+
+        // Nút "Tạo PO" → mở frmPO và tự động import MPR đang được chọn
+        private void BtnCreatePO_Click(object sender, EventArgs e)
+        {
+            if (_selectedMPR_ID == 0)
+            {
+                MessageBox.Show("Vui lòng chọn một MPR trước!", "Thông báo",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var mpr = _mprList.Find(m => m.MPR_ID == _selectedMPR_ID);
+            if (mpr == null) return;
+
+            string mprNo = mpr.MPR_No;
+            var frm = new frmPO(mprNo, true);   // true = importMode
+            frm.Show();
         }
 
         private void BtnAddDetail_Click(object sender, EventArgs e)
