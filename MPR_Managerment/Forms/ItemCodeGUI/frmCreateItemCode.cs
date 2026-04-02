@@ -224,27 +224,38 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
         private async void btnGenerate_Click(object sender, EventArgs e)
         {
-            frmOptions frmOptions = new frmOptions(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
-            frmOptions.ShowDialog();
-            // option 1: use code exist
-            if (!string.IsNullOrEmpty(frmOptions.ItemCode))
-            {
-                txtCode.Text = frmOptions.ItemCode;
-                isUseCodeAvailable = true;
-            }
-            else
-            {
-                // option 2: create code
-                itemNumberOfMaterial = await _productServices.GetItemNumberOfMaterialType(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
-                var orgiCode = cboOriginal.Text.ToString().Trim().Split('-')[0];
-                var stanCode = cboStandard.Text.ToString().Trim().Split('|')[1];
-                var materialCode = cboMaterial.Text.ToString().Trim().Split('-')[0];
-                itemDetailNumber = itemNumberOfMaterial;
-                itemDetailId = cboMaterial.SelectedValue.ToString().Trim();
+            itemNumberOfMaterial = await _productServices.GetItemNumberOfMaterialType(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+            var orgiCode = cboOriginal.Text.ToString().Trim().Split('-')[0];
+            var stanCode = cboStandard.Text.ToString().Trim().Split('|')[1];
+            var materialCode = cboMaterial.Text.ToString().Trim().Split('-')[0];
+            itemDetailNumber = itemNumberOfMaterial;
+            itemDetailId = cboMaterial.SelectedValue.ToString().Trim();
 
-                var itemCOde = orgiCode + materialCode + itemNumberOfMaterial + stanCode;
-                txtCode.Text = itemCOde;
-            }
+            var itemCOde = orgiCode + materialCode + itemNumberOfMaterial + stanCode;
+            txtCode.Text = itemCOde;
+
+            //frmOptions frmOptions = new frmOptions(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+            //frmOptions.ShowDialog();
+
+            //// option 1: use code exist
+            //if (!string.IsNullOrEmpty(frmOptions.ItemCode))
+            //{
+            //    txtCode.Text = frmOptions.ItemCode;
+            //    isUseCodeAvailable = true;
+            //}
+            //else
+            //{
+            //    // option 2: create code
+            //    itemNumberOfMaterial = await _productServices.GetItemNumberOfMaterialType(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
+            //    var orgiCode = cboOriginal.Text.ToString().Trim().Split('-')[0];
+            //    var stanCode = cboStandard.Text.ToString().Trim().Split('|')[1];
+            //    var materialCode = cboMaterial.Text.ToString().Trim().Split('-')[0];
+            //    itemDetailNumber = itemNumberOfMaterial;
+            //    itemDetailId = cboMaterial.SelectedValue.ToString().Trim();
+
+            //    var itemCOde = orgiCode + materialCode + itemNumberOfMaterial + stanCode;
+            //    txtCode.Text = itemCOde;
+            //}
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
@@ -290,7 +301,15 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
         private void dgvItemExist_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
         {
-            Common.Common.RenderNumbering(sender, e);    
+            Common.Common.RenderNumbering(sender, e);
+        }
+
+        private void dgvItemExist_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            DataGridViewRow row = dgvItemExist.Rows[e.RowIndex];
+            txtCode.Text = row.Cells[4].Value.ToString();
         }
     }
 }

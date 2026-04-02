@@ -118,6 +118,7 @@
             dgvItemExist.RowHeadersWidth = 51;
             dgvItemExist.Size = new Size(793, 246);
             dgvItemExist.TabIndex = 0;
+            dgvItemExist.CellClick += dgvItemExist_CellClick;
             dgvItemExist.RowPostPaint += dgvItemExist_RowPostPaint;
             dgvItemExist.RowPrePaint += dgvItemExist_RowPrePaint;
             // 
@@ -184,6 +185,7 @@
             // 
             btnSave.BackColor = Color.Lime;
             btnSave.Dock = DockStyle.Fill;
+            btnSave.FlatStyle = FlatStyle.Flat;
             btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnSave.ForeColor = SystemColors.ButtonFace;
             btnSave.Location = new Point(299, 3);
@@ -198,6 +200,7 @@
             // 
             btnCancel.BackColor = SystemColors.ActiveBorder;
             btnCancel.Dock = DockStyle.Fill;
+            btnCancel.FlatStyle = FlatStyle.Flat;
             btnCancel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnCancel.ForeColor = Color.Snow;
             btnCancel.Location = new Point(3, 3);
@@ -228,6 +231,7 @@
             // 
             btnGenerate.BackColor = Color.FromArgb(255, 128, 0);
             btnGenerate.Dock = DockStyle.Fill;
+            btnGenerate.FlatStyle = FlatStyle.Flat;
             btnGenerate.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnGenerate.ForeColor = Color.White;
             btnGenerate.Location = new Point(445, 3);
