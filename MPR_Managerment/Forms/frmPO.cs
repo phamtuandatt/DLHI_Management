@@ -68,7 +68,6 @@ namespace MPR_Managerment.Forms
             BuildUI();
             LoadPO();
             this.Resize += FrmPO_Resize;
-            // Import MPR sau khi form đã load xong
             this.Shown += (s, e) => ImportMPRByNo(_importMprNo);
         }
 
@@ -865,6 +864,7 @@ namespace MPR_Managerment.Forms
 
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ordered_PO", HeaderText = "Đã lên PO", ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPR_Detail_ID", HeaderText = "MPR_Detail_ID", Visible = false }); // Lưu Detail_ID từ MPR để tính % đặt hàng
 
             // Set default widths before auto sizing to avoid visual glitches
             foreach (DataGridViewColumn col in dgvDetails.Columns)
@@ -995,6 +995,7 @@ namespace MPR_Managerment.Forms
                     }
 
                     row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID;
+                    row.Cells["MPR_Detail_ID"].Value = d.MPR_Detail_ID.HasValue ? (object)d.MPR_Detail_ID.Value : DBNull.Value;
                     row.Cells["Item_No"].Value = d.Item_No;
                     row.Cells["Item_Name"].Value = d.Item_Name;
                     row.Cells["Material"].Value = d.Material;
@@ -1332,6 +1333,12 @@ namespace MPR_Managerment.Forms
                         remarks += " [CALC:SL]";
                     }
 
+                    // Đọc MPR_Detail_ID từ cột ẩn (được điền khi import từ MPR)
+                    int? mprDetailId = null;
+                    if (dgvDetails.Columns.Contains("MPR_Detail_ID") && row.Cells["MPR_Detail_ID"].Value != null)
+                        if (int.TryParse(row.Cells["MPR_Detail_ID"].Value.ToString(), out int mdi) && mdi > 0)
+                            mprDetailId = mdi;
+
                     var detail = new PODetail
                     {
                         Item_No = itemNo++,
@@ -1349,7 +1356,8 @@ namespace MPR_Managerment.Forms
                         Received = int.TryParse(row.Cells["Received"].Value?.ToString(), out int rec) ? rec : 0,
                         MPSNo = row.Cells["MPSNo"].Value?.ToString() ?? "",
                         DeliveryLocation = row.Cells["DeliveryLocation"].Value?.ToString() ?? "",
-                        Remarks = remarks.Trim()
+                        Remarks = remarks.Trim(),
+                        MPR_Detail_ID = mprDetailId  // ← truyền vào để lưu DB, dùng tính % đặt hàng
                     };
                     _service.InsertDetail(detail, _selectedPO_ID);
                 }
@@ -1616,6 +1624,7 @@ namespace MPR_Managerment.Forms
                         r.Cells["Calc_Method"].Value = "Theo SL";
                         r.Cells["Ordered_PO"].Value = orderedPo;
                         r.Cells["PO_Detail_ID"].Value = 0;
+                        r.Cells["MPR_Detail_ID"].Value = d.Detail_ID; // ← Lưu để tính % đặt hàng
                     }
 
                     UpdateTotal(); // Tính toán lại số tiền khi Import
@@ -1630,72 +1639,56 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // Import MPR trực tiếp theo MPR_No (không cần dialog chọn)
-        // Dùng khi mở frmPO từ nút "Tạo PO" trong frmMPR
+        // Import MPR trực tiếp theo MPR_No — dùng khi mở frmPO từ nút "Tạo PO" trong frmMPR
         public void ImportMPRByNo(string mprNo)
         {
             if (string.IsNullOrEmpty(mprNo)) return;
             try
             {
                 var mprService = new MPR_Managerment.Services.MPRService();
-                var allMpr = mprService.GetAll();
-                var mpr = allMpr.Find(m => m.MPR_No == mprNo);
-
+                var mpr = mprService.GetAll().Find(m => m.MPR_No == mprNo);
                 if (mpr == null)
                 {
-                    MessageBox.Show($"Không tìm thấy MPR: {mprNo}", "Thông báo",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show($"Không tìm thấy MPR: {mprNo}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
                 var details = mprService.GetDetails(mpr.MPR_ID);
                 if (details == null || details.Count == 0)
                 {
-                    MessageBox.Show($"MPR {mprNo} chưa có chi tiết vật tư!", "Thông báo",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show($"MPR {mprNo} chưa có chi tiết vật tư!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                // Reset form
                 ClearHeader();
                 _selectedPO_ID = 0;
                 _details.Clear();
                 dgvDetails.Rows.Clear();
 
                 var poMapping = GetPoMappingForMpr(mpr.MPR_ID);
-
-                // Điền thông tin MPR
                 txtProjectName.Text = mpr.Project_Name;
                 txtMPRNo.Text = mpr.MPR_No;
 
-                // Tìm Project để điền WorkorderNo và tạo PO No tự động
                 try
                 {
                     var projects = new MPR_Managerment.Services.ProjectService().GetAll();
                     var project = projects.Find(p =>
                         !string.IsNullOrEmpty(p.ProjectName) &&
                         p.ProjectName.Equals(mpr.Project_Name, StringComparison.OrdinalIgnoreCase));
-
                     if (project == null)
                         project = projects.Find(p =>
                             !string.IsNullOrEmpty(p.ProjectName) &&
                             (p.ProjectName.Contains(mpr.Project_Name, StringComparison.OrdinalIgnoreCase) ||
                              mpr.Project_Name.Contains(p.ProjectName, StringComparison.OrdinalIgnoreCase)));
-
                     if (project != null)
                     {
                         txtWorkorderNo.Text = project.WorkorderNo ?? "";
                         _projectCodeImport = project.ProjectCode;
-                        string poCode = project.POCode ?? project.ProjectCode ?? "";
-                        txtPONo.Text = GenerateAutoPoNo(poCode);
+                        txtPONo.Text = GenerateAutoPoNo(project.POCode ?? project.ProjectCode ?? "");
                     }
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine("Lỗi tìm project: " + ex.Message);
-                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Lỗi tìm project: " + ex.Message); }
 
-                // Điền chi tiết vật tư vào grid
                 int itemNo = 1;
                 foreach (var d in details)
                 {
@@ -1703,11 +1696,11 @@ namespace MPR_Managerment.Forms
                     string aSize = d.Thickness_mm > 0 ? d.Thickness_mm.ToString() : (d.Depth_mm > 0 ? d.Depth_mm.ToString() : "");
                     string bSize = d.C_Width_mm > 0 ? d.C_Width_mm.ToString() : "";
                     string cSize = (d.D_Web_mm == 0 && d.E_Flange_mm == 0)
-                                       ? (d.F_Length_mm > 0 ? d.F_Length_mm.ToString() : "")
-                                       : $"{d.D_Web_mm}x{d.E_Flange_mm}x{d.F_Length_mm}";
+                                   ? (d.F_Length_mm > 0 ? d.F_Length_mm.ToString() : "")
+                                   : $"{d.D_Web_mm}x{d.E_Flange_mm}x{d.F_Length_mm}";
 
-                    int newIdx = dgvDetails.Rows.Add();
-                    var r = dgvDetails.Rows[newIdx];
+                    int idx = dgvDetails.Rows.Add();
+                    var r = dgvDetails.Rows[idx];
                     r.Cells["DeliveryLocation"].Value = d.Usage_Location;
                     r.Cells["Item_No"].Value = itemNo++;
                     r.Cells["Item_Name"].Value = d.Item_Name;
@@ -1727,21 +1720,17 @@ namespace MPR_Managerment.Forms
                     r.Cells["Calc_Method"].Value = "Theo SL";
                     r.Cells["Ordered_PO"].Value = orderedPo;
                     r.Cells["PO_Detail_ID"].Value = 0;
+                    r.Cells["MPR_Detail_ID"].Value = d.Detail_ID;
                 }
 
                 UpdateTotal();
                 AutoAdjustColumnWidths();
-
-                MessageBox.Show(
-                    $"✅ Đã import {details.Count} dòng từ MPR {mpr.MPR_No}!\n" +
-                    $"PO No dự kiến: {txtPONo.Text}\n" +
-                    $"Workorder: {txtWorkorderNo.Text}",
+                MessageBox.Show($"✅ Đã import {details.Count} dòng từ MPR {mpr.MPR_No}!\nPO No: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}",
                     "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi import MPR: " + ex.Message, "Lỗi",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi import MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
