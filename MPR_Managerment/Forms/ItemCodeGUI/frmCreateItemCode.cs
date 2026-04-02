@@ -234,6 +234,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
             var itemCOde = orgiCode + materialCode + itemNumberOfMaterial + stanCode;
             txtCode.Text = itemCOde;
+            isUseCodeAvailable = true;
 
             //frmOptions frmOptions = new frmOptions(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
             //frmOptions.ShowDialog();
