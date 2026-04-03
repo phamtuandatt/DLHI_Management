@@ -6,7 +6,8 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
-using Microsoft.Data.SqlClient; // Đã bổ sung thư viện SQL
+using Microsoft.Data.SqlClient;
+using OfficeOpenXml; // Đã bổ sung thư viện SQL
 
 namespace MPR_Managerment.Forms
 {
@@ -14,6 +15,9 @@ namespace MPR_Managerment.Forms
     {
         private RIRService _service = new RIRService();
         private POService _poService = new POService();
+        private ProjectService _projectServices = new ProjectService();
+        private SupplierService _supplierServices = new SupplierService();
+
         private List<RIRHead> _rirList = new List<RIRHead>();
         private List<RIRDetail> _details = new List<RIRDetail>();
         private int _selectedRIR_ID = 0;
@@ -29,6 +33,7 @@ namespace MPR_Managerment.Forms
         private Button btnAddDetail, btnDeleteDetail, btnSaveDetail, btnImportPO;
         private Label lblStatus;
         private Panel panelTop, panelHead, panelDetail;
+        private Button btnExportRIR;
 
         public frmRIR()
         {
@@ -94,6 +99,11 @@ namespace MPR_Managerment.Forms
                 ForeColor = Color.Gray
             };
             panelTop.Controls.Add(lblStatus);
+
+            btnExportRIR = CreateBtn("🗑 Xóa RIR", Color.FromArgb(220, 53, 69), new Point(790, 47), 110, 30);
+            btnExportRIR.Click += BtnExportRIR_Click;
+            btnExportRIR.BringToFront();
+            panelTop.Controls.Add(btnExportRIR);
 
             dgvRIR = new DataGridView
             {
@@ -262,6 +272,11 @@ namespace MPR_Managerment.Forms
                         c.BringToFront();
                 }
             }
+        }
+
+        private void BtnExportRIR_Click(object? sender, EventArgs e)
+        {
+            PrintRIR();
         }
 
         private void BuildDetailColumns()
@@ -972,6 +987,171 @@ namespace MPR_Managerment.Forms
             txtCustomer.Text = "";
             dtpIssueDate.Value = DateTime.Today;
             cboStatus.SelectedIndex = 0;
+        }
+
+        private async void PrintRIR()
+        {
+            if (dgvRIR.Rows.Count <= 0) return;
+            int rsl = dgvRIR.CurrentRow.Index;
+            var rirId = int.Parse(dgvRIR.Rows[rsl].Cells[0].Value.ToString());
+            var rirNO = (dgvRIR.Rows[rsl].Cells[1].Value.ToString());
+            var poNO = dgvRIR.Rows[rsl].Cells[6].Value.ToString();
+
+            // lấy data PO
+            var poModel = await _poService.GetPOAsync(poNO);
+
+            // Lấy data project
+            var projectMode = _projectServices.GetByProjectCode(poModel.ProjectCode);
+
+            // Lấy data supplier
+            var supplierModel = _supplierServices.GetBySupId(poModel.Supplier_ID);
+
+            // Lấy data RIR DEtail
+            var dtImports = await _service.GetDetailsToExport(rirId);
+            PrintBill(dtImports, projectMode, rirNO, poModel);
+        }
+
+        public void PrintBill(DataTable dtDetails, ProjectInfo projects, string RIRNo, POHead po)
+        {
+            try
+            {
+                if (dgvRIR.CurrentRow == null)
+                {
+                    MessageBox.Show("Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "rir_template.xlsx");
+                string exportFolder = projects.PNK_Link;
+                if (!Directory.Exists(exportFolder))
+                {
+                    Directory.CreateDirectory(exportFolder);
+                }
+
+                string fileName = $"{RIRNo}_{DateTime.Now:ddMMyyyy}.xlsx";
+                string actualSavePath = Path.Combine(exportFolder, fileName);
+
+                if (!File.Exists(templatePath))
+                {
+                    MessageBox.Show("Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // 2. Xử lý Excel
+                ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                FileInfo templateFile = new FileInfo(templatePath);
+                FileInfo newFile = new FileInfo(actualSavePath);
+                using (ExcelPackage package = new ExcelPackage(newFile, templateFile))
+                {
+                    ExcelWorksheet ws = package.Workbook.Worksheets[0];
+
+                    // --- ĐIỀN THÔNG TIN HEADER (Dựa trên các Placeholder trong file của bạn) ---
+                    // Lưu ý: Tùy vào vị trí ô trong file xlsx thực tế, bạn có thể dùng Replace hoặc gán trực tiếp
+
+                    // Tìm và thay thế các từ khóa trong vùng Header (giả định từ dòng 1 đến dòng 12)
+                    var headerCells = ws.Cells["A1:AW12"];
+                    foreach (var cell in headerCells)
+                    {
+                        if (cell.Value == null) continue;
+                        string txt = cell.Value.ToString();
+
+                        if (txt.Contains("<<RIR-NO>>")) cell.Value = txt.Replace("<<RIR-NO>>", RIRNo);
+                        if (txt.Contains("<<DATE>>")) cell.Value = txt.Replace("<<DATE>>", DateTime.Now.ToString("dd/MM/yyyy"));
+                        if (txt.Contains("<<WO-NO>>")) cell.Value = txt.Replace("<<WO-NO>>", projects.WorkorderNo ?? "");
+                        if (txt.Contains("<<MPR-NO>>")) cell.Value = txt.Replace("<<MPR-NO>>", po.MPR_No ?? "");
+                        if (txt.Contains("<<PROJECT-NAME>>")) cell.Value = txt.Replace("<<PROJECT-NAME>>", projects.ProjectName ?? "");
+                        if (txt.Contains("<<MPS-NO>>")) cell.Value = txt.Replace("<<MPS-NO>>", "");
+                        if (txt.Contains("<<CLIENT>>")) cell.Value = txt.Replace("<<CLIENT>>", projects.Customer ?? "");
+                        if (txt.Contains("<<PO-NO>>")) cell.Value = txt.Replace("<<PO-NO>>", po.PONo ?? "");
+                        if (txt.Contains("<<USER-CREATE>>")) cell.Value = txt.Replace("<<USER-CREATE>>", _currentUser);
+                    }
+
+                    // --- ĐIỀN CHI TIẾT VẬT TƯ (Bắt đầu từ sau dòng tiêu đề STT) ---
+                    // Theo file CSV bạn gửi, dòng tiêu đề cột bắt đầu khoảng dòng 13-14
+                    int startRow = 7;
+
+                    int count = dtDetails.Rows.Count;
+                    if (count > 1)
+                    {
+                        // Chèn thêm dòng nếu danh sách vật tư nhiều hơn 1 (để giữ định dạng Footer bên dưới)
+                        ws.InsertRow(startRow + 1, count - 1);
+                        for (int i = 1; i < count; i++)
+                        {
+                            ws.Cells[startRow, 1, startRow, 30].Copy(ws.Cells[startRow + i, 1]);
+                        }
+                    }
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        DataRow dr = dtDetails.Rows[i];
+                        int curr = startRow + i;
+
+                        ws.Row(curr).Height = 25; // Độ cao dòng chuẩn cho RIR
+
+                        // Điền dữ liệu theo cấu trúc template RIR
+                        ws.Cells[curr, 1].Value = i + 1;                             // No.
+                        ws.Cells[curr, 3].Value = dr["item_name"];                  // Item Name
+                        ws.Cells[curr, 10].Value = dr["Material"];                  // Material Spec
+                        ws.Cells[curr, 18].Value = dr["Size"];                      // Size
+                        ws.Cells[curr, 25].Value = dr["UNIT"];                      // Unit
+                        ws.Cells[curr, 27].Value = dr["Qty_Per_Sheet"];                // Qty
+                        ws.Cells[curr, 29].Value = dr["MTRno"];                     // MTR No.
+                        ws.Cells[curr, 35].Value = dr["Heatno"];                    // Heat/Lot No.
+                        ws.Cells[curr, 41].Value = "";                        // Result (Mặc định)
+                        ws.Cells[curr, 46].Value =  "";                     // Remarks
+
+                        //RIR_Detail_ID, RIR_ID, PO_Detail_ID, Item_No,
+                        //   item_name, Material, Size, UNIT,
+                        //   Qty_Per_Sheet, MTRno, Heatno, Created_Date
+                        // Căn lề và Border
+                        using (var range = ws.Cells[curr, 1, curr, 50])
+                        {
+                            range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            range.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                        }
+
+                        // Cột Tên và Size nên căn Trái
+                        ws.Cells[curr, 3].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+                        ws.Cells[curr, 18].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+
+                        if (i > 0)
+                        {
+                            for (int col = 1; col <= 16; col++)
+                            {
+                                ws.Cells[curr, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[curr, col].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[curr, col].Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[curr, col].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                ws.Cells[curr, col].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                ws.Cells[curr, col].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                                ws.Cells[curr, col].Style.Font.Name = "Times New Roman";
+                                ws.Cells[curr, col].Style.Font.Size = 9;
+                                ws.Cells[curr, col].Style.Font.Italic = false;
+                            }
+                        }
+                    }
+
+                    // Tự động lưu
+                    package.Save();
+                }
+
+                var result = MessageBox.Show(
+                    $"✅ Xuất phiếu nhập kho thành công!\nFile: {actualSavePath}\n\nBạn có muốn mở file ngay không?",
+                    "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (result == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = actualSavePath,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi khi in phiếu: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

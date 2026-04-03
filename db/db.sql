@@ -419,7 +419,16 @@ EXECUTE @RC = [dbo].[sp_InsertProductFull]
    
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
-GO
+  -- LẤY THÔNG TIN CHO KẾ TOÁN
+  
+  SELECT InvoiceNo, InvoiceDate, ID_Code, Item_Name, Size, Project_Code, Company_Name
+  FROM Warehouse_Import, PO_head, Suppliers
+  WHERE Warehouse_Import.PO_ID = PO_head.PO_ID
+  AND PO_head.Supplier_ID = Suppliers.Supplier_ID
+
+  --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 -- GROUP ID_CODE TO SHOW QTY
 	--SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
@@ -433,4 +442,5 @@ SELECT * FROM Warehouse_Import WHERE Project_Code = '25G3-NGR'
 SELECT *FROM ProjectInfo
 SELECT *FROM PO_head WHERE ProjectCode = '25G3-NGR' OR Notes = '25G3-NGR'
 UPDATE PO_head SET ProjectCode = '25G3-NGR' WHERE Notes = '25G3-NGR'
-SELECT *FROM MPR_Header
+SELECT *FROM Warehouse_Import
+SELECT *FROM Warehouse_Import WHERE Import_No = 'PNK-' + 'DV-NGR-PC-012'

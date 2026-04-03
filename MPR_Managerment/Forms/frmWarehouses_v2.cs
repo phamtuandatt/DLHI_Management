@@ -769,20 +769,20 @@ namespace MPR_Managerment.Forms
                         ws.Cells[currentRow, 7].Value = dr["Weight_kg"];
 
                         totalSum += Convert.ToDecimal(dr["Qty_Import"] ?? 0);
-                        if (i > 0)
-                        {
-                            for (int col = 1; col <= 16; col++)
+                            if (i > 0)
                             {
-                                ws.Cells[currentRow, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                                ws.Cells[currentRow, col].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                                ws.Cells[currentRow, col].Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                                ws.Cells[currentRow, col].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                                ws.Cells[currentRow, col].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                ws.Cells[currentRow, col].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                                ws.Cells[currentRow, col].Style.Font.Name = "Times New Roman";
-                                ws.Cells[currentRow, col].Style.Font.Size = 9;
+                                for (int col = 1; col <= 16; col++)
+                                {
+                                    ws.Cells[currentRow, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                    ws.Cells[currentRow, col].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                    ws.Cells[currentRow, col].Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                    ws.Cells[currentRow, col].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                    ws.Cells[currentRow, col].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                    ws.Cells[currentRow, col].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                                    ws.Cells[currentRow, col].Style.Font.Name = "Times New Roman";
+                                    ws.Cells[currentRow, col].Style.Font.Size = 9;
+                                }
                             }
-                        }
                     }
 
                     var sumCell = ws.Cells["A1:J60"].FirstOrDefault(c => c.Value?.ToString().Contains("<<SUM>>") == true);

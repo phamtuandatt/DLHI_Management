@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -141,6 +142,31 @@ namespace MPR_Managerment.Services
                     while (r.Read()) list.Add(MapDetail(r));
             }
             return list;
+        }
+
+        public async Task<DataTable> GetDetailsToExport(int rirId)
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                var cmd = new SqlCommand(@"
+                    SELECT RIR_Detail_ID, RIR_ID, PO_Detail_ID, Item_No,
+                           item_name, Material, Size, UNIT,
+                           Qty_Per_Sheet, MTRno, Heatno, Created_Date
+                    FROM RIR_detail
+                    WHERE RIR_ID = @rirId
+                    ORDER BY Item_No", conn);
+                cmd.Parameters.AddWithValue("@rirId", rirId);
+                //cmd.Parameters.AddWithValue("@catId", cateId);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
         }
 
         // ===== INSERT DETAIL =====

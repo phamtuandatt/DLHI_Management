@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -198,8 +199,27 @@ namespace MPR_Managerment.Services
                 Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : (DateTime?)null,
                 Created_By = r["Created_By"]?.ToString() ?? "",
                 // Lỗi chính nằm ở dòng Supplier_ID này (khi PO mới tạo chưa có NCC)
-                Supplier_ID = r["Supplier_ID"] != DBNull.Value ? Convert.ToInt32(r["Supplier_ID"]) : 0
+                Supplier_ID = r["Supplier_ID"] != DBNull.Value ? Convert.ToInt32(r["Supplier_ID"]) : 0,
+                ProjectCode = r["ProjectCode"].ToString() ?? ""
             };
+        }
+
+        public async Task<POHead> GetPOAsync(string PONo)
+        {
+            var poModel = new POHead();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("SELECT TOP 1 * FROM PO_head WHERE PONo = @kw", conn);
+                cmd.Parameters.AddWithValue("@kw", $"{PONo}");
+                var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    poModel = MapHead(r);
+                    break;
+                }
+            }
+            return poModel;
         }
 
         private PODetail MapDetail(SqlDataReader r)
