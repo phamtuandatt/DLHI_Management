@@ -188,7 +188,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
 
         private async void btnSave_Click(object sender, EventArgs e)
         {
-            if (txtCode.Text.Trim().Length < 9)
+            if (string.IsNullOrEmpty(txtCode.Text) || txtCode.Text.Trim().Length < 12)
             {
                 MessageBox.Show($"Item code chưa đúng định dạng !\nHãy chọn lại Standard !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;

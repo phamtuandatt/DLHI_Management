@@ -691,7 +691,7 @@ namespace MPR_Managerment.Forms
                 if (po == null) return;
 
                 var suppliers = new SupplierService().GetAll();
-                var supplier = suppliers.Find(s => s.Supplier_ID == Convert.ToInt32(cboSupplier.SelectedValue?.ToString() ?? "0"));
+                var supplier = suppliers.Find(s => s.Supplier_ID == po.Supplier_ID);
 
                 var projects = new ProjectService().GetAll();
                 var project = projects.Find(p => p.WorkorderNo == po.WorkorderNo);
@@ -791,7 +791,9 @@ namespace MPR_Managerment.Forms
                             ws.Cells[row, 13].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
                             ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
 
-                            ws.Cells[row, 10, row, 11].Merge = true;
+                            ////ws.Cells[row, 16, row, 17].Merge = true;
+                            //Range range = ws.Cells[row, 16, row, 17].Merge;
+                            //range.Border
                         }
                     }
 
