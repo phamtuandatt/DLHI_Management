@@ -384,47 +384,101 @@ END
 
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
+CREATE PROCEDURE [dbo].[sp_InsertRIRDetail_UpdateStock]
+    @RIR_ID INT,
+    @PO_Detail_ID INT,
+    @Item_No NVARCHAR(100),
+    @item_name NVARCHAR(255),
+    @Material NVARCHAR(255),
+    @Size NVARCHAR(255),
+    @UNIT NVARCHAR(50),
+    @Qty_Per_Sheet DECIMAL(18, 2),
+    @MTRno NVARCHAR(100),
+    @Heatno NVARCHAR(100),
+    @Qty_Required DECIMAL(18, 2),
+    @Qty_Received DECIMAL(18, 2),
+    @Inspect_Result NVARCHAR(100),
+    @ID_Code NVARCHAR(100) -- Mã định danh RIR dùng để cập nhật vào kho
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRANSACTION;
+    BEGIN TRY
+        -- 1. Insert vào bảng RIR_Detail
+        INSERT INTO [dbo].[RIR_Detail] (
+            [RIR_ID], 
+            [PO_Detail_ID], 
+            [Item_No], 
+            [item_name], 
+            [Material], 
+            [Size], 
+            [UNIT], 
+            [Qty_Per_Sheet], 
+            [MTRno], 
+            [Heatno], 
+            [Created_Date], 
+            [Qty_Required], 
+            [Qty_Received], 
+            [Inspect_Result], 
+            [ID_Code]
+        )
+        VALUES (
+            @RIR_ID, 
+            @PO_Detail_ID, 
+            @Item_No, 
+            @item_name, 
+            @Material, 
+            @Size, 
+            @UNIT, 
+            @Qty_Per_Sheet, 
+            @MTRno, 
+            @Heatno, 
+            GETDATE(), 
+            @Qty_Required, 
+            @Qty_Received, 
+            @Inspect_Result, 
+            @ID_Code
+        );
+
+        -- 2. Cập nhật bảng Warehouse_Import
+        -- Gán QC_Code = ID_Code của RIR cho những dòng có cùng PO_Detail_ID
+        UPDATE [dbo].[Warehouse_Import]
+        SET [QC_Code] = @ID_Code
+        WHERE [PO_Detail_ID] = @PO_Detail_ID;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        
+        DECLARE @Err NVARCHAR(MAX) = ERROR_MESSAGE();
+        RAISERROR(@Err, 16, 1);
+    END CATCH
+END
 GO
-
-DECLARE @RC int
-DECLARE @name nvarchar(255) = N'Thép Tấm SS400'
-DECLARE @des_2 nvarchar(max) = N'Mô tả chi tiết sản phẩm'
-DECLARE @code nvarchar(100) = N'PRD-001'
-DECLARE @prod_material_code nvarchar(100) = N'MAT-SS400'
-DECLARE @a_thinkness varchar(50) = '10'
-DECLARE @b_depth varchar(50) = '100'
-DECLARE @c_witdth varchar(50) = '200'
-DECLARE @d_web varchar(50) = '0'
-DECLARE @e_flag varchar(50) = '0'
-DECLARE @f_length varchar(50) = '6000'
-DECLARE @g_weight varchar(50) = '94.2'
-DECLARE @used_note nvarchar(max) = N'Ghi chú sử dụng'
-DECLARE @prod_origin_id int = 1
-DECLARE @prod_standard_id int = 1
-DECLARE @prod_material_cate_id int = 1
-DECLARE @prod_material_id int = 1
-DECLARE @prod_material_detail_id int = 1
-
--- Tham số cho Material_Detail
-DECLARE @mat_detail_number nvarchar(100) = N'DET-0001'
-DECLARE @mat_detail_name nvarchar(255) = N'Chi tiết vật tư thép'
-
-EXECUTE @RC = [dbo].[sp_InsertProductFull] 
-   @name, @des_2, @code, @prod_material_code,
-   @a_thinkness, @b_depth, @c_witdth, @d_web, @e_flag, @f_length, @g_weight,
-   @used_note, @prod_origin_id, @prod_standard_id, 
-   @prod_material_cate_id, @prod_material_id, @prod_material_detail_id,
-   @mat_detail_number, @mat_detail_name
-
-   
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
   -- LẤY THÔNG TIN CHO KẾ TOÁN
-  
-  SELECT InvoiceNo, InvoiceDate, ID_Code, Item_Name, Size, Project_Code, Company_Name
-  FROM Warehouse_Import, PO_head, Suppliers
-  WHERE Warehouse_Import.PO_ID = PO_head.PO_ID
-  AND PO_head.Supplier_ID = Suppliers.Supplier_ID
+-- Chạy đoạn code này trong SQL Server Management Studio (SSMS)
+CREATE PROCEDURE [dbo].[GetSalesData]
+AS
+BEGIN
+    SET NOCOUNT ON;
+	SELECT 
+		W.InvoiceNo, 
+		W.InvoiceDate, 
+		W.ID_Code, 
+		W.Item_Name, 
+		W.Size, 
+		P.ProjectCode, 
+		S.Company_Name
+	FROM Warehouse_Import AS W
+	INNER JOIN PO_head AS P ON W.PO_ID = P.PO_ID
+	INNER JOIN Suppliers AS S ON P.Supplier_ID = S.Supplier_ID;
+END
+GO
+
 
   --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -102,7 +102,7 @@ namespace MPR_Managerment.Forms
             };
             panelTop.Controls.Add(lblStatus);
 
-            btnExportRIR = CreateBtn("🗑 Xóa RIR", Color.FromArgb(220, 53, 69), new Point(790, 47), 110, 30);
+            btnExportRIR = CreateBtn("🖨 In RIR", Color.FromArgb(220, 53, 69), new Point(1200, 47), 110, 30);
             btnExportRIR.Click += BtnExportRIR_Click;
             btnExportRIR.BringToFront();
             panelTop.Controls.Add(btnExportRIR);
@@ -302,6 +302,8 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MTRno", HeaderText = "MTR No", Width = 100 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Heatno", HeaderText = "Heat No", Width = 90 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100 });
+
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO Detail No", Width = 100 }); // Add column PO_Detail_ID
 
             var cboResult = new DataGridViewComboBoxColumn
             {
@@ -568,6 +570,8 @@ namespace MPR_Managerment.Forms
                     row.Cells["ID_Code"].Value = d.ID_Code;
                     row.Cells["Inspect_Result"].Value = d.Inspect_Result;
                     row.Cells["Remarks"].Value = d.Remarks ?? "";
+
+                    row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID; // Mark PO_Detail_ID
                 }
             }
             catch (Exception ex)
@@ -628,6 +632,18 @@ namespace MPR_Managerment.Forms
                                     Color.Black;
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
+
+            if ((dgvDetails.Columns[e.ColumnIndex].Name == "Qty_Required" && e.Value != null) 
+                && (dgvDetails.Columns[e.ColumnIndex].Name == "Qty_Received" && e.Value != null))
+            {
+                if (decimal.TryParse(e.Value.ToString(), out decimal qty))
+                {
+                    // Định dạng hiển thị thành số nguyên
+                    e.Value = qty.ToString("N0");
+                    e.FormattingApplied = true;
+                }
+            }
+
         }
 
         private void BtnSearch_Click(object sender, EventArgs e)
@@ -654,7 +670,7 @@ namespace MPR_Managerment.Forms
             txtRIRNo.Focus();
         }
 
-        private void BtnSaveHead_Click(object sender, EventArgs e)
+        private async void BtnSaveHead_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(txtRIRNo.Text))
             {
@@ -680,6 +696,61 @@ namespace MPR_Managerment.Forms
                 if (_selectedRIR_ID == 0)
                 {
                     _selectedRIR_ID = _service.InsertHead(h, _currentUser);
+                    if (_selectedRIR_ID > 0)
+                    {
+                        try
+                        {
+                            int saved = 0;
+                            foreach (DataGridViewRow row in dgvDetails.Rows)
+                            {
+                                string itemName = row.Cells["Item_Name"].Value?.ToString() ?? "";
+                                if (string.IsNullOrWhiteSpace(itemName)) continue;
+
+                                var d = new RIRDetail
+                                {
+                                    RIR_Detail_ID = Convert.ToInt32(row.Cells["RIR_Detail_ID"].Value ?? 0),
+                                    RIR_ID = _selectedRIR_ID,
+                                    Item_No = Convert.ToInt32(row.Cells["Item_No"].Value ?? 0),
+                                    Item_Name = itemName,
+                                    Material = row.Cells["Material"].Value?.ToString() ?? "",
+                                    Size = row.Cells["Size"].Value?.ToString() ?? "",
+                                    UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
+                                    Qty_Required = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)),
+                                    Qty_Received = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Received"].Value ?? 0)),
+                                    MTRno = row.Cells["MTRno"].Value?.ToString() ?? "",
+                                    Heatno = row.Cells["Heatno"].Value?.ToString() ?? "",
+                                    ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "",
+                                    Inspect_Result = row.Cells["Inspect_Result"].Value?.ToString() ?? "",
+                                    Remarks = row.Cells["Remarks"].Value?.ToString() ?? "",
+                                    Qty_Per_Sheet = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)),
+                                    PO_Detail_ID = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value.ToString())
+                                };
+
+                                if (d.RIR_Detail_ID == 0)
+                                {
+                                    //_service.InsertDetail(d, _currentUser);
+                                    var rs = await _service.InsertRIRDetailAndUpdateStock(d);
+                                }
+                                else
+                                {
+                                    _service.UpdateDetail(d);
+                                }
+
+                                saved++;
+                            }
+                            //MessageBox.Show($"Đã lưu {saved} dòng thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            //LoadDetails(_selectedRIR_ID);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                    //if (dgvDetails.Rows.Count == 0)
+                    //{
+                    //    MessageBox.Show("Không có dòng nào để lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    //    return;
+                    //}
                     MessageBox.Show("Tạo phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
@@ -882,9 +953,14 @@ namespace MPR_Managerment.Forms
 
                     string sqlDetails = @"
                         SELECT 
-                            wi.Item_Name, wi.Material, wi.Size, wi.UNIT, 
-                            wi.Qty_Import, wi.ID_Code, 
-                            ISNULL(wi.MTRno, '') AS MTRno 
+                            wi.Item_Name, 
+                            wi.Material, 
+                            wi.Size, 
+                            wi.UNIT, 
+                            wi.Qty_Import, 
+                            wi.ID_Code, 
+                            ISNULL(wi.MTRno, '') AS MTRno,
+                            PO_Detail_ID
                         FROM Warehouse_Import wi
                         WHERE wi.Import_No = @pnkNo";
 
@@ -913,9 +989,12 @@ namespace MPR_Managerment.Forms
                                 row.Cells["Qty_Received"].Value = 0;
                                 row.Cells["MTRno"].Value = reader["MTRno"]?.ToString() ?? "";
                                 row.Cells["Heatno"].Value = "";
-                                row.Cells["ID_Code"].Value = reader["ID_Code"]?.ToString() ?? "";
+                                //row.Cells["ID_Code"].Value = reader["ID_Code"]?.ToString() ?? "";
+                                row.Cells["ID_Code"].Value = "";
                                 row.Cells["Inspect_Result"].Value = "";
                                 row.Cells["Remarks"].Value = "";
+
+                                row.Cells["PO_Detail_ID"].Value = reader["PO_Detail_ID"].ToString() ?? ""; // Load PO_Detail_ID
                                 countItems++;
                             }
                         }
@@ -993,6 +1072,9 @@ namespace MPR_Managerment.Forms
             row.Cells["ID_Code"].Value = "";
             row.Cells["Inspect_Result"].Value = "";
             row.Cells["Remarks"].Value = "";
+
+            row.Cells["PO_Detail_ID"].Value = ""; // ?????????
+
             dgvDetails.CurrentCell = dgvDetails.Rows[idx].Cells["Item_Name"];
             dgvDetails.BeginEdit(true);
         }
@@ -1029,7 +1111,7 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        private void BtnSaveDetail_Click(object sender, EventArgs e)
+        private async void BtnSaveDetail_Click(object sender, EventArgs e)
         {
             if (_selectedRIR_ID == 0)
             {
@@ -1059,8 +1141,8 @@ namespace MPR_Managerment.Forms
                         Material = row.Cells["Material"].Value?.ToString() ?? "",
                         Size = row.Cells["Size"].Value?.ToString() ?? "",
                         UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
-                        Qty_Required = IntVal(row.Cells["Qty_Required"].Value),
-                        Qty_Received = IntVal(row.Cells["Qty_Received"].Value),
+                        Qty_Required = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)),
+                        Qty_Received = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Received"].Value ?? 0)),
                         MTRno = row.Cells["MTRno"].Value?.ToString() ?? "",
                         Heatno = row.Cells["Heatno"].Value?.ToString() ?? "",
                         ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "",
@@ -1069,9 +1151,14 @@ namespace MPR_Managerment.Forms
                     };
 
                     if (d.RIR_Detail_ID == 0)
-                        _service.InsertDetail(d, _currentUser);
+                    {
+                        //_service.InsertDetail(d, _currentUser);
+                        var rs = await _service.InsertRIRDetailAndUpdateStock(d);
+                    }
                     else
+                    {
                         _service.UpdateDetail(d);
+                    }
 
                     saved++;
                 }

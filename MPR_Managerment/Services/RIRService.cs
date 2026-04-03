@@ -133,7 +133,7 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand(@"
                     SELECT RIR_Detail_ID, RIR_ID, PO_Detail_ID, Item_No,
                            item_name, Material, Size, UNIT,
-                           Qty_Per_Sheet, MTRno, Heatno, Created_Date
+                           Qty_Per_Sheet, MTRno, Heatno, Created_Date, Qty_Required, Qty_Received, Inspect_Result, ID_Code
                     FROM RIR_detail
                     WHERE RIR_ID = @rirId
                     ORDER BY Item_No", conn);
@@ -194,6 +194,47 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? "");
                 cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? "");
                 cmd.ExecuteNonQuery();
+            }
+        }
+
+        public async Task<bool> InsertRIRDetailAndUpdateStock(RIRDetail rir)
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand("sp_InsertRIRDetail_UpdateStock", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    // Thêm các tham số cho Procedure
+                    cmd.Parameters.AddWithValue("@RIR_ID", rir.RIR_ID);
+                    cmd.Parameters.AddWithValue("@PO_Detail_ID", rir.PO_Detail_ID);
+                    cmd.Parameters.AddWithValue("@Item_No", rir.Item_No);
+                    cmd.Parameters.AddWithValue("@item_name", rir.Item_Name ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Material", rir.Material ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Size", rir.Size ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@UNIT", rir.UNIT ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Qty_Per_Sheet", rir.Qty_Per_Sheet);
+                    cmd.Parameters.AddWithValue("@MTRno", rir.MTRno ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Heatno", rir.Heatno ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Qty_Required", rir.Qty_Required);
+                    cmd.Parameters.AddWithValue("@Qty_Received", rir.Qty_Received);
+                    cmd.Parameters.AddWithValue("@Inspect_Result", rir.Inspect_Result ?? "Accept");
+                    cmd.Parameters.AddWithValue("@ID_Code", rir.ID_Code ?? "");
+
+                    try
+                    {
+                        await conn.OpenAsync();
+                        int result = await cmd.ExecuteNonQueryAsync();
+
+                        // Vì Procedure thực hiện cả Insert và Update nên result thường > 1
+                        return result > 0;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log lỗi hoặc quăng ngoại lệ ra tầng UI
+                        throw new Exception("Lỗi thực thi RIR & Update Stock: " + ex.Message);
+                    }
+                }
             }
         }
 
@@ -271,7 +312,10 @@ namespace MPR_Managerment.Services
                 Qty_Required = r["Qty_Per_Sheet"] != DBNull.Value ? Convert.ToInt32(r["Qty_Per_Sheet"]) : 0,
                 MTRno = r["MTRno"]?.ToString() ?? "",
                 Heatno = r["Heatno"]?.ToString() ?? "",
-                Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null
+                Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
+                Inspect_Result = r["Inspect_Result"].ToString() ?? "",
+                ID_Code = r["ID_Code"].ToString() ?? "",
+                Qty_Received = r["Qty_Received"] != DBNull.Value ? Convert.ToInt32(r["Qty_Received"]) : 0
             };
         }
     }

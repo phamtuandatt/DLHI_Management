@@ -687,7 +687,7 @@ namespace MPR_Managerment.Forms
                 if (poModel == null) throw new Exception("Không tìm thấy thông tin PO tương ứng.");
 
                 var supplier = new SupplierService().GetBySupId(poModel.Supplier_ID);
-                var projects = new ProjectService().GetByProjectCode(poModel.Notes);
+                var projects = new ProjectService().GetByProjectCode(poModel.ProjectCode ?? poModel.Notes);
 
                 string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pnk_template.xlsx");
                 string exportFolder = projects.PNK_Link;
@@ -696,7 +696,7 @@ namespace MPR_Managerment.Forms
                     Directory.CreateDirectory(exportFolder);
                 }
 
-                string fileName = $"PNK_{billNo}_{DateTime.Now:ddMMyyyy}.xlsx";
+                string fileName = $"VMNP_PNK_{billNo}_{DateTime.Now:ddMMyyyy}.xlsx";
                 string actualSavePath = Path.Combine(exportFolder, fileName);
 
                 if (!File.Exists(templatePath))
@@ -717,7 +717,7 @@ namespace MPR_Managerment.Forms
                         if (cell.Value == null) continue;
                         string txt = cell.Value.ToString();
 
-                        if (txt.Contains("<<BILL_NO>>")) cell.Value = txt.Replace("<<BILL_NO>>", billNo);
+                        if (txt.Contains("<<BILL_NO>>")) cell.Value = txt.Replace("<<BILL_NO>>", "VMNP-" + billNo);
                         if (txt.Contains("<<DATE>>")) cell.Value = txt.Replace("<<DATE>>", poModel.Created_Date.ToString());
                         if (txt.Contains("<<SUPPLIER_NAME>>")) cell.Value = txt.Replace("<<SUPPLIER_NAME>>", supplier?.Company_Name ?? "");
                     }
