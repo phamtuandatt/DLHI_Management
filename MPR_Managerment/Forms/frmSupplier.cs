@@ -9,16 +9,21 @@ namespace MPR_Managerment.Forms
 {
     public partial class frmSupplier : Form
     {
-        private SupplierService _service = new SupplierService();
+        // ── Service (đã sửa Search dùng SQL thẳng, không dùng SP lỗi) ──
+        private readonly SupplierService _service = new SupplierService();
+
         private List<Supplier> _suppliers = new List<Supplier>();
         private int _selectedSupplierID = 0;
         private string _currentUser = "Admin";
 
+        // ── Controls ──────────────────────────────────────────────────
         private DataGridView dgvSuppliers;
-        private TextBox txtSearch, txtCompanyName, txtShortName, txtSupplierType;
-        private TextBox txtCert, txtEmail, txtContactPerson, txtContactPhone;
-        private TextBox txtAddress, txtBankAccount, txtBankName, txtTaxCode;
-        private TextBox txtWebsite, txtNotes;
+        private TextBox txtSearch;
+        private TextBox txtCompanyName, txtShortName, txtSupplierType;
+        private TextBox txtTaxCode, txtContactPerson, txtContactPhone;
+        private TextBox txtEmail, txtAddress;
+        private TextBox txtBankAccount, txtBankName;
+        private TextBox txtWebsite, txtCert, txtNotes;
         private CheckBox chkIsActive;
         private Button btnSearch, btnNew, btnSave, btnDelete, btnClear;
         private Label lblStatus;
@@ -31,30 +36,59 @@ namespace MPR_Managerment.Forms
             LoadSuppliers();
         }
 
+        // =================================================================
+        // BUILD UI
+        // =================================================================
         private void BuildUI()
         {
             this.Text = "Quản lý Nhà Cung Cấp";
             this.Size = new Size(1200, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(245, 245, 245);
+            this.MinimumSize = new Size(1000, 600);
 
-            panelLeft = new Panel { Location = new Point(10, 10), Size = new Size(580, 640), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+            // ── PANEL LEFT ────────────────────────────────────────────
+            panelLeft = new Panel
+            {
+                Location = new Point(10, 10),
+                Size = new Size(560, 640),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
+            };
             this.Controls.Add(panelLeft);
 
-            panelLeft.Controls.Add(new Label { Text = "DANH SÁCH NHÀ CUNG CẤP", Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 10), Size = new Size(400, 30) });
+            panelLeft.Controls.Add(new Label
+            {
+                Text = "DANH SÁCH NHÀ CUNG CẤP",
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212),
+                Location = new Point(10, 10),
+                Size = new Size(400, 28)
+            });
 
-            txtSearch = new TextBox { Location = new Point(10, 50), Size = new Size(380, 30), Font = new Font("Segoe UI", 10), PlaceholderText = "Tìm kiếm theo tên..." };
+            // Ô tìm kiếm
+            txtSearch = new TextBox
+            {
+                Location = new Point(10, 48),
+                Size = new Size(390, 28),
+                Font = new Font("Segoe UI", 10),
+                PlaceholderText = "Gõ để tìm theo tên, SĐT, email... (real-time)"
+            };
             panelLeft.Controls.Add(txtSearch);
-            txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnSearch_Click(null, null); };
 
-            btnSearch = new Button { Text = "Tìm", Location = new Point(400, 49), Size = new Size(70, 32), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
-            btnSearch.Click += BtnSearch_Click;
+            // Real-time: gõ là lọc ngay — KHÔNG gọi service.Search (SP lỗi)
+            txtSearch.TextChanged += (s, e) => FilterSuppliers();
+            txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) FilterSuppliers(); };
+
+            btnSearch = MkBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(410, 47), 120, 30);
+            btnSearch.Click += (s, e) => FilterSuppliers();
             panelLeft.Controls.Add(btnSearch);
 
             dgvSuppliers = new DataGridView
             {
-                Location = new Point(10, 95),
-                Size = new Size(555, 500),
+                Location = new Point(10, 88),
+                Size = new Size(535, 510),
                 ReadOnly = true,
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -62,7 +96,9 @@ namespace MPR_Managerment.Forms
                 BorderStyle = BorderStyle.None,
                 RowHeadersVisible = false,
                 Font = new Font("Segoe UI", 9),
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+                                    | AnchorStyles.Right | AnchorStyles.Bottom
             };
             dgvSuppliers.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvSuppliers.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
@@ -72,12 +108,29 @@ namespace MPR_Managerment.Forms
             dgvSuppliers.SelectionChanged += DgvSuppliers_SelectionChanged;
             panelLeft.Controls.Add(dgvSuppliers);
 
-            panelRight = new Panel { Location = new Point(600, 10), Size = new Size(580, 640), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+            // ── PANEL RIGHT ───────────────────────────────────────────
+            panelRight = new Panel
+            {
+                Location = new Point(580, 10),
+                Size = new Size(600, 640),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+                            | AnchorStyles.Right | AnchorStyles.Bottom
+            };
             this.Controls.Add(panelRight);
 
-            panelRight.Controls.Add(new Label { Text = "THÔNG TIN NHÀ CUNG CẤP", Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 10), Size = new Size(400, 30) });
+            panelRight.Controls.Add(new Label
+            {
+                Text = "THÔNG TIN NHÀ CUNG CẤP",
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212),
+                Location = new Point(10, 10),
+                Size = new Size(400, 28)
+            });
 
-            int y = 50;
+            // Các trường nhập — khớp với AddParams() trong SupplierService
+            int y = 48;
             txtCompanyName = AddField(panelRight, "Tên công ty (*)", ref y);
             txtShortName = AddField(panelRight, "Tên viết tắt", ref y);
             txtSupplierType = AddField(panelRight, "Loại NCC", ref y);
@@ -92,14 +145,21 @@ namespace MPR_Managerment.Forms
             txtCert = AddField(panelRight, "Chứng chỉ", ref y);
             txtNotes = AddField(panelRight, "Ghi chú", ref y);
 
-            chkIsActive = new CheckBox { Text = "Đang hoạt động", Location = new Point(150, y), Size = new Size(200, 25), Font = new Font("Segoe UI", 9), Checked = true };
+            chkIsActive = new CheckBox
+            {
+                Text = "Đang hoạt động",
+                Location = new Point(150, y),
+                Size = new Size(200, 25),
+                Font = new Font("Segoe UI", 9),
+                Checked = true
+            };
             panelRight.Controls.Add(chkIsActive);
-            y += 35;
+            y += 38;
 
-            btnNew = CreateButton("+ Thêm mới", Color.FromArgb(40, 167, 69), new Point(10, y));
-            btnSave = CreateButton("Lưu", Color.FromArgb(0, 120, 212), new Point(130, y));
-            btnDelete = CreateButton("Xóa", Color.FromArgb(220, 53, 69), new Point(250, y));
-            btnClear = CreateButton("Làm mới", Color.FromArgb(108, 117, 125), new Point(370, y));
+            btnNew = MkBtn("+ Thêm mới", Color.FromArgb(40, 167, 69), new Point(10, y), 120, 34);
+            btnSave = MkBtn("💾 Lưu", Color.FromArgb(0, 120, 212), new Point(140, y), 110, 34);
+            btnDelete = MkBtn("🗑 Xóa", Color.FromArgb(220, 53, 69), new Point(260, y), 100, 34);
+            btnClear = MkBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(370, y), 110, 34);
 
             btnNew.Click += BtnNew_Click;
             btnSave.Click += BtnSave_Click;
@@ -111,23 +171,57 @@ namespace MPR_Managerment.Forms
             panelRight.Controls.Add(btnDelete);
             panelRight.Controls.Add(btnClear);
 
-            lblStatus = new Label { Location = new Point(10, y + 45), Size = new Size(550, 25), Font = new Font("Segoe UI", 9), ForeColor = Color.Gray };
+            lblStatus = new Label
+            {
+                Location = new Point(10, y + 44),
+                Size = new Size(570, 25),
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.Gray
+            };
             panelRight.Controls.Add(lblStatus);
         }
 
+        // ── Helper tạo field ──────────────────────────────────────────
         private TextBox AddField(Panel panel, string label, ref int y)
         {
-            panel.Controls.Add(new Label { Text = label, Location = new Point(10, y + 3), Size = new Size(135, 20), Font = new Font("Segoe UI", 9) });
-            var txt = new TextBox { Location = new Point(150, y), Size = new Size(400, 25), Font = new Font("Segoe UI", 9) };
+            panel.Controls.Add(new Label
+            {
+                Text = label,
+                Location = new Point(10, y + 3),
+                Size = new Size(135, 20),
+                Font = new Font("Segoe UI", 9)
+            });
+            var txt = new TextBox
+            {
+                Location = new Point(150, y),
+                Size = new Size(420, 25),
+                Font = new Font("Segoe UI", 9)
+            };
             panel.Controls.Add(txt);
             y += 35;
             return txt;
         }
 
-        private Button CreateButton(string text, Color color, Point location)
+        private Button MkBtn(string text, Color color, Point loc, int w, int h)
         {
-            return new Button { Text = text, Location = location, Size = new Size(110, 35), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+            var btn = new Button
+            {
+                Text = text,
+                Location = loc,
+                Size = new Size(w, h),
+                BackColor = color,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            return btn;
         }
+
+        // =================================================================
+        // LOAD — dùng _service.GetAll() (SQL thẳng, không SP)
+        // =================================================================
         private void LoadSuppliers()
         {
             try
@@ -138,10 +232,14 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi tải dữ liệu: " + ex.Message, "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
+        // =================================================================
+        // BIND GRID
+        // =================================================================
         private void BindGrid(List<Supplier> list)
         {
             dgvSuppliers.DataSource = list.ConvertAll(s => new
@@ -149,137 +247,204 @@ namespace MPR_Managerment.Forms
                 ID = s.Supplier_ID,
                 Ten_Cong_Ty = s.Company_Name,
                 Viet_Tat = s.Short_Name,
-                Loai = s.Supplier_Type,
+                Loai_NCC = s.Supplier_Type,
                 Lien_He = s.Contact_Person,
                 SDT = s.Contact_Phone,
-                Trang_Thai = s.IsActive ? "Hoat dong" : "Ngung"
+                Email = s.Email,
+                Trang_Thai = s.IsActive ? "✅ Hoạt động" : "⛔ Ngừng"
             });
+
+            if (dgvSuppliers.Columns.Contains("ID"))
+                dgvSuppliers.Columns["ID"].Visible = false;
         }
 
-        private void BtnSearch_Click(object sender, EventArgs e)
+        // =================================================================
+        // LỌC REAL-TIME TRÊN MEMORY
+        // Không gọi _service.Search() để tránh lỗi SP
+        // Tìm theo: Company_Name, Short_Name, Contact_Person,
+        //           Contact_Phone, Email, Supplier_Type, Tax_Code
+        // =================================================================
+        private void FilterSuppliers()
         {
-            try
+            string kw = txtSearch.Text.Trim().ToLower();
+
+            if (string.IsNullOrEmpty(kw))
             {
-                if (string.IsNullOrWhiteSpace(txtSearch.Text))
-                    LoadSuppliers();
-                else
-                {
-                    var result = _service.Search(txtSearch.Text.Trim());
-                    BindGrid(result);
-                    lblStatus.Text = $"Tìm thấy: {result.Count} nhà cung cấp";
-                }
+                BindGrid(_suppliers);
+                lblStatus.Text = $"Tổng: {_suppliers.Count} nhà cung cấp";
+                return;
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Lỗi tìm kiếm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+
+            var result = _suppliers.FindAll(s =>
+                (s.Company_Name ?? "").ToLower().Contains(kw) ||
+                (s.Short_Name ?? "").ToLower().Contains(kw) ||
+                (s.Contact_Person ?? "").ToLower().Contains(kw) ||
+                (s.Contact_Phone ?? "").ToLower().Contains(kw) ||
+                (s.Email ?? "").ToLower().Contains(kw) ||
+                (s.Supplier_Type ?? "").ToLower().Contains(kw) ||
+                (s.Tax_Code ?? "").ToLower().Contains(kw)
+            );
+
+            BindGrid(result);
+            lblStatus.Text = result.Count > 0
+                ? $"Tìm thấy: {result.Count} nhà cung cấp"
+                : "Không tìm thấy kết quả phù hợp";
         }
 
+        // =================================================================
+        // CHỌN DÒNG → điền form
+        // Mapping theo MapSupplier() trong SupplierService
+        // =================================================================
         private void DgvSuppliers_SelectionChanged(object sender, EventArgs e)
         {
             if (dgvSuppliers.SelectedRows.Count == 0) return;
-            var row = dgvSuppliers.SelectedRows[0];
-            _selectedSupplierID = Convert.ToInt32(row.Cells["ID"].Value);
+            if (!dgvSuppliers.Columns.Contains("ID")) return;
+
+            _selectedSupplierID = Convert.ToInt32(
+                dgvSuppliers.SelectedRows[0].Cells["ID"].Value);
+
+            // Tìm trong _suppliers (danh sách đầy đủ, không bị filter cắt mất)
             var s = _suppliers.Find(x => x.Supplier_ID == _selectedSupplierID);
             if (s == null) return;
 
-            txtCompanyName.Text = s.Company_Name;
-            txtShortName.Text = s.Short_Name;
-            txtSupplierType.Text = s.Supplier_Type;
-            txtTaxCode.Text = s.Tax_Code;
-            txtContactPerson.Text = s.Contact_Person;
-            txtContactPhone.Text = s.Contact_Phone;
-            txtEmail.Text = s.Email;
-            txtAddress.Text = s.Company_Address;
-            txtBankAccount.Text = s.Bank_Account;
-            txtBankName.Text = s.Bank_Name;
-            txtWebsite.Text = s.Website;
-            txtCert.Text = s.Cert;
-            txtNotes.Text = s.Notes;
+            // Khớp đúng tên field với MapSupplier() và AddParams()
+            txtCompanyName.Text = s.Company_Name ?? "";
+            txtShortName.Text = s.Short_Name ?? "";
+            txtSupplierType.Text = s.Supplier_Type ?? "";
+            txtTaxCode.Text = s.Tax_Code ?? "";
+            txtContactPerson.Text = s.Contact_Person ?? "";
+            txtContactPhone.Text = s.Contact_Phone ?? "";
+            txtEmail.Text = s.Email ?? "";
+            txtAddress.Text = s.Company_Address ?? "";
+            txtBankAccount.Text = s.Bank_Account ?? "";
+            txtBankName.Text = s.Bank_Name ?? "";
+            txtWebsite.Text = s.Website ?? "";
+            txtCert.Text = s.Cert ?? "";
+            txtNotes.Text = s.Notes ?? "";
             chkIsActive.Checked = s.IsActive;
+
+            lblStatus.Text = $"Đang xem: {s.Company_Name}";
         }
 
+        // =================================================================
+        // THÊM MỚI
+        // =================================================================
         private void BtnNew_Click(object sender, EventArgs e)
         {
             ClearForm();
             _selectedSupplierID = 0;
             txtCompanyName.Focus();
-            lblStatus.Text = "Đang thêm mới...";
+            lblStatus.Text = "Đang thêm nhà cung cấp mới...";
         }
 
+        // =================================================================
+        // LƯU — dùng _service.Insert / _service.Update
+        // Mapping đúng theo AddParams() trong SupplierService
+        // =================================================================
         private void BtnSave_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(txtCompanyName.Text))
             {
-                MessageBox.Show("Vui lòng nhập Tên công ty!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Vui lòng nhập Tên công ty!", "Thiếu thông tin",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtCompanyName.Focus();
                 return;
             }
+
             try
             {
+                // Tạo object Supplier khớp đúng với AddParams() trong service
                 var s = new Supplier
                 {
                     Supplier_ID = _selectedSupplierID,
-                    Company_Name = txtCompanyName.Text.Trim(),
-                    Short_Name = txtShortName.Text.Trim(),
-                    Supplier_Type = txtSupplierType.Text.Trim(),
-                    Tax_Code = txtTaxCode.Text.Trim(),
-                    Contact_Person = txtContactPerson.Text.Trim(),
-                    Contact_Phone = txtContactPhone.Text.Trim(),
-                    Email = txtEmail.Text.Trim(),
-                    Company_Address = txtAddress.Text.Trim(),
-                    Bank_Account = txtBankAccount.Text.Trim(),
-                    Bank_Name = txtBankName.Text.Trim(),
-                    Website = txtWebsite.Text.Trim(),
-                    Cert = txtCert.Text.Trim(),
-                    Notes = txtNotes.Text.Trim(),
-                    IsActive = chkIsActive.Checked
+                    Company_Name = txtCompanyName.Text.Trim(),    // @Company_Name
+                    Short_Name = txtShortName.Text.Trim(),      // @Short_Name
+                    Supplier_Type = txtSupplierType.Text.Trim(),   // @Supplier_Type
+                    Tax_Code = txtTaxCode.Text.Trim(),        // @Tax_Code
+                    Contact_Person = txtContactPerson.Text.Trim(),  // @Contact_Person
+                    Contact_Phone = txtContactPhone.Text.Trim(),   // @Contact_Phone
+                    Email = txtEmail.Text.Trim(),          // @Email
+                    Company_Address = txtAddress.Text.Trim(),        // @Company_Address
+                    Bank_Account = txtBankAccount.Text.Trim(),    // @Bank_Account
+                    Bank_Name = txtBankName.Text.Trim(),       // @Bank_Name
+                    Website = txtWebsite.Text.Trim(),        // @Website
+                    Cert = txtCert.Text.Trim(),           // @Cert
+                    Notes = txtNotes.Text.Trim(),          // @Notes
+                    IsActive = chkIsActive.Checked            // @IsActive
                 };
 
                 if (_selectedSupplierID == 0)
+                {
                     _service.Insert(s, _currentUser);
+                    MessageBox.Show("✅ Thêm nhà cung cấp thành công!", "Thành công",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
                 else
+                {
                     _service.Update(s, _currentUser);
+                    MessageBox.Show("✅ Cập nhật nhà cung cấp thành công!", "Thành công",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
 
-                MessageBox.Show("Lưu thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadSuppliers();
                 ClearForm();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi khi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi khi lưu: " + ex.Message, "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
+        // =================================================================
+        // XÓA — dùng _service.Delete
+        // =================================================================
         private void BtnDelete_Click(object sender, EventArgs e)
         {
             if (_selectedSupplierID == 0)
             {
-                MessageBox.Show("Vui lòng chọn nhà cung cấp cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Vui lòng chọn nhà cung cấp cần xóa!", "Thông báo",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            if (MessageBox.Show("Bạn có chắc muốn xóa nhà cung cấp này?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+
+            string name = txtCompanyName.Text.Trim();
+            if (MessageBox.Show(
+                    $"Bạn có chắc muốn xóa nhà cung cấp '{name}'?\nHành động này không thể hoàn tác!",
+                    "Xác nhận xóa",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button2)
+                == DialogResult.Yes)
             {
                 try
                 {
                     _service.Delete(_selectedSupplierID, _currentUser);
-                    MessageBox.Show("Xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("✅ Xóa thành công!", "Thông báo",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadSuppliers();
                     ClearForm();
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
 
+        // =================================================================
+        // LÀM MỚI
+        // =================================================================
         private void BtnClear_Click(object sender, EventArgs e)
         {
             ClearForm();
             LoadSuppliers();
         }
 
+        // =================================================================
+        // CLEAR FORM
+        // =================================================================
         private void ClearForm()
         {
             _selectedSupplierID = 0;

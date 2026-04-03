@@ -182,7 +182,19 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
-            cboFilterPO.Items.AddRange(new[] { "Tất cả", "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
+            cboFilterPO.Items.AddRange(new[]
+            {
+    "Tất cả",
+    // ── Trạng thái tính theo % giao hàng ──
+    "New",
+    "Completed",    // % = 100 → giao đủ
+    "Pending",      // 0 < % < 100 → đang giao dở
+    // ── Trạng thái gốc từ DB (khi % = 0) ──
+    "Draft",
+    "Approved",
+    "In Progress",
+    "Cancelled"
+});
             cboFilterPO.SelectedIndex = 0;
             cboFilterPO.SelectedIndexChanged += (s, e) => LoadPOData();
             tabPO.Controls.Add(cboFilterPO);

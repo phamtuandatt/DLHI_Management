@@ -154,7 +154,7 @@ namespace MPR_Managerment.Forms
                 var bAdd = Btn("+ Thêm đợt", Color.FromArgb(40, 167, 69), 8, 28, 100, 26);
                 var bDel = Btn("Xóa", Color.FromArgb(220, 53, 69), 114, 28, 65, 26);
                 var bSave = Btn("💾 Lưu", Color.FromArgb(0, 120, 212), 185, 28, 80, 26);
-                var bReq = Btn("📄 Payment Request", Color.FromArgb(102, 51, 153), 271, 28, 150, 26);
+                var bReq = Btn("📄 Request to EC", Color.FromArgb(102, 51, 153), 271, 28, 150, 26);
 
                 bAdd.Click += BtnAddSched_Click;
                 bDel.Click += BtnDelSched_Click;
