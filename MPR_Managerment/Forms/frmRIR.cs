@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 
@@ -37,6 +38,12 @@ namespace MPR_Managerment.Forms
         private Label lblStatus;
         private Panel panelTop, panelHead, panelDetail;
         private Button btnExportRIR;
+
+        // ===== RIR LINK FOLDER BROWSER (góc phải panelDetail) =====
+        private ComboBox cboProjectRIR;         // Chọn dự án theo ProjectCode
+        private DataGridView dgvRIRFolders;     // Danh sách thư mục trong RIR_Link
+        private DataTable _projectTable;        // DataTable: ProjectCode | RIR_Link
+        private bool _isProjectSearching = false;
 
         public frmRIR()
         {
@@ -251,10 +258,94 @@ namespace MPR_Managerment.Forms
             btnSaveDetail.Click += BtnSaveDetail_Click;
             panelDetail.Controls.Add(btnSaveDetail);
 
+            // =====================================================================
+            // RIR LINK FOLDER BROWSER — Góc phải trên của panelDetail
+            // =====================================================================
+            const int folderPanelW = 340;
+            const int folderPanelRight = 10; // khoảng cách từ mép phải panelDetail
+
+            // Label tiêu đề
+            var lblRIRFolder = new Label
+            {
+                Text = "📁 Thư mục RIR theo dự án",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(102, 51, 153),
+                Size = new Size(folderPanelW, 18),
+                // Location sẽ được tính lại trong Resize
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Name = "lblRIRFolderTitle"
+            };
+            panelDetail.Controls.Add(lblRIRFolder);
+
+            // ComboBox chọn dự án — có tìm kiếm nhanh
+            cboProjectRIR = new ComboBox
+            {
+                Size = new Size(folderPanelW, 25),
+                Font = new Font("Segoe UI", 9),
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.None,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Name = "cboProjectRIR"
+            };
+            panelDetail.Controls.Add(cboProjectRIR);
+            cboProjectRIR.BringToFront();
+
+            // DataGridView danh sách thư mục
+            dgvRIRFolders = new DataGridView
+            {
+                Size = new Size(folderPanelW, 260),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom,
+                Name = "dgvRIRFolders",
+                Cursor = Cursors.Hand
+            };
+            dgvRIRFolders.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153);
+            dgvRIRFolders.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvRIRFolders.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvRIRFolders.EnableHeadersVisualStyles = false;
+            dgvRIRFolders.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+
+            // Thêm cột thư mục
+            dgvRIRFolders.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "FolderPath",
+                HeaderText = "FolderPath",
+                Visible = false
+            });
+            dgvRIRFolders.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "FolderName",
+                HeaderText = "📂  Tên thư mục",
+                FillWeight = 100
+            });
+
+            // Double click → mở thư mục
+            dgvRIRFolders.CellDoubleClick += DgvRIRFolders_CellDoubleClick;
+            panelDetail.Controls.Add(dgvRIRFolders);
+
+            // Nạp dữ liệu dự án vào DataTable và bind ComboBox
+            LoadProjectTable();
+            BindProjectRIRCombo(_projectTable);
+
+            cboProjectRIR.TextChanged += CboProjectRIR_TextChanged;
+            cboProjectRIR.SelectedIndexChanged += CboProjectRIR_SelectedIndexChanged;
+            cboProjectRIR.KeyDown += CboProjectRIR_KeyDown;
+
+            // Vị trí ban đầu (sẽ tính lại trong Resize)
+            PositionRIRFolderControls();
+            // =====================================================================
+
             dgvDetails = new DataGridView
             {
                 Location = new Point(10, 75),
-                Size = new Size(1335, 270),
+                Size = new Size(1335 - folderPanelW - 15, 270),
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.None,
                 RowHeadersVisible = false,
@@ -281,6 +372,182 @@ namespace MPR_Managerment.Forms
                 foreach (Control c in panel.Controls)
                     if (c is TextBox || c is ComboBox || c is DateTimePicker || c is NumericUpDown)
                         c.BringToFront();
+        }
+
+        // =====================================================================
+        // TÍNH VỊ TRÍ CÁC CONTROL FOLDER BROWSER (gọi khi init và resize)
+        // =====================================================================
+        private void PositionRIRFolderControls()
+        {
+            if (panelDetail == null || cboProjectRIR == null) return;
+            int pw = panelDetail.ClientSize.Width;
+            const int folderPanelW = 340;
+            int left = pw - folderPanelW - 10;
+            if (left < 500) left = 500; // không che bảng chi tiết
+
+            var lbl = panelDetail.Controls["lblRIRFolderTitle"] as Label;
+            if (lbl != null) { lbl.Left = left; lbl.Top = 8; lbl.Width = folderPanelW; }
+
+            cboProjectRIR.Left = left;
+            cboProjectRIR.Top = 30;
+            cboProjectRIR.Width = folderPanelW;
+
+            dgvRIRFolders.Left = left;
+            dgvRIRFolders.Top = 60;
+            dgvRIRFolders.Width = folderPanelW;
+            // Chiều cao sẽ cập nhật trong FrmRIR_Resize
+        }
+
+        // =====================================================================
+        // COMBOBOX DỰ ÁN — DÙNG ProjectCode, TÌM KIẾM NHANH
+        // DataTable có 2 cột: ProjectCode (hiển thị) | RIR_Link (giá trị)
+        // =====================================================================
+        private void LoadProjectTable()
+        {
+            _projectTable = new DataTable();
+            _projectTable.Columns.Add("ProjectCode", typeof(string));
+            _projectTable.Columns.Add("RIR_Link", typeof(string));
+
+            try
+            {
+                var all = _projectServices.GetAll();
+                foreach (var p in all)
+                    _projectTable.Rows.Add(p.ProjectCode ?? "", p.RIR_Link ?? "");
+            }
+            catch { }
+        }
+
+        private void BindProjectRIRCombo(DataTable dt)
+        {
+            _isProjectSearching = true;
+            string cur = cboProjectRIR.Text;
+            cboProjectRIR.DataSource = null;
+            cboProjectRIR.DataSource = dt;
+            cboProjectRIR.DisplayMember = "ProjectCode";
+            cboProjectRIR.ValueMember = "RIR_Link";
+            cboProjectRIR.Text = cur;
+            _isProjectSearching = false;
+        }
+
+        private void CboProjectRIR_TextChanged(object sender, EventArgs e)
+        {
+            if (_isProjectSearching) return;
+            string kw = cboProjectRIR.Text.Trim();
+
+            if (string.IsNullOrEmpty(kw))
+            {
+                BindProjectRIRCombo(_projectTable);
+                cboProjectRIR.DroppedDown = false;
+                return;
+            }
+
+            // Lọc DataTable theo ProjectCode chứa từ khoá
+            DataTable filtered = _projectTable.Clone();
+            foreach (DataRow row in _projectTable.Rows)
+            {
+                string code = row["ProjectCode"]?.ToString() ?? "";
+                if (code.IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0)
+                    filtered.ImportRow(row);
+            }
+
+            _isProjectSearching = true;
+            cboProjectRIR.DataSource = null;
+            cboProjectRIR.DataSource = filtered.Rows.Count > 0 ? filtered : _projectTable;
+            cboProjectRIR.DisplayMember = "ProjectCode";
+            cboProjectRIR.ValueMember = "RIR_Link";
+            cboProjectRIR.Text = kw;
+            cboProjectRIR.SelectionStart = kw.Length;
+            cboProjectRIR.DroppedDown = true;
+            _isProjectSearching = false;
+        }
+
+        private void CboProjectRIR_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_isProjectSearching) return;
+            // ValueMember = "RIR_Link" nên SelectedValue chính là đường dẫn
+            string rirLink = cboProjectRIR.SelectedValue?.ToString() ?? "";
+            LoadRIRFolders(rirLink);
+        }
+
+        private void CboProjectRIR_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Escape)
+            {
+                _isProjectSearching = true;
+                BindProjectRIRCombo(_projectTable);
+                cboProjectRIR.Text = "";
+                cboProjectRIR.DroppedDown = false;
+                _isProjectSearching = false;
+                dgvRIRFolders.Rows.Clear();
+            }
+        }
+
+        // =====================================================================
+        // LOAD DANH SÁCH THƯ MỤC TRONG RIR_LINK
+        // =====================================================================
+        private void LoadRIRFolders(string rirLink)
+        {
+            dgvRIRFolders.Rows.Clear();
+            if (string.IsNullOrWhiteSpace(rirLink))
+            {
+                dgvRIRFolders.Rows.Add("", "⚠ Dự án chưa cấu hình RIR Link");
+                dgvRIRFolders.Rows[0].DefaultCellStyle.ForeColor = Color.Gray;
+                return;
+            }
+            if (!Directory.Exists(rirLink))
+            {
+                dgvRIRFolders.Rows.Add("", $"⚠ Không tìm thấy thư mục:\n{rirLink}");
+                dgvRIRFolders.Rows[0].DefaultCellStyle.ForeColor = Color.FromArgb(220, 53, 69);
+                return;
+            }
+            try
+            {
+                var dirs = Directory.GetDirectories(rirLink);
+                if (dirs.Length == 0)
+                {
+                    dgvRIRFolders.Rows.Add("", "📭 Chưa có thư mục nào");
+                    dgvRIRFolders.Rows[0].DefaultCellStyle.ForeColor = Color.Gray;
+                    return;
+                }
+                foreach (string dir in dirs)
+                {
+                    string name = Path.GetFileName(dir);
+                    int idx = dgvRIRFolders.Rows.Add(dir, "📂  " + name);
+                    dgvRIRFolders.Rows[idx].DefaultCellStyle.ForeColor = Color.FromArgb(0, 80, 160);
+                }
+            }
+            catch (Exception ex)
+            {
+                dgvRIRFolders.Rows.Add("", "⚠ Lỗi đọc thư mục: " + ex.Message);
+                dgvRIRFolders.Rows[0].DefaultCellStyle.ForeColor = Color.FromArgb(220, 53, 69);
+            }
+        }
+
+        // =====================================================================
+        // DOUBLE CLICK → MỞ THƯ MỤC
+        // =====================================================================
+        private void DgvRIRFolders_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            string path = dgvRIRFolders.Rows[e.RowIndex].Cells["FolderPath"].Value?.ToString() ?? "";
+            if (string.IsNullOrEmpty(path)) return;
+            if (!Directory.Exists(path))
+            {
+                MessageBox.Show("Thư mục không tồn tại:\n" + path, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Không thể mở thư mục: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void BtnExportRIR_Click(object? sender, EventArgs e)
@@ -321,12 +588,6 @@ namespace MPR_Managerment.Forms
         // =========================================================================
         // PASTE TỪ EXCEL — Ctrl+V vào bảng Chi tiết vật tư kiểm tra
         // =========================================================================
-        // Thứ tự cột Excel mong đợi (bỏ qua cột STT — tự tăng):
-        //   A: Tên vật tư | B: Vật liệu | C: Kích thước | D: ĐVT
-        //   E: SL Yêu cầu | F: SL Thực nhận | G: MTR No | H: Heat No
-        //   I: ID Code    | J: Kết quả KT   | K: Ghi chú
-        // Người dùng có thể bắt đầu paste từ bất kỳ ô nào đang được chọn.
-        // =========================================================================
         private void DgvDetails_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Control && e.KeyCode == Keys.V)
@@ -349,7 +610,6 @@ namespace MPR_Managerment.Forms
                     StringSplitOptions.RemoveEmptyEntries);
                 if (lines.Length == 0) return;
 
-                // Xác định ô bắt đầu
                 int startRowIndex = dgvDetails.CurrentCell?.RowIndex ?? dgvDetails.Rows.Count;
                 int startColIndex = dgvDetails.CurrentCell?.ColumnIndex ?? 0;
 
@@ -359,7 +619,6 @@ namespace MPR_Managerment.Forms
                 {
                     string[] cells = line.Split('\t');
 
-                    // Thêm dòng mới nếu cần
                     if (startRowIndex >= dgvDetails.Rows.Count)
                     {
                         int nextNo = dgvDetails.Rows.Count + 1;
@@ -373,17 +632,14 @@ namespace MPR_Managerment.Forms
                     }
 
                     var gridRow = dgvDetails.Rows[startRowIndex];
-                    int colIndex = startColIndex; // ← bắt đầu từ đúng cột đang chọn
+                    int colIndex = startColIndex;
 
                     foreach (string cellValue in cells)
                     {
-                        // Bỏ qua cột ẩn (RIR_Detail_ID) và cột STT (Item_No - ReadOnly)
                         while (colIndex < dgvDetails.Columns.Count &&
                                (!dgvDetails.Columns[colIndex].Visible ||
                                 dgvDetails.Columns[colIndex].ReadOnly))
-                        {
                             colIndex++;
-                        }
 
                         if (colIndex >= dgvDetails.Columns.Count) break;
 
@@ -391,18 +647,11 @@ namespace MPR_Managerment.Forms
                         string value = cellValue.Trim();
 
                         if (colName == "Inspect_Result")
-                        {
                             gridRow.Cells[colName].Value = NormalizeInspectResult(value);
-                        }
                         else if (colName == "Qty_Required" || colName == "Qty_Received")
-                        {
-                            gridRow.Cells[colName].Value =
-                                int.TryParse(value, out int num) ? num : 0;
-                        }
+                            gridRow.Cells[colName].Value = int.TryParse(value, out int num) ? num : 0;
                         else
-                        {
                             gridRow.Cells[colName].Value = value;
-                        }
 
                         colIndex++;
                     }
@@ -416,13 +665,11 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    "Lỗi khi dán dữ liệu từ Excel:\n" + ex.Message,
+                MessageBox.Show("Lỗi khi dán dữ liệu từ Excel:\n" + ex.Message,
                     "Lỗi Paste", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        /// <summary>Chuẩn hoá giá trị Kết quả KT — chỉ chấp nhận Pass/Fail/Hold.</summary>
         private static string NormalizeInspectResult(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return "";
@@ -430,10 +677,9 @@ namespace MPR_Managerment.Forms
             if (upper == "PASS") return "Pass";
             if (upper == "FAIL") return "Fail";
             if (upper == "HOLD") return "Hold";
-            return ""; // giá trị không hợp lệ → để trống
+            return "";
         }
 
-        /// <summary>Đánh lại số thứ tự toàn bộ các dòng trong dgvDetails.</summary>
         private void RenumberItems()
         {
             int no = 1;
@@ -500,8 +746,19 @@ namespace MPR_Managerment.Forms
                 panelDetail.Height = h - panelDetail.Top - 10;
 
                 dgvRIR.Width = panelTop.Width - 20;
-                dgvDetails.Width = panelDetail.Width - 20;
+
+                // Cập nhật vị trí folder browser
+                PositionRIRFolderControls();
+
+                // dgvDetails chiều rộng = panelDetail - folder panel - lề
+                const int folderPanelW = 340;
+                int detailW = panelDetail.ClientSize.Width - folderPanelW - 30;
+                dgvDetails.Width = Math.Max(200, detailW);
                 dgvDetails.Height = panelDetail.Height - 85;
+
+                // Cập nhật chiều cao dgvRIRFolders
+                if (dgvRIRFolders != null)
+                    dgvRIRFolders.Height = panelDetail.Height - 70;
 
                 if (txtCustomer != null && panelHead != null)
                     txtCustomer.Width = panelHead.Width - txtCustomer.Left - 20;
@@ -571,7 +828,7 @@ namespace MPR_Managerment.Forms
                     row.Cells["Inspect_Result"].Value = d.Inspect_Result;
                     row.Cells["Remarks"].Value = d.Remarks ?? "";
 
-                    row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID; // Mark PO_Detail_ID
+                    row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID;
                 }
             }
             catch (Exception ex)
@@ -633,17 +890,15 @@ namespace MPR_Managerment.Forms
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
 
-            if ((dgvDetails.Columns[e.ColumnIndex].Name == "Qty_Required" && e.Value != null) 
+            if ((dgvDetails.Columns[e.ColumnIndex].Name == "Qty_Required" && e.Value != null)
                 && (dgvDetails.Columns[e.ColumnIndex].Name == "Qty_Received" && e.Value != null))
             {
                 if (decimal.TryParse(e.Value.ToString(), out decimal qty))
                 {
-                    // Định dạng hiển thị thành số nguyên
                     e.Value = qty.ToString("N0");
                     e.FormattingApplied = true;
                 }
             }
-
         }
 
         private void BtnSearch_Click(object sender, EventArgs e)
@@ -728,29 +983,20 @@ namespace MPR_Managerment.Forms
 
                                 if (d.RIR_Detail_ID == 0)
                                 {
-                                    //_service.InsertDetail(d, _currentUser);
                                     var rs = await _service.InsertRIRDetailAndUpdateStock(d);
                                 }
                                 else
                                 {
                                     _service.UpdateDetail(d);
                                 }
-
                                 saved++;
                             }
-                            //MessageBox.Show($"Đã lưu {saved} dòng thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            //LoadDetails(_selectedRIR_ID);
                         }
                         catch (Exception ex)
                         {
                             MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     }
-                    //if (dgvDetails.Rows.Count == 0)
-                    //{
-                    //    MessageBox.Show("Không có dòng nào để lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    //    return;
-                    //}
                     MessageBox.Show("Tạo phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
@@ -989,12 +1235,10 @@ namespace MPR_Managerment.Forms
                                 row.Cells["Qty_Received"].Value = 0;
                                 row.Cells["MTRno"].Value = reader["MTRno"]?.ToString() ?? "";
                                 row.Cells["Heatno"].Value = "";
-                                //row.Cells["ID_Code"].Value = reader["ID_Code"]?.ToString() ?? "";
                                 row.Cells["ID_Code"].Value = "";
                                 row.Cells["Inspect_Result"].Value = "";
                                 row.Cells["Remarks"].Value = "";
-
-                                row.Cells["PO_Detail_ID"].Value = reader["PO_Detail_ID"].ToString() ?? ""; // Load PO_Detail_ID
+                                row.Cells["PO_Detail_ID"].Value = reader["PO_Detail_ID"].ToString() ?? "";
                                 countItems++;
                             }
                         }
@@ -1072,8 +1316,7 @@ namespace MPR_Managerment.Forms
             row.Cells["ID_Code"].Value = "";
             row.Cells["Inspect_Result"].Value = "";
             row.Cells["Remarks"].Value = "";
-
-            row.Cells["PO_Detail_ID"].Value = ""; // ?????????
+            row.Cells["PO_Detail_ID"].Value = "";
 
             dgvDetails.CurrentCell = dgvDetails.Rows[idx].Cells["Item_Name"];
             dgvDetails.BeginEdit(true);
@@ -1152,14 +1395,12 @@ namespace MPR_Managerment.Forms
 
                     if (d.RIR_Detail_ID == 0)
                     {
-                        //_service.InsertDetail(d, _currentUser);
                         var rs = await _service.InsertRIRDetailAndUpdateStock(d);
                     }
                     else
                     {
                         _service.UpdateDetail(d);
                     }
-
                     saved++;
                 }
                 MessageBox.Show($"Đã lưu {saved} dòng thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1191,16 +1432,9 @@ namespace MPR_Managerment.Forms
             var rirNO = (dgvRIR.Rows[rsl].Cells[1].Value.ToString());
             var poNO = dgvRIR.Rows[rsl].Cells[6].Value.ToString();
 
-            // lấy data PO
             var poModel = await _poService.GetPOAsync(poNO);
-
-            // Lấy data project
             var projectMode = _projectServices.GetByProjectCode(poModel.ProjectCode);
-
-            // Lấy data supplier
             var supplierModel = _supplierServices.GetBySupId(poModel.Supplier_ID);
-
-            // Lấy data RIR DEtail
             var dtImports = await _service.GetDetailsToExport(rirId);
             PrintBill(dtImports, projectMode, rirNO, poModel);
         }
@@ -1218,9 +1452,7 @@ namespace MPR_Managerment.Forms
                 string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "rir_template.xlsx");
                 string exportFolder = projects.PNK_Link;
                 if (!Directory.Exists(exportFolder))
-                {
                     Directory.CreateDirectory(exportFolder);
-                }
 
                 string fileName = $"{RIRNo}_{DateTime.Now:ddMMyyyy}.xlsx";
                 string actualSavePath = Path.Combine(exportFolder, fileName);
@@ -1231,7 +1463,6 @@ namespace MPR_Managerment.Forms
                     return;
                 }
 
-                // 2. Xử lý Excel
                 ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
                 FileInfo templateFile = new FileInfo(templatePath);
                 FileInfo newFile = new FileInfo(actualSavePath);
@@ -1239,10 +1470,6 @@ namespace MPR_Managerment.Forms
                 {
                     ExcelWorksheet ws = package.Workbook.Worksheets[0];
 
-                    // --- ĐIỀN THÔNG TIN HEADER (Dựa trên các Placeholder trong file của bạn) ---
-                    // Lưu ý: Tùy vào vị trí ô trong file xlsx thực tế, bạn có thể dùng Replace hoặc gán trực tiếp
-
-                    // Tìm và thay thế các từ khóa trong vùng Header (giả định từ dòng 1 đến dòng 12)
                     var headerCells = ws.Cells["A1:AW12"];
                     foreach (var cell in headerCells)
                     {
@@ -1260,44 +1487,32 @@ namespace MPR_Managerment.Forms
                         if (txt.Contains("<<USER-CREATE>>")) cell.Value = txt.Replace("<<USER-CREATE>>", _currentUser);
                     }
 
-                    // --- ĐIỀN CHI TIẾT VẬT TƯ (Bắt đầu từ sau dòng tiêu đề STT) ---
-                    // Theo file CSV bạn gửi, dòng tiêu đề cột bắt đầu khoảng dòng 13-14
                     int startRow = 7;
-
                     int count = dtDetails.Rows.Count;
                     if (count > 1)
                     {
-                        // Chèn thêm dòng nếu danh sách vật tư nhiều hơn 1 (để giữ định dạng Footer bên dưới)
                         ws.InsertRow(startRow + 1, count - 1);
                         for (int i = 1; i < count; i++)
-                        {
                             ws.Cells[startRow, 1, startRow, 30].Copy(ws.Cells[startRow + i, 1]);
-                        }
                     }
 
                     for (int i = 0; i < count; i++)
                     {
                         DataRow dr = dtDetails.Rows[i];
                         int curr = startRow + i;
+                        ws.Row(curr).Height = 25;
 
-                        ws.Row(curr).Height = 25; // Độ cao dòng chuẩn cho RIR
+                        ws.Cells[curr, 1].Value = i + 1;
+                        ws.Cells[curr, 3].Value = dr["item_name"];
+                        ws.Cells[curr, 10].Value = dr["Material"];
+                        ws.Cells[curr, 18].Value = dr["Size"];
+                        ws.Cells[curr, 25].Value = dr["UNIT"];
+                        ws.Cells[curr, 27].Value = dr["Qty_Per_Sheet"];
+                        ws.Cells[curr, 29].Value = dr["MTRno"];
+                        ws.Cells[curr, 35].Value = dr["Heatno"];
+                        ws.Cells[curr, 41].Value = "";
+                        ws.Cells[curr, 46].Value = "";
 
-                        // Điền dữ liệu theo cấu trúc template RIR
-                        ws.Cells[curr, 1].Value = i + 1;                             // No.
-                        ws.Cells[curr, 3].Value = dr["item_name"];                  // Item Name
-                        ws.Cells[curr, 10].Value = dr["Material"];                  // Material Spec
-                        ws.Cells[curr, 18].Value = dr["Size"];                      // Size
-                        ws.Cells[curr, 25].Value = dr["UNIT"];                      // Unit
-                        ws.Cells[curr, 27].Value = dr["Qty_Per_Sheet"];                // Qty
-                        ws.Cells[curr, 29].Value = dr["MTRno"];                     // MTR No.
-                        ws.Cells[curr, 35].Value = dr["Heatno"];                    // Heat/Lot No.
-                        ws.Cells[curr, 41].Value = "";                        // Result (Mặc định)
-                        ws.Cells[curr, 46].Value =  "";                     // Remarks
-
-                        //RIR_Detail_ID, RIR_ID, PO_Detail_ID, Item_No,
-                        //   item_name, Material, Size, UNIT,
-                        //   Qty_Per_Sheet, MTRno, Heatno, Created_Date
-                        // Căn lề và Border
                         using (var range = ws.Cells[curr, 1, curr, 50])
                         {
                             range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
@@ -1305,7 +1520,6 @@ namespace MPR_Managerment.Forms
                             range.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
                         }
 
-                        // Cột Tên và Size nên căn Trái
                         ws.Cells[curr, 3].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
                         ws.Cells[curr, 18].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
 
@@ -1326,7 +1540,6 @@ namespace MPR_Managerment.Forms
                         }
                     }
 
-                    // Tự động lưu
                     package.Save();
                 }
 

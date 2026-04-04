@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.IO;
+using System.Diagnostics;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Models;
@@ -30,48 +32,42 @@ namespace MPR_Managerment.Forms
         private DateTimePicker dtpRequiredDate;
         private ComboBox cboStatus;
 
+        // BẢNG MỚI: Danh sách file đính kèm
+        private DataGridView dgvFiles;
+
         private DataGridView dgvDetails;
         private Button btnAddDetail, btnDeleteDetail, btnSaveDetail;
 
-        // BẢNG MỚI: Tiến độ PO
+        // BẢNG: Tiến độ PO
         private DataGridView dgvPOProgress;
         private Label lblPOProgressTitle;
 
         private Panel panelTop, panelHeader, panelDetail;
 
-        // Constructor có thêm tham số mprId
         public frmMPR(int mprId = 0)
         {
             _targetMprId = mprId;
-
             InitializeComponent();
             BuildUI();
             LoadMPR();
             this.Resize += FrmMPR_Resize;
             this.WindowState = FormWindowState.Maximized;
 
-            // Nếu được mở từ Dashboard, tự động focus vào MPR đó
             if (_targetMprId > 0)
             {
                 SelectMPRById(_targetMprId);
             }
         }
 
-        // Tự động Select MPR trên Grid, dán lên thanh tìm kiếm và TỰ ĐỘNG LỌC
         private void SelectMPRById(int id)
         {
-            // 1. Tìm MPR trong danh sách dữ liệu gốc
             var targetMPR = _mprList.Find(m => m.MPR_ID == id);
             if (targetMPR != null)
             {
-                // Dán số MPR lên ô tìm kiếm
                 txtSearch.Text = targetMPR.MPR_No;
-
-                // Gọi sự kiện click nút Tìm kiếm để lọc danh sách ngay lập tức
                 BtnSearch_Click(null, null);
             }
 
-            // 2. Chọn và focus vào dòng kết quả trên Grid
             foreach (DataGridViewRow row in dgvMPR.Rows)
             {
                 if (Convert.ToInt32(row.Cells["ID"].Value) == id)
@@ -81,7 +77,6 @@ namespace MPR_Managerment.Forms
 
                     if (row.Index >= 0)
                         dgvMPR.FirstDisplayedScrollingRowIndex = row.Index;
-
                     break;
                 }
             }
@@ -120,7 +115,6 @@ namespace MPR_Managerment.Forms
                 PlaceholderText = "Tìm theo MPR No hoặc tên dự án..."
             };
             panelTop.Controls.Add(txtSearch);
-
             txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnSearch_Click(null, null); };
 
             btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(320, 47), 85, 30);
@@ -170,7 +164,7 @@ namespace MPR_Managerment.Forms
             panelHeader = new Panel
             {
                 Location = new Point(10, 240),
-                Size = new Size(1360, 185),
+                Size = new Size(1360, 160), // Set chiều cao tối ưu để vừa 3 hàng control
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
@@ -186,21 +180,51 @@ namespace MPR_Managerment.Forms
                 Size = new Size(300, 25)
             });
 
+            // === BẢNG FILE ĐÍNH KÈM (CĂN BẰNG CHIỀU CAO & RỘNG THÊM 100) ===
+            int gridFilesWidth = 450; // Tăng thêm 100px so với 350 cũ
+            dgvFiles = new DataGridView
+            {
+                Location = new Point(panelHeader.Width - gridFilesWidth - 10, 10), // Đẩy y=10 để cao ngang hàng Tiêu đề
+                Size = new Size(gridFilesWidth, panelHeader.Height - 20), // Chiều cao full panel (trừ margin)
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom
+            };
+            dgvFiles.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(108, 117, 125);
+            dgvFiles.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvFiles.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvFiles.EnableHeadersVisualStyles = false;
+            dgvFiles.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvFiles.Columns.Add("FileName", "Tệp đính kèm (MPR Link)");
+            dgvFiles.Columns.Add("FullPath", "FullPath");
+            dgvFiles.Columns["FullPath"].Visible = false;
+            dgvFiles.CellDoubleClick += DgvFiles_CellDoubleClick;
+            panelHeader.Controls.Add(dgvFiles);
+
+            // === CÁC CONTROL NHẬP LIỆU BÊN TRÁI ===
             int y = 38;
+
+            // Hàng 1
             AddLabel(panelHeader, "MPR No (*):", 10, y);
-            txtMPRNo = AddTextBox(panelHeader, 110, y, 160);
+            txtMPRNo = AddTextBox(panelHeader, 90, y, 140);
 
-            AddLabel(panelHeader, "Tên dự án:", 285, y);
-            txtProjectName = AddTextBox(panelHeader, 375, y, 250);
+            AddLabel(panelHeader, "Tên dự án:", 240, y);
+            txtProjectName = AddTextBox(panelHeader, 320, y, 200);
 
-            AddLabel(panelHeader, "Mã dự án:", 640, y);
-            txtProjectCode = AddTextBox(panelHeader, 720, y, 150);
+            AddLabel(panelHeader, "Mã dự án:", 530, y);
+            txtProjectCode = AddTextBox(panelHeader, 610, y, 130);
 
-            AddLabel(panelHeader, "Trạng thái:", 885, y);
+            AddLabel(panelHeader, "Trạng thái:", 750, y);
             cboStatus = new ComboBox
             {
-                Location = new Point(965, y),
-                Size = new Size(160, 25),
+                Location = new Point(830, y),
+                Size = new Size(60, 25),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -208,32 +232,30 @@ namespace MPR_Managerment.Forms
             cboStatus.SelectedIndex = 0;
             panelHeader.Controls.Add(cboStatus);
 
+            // Hàng 2
             y += 38;
             AddLabel(panelHeader, "Phòng ban:", 10, y);
-            txtDepartment = AddTextBox(panelHeader, 110, y, 160);
+            txtDepartment = AddTextBox(panelHeader, 90, y, 140);
 
-            AddLabel(panelHeader, "Người yêu cầu:", 285, y);
-            txtRequestor = AddTextBox(panelHeader, 390, y, 175);
+            AddLabel(panelHeader, "Người YC:", 240, y);
+            txtRequestor = AddTextBox(panelHeader, 320, y, 200);
 
-            AddLabel(panelHeader, "Ngày cần:", 580, y);
+            AddLabel(panelHeader, "Ngày cần:", 530, y);
             dtpRequiredDate = new DateTimePicker
             {
-                Location = new Point(650, y),
-                Size = new Size(150, 25),
+                Location = new Point(610, y),
+                Size = new Size(130, 25),
                 Font = new Font("Segoe UI", 9),
                 Format = DateTimePickerFormat.Short
             };
             panelHeader.Controls.Add(dtpRequiredDate);
 
-            AddLabel(panelHeader, "Rev:", 815, y);
-            txtRev = AddTextBox(panelHeader, 848, y, 60);
+            AddLabel(panelHeader, "Rev:", 750, y);
+            txtRev = AddTextBox(panelHeader, 790, y, 100);
             txtRev.Text = "0";
 
-            AddLabel(panelHeader, "Ghi chú:", 925, y);
-            txtNotes = AddTextBox(panelHeader, 990, y, 240);
-            txtNotes.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-
-            y += 45;
+            // Hàng 3 (Buttons & Notes)
+            y += 38;
             btnSaveHeader = CreateButton("💾 Lưu Header", Color.FromArgb(0, 120, 212), new Point(10, y), 130, 32);
             btnSaveHeader.Click += BtnSaveHeader_Click;
             panelHeader.Controls.Add(btnSaveHeader);
@@ -242,10 +264,15 @@ namespace MPR_Managerment.Forms
             btnClearHeader.Click += BtnClearHeader_Click;
             panelHeader.Controls.Add(btnClearHeader);
 
+            AddLabel(panelHeader, "Ghi chú:", 270, y + 5);
+            // txtNotes tự động giãn ra lấp kín phần trống ở giữa
+            txtNotes = AddTextBox(panelHeader, 340, y + 2, dgvFiles.Left - 340 - 15);
+            txtNotes.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
             // ===== PANEL DETAIL =====
             panelDetail = new Panel
             {
-                Location = new Point(10, 435),
+                Location = new Point(10, panelHeader.Bottom + 10),
                 Size = new Size(1360, 345),
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
@@ -274,12 +301,10 @@ namespace MPR_Managerment.Forms
             btnSaveDetail.Click += BtnSaveDetail_Click;
             panelDetail.Controls.Add(btnSaveDetail);
 
-            // Nút Tạo PO — mở frmPO và tự động import MPR hiện tại
             var btnCreatePO = CreateButton("🛒 Tạo PO", Color.FromArgb(255, 140, 0), new Point(400, 38), 120, 30);
             btnCreatePO.Click += BtnCreatePO_Click;
             panelDetail.Controls.Add(btnCreatePO);
 
-            // Lưới chi tiết vật tư (Bên Trái)
             dgvDetails = new DataGridView
             {
                 Location = new Point(10, 75),
@@ -302,7 +327,6 @@ namespace MPR_Managerment.Forms
             BuildDetailColumns();
             panelDetail.Controls.Add(dgvDetails);
 
-            // Label tiêu đề cho Tiến độ PO (Bên Phải)
             lblPOProgressTitle = new Label
             {
                 Text = "TỔNG HỢP TIẾN ĐỘ PO ĐÃ ĐẶT",
@@ -314,7 +338,6 @@ namespace MPR_Managerment.Forms
             };
             panelDetail.Controls.Add(lblPOProgressTitle);
 
-            // Lưới Tiến độ PO (Bên Phải)
             dgvPOProgress = new DataGridView
             {
                 Location = new Point(930, 75),
@@ -335,25 +358,89 @@ namespace MPR_Managerment.Forms
             dgvPOProgress.EnableHeadersVisualStyles = false;
             dgvPOProgress.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
             dgvPOProgress.CellFormatting += DgvPOProgress_CellFormatting;
-
-            // SỰ KIỆN MỚI: DOUBLE CLICK ĐỂ MỞ FORM PO
             dgvPOProgress.CellDoubleClick += DgvPOProgress_CellDoubleClick;
-
             panelDetail.Controls.Add(dgvPOProgress);
 
             Common.Common.AutoBringToFontControl(new[] { panelTop, panelHeader, panelDetail });
         }
 
+        // =====================================================================
+        // SỰ KIỆN DOUBLE CLICK VÀO FILE TRONG BẢNG ĐÍNH KÈM
+        // =====================================================================
+        private void DgvFiles_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            string path = dgvFiles.Rows[e.RowIndex].Cells["FullPath"].Value?.ToString();
+
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = path,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Không thể mở file: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else if (!string.IsNullOrEmpty(path))
+            {
+                MessageBox.Show("File không tồn tại hoặc đã bị xóa / di chuyển khỏi thư mục!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        // =====================================================================
+        // HÀM QUÉT THƯ MỤC LẤY DANH SÁCH FILE CỦA DỰ ÁN ĐANG CHỌN
+        // =====================================================================
+        private void LoadFiles(string projectName)
+        {
+            dgvFiles.Rows.Clear();
+            if (string.IsNullOrEmpty(projectName)) return;
+
+            try
+            {
+                var projects = new ProjectService().GetAll();
+                var prj = projects.Find(p =>
+                    !string.IsNullOrEmpty(p.ProjectName) &&
+                    p.ProjectName.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+
+                if (prj == null)
+                {
+                    prj = projects.Find(p =>
+                        !string.IsNullOrEmpty(p.ProjectName) &&
+                        p.ProjectName.IndexOf(projectName, StringComparison.OrdinalIgnoreCase) >= 0);
+                }
+
+                if (prj != null && !string.IsNullOrEmpty(prj.MPR_Link) && Directory.Exists(prj.MPR_Link))
+                {
+                    var files = Directory.GetFiles(prj.MPR_Link);
+                    foreach (var f in files)
+                    {
+                        dgvFiles.Rows.Add(Path.GetFileName(f), f);
+                    }
+                }
+                else if (prj != null && !string.IsNullOrEmpty(prj.MPR_Link))
+                {
+                    dgvFiles.Rows.Add("(Thư mục không tồn tại)", "");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Lỗi load files: " + ex.Message);
+            }
+        }
+
         private void DgvPOProgress_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
-
-            // Lấy cột "PO No" từ dòng được click
             string poNo = dgvPOProgress.Rows[e.RowIndex].Cells["PO No"].Value?.ToString() ?? "";
 
             if (!string.IsNullOrEmpty(poNo))
             {
-                // Mở form frmPO và truyền số PO sang
                 var frm = new frmPO(poNo);
                 frm.Show();
             }
@@ -362,36 +449,27 @@ namespace MPR_Managerment.Forms
         private void BuildDetailColumns()
         {
             dgvDetails.Columns.Clear();
-
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Detail_ID", HeaderText = "ID", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_No", HeaderText = "STT", Width = 45, ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên vật tư", Width = 180 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Description", HeaderText = "Mô tả", Width = 100 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material", HeaderText = "Vật liệu", Width = 85 });
-
-            // 6 Cột kích thước
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Thickness_mm", HeaderText = "A-Dày(mm)", Width = 75 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Depth_mm", HeaderText = "B-Sâu(mm)", Width = 75 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_Width_mm", HeaderText = "C-Rộng(mm)", Width = 80 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Web_mm", HeaderText = "D-Bụng(mm)", Width = 80 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "E_Flange_mm", HeaderText = "E-Cánh(mm)", Width = 80 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "F_Length_mm", HeaderText = "F-Dài(mm)", Width = 75 });
-
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT", Width = 50 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty", HeaderText = "SL", Width = 50 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight", HeaderText = "KG", Width = 55 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPS_Info", HeaderText = "MPS Info", Width = 100 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Usage_Location", HeaderText = "Vị trí dùng", Width = 110 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "REV", HeaderText = "REV", Width = 45 });
-
-            // Ghi chú
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú", FillWeight = 100 });
-
-            // CỘT PO_NO CHUYỂN XUỐNG CUỐI CÙNG
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_No", HeaderText = "Đã lên PO", Width = 120, ReadOnly = true });
         }
 
-        // Sự kiện tô màu xanh cho cột PO No trong lưới chi tiết
         private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
@@ -406,7 +484,6 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // Sự kiện tô màu cho bảng Tiến Độ PO
         private void DgvPOProgress_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
@@ -438,9 +515,9 @@ namespace MPR_Managerment.Forms
             {
                 Text = text,
                 Location = new Point(x, y + 3),
-                Size = new Size(110, 20),
+                Size = new Size(80, 20),
                 Font = new Font("Segoe UI", 9),
-                Margin = new Padding(10, 0, 0, 0)
+                Margin = new Padding(0)
             });
         }
 
@@ -485,11 +562,9 @@ namespace MPR_Managerment.Forms
                 panelHeader.Width = w;
                 panelDetail.Width = w;
                 panelDetail.Height = h - panelDetail.Top - 10;
-
                 dgvMPR.Width = panelTop.Width - 20;
 
-                // Tự động chia kích thước cho 2 Grid bên dưới Detail
-                int rightWidth = 420; // Bảng tiến độ PO rộng 420px
+                int rightWidth = 420;
                 dgvPOProgress.Width = rightWidth;
                 dgvPOProgress.Left = panelDetail.Width - rightWidth - 10;
                 dgvPOProgress.Height = panelDetail.Height - 85;
@@ -499,8 +574,12 @@ namespace MPR_Managerment.Forms
                 dgvDetails.Width = dgvPOProgress.Left - 20;
                 dgvDetails.Height = panelDetail.Height - 85;
 
-                if (txtNotes != null && panelHeader != null)
-                    txtNotes.Width = panelHeader.Width - txtNotes.Left - 20;
+                // Tự động kéo dài ô Ghi chú để lấp đầy khoảng trống tới Grid Files
+                if (txtNotes != null && panelHeader != null && dgvFiles != null)
+                {
+                    int noteW = dgvFiles.Left - txtNotes.Left - 15;
+                    if (noteW > 50) txtNotes.Width = noteW;
+                }
             }
             catch { }
         }
@@ -535,7 +614,6 @@ namespace MPR_Managerment.Forms
                 Trang_Thai = m.Status,
                 Ngay_Tao = m.Created_Date.HasValue ? m.Created_Date.Value.ToString("dd/MM/yyyy") : ""
             });
-
             if (dgvMPR.Columns.Contains("ID"))
                 dgvMPR.Columns["ID"].Visible = false;
         }
@@ -570,7 +648,6 @@ namespace MPR_Managerment.Forms
                     WHERE h.MPR_No = @mprNo
                     GROUP BY h.PO_ID, h.PONo, h.PO_Date, h.Status
                     ORDER BY h.PO_Date DESC";
-
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -587,7 +664,6 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // ===== HÀM HỖ TRỢ LẤY PO NO =====
         private Dictionary<int, string> GetPoMappingForMpr(int mprId)
         {
             var dict = new Dictionary<int, string>();
@@ -598,27 +674,14 @@ namespace MPR_Managerment.Forms
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    // Chỉ lấy PO có Revise cao nhất cho mỗi MPR_Detail_ID
-                    // Hiển thị kèm _RevX nếu Revise > 0
                     string sql = @"
-                        SELECT pod.MPR_Detail_ID, poh.PONo, poh.Revise
-                        FROM (
-                            SELECT pod2.MPR_Detail_ID, pod2.PO_ID,
-                                   ROW_NUMBER() OVER (
-                                       PARTITION BY pod2.MPR_Detail_ID
-                                       ORDER BY poh2.Revise DESC, poh2.PO_Date DESC
-                                   ) AS rn
-                            FROM PO_Detail pod2
-                            INNER JOIN PO_head poh2 ON pod2.PO_ID = poh2.PO_ID
-                            WHERE pod2.MPR_Detail_ID IS NOT NULL
-                              AND pod2.MPR_Detail_ID IN (
-                                  SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId
-                              )
-                        ) ranked
-                        INNER JOIN PO_Detail pod  ON pod.PO_ID = ranked.PO_ID
-                                                  AND pod.MPR_Detail_ID = ranked.MPR_Detail_ID
-                        INNER JOIN PO_head   poh  ON poh.PO_ID = ranked.PO_ID
-                        WHERE ranked.rn = 1";
+                        SELECT pod.MPR_Detail_ID, poh.PONo
+                        FROM PO_Detail pod
+                        INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID
+                        WHERE pod.MPR_Detail_ID IS NOT NULL
+                          AND pod.MPR_Detail_ID IN (
+                              SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId
+                          )";
 
                     using (var cmd = new SqlCommand(sql, conn))
                     {
@@ -627,14 +690,21 @@ namespace MPR_Managerment.Forms
                         {
                             while (reader.Read())
                             {
-                                int detailId = Convert.ToInt32(reader["MPR_Detail_ID"]);
-                                string poNo = reader["PONo"]?.ToString() ?? "";
-                                int revise = reader["Revise"] != DBNull.Value
-                                                  ? Convert.ToInt32(reader["Revise"]) : 0;
+                                if (reader["MPR_Detail_ID"] != DBNull.Value)
+                                {
+                                    int detailId = Convert.ToInt32(reader["MPR_Detail_ID"]);
+                                    string poNo = reader["PONo"]?.ToString() ?? "";
 
-                                // Hiển thị _RevX nếu Revise > 0
-                                string display = revise > 0 ? $"{poNo}_Rev{revise}" : poNo;
-                                dict[detailId] = display;
+                                    if (dict.ContainsKey(detailId))
+                                    {
+                                        if (!dict[detailId].Contains(poNo))
+                                            dict[detailId] += ", " + poNo;
+                                    }
+                                    else
+                                    {
+                                        dict[detailId] = poNo;
+                                    }
+                                }
                             }
                         }
                     }
@@ -647,7 +717,6 @@ namespace MPR_Managerment.Forms
             return dict;
         }
 
-        // ===== LOAD DETAILS =====
         private void LoadDetails(int mprId)
         {
             try
@@ -680,8 +749,6 @@ namespace MPR_Managerment.Forms
                     row.Cells["Usage_Location"].Value = d.Usage_Location;
                     row.Cells["REV"].Value = d.REV;
                     row.Cells["Remarks"].Value = d.Remarks;
-
-                    // Gán PO No ở cuối
                     row.Cells["PO_No"].Value = poMapping.ContainsKey(d.Detail_ID) ? poMapping[d.Detail_ID] : "";
                 }
             }
@@ -700,7 +767,6 @@ namespace MPR_Managerment.Forms
 
             var m = _mprList.Find(x => x.MPR_ID == _selectedMPR_ID);
             if (m == null) return;
-
             txtMPRNo.Text = m.MPR_No;
             txtProjectName.Text = m.Project_Name;
             txtProjectCode.Text = m.Project_Code;
@@ -714,9 +780,8 @@ namespace MPR_Managerment.Forms
             cboStatus.SelectedIndex = idx >= 0 ? idx : 0;
 
             LoadDetails(_selectedMPR_ID);
-
-            // Cập nhật luôn bảng Tiến Độ PO
             LoadPOProgress(m.MPR_No);
+            LoadFiles(m.Project_Name); // Tự động lấy file thư mục khi chọn MPR
         }
 
         private void BtnSearch_Click(object sender, EventArgs e)
@@ -745,7 +810,8 @@ namespace MPR_Managerment.Forms
             _selectedMPR_ID = 0;
             ClearHeader();
             dgvDetails.Rows.Clear();
-            dgvPOProgress.DataSource = null; // Xóa bảng PO Progress
+            dgvPOProgress.DataSource = null;
+            dgvFiles.Rows.Clear();
             _details.Clear();
             txtMPRNo.Focus();
         }
@@ -774,7 +840,6 @@ namespace MPR_Managerment.Forms
                     Status = cboStatus.SelectedItem?.ToString() ?? "Mới",
                     Notes = txtNotes.Text.Trim()
                 };
-
                 if (_selectedMPR_ID == 0)
                 {
                     _selectedMPR_ID = _service.InsertHeader(m, _currentUser);
@@ -811,6 +876,7 @@ namespace MPR_Managerment.Forms
                     ClearHeader();
                     dgvDetails.Rows.Clear();
                     dgvPOProgress.DataSource = null;
+                    dgvFiles.Rows.Clear();
                     LoadMPR();
                 }
                 catch (Exception ex)
@@ -826,10 +892,10 @@ namespace MPR_Managerment.Forms
             ClearHeader();
             dgvDetails.Rows.Clear();
             dgvPOProgress.DataSource = null;
+            dgvFiles.Rows.Clear();
             _details.Clear();
         }
 
-        // Nút "Tạo PO" → mở frmPO và tự động import MPR đang được chọn
         private void BtnCreatePO_Click(object sender, EventArgs e)
         {
             if (_selectedMPR_ID == 0)
@@ -843,7 +909,7 @@ namespace MPR_Managerment.Forms
             if (mpr == null) return;
 
             string mprNo = mpr.MPR_No;
-            var frm = new frmPO(mprNo, true);   // true = importMode
+            var frm = new frmPO(mprNo, true);
             frm.Show();
         }
 
@@ -877,7 +943,7 @@ namespace MPR_Managerment.Forms
             newRow.Cells["Usage_Location"].Value = "";
             newRow.Cells["REV"].Value = "0";
             newRow.Cells["Remarks"].Value = "";
-            newRow.Cells["PO_No"].Value = ""; // Cột trống mặc định
+            newRow.Cells["PO_No"].Value = "";
 
             dgvDetails.CurrentCell = dgvDetails.Rows[newIdx].Cells["Item_Name"];
             dgvDetails.BeginEdit(true);
@@ -891,29 +957,40 @@ namespace MPR_Managerment.Forms
                 return;
             }
 
-            var row = dgvDetails.SelectedRows[0];
-            int detailId = Convert.ToInt32(row.Cells["Detail_ID"].Value ?? 0);
-
-            if (detailId > 0)
+            string msg = dgvDetails.SelectedRows.Count == 1
+                ? "Bạn có chắc chắn muốn xóa dòng này?"
+                : $"Bạn có chắc chắn muốn xóa {dgvDetails.SelectedRows.Count} dòng đã chọn?";
+            if (MessageBox.Show(msg, "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
-                if (MessageBox.Show("Xóa dòng vật tư này?", "Xác nhận",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                try
                 {
-                    try
+                    var rowsToDelete = new List<DataGridViewRow>();
+                    foreach (DataGridViewRow row in dgvDetails.SelectedRows)
                     {
-                        _service.DeleteDetail(detailId);
-                        dgvDetails.Rows.Remove(row);
-                        MessageBox.Show("Đã xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        if (!row.IsNewRow)
+                        {
+                            rowsToDelete.Add(row);
+                        }
                     }
-                    catch (Exception ex)
+
+                    foreach (var row in rowsToDelete)
                     {
-                        MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        dgvDetails.Rows.Remove(row);
+                    }
+
+                    int itemNo = 1;
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    {
+                        if (!row.IsNewRow)
+                        {
+                            row.Cells["Item_No"].Value = itemNo++;
+                        }
                     }
                 }
-            }
-            else
-            {
-                dgvDetails.Rows.Remove(row);
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
@@ -960,12 +1037,10 @@ namespace MPR_Managerment.Forms
                         REV = row.Cells["REV"].Value?.ToString() ?? "0",
                         Remarks = row.Cells["Remarks"].Value?.ToString() ?? ""
                     };
-
                     if (d.Detail_ID == 0)
                         _service.InsertDetail(d, _currentUser);
                     else
                         _service.UpdateDetail(d, _currentUser);
-
                     saved++;
                 }
 
