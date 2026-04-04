@@ -1244,6 +1244,17 @@ namespace MPR_Managerment.Forms
                 pFilter.Controls.Add(cboFKQ);
                 x2 += 160;
 
+                addFL("Vật liệu:", x2, row2Y, 58);
+                var txtFMat = new TextBox
+                {
+                    Location = new Point(x2 + 60, row2Y),
+                    Size = new Size(110, 22),
+                    Font = new Font("Segoe UI", 9),
+                    PlaceholderText = "Vật liệu..."
+                };
+                pFilter.Controls.Add(txtFMat);
+                x2 += 178;
+
                 var btnFSearch = new Button
                 {
                     Text = "🔍 Lọc",
@@ -1347,11 +1358,13 @@ namespace MPR_Managerment.Forms
                     string kF = txtFF.Text.Trim();
                     string kHeat = txtFHeat.Text.Trim().ToLower();
                     string kKQ = cboFKQ.SelectedItem?.ToString() ?? "Tất cả";
+                    string kMat = txtFMat.Text.Trim().ToLower();
 
                     var rows = dtFull.AsEnumerable().Where(r =>
                     {
                         if (selDA != "Tất cả" && r["Mã dự án"].ToString() != selDA) return false;
                         if (!string.IsNullOrEmpty(kName) && !r["Tên vật tư"].ToString().ToLower().Contains(kName)) return false;
+                        if (!string.IsNullOrEmpty(kMat) && !r["Vật liệu"].ToString().ToLower().Contains(kMat)) return false;
                         if (!string.IsNullOrEmpty(kA) && !r["A-Dày(mm)"].ToString().Contains(kA)) return false;
                         if (!string.IsNullOrEmpty(kB) && !r["B-Sâu(mm)"].ToString().Contains(kB)) return false;
                         if (!string.IsNullOrEmpty(kC) && !r["C-Rộng(mm)"].ToString().Contains(kC)) return false;
@@ -1414,6 +1427,7 @@ namespace MPR_Managerment.Forms
                 {
                     cboDuAn.SelectedIndex = 0;
                     txtFName.Text = "";
+                    txtFMat.Text = "";
                     txtFA.Text = ""; txtFB.Text = ""; txtFC.Text = "";
                     txtFD.Text = ""; txtFE.Text = ""; txtFF.Text = "";
                     txtFHeat.Text = ""; cboFKQ.SelectedIndex = 0;
