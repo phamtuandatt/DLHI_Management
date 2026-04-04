@@ -148,7 +148,7 @@ namespace MPR_Managerment.Forms
             panelHeader.Controls.Add(new Label { Text = "THÔNG TIN ĐƠN ĐẶT HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(350, 25) });
 
             // BẢNG FILE ĐÍNH KÈM (Bên Phải cùng)
-            int gridFilesWidth = 300;
+            int gridFilesWidth = 200;
             dgvFiles = new DataGridView
             {
                 Location = new Point(panelHeader.Width - gridFilesWidth - 10, 10),
@@ -175,7 +175,7 @@ namespace MPR_Managerment.Forms
             panelHeader.Controls.Add(dgvFiles);
 
             // BẢNG THEO DÕI GIAO HÀNG — bọc trong Panel con để tọa độ nội bộ luôn chính xác
-            const int delivW = 450;
+            const int delivW = 550;
             const int delivGap = 6;
             int delivLeft = (panelHeader.Width - gridFilesWidth - 10) - delivW - delivGap;
 
@@ -227,10 +227,25 @@ namespace MPR_Managerment.Forms
             btnDelivDone.FlatAppearance.BorderSize = 0;
             panelDelivery.Controls.Add(btnDelivDone);
 
+            var btnDelivHistory = new Button
+            {
+                Text = "📋 History",
+                Location = new Point(301, 1),
+                Size = new Size(80, 22),
+                BackColor = Color.FromArgb(0, 150, 100),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnDelivHistory.FlatAppearance.BorderSize = 0;
+            btnDelivHistory.Click += BtnReceivedHistory_Click;
+            panelDelivery.Controls.Add(btnDelivHistory);
+
             var btnDelivDel = new Button
             {
                 Text = "✖",
-                Location = new Point(301, 1),
+                Location = new Point(385, 1),
                 Size = new Size(30, 22),
                 BackColor = Color.FromArgb(220, 53, 69),
                 ForeColor = Color.White,
@@ -1823,6 +1838,156 @@ namespace MPR_Managerment.Forms
         {
             ClearHeader(); dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
             dgvDelivery.Rows.Clear(); UpdateTotal(); _selectedPO_ID = 0; LoadPO();
+        }
+
+        // =========================================================================
+        // RECEIVED HISTORY — Lịch sử nhận hàng theo PO
+        // =========================================================================
+        private void BtnReceivedHistory_Click(object sender, EventArgs e)
+        {
+            ShowDeliveryHistoryPopup();
+        }
+
+        private void ShowDeliveryHistoryPopup()
+        {
+            try
+            {
+                // Load TOÀN BỘ lịch sử từ PO_DeliveryTracking (kể cả đã Done và quá hạn)
+                string sql = @"
+                    SELECT
+                        dt.PONo                                                 AS [PO No],
+                        ISNULL(pi.ProjectCode, N'')                             AS [Mã dự án],
+                        CONVERT(NVARCHAR(10), dt.ExpDelivery, 103)              AS [Exp. Delivery],
+                        ISNULL(dt.GhiChu, N'')                                  AS [Ghi chú],
+                        ISNULL(dt.Status, N'Pending')                           AS [Trạng thái],
+                        ISNULL(dt.ReceiverNote, N'')                            AS [Receiver Note],
+                        CONVERT(NVARCHAR(16), dt.Created_Date, 103)             AS [Ngày tạo]
+                    FROM PO_DeliveryTracking dt
+                    LEFT JOIN PO_head ph ON ph.PONo = dt.PONo
+                    LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
+                    ORDER BY dt.Created_Date DESC";
+
+                System.Data.DataTable dt;
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    dt = new System.Data.DataTable();
+                    dt.Load(new Microsoft.Data.SqlClient.SqlCommand(sql, conn).ExecuteReader());
+                }
+
+                // ── Popup ──
+                var popup = new Form
+                {
+                    Text = "📋 Delivery Tracking History",
+                    Size = new Size(900, 520),
+                    StartPosition = FormStartPosition.CenterParent,
+                    BackColor = Color.FromArgb(245, 245, 245),
+                    MinimumSize = new Size(700, 400)
+                };
+
+                popup.Controls.Add(new Label
+                {
+                    Text = "📋  Lịch sử theo dõi giao hàng",
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(0, 150, 100),
+                    Location = new Point(10, 8),
+                    Size = new Size(500, 24)
+                });
+
+                // Thống kê nhanh
+                int total = dt.Rows.Count;
+                int done = 0, pending = 0, overdue = 0;
+                foreach (System.Data.DataRow r in dt.Rows)
+                {
+                    string st = r["Trạng thái"]?.ToString() ?? "";
+                    if (st == "Done") done++;
+                    else if (st == "Overdue") overdue++;
+                    else pending++;
+                }
+                popup.Controls.Add(new Label
+                {
+                    Text = $"Tổng: {total}  |  ✅ Done: {done}  |  ⏳ Pending: {pending}  |  ⚠ Overdue: {overdue}",
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(0, 120, 212),
+                    Location = new Point(10, 36),
+                    Size = new Size(860, 20),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                });
+
+                // DataGridView
+                var dgv = new DataGridView
+                {
+                    Location = new Point(10, 64),
+                    Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 110),
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    BackgroundColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    RowHeadersVisible = false,
+                    Font = new Font("Segoe UI", 9),
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                    DataSource = dt
+                };
+                dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 150, 100);
+                dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+                dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                dgv.EnableHeadersVisualStyles = false;
+                dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
+
+                dgv.CellFormatting += (s, ev) =>
+                {
+                    if (ev.RowIndex < 0) return;
+                    if (dgv.Columns[ev.ColumnIndex].Name == "Trạng thái")
+                    {
+                        string val = ev.Value?.ToString() ?? "";
+                        ev.CellStyle.ForeColor =
+                            val == "Done" ? Color.FromArgb(40, 167, 69) :
+                            val == "Overdue" ? Color.FromArgb(220, 53, 69) :
+                            Color.FromArgb(255, 140, 0);
+                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                };
+                dgv.RowPrePaint += (s, ev) =>
+                {
+                    if (ev.RowIndex < 0 || dgv.Rows[ev.RowIndex].IsNewRow) return;
+                    string st = dgv.Rows[ev.RowIndex].Cells["Trạng thái"].Value?.ToString() ?? "";
+                    dgv.Rows[ev.RowIndex].DefaultCellStyle.BackColor =
+                        st == "Done" ? Color.FromArgb(235, 255, 235) :
+                        st == "Overdue" ? Color.FromArgb(255, 235, 235) :
+                        Color.White;
+                };
+                popup.Controls.Add(dgv);
+
+                // Nút đóng
+                var btnClose = new Button
+                {
+                    Text = "Đóng",
+                    Size = new Size(100, 30),
+                    BackColor = Color.FromArgb(108, 117, 125),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                    DialogResult = DialogResult.OK
+                };
+                btnClose.FlatAppearance.BorderSize = 0;
+                btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
+                popup.Controls.Add(btnClose);
+                popup.AcceptButton = btnClose;
+                popup.CancelButton = btnClose;
+                popup.Resize += (s, ev) =>
+                {
+                    btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
+                };
+
+                popup.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi tải lịch sử: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void ClearHeader()
