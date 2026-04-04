@@ -26,14 +26,14 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         public string itemDetailNumber { get; set; } = string.Empty;
         public bool isUseCodeAvailable { get; set; } = false;
 
-        public frmCreateItemCode()
+        public frmCreateItemCode(string title)
         {
             InitializeComponent();
             // Đăng ký sự kiện Shown thay vì gọi trực tiếp ở đây
             //this.Shown += (s, e) => {
             //    SetTabOrder();
             //};
-            this.Text = "Cấu hình Item Code";
+            this.Text = $"Tên vật tư: {title}";
             //this.Size = new Size(450, 650); // Tăng nhẹ chiều cao để cân đối khoảng cách
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;

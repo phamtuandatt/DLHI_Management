@@ -391,7 +391,7 @@ namespace MPR_Managerment.Forms
             if (colName != "ID_Code") return;
 
             var item = _importQueue[e.RowIndex];
-            frmCreateItemCode frmCreateItemCode = new frmCreateItemCode();
+            frmCreateItemCode frmCreateItemCode = new frmCreateItemCode($"{item.Item_Name} - {item.Size} ");
             frmCreateItemCode.ShowDialog();
             if (string.IsNullOrEmpty(frmCreateItemCode.itemCode)) return;
             _useItemCodeExisted = frmCreateItemCode.isUseCodeAvailable;
