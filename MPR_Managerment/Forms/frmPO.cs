@@ -231,14 +231,17 @@ namespace MPR_Managerment.Forms
             btnDeleteDetail = CreateButton("Xóa dòng", Color.FromArgb(220, 53, 69), new Point(140, 38), 100, 30);
             var btnSaveDetail = CreateButton("💾 Lưu chi tiết", Color.FromArgb(0, 120, 212), new Point(250, 38), 130, 30);
             btnExport = CreateButton("📄 Xuất Excel", Color.FromArgb(0, 150, 100), new Point(390, 38), 130, 30);
+            var btnCheckBySize = CreateButton("🔍 Check by size", Color.FromArgb(102, 51, 153), new Point(530, 38), 145, 30);
 
             btnAddDetail.Click += BtnAddDetail_Click;
             btnDeleteDetail.Click += BtnDeleteDetail_Click;
             btnSaveDetail.Click += BtnSaveDetail_Click;
             btnExport.Click += BtnExport_Click;
+            btnCheckBySize.Click += BtnCheckBySize_Click;
 
             panelDetail.Controls.Add(btnAddDetail); panelDetail.Controls.Add(btnDeleteDetail);
             panelDetail.Controls.Add(btnSaveDetail); panelDetail.Controls.Add(btnExport);
+            panelDetail.Controls.Add(btnCheckBySize);
 
             lblSubTotal = new Label { Location = new Point(530, 45), Size = new Size(250, 22), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(220, 53, 69) };
             panelDetail.Controls.Add(lblSubTotal);
@@ -267,6 +270,22 @@ namespace MPR_Managerment.Forms
             dgvDetails.CellValueChanged += DgvDetails_CellValueChanged; dgvDetails.CellFormatting += DgvDetails_CellFormatting;
 
             BuildDetailColumns(); panelDetail.Controls.Add(dgvDetails);
+
+            // ── Đảm bảo tất cả TextBox, ComboBox, DateTimePicker, NumericUpDown
+            //    trong mọi panel đều hiển thị trên Label ──
+            BringInputsToFront(panelTop);
+            BringInputsToFront(panelHeader);
+            BringInputsToFront(panelDetail);
+        }
+
+        // =====================================================================
+        // HELPER — Đưa tất cả input controls lên trên label trong một panel
+        // =====================================================================
+        private static void BringInputsToFront(Control parent)
+        {
+            foreach (Control c in parent.Controls)
+                if (c is TextBox || c is ComboBox || c is DateTimePicker || c is NumericUpDown || c is CheckBox)
+                    c.BringToFront();
         }
 
         // =====================================================================
@@ -1217,6 +1236,363 @@ namespace MPR_Managerment.Forms
             txtPrepared.Text = ""; txtReviewed.Text = ""; txtAgreement.Text = "";
             txtApproved.Text = ""; txtNotes.Text = "";
             nudRevise.Value = 0; dtpPODate.Value = DateTime.Today; cboStatus.SelectedIndex = 0;
+        }
+
+        // =========================================================================
+        // CHECK BY SIZE — Popup load TOÀN BỘ dữ liệu + bộ lọc
+        // =========================================================================
+        private void BtnCheckBySize_Click(object sender, EventArgs e)
+        {
+            ShowCheckBySizePopup();
+        }
+
+        private void ShowCheckBySizePopup()
+        {
+            try
+            {
+                // ── Query load TOÀN BỘ dữ liệu tất cả PO ──
+                const string SQL_ALL = @"
+                    SELECT
+                        ISNULL(pi.ProjectCode, N'')                         AS [Mã dự án],
+                        ph.PONo                                             AS [PO No],
+                        pod.Item_Name                                       AS [Tên vật tư],
+                        ISNULL(pod.Asize, N'')                              AS [A(mm)],
+                        ISNULL(pod.Bsize, N'')                              AS [B(mm)],
+                        ISNULL(pod.Csize, N'')                              AS [C(mm)],
+                        pod.Qty_Per_Sheet                                   AS [SL đặt],
+                        ISNULL(rd.Qty_Required, 0)                          AS [SL YC kiểm],
+                        ISNULL(rd.Qty_Received, 0)                          AS [SL đã nhận],
+                        ISNULL(rd.Heatno,  N'')                             AS [Heat No],
+                        ISNULL(rd.MTRno,   N'')                             AS [MTR No],
+                        ISNULL(rd.Inspect_Result, N'Chưa KT')               AS [Trạng thái KT],
+                        ISNULL(rh.RIR_No,  N'')                             AS [RIR No],
+                        ISNULL(CONVERT(NVARCHAR(10), rh.Issue_Date, 103), N'') AS [Ngày RIR],
+                        ISNULL(rh.Status,  N'')                             AS [Trạng thái RIR]
+                    FROM PO_head ph
+                    INNER JOIN PO_Detail pod  ON pod.PO_ID = ph.PO_ID
+                    LEFT  JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
+                    LEFT  JOIN RIR_head rh    ON rh.PONo = ph.PONo
+                    LEFT  JOIN RIR_detail rd  ON rd.RIR_ID = rh.RIR_ID
+                        AND (
+                            ISNULL(rd.Size, N'') LIKE N'%' + ISNULL(pod.Asize, N'') + N'%'
+                            OR pod.Asize IS NULL OR pod.Asize = N''
+                        )
+                    ORDER BY ph.PONo, pod.Item_No, rh.RIR_No";
+
+                DataTable dtFull;
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    dtFull = new DataTable();
+                    dtFull.Load(new Microsoft.Data.SqlClient.SqlCommand(SQL_ALL, conn).ExecuteReader());
+                }
+
+                // ── Tạo popup ──
+                var popup = new Form
+                {
+                    Text = "🔍 Check by Size — Toàn bộ dữ liệu RIR",
+                    Size = new Size(1350, 720),
+                    StartPosition = FormStartPosition.CenterParent,
+                    BackColor = Color.FromArgb(245, 245, 245),
+                    MinimumSize = new Size(1000, 500)
+                };
+
+                // ── TIÊU ĐỀ ──
+                popup.Controls.Add(new Label
+                {
+                    Text = "🔍  CHECK BY SIZE  —  Tra cứu kết quả kiểm tra RIR theo kích thước vật tư",
+                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(102, 51, 153),
+                    Location = new Point(10, 8),
+                    Size = new Size(900, 26),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left
+                });
+
+                // ── PANEL BỘ LỌC ──
+                var panelFilter = new Panel
+                {
+                    Location = new Point(10, 40),
+                    Size = new Size(popup.ClientSize.Width - 20, 60),
+                    BackColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                popup.Controls.Add(panelFilter);
+
+                // Helper tạo label nhỏ trong filter panel
+                Action<string, int> addFLbl = (txt, x) =>
+                    panelFilter.Controls.Add(new Label
+                    {
+                        Text = txt,
+                        Location = new Point(x, 8),
+                        Size = new Size(70, 18),
+                        Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                        ForeColor = Color.FromArgb(80, 80, 80)
+                    });
+
+                // ComboBox — Mã dự án
+                addFLbl("Mã dự án:", 8);
+                var cboDuAn = new ComboBox
+                {
+                    Location = new Point(78, 5),
+                    Size = new Size(140, 25),
+                    Font = new Font("Segoe UI", 9),
+                    DropDownStyle = ComboBoxStyle.DropDownList
+                };
+                cboDuAn.Items.Add("Tất cả");
+                var distinctProjects = dtFull.AsEnumerable()
+                    .Select(r => r["Mã dự án"].ToString())
+                    .Where(v => !string.IsNullOrEmpty(v))
+                    .Distinct().OrderBy(v => v).ToList();
+                foreach (var p in distinctProjects) cboDuAn.Items.Add(p);
+                cboDuAn.SelectedIndex = 0;
+                panelFilter.Controls.Add(cboDuAn);
+
+                // TextBox — Tên vật tư
+                addFLbl("Tên:", 232);
+                var txtFilterName = new TextBox
+                {
+                    Location = new Point(260, 5),
+                    Size = new Size(170, 25),
+                    Font = new Font("Segoe UI", 9),
+                    PlaceholderText = "Tên vật tư..."
+                };
+                panelFilter.Controls.Add(txtFilterName);
+
+                // TextBox — A(mm)
+                addFLbl("A(mm):", 445);
+                var txtFilterA = new TextBox
+                {
+                    Location = new Point(490, 5),
+                    Size = new Size(80, 25),
+                    Font = new Font("Segoe UI", 9),
+                    PlaceholderText = "A..."
+                };
+                panelFilter.Controls.Add(txtFilterA);
+
+                // TextBox — B(mm)
+                addFLbl("B(mm):", 583);
+                var txtFilterB = new TextBox
+                {
+                    Location = new Point(628, 5),
+                    Size = new Size(80, 25),
+                    Font = new Font("Segoe UI", 9),
+                    PlaceholderText = "B..."
+                };
+                panelFilter.Controls.Add(txtFilterB);
+
+                // TextBox — C(mm)
+                addFLbl("C(mm):", 721);
+                var txtFilterC = new TextBox
+                {
+                    Location = new Point(766, 5),
+                    Size = new Size(80, 25),
+                    Font = new Font("Segoe UI", 9),
+                    PlaceholderText = "C..."
+                };
+                panelFilter.Controls.Add(txtFilterC);
+
+                // Nút Tìm
+                var btnFilter = new Button
+                {
+                    Text = "🔍 Tìm",
+                    Location = new Point(858, 4),
+                    Size = new Size(80, 28),
+                    BackColor = Color.FromArgb(0, 120, 212),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+                btnFilter.FlatAppearance.BorderSize = 0;
+                panelFilter.Controls.Add(btnFilter);
+
+                // Nút Xóa lọc
+                var btnClearFilter = new Button
+                {
+                    Text = "✖ Xóa lọc",
+                    Location = new Point(948, 4),
+                    Size = new Size(85, 28),
+                    BackColor = Color.FromArgb(108, 117, 125),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+                btnClearFilter.FlatAppearance.BorderSize = 0;
+                panelFilter.Controls.Add(btnClearFilter);
+
+                // ── Đưa tất cả input controls trong filter panel lên trên label ──
+                BringInputsToFront(panelFilter);
+
+                // ── LABEL THỐNG KÊ ──
+                var lblStat = new Label
+                {
+                    Text = "",
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(0, 120, 212),
+                    Location = new Point(10, 108),
+                    Size = new Size(1300, 20),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                popup.Controls.Add(lblStat);
+
+                // ── DATAGRIDVIEW ──
+                var dgv = new DataGridView
+                {
+                    Location = new Point(10, 132),
+                    Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 180),
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    BackgroundColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    RowHeadersVisible = false,
+                    Font = new Font("Segoe UI", 9),
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+                };
+                dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153);
+                dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+                dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                dgv.EnableHeadersVisualStyles = false;
+                dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+                popup.Controls.Add(dgv);
+
+                // ── CellFormatting ──
+                dgv.CellFormatting += (s, ev) =>
+                {
+                    if (ev.RowIndex < 0) return;
+                    string colName = dgv.Columns[ev.ColumnIndex].Name;
+                    if (colName == "Trạng thái KT")
+                    {
+                        string val = ev.Value?.ToString() ?? "";
+                        ev.CellStyle.ForeColor =
+                            val == "Pass" ? Color.FromArgb(40, 167, 69) :
+                            val == "Fail" ? Color.FromArgb(220, 53, 69) :
+                            val == "Hold" ? Color.FromArgb(255, 140, 0) :
+                            Color.FromArgb(108, 117, 125);
+                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                    if (colName == "Trạng thái RIR")
+                    {
+                        string val = ev.Value?.ToString() ?? "";
+                        ev.CellStyle.ForeColor =
+                            val == "Hoàn thành" ? Color.FromArgb(40, 167, 69) :
+                            val == "Đang kiểm tra" ? Color.FromArgb(255, 140, 0) :
+                            string.IsNullOrEmpty(val) ? Color.FromArgb(180, 180, 180) :
+                            Color.FromArgb(0, 120, 212);
+                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                };
+
+                // ── RowPrePaint ──
+                dgv.RowPrePaint += (s, ev) =>
+                {
+                    if (ev.RowIndex < 0 || dgv.Rows[ev.RowIndex].IsNewRow) return;
+                    string kt = dgv.Rows[ev.RowIndex].Cells["Trạng thái KT"].Value?.ToString() ?? "";
+                    dgv.Rows[ev.RowIndex].DefaultCellStyle.BackColor =
+                        kt == "Pass" ? Color.FromArgb(235, 255, 235) :
+                        kt == "Fail" ? Color.FromArgb(255, 235, 235) :
+                        kt == "Hold" ? Color.FromArgb(255, 248, 230) :
+                        Color.White;
+                };
+
+                // ── HÀM ÁP DỤNG BỘ LỌC CLIENT-SIDE ──
+                Action applyFilter = () =>
+                {
+                    string selProject = cboDuAn.SelectedItem?.ToString() ?? "Tất cả";
+                    string kName = txtFilterName.Text.Trim().ToLower();
+                    string kA = txtFilterA.Text.Trim();
+                    string kB = txtFilterB.Text.Trim();
+                    string kC = txtFilterC.Text.Trim();
+
+                    var filtered = dtFull.AsEnumerable().Where(r =>
+                    {
+                        if (selProject != "Tất cả" && r["Mã dự án"].ToString() != selProject) return false;
+                        if (!string.IsNullOrEmpty(kName) && !r["Tên vật tư"].ToString().ToLower().Contains(kName)) return false;
+                        if (!string.IsNullOrEmpty(kA) && !r["A(mm)"].ToString().Contains(kA)) return false;
+                        if (!string.IsNullOrEmpty(kB) && !r["B(mm)"].ToString().Contains(kB)) return false;
+                        if (!string.IsNullOrEmpty(kC) && !r["C(mm)"].ToString().Contains(kC)) return false;
+                        return true;
+                    });
+
+                    DataTable dtView = filtered.Any() ? filtered.CopyToDataTable() : dtFull.Clone();
+                    dgv.DataSource = dtView;
+
+                    // Cập nhật thống kê
+                    int total = dtView.Rows.Count, pass = 0, fail = 0, hold = 0, notYet = 0;
+                    foreach (DataRow dr in dtView.Rows)
+                    {
+                        string kt = dr["Trạng thái KT"]?.ToString() ?? "";
+                        if (kt == "Pass") pass++;
+                        else if (kt == "Fail") fail++;
+                        else if (kt == "Hold") hold++;
+                        else notYet++;
+                    }
+                    lblStat.Text = $"Hiển thị: {total} dòng  |  ✅ Pass: {pass}  |  ❌ Fail: {fail}  |  ⏸ Hold: {hold}  |  ⏳ Chưa KT: {notYet}";
+                };
+
+                // Áp dụng lọc ngay khi mở (hiển thị toàn bộ)
+                applyFilter();
+
+                // Kết nối sự kiện
+                btnFilter.Click += (s, ev) => applyFilter();
+                btnClearFilter.Click += (s, ev) =>
+                {
+                    cboDuAn.SelectedIndex = 0;
+                    txtFilterName.Text = "";
+                    txtFilterA.Text = "";
+                    txtFilterB.Text = "";
+                    txtFilterC.Text = "";
+                    applyFilter();
+                };
+
+                // Enter trong bất kỳ TextBox nào → tìm kiếm (dùng KeyPreview ở cấp Form)
+                popup.KeyPreview = true;
+                popup.KeyDown += (s, ev) =>
+                {
+                    if (ev.KeyCode == Keys.Enter)
+                    {
+                        applyFilter();
+                        ev.Handled = true;
+                        ev.SuppressKeyPress = true;
+                    }
+                };
+
+                cboDuAn.SelectedIndexChanged += (s, ev) => applyFilter();
+
+                // ── NÚT ĐÓNG ──
+                var btnClose = new Button
+                {
+                    Text = "Đóng",
+                    Size = new Size(100, 30),
+                    BackColor = Color.FromArgb(108, 117, 125),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                    DialogResult = DialogResult.OK
+                };
+                btnClose.FlatAppearance.BorderSize = 0;
+                btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
+                popup.Controls.Add(btnClose);
+                popup.AcceptButton = btnFilter;   // Enter → Tìm kiếm
+                popup.CancelButton = btnClose;    // Escape → Đóng
+
+                // Resize handler
+                popup.Resize += (s, ev) =>
+                {
+                    btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
+                    panelFilter.Width = popup.ClientSize.Width - 20;
+                };
+
+                popup.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi khi tra cứu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
