@@ -38,6 +38,10 @@ namespace MPR_Managerment.Forms
         // BẢNG MỚI: Tệp đính kèm
         private DataGridView dgvFiles;
 
+        // BẢNG THEO DÕI GIAO HÀNG (Delivery Tracking)
+        private DataGridView dgvDelivery;
+        private System.Windows.Forms.Timer _deliveryTimer;
+
         private DataGridView dgvDetails;
         private Button btnAddDetail, btnDeleteDetail;
         private Label lblTotal, lblSubTotal;
@@ -54,6 +58,7 @@ namespace MPR_Managerment.Forms
             InitializeComponent();
             BuildUI();
             LoadPO();
+            LoadDeliveries();
             this.Resize += FrmPO_Resize;
             if (!string.IsNullOrEmpty(_targetPoNo))
                 SelectPOByNo(_targetPoNo);
@@ -142,8 +147,8 @@ namespace MPR_Managerment.Forms
             this.Controls.Add(panelHeader);
             panelHeader.Controls.Add(new Label { Text = "THÔNG TIN ĐƠN ĐẶT HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(350, 25) });
 
-            // BẢNG FILE ĐÍNH KÈM (Bên Phải)
-            int gridFilesWidth = 450;
+            // BẢNG FILE ĐÍNH KÈM (Bên Phải cùng)
+            int gridFilesWidth = 300;
             dgvFiles = new DataGridView
             {
                 Location = new Point(panelHeader.Width - gridFilesWidth - 10, 10),
@@ -168,6 +173,139 @@ namespace MPR_Managerment.Forms
             dgvFiles.Columns["FullPath"].Visible = false;
             dgvFiles.CellDoubleClick += DgvFiles_CellDoubleClick;
             panelHeader.Controls.Add(dgvFiles);
+
+            // BẢNG THEO DÕI GIAO HÀNG — bọc trong Panel con để tọa độ nội bộ luôn chính xác
+            const int delivW = 450;
+            const int delivGap = 6;
+            int delivLeft = (panelHeader.Width - gridFilesWidth - 10) - delivW - delivGap;
+
+            // Panel con — có Anchor Right, các control bên trong dùng tọa độ (0,0)
+            var panelDelivery = new Panel
+            {
+                Location = new Point(delivLeft, 8),
+                Size = new Size(delivW, panelHeader.Height - 16),
+                BackColor = Color.White,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom
+            };
+            panelHeader.Controls.Add(panelDelivery);
+
+            // ── Label + Buttons — tọa độ tương đối với panelDelivery ──
+            panelDelivery.Controls.Add(new Label
+            {
+                Text = "📦 Theo dõi giao hàng",
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 150, 100),
+                Location = new Point(0, 4),
+                Size = new Size(155, 18)
+            });
+
+            var btnDelivAdd = new Button
+            {
+                Text = "＋ Add",
+                Location = new Point(158, 1),
+                Size = new Size(65, 22),
+                BackColor = Color.FromArgb(40, 167, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnDelivAdd.FlatAppearance.BorderSize = 0;
+            panelDelivery.Controls.Add(btnDelivAdd);
+
+            var btnDelivDone = new Button
+            {
+                Text = "✔ Done",
+                Location = new Point(227, 1),
+                Size = new Size(70, 22),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnDelivDone.FlatAppearance.BorderSize = 0;
+            panelDelivery.Controls.Add(btnDelivDone);
+
+            var btnDelivDel = new Button
+            {
+                Text = "✖",
+                Location = new Point(301, 1),
+                Size = new Size(30, 22),
+                BackColor = Color.FromArgb(220, 53, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnDelivDel.FlatAppearance.BorderSize = 0;
+            panelDelivery.Controls.Add(btnDelivDel);
+
+            // ── dgvDelivery — tọa độ tương đối với panelDelivery ──
+            dgvDelivery = new DataGridView
+            {
+                Location = new Point(0, 26),
+                Size = new Size(delivW, panelDelivery.Height - 26),
+                ReadOnly = false,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                Name = "dgvDelivery"
+            };
+            dgvDelivery.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 150, 100);
+            dgvDelivery.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvDelivery.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+            dgvDelivery.EnableHeadersVisualStyles = false;
+            dgvDelivery.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
+            // Cột ẩn
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "TrackID", HeaderText = "ID", Visible = false });
+            // Cột hiển thị
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "PONo", HeaderText = "PO No", ReadOnly = true, FillWeight = 25 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "MaDuAn", HeaderText = "Mã DA", ReadOnly = true, FillWeight = 20 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "ExpDelivery", HeaderText = "Exp.Deliv", ReadOnly = true, FillWeight = 22 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "GhiChu", HeaderText = "Ghi chú", ReadOnly = true, FillWeight = 20 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "Status", HeaderText = "T.Thái", ReadOnly = true, FillWeight = 13 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "ReceiverNote", HeaderText = "Receiver", ReadOnly = false, FillWeight = 20 });
+
+            // Màu sắc trạng thái
+            dgvDelivery.CellFormatting += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                if (dgvDelivery.Columns[ev.ColumnIndex].Name == "Status")
+                {
+                    string v = ev.Value?.ToString() ?? "";
+                    ev.CellStyle.ForeColor =
+                        v == "Done" ? Color.FromArgb(40, 167, 69) :
+                        v == "Overdue" ? Color.FromArgb(220, 53, 69) :
+                        Color.FromArgb(255, 140, 0);
+                    ev.CellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+                }
+            };
+            dgvDelivery.RowPrePaint += (s, ev) =>
+            {
+                if (ev.RowIndex < 0 || dgvDelivery.Rows[ev.RowIndex].IsNewRow) return;
+                string st = dgvDelivery.Rows[ev.RowIndex].Cells["Status"].Value?.ToString() ?? "";
+                dgvDelivery.Rows[ev.RowIndex].DefaultCellStyle.BackColor =
+                    st == "Done" ? Color.FromArgb(235, 255, 235) :
+                    st == "Overdue" ? Color.FromArgb(255, 235, 235) :
+                    Color.White;
+            };
+            panelDelivery.Controls.Add(dgvDelivery);
+
+            // Sự kiện các nút Delivery
+            btnDelivAdd.Click += (s, e) => ShowDeliveryAddPopup();
+            btnDelivDone.Click += (s, e) => MarkDeliveryDone();
+            btnDelivDel.Click += (s, e) => DeleteDeliveryRow();
+
+            // Timer tự xóa dòng quá hạn (kiểm tra mỗi giờ)
+            _deliveryTimer = new System.Windows.Forms.Timer { Interval = 3_600_000 };
+            _deliveryTimer.Tick += (s, e) => CleanExpiredDeliveries();
+            _deliveryTimer.Start();
 
             // QUY HOẠCH CÁC Ô NHẬP LIỆU BÊN TRÁI (Tối đa width = 790px)
             int y = 38;
@@ -207,7 +345,7 @@ namespace MPR_Managerment.Forms
             // Row 4
             y += 38;
             AddLabel(panelHeader, "Ghi chú:", 10, y);
-            txtNotes = AddTxt(panelHeader, 80, y, dgvFiles.Left - 80 - 15);
+            txtNotes = AddTxt(panelHeader, 80, y, 200);
             txtNotes.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
             // Row 5 (Buttons)
@@ -638,11 +776,7 @@ namespace MPR_Managerment.Forms
             panelDetail.Top = panelHeader.Bottom + 10; panelDetail.Height = h - panelDetail.Top - 10;
             dgvPO.Width = panelTop.Width - 20;
             dgvDetails.Width = panelDetail.Width - 20; dgvDetails.Height = panelDetail.Height - 80;
-            if (txtNotes != null && panelHeader != null && dgvFiles != null)
-            {
-                int noteW = dgvFiles.Left - txtNotes.Left - 15;
-                if (noteW > 50) txtNotes.Width = noteW;
-            }
+            // txtNotes.Width được cố định 200px — KHÔNG resize theo form
         }
 
         private void LoadPO()
@@ -848,11 +982,15 @@ namespace MPR_Managerment.Forms
 
             // GỌI HÀM LOAD FILES KHI CHỌN PO
             LoadFiles(h.WorkorderNo, h.Project_Name);
+
+            // Load delivery tracking
+            LoadDeliveries();
         }
 
         private void BtnNewPO_Click(object sender, EventArgs e)
         {
             ClearHeader(); _selectedPO_ID = 0; dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
+            dgvDelivery.Rows.Clear();
             UpdateTotal(); txtPONo.Focus(); lblStatus.Text = "Đang tạo đơn PO mới...";
         }
 
@@ -1228,7 +1366,464 @@ namespace MPR_Managerment.Forms
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("GenerateAutoPoNo error: " + ex.Message); return $"DV-{poCode}-PC-{DateTime.Now:ddMMHH}"; }
         }
 
-        private void BtnClearHeader_Click(object sender, EventArgs e) { ClearHeader(); dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear(); UpdateTotal(); _selectedPO_ID = 0; LoadPO(); }
+        // =========================================================================
+        // DELIVERY TRACKING — Load, Add popup, Done, Delete, Auto-clean
+        // =========================================================================
+
+        private void LoadDeliveries()
+        {
+            dgvDelivery.Rows.Clear();
+            try
+            {
+                // Tự dọn dòng quá hạn trước khi load
+                CleanExpiredDeliveries();
+
+                string sql = @"
+                    SELECT dt.TrackID, dt.PONo, ISNULL(pi.ProjectCode,'') AS MaDuAn,
+                           CONVERT(NVARCHAR(10), dt.ExpDelivery, 103) AS ExpDelivery,
+                           ISNULL(dt.GhiChu,'') AS GhiChu,
+                           ISNULL(dt.Status,'Pending') AS Status,
+                           ISNULL(dt.ReceiverNote,'') AS ReceiverNote
+                    FROM PO_DeliveryTracking dt
+                    LEFT JOIN PO_head ph ON ph.PONo = dt.PONo
+                    LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
+                    ORDER BY dt.ExpDelivery ASC";
+
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    var dt = new System.Data.DataTable();
+                    dt.Load(new Microsoft.Data.SqlClient.SqlCommand(sql, conn).ExecuteReader());
+                    foreach (System.Data.DataRow r in dt.Rows)
+                    {
+                        int idx = dgvDelivery.Rows.Add(
+                            r["TrackID"], r["PONo"], r["MaDuAn"],
+                            r["ExpDelivery"], r["GhiChu"],
+                            r["Status"], r["ReceiverNote"]);
+
+                        // Tô màu Overdue nếu quá hạn và chưa Done
+                        string st = r["Status"]?.ToString() ?? "";
+                        if (st != "Done" && DateTime.TryParseExact(
+                            r["ExpDelivery"]?.ToString(), "dd/MM/yyyy",
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.None, out DateTime exp)
+                            && exp.Date < DateTime.Today)
+                        {
+                            dgvDelivery.Rows[idx].Cells["Status"].Value = "Overdue";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("LoadDeliveries: " + ex.Message);
+            }
+        }
+
+        private void CleanExpiredDeliveries()
+        {
+            try
+            {
+                // Xóa các dòng đã quá ngày ExpDelivery (sau ngày đó 1 ngày)
+                string sql = @"
+                    DELETE FROM PO_DeliveryTracking
+                    WHERE ExpDelivery < CAST(GETDATE() AS DATE)
+                      AND Status != 'Done'";
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    new Microsoft.Data.SqlClient.SqlCommand(sql, conn).ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("CleanExpiredDeliveries: " + ex.Message);
+            }
+        }
+
+        private void MarkDeliveryDone()
+        {
+            if (dgvDelivery.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Vui lòng chọn một dòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            int trackId = Convert.ToInt32(dgvDelivery.SelectedRows[0].Cells["TrackID"].Value ?? 0);
+            if (trackId == 0) return;
+
+            // Lưu ReceiverNote trước khi Done
+            dgvDelivery.EndEdit();
+            string receiverNote = dgvDelivery.SelectedRows[0].Cells["ReceiverNote"].Value?.ToString() ?? "";
+
+            try
+            {
+                string sql = "UPDATE PO_DeliveryTracking SET Status = 'Done', ReceiverNote = @note WHERE TrackID = @id";
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@note", receiverNote);
+                    cmd.Parameters.AddWithValue("@id", trackId);
+                    cmd.ExecuteNonQuery();
+                }
+                LoadDeliveries();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void DeleteDeliveryRow()
+        {
+            if (dgvDelivery.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Vui lòng chọn một dòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (MessageBox.Show("Xóa dòng theo dõi này?", "Xác nhận",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+            int trackId = Convert.ToInt32(dgvDelivery.SelectedRows[0].Cells["TrackID"].Value ?? 0);
+            if (trackId > 0)
+            {
+                try
+                {
+                    string sql = "DELETE FROM PO_DeliveryTracking WHERE TrackID = @id";
+                    using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                    {
+                        conn.Open();
+                        var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
+                        cmd.Parameters.AddWithValue("@id", trackId);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+            }
+            LoadDeliveries();
+        }
+
+        private void ShowDeliveryAddPopup()
+        {
+            try
+            {
+                // ── Load danh sách PO chưa Complete ──
+                const string SQL_PO = @"
+                    SELECT ph.PONo, ISNULL(pi.ProjectCode,'') AS MaDuAn,
+                           ph.MPR_No, ph.Status
+                    FROM PO_head ph
+                    LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
+                    WHERE ph.Status NOT IN ('Completed','Cancelled')
+                    ORDER BY ph.PONo";
+
+                System.Data.DataTable dtPO;
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    dtPO = new System.Data.DataTable();
+                    dtPO.Load(new Microsoft.Data.SqlClient.SqlCommand(SQL_PO, conn).ExecuteReader());
+                }
+
+                // ── Popup ──
+                var dlg = new Form
+                {
+                    Text = "➕ Thêm theo dõi giao hàng",
+                    Size = new Size(900, 560),
+                    StartPosition = FormStartPosition.CenterParent,
+                    BackColor = Color.FromArgb(245, 245, 245),
+                    MinimumSize = new Size(750, 480),
+                    KeyPreview = true
+                };
+
+                // ── Tiêu đề ──
+                dlg.Controls.Add(new Label
+                {
+                    Text = "Chọn PO cần theo dõi giao hàng",
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(0, 150, 100),
+                    Location = new Point(10, 8),
+                    Size = new Size(500, 24)
+                });
+
+                // ── PANEL BỘ LỌC ──
+                var pFilter = new Panel
+                {
+                    Location = new Point(10, 36),
+                    Size = new Size(860, 38),
+                    BackColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                dlg.Controls.Add(pFilter);
+
+                pFilter.Controls.Add(new Label { Text = "Mã DA:", Location = new Point(6, 10), Size = new Size(45, 18), Font = new Font("Segoe UI", 8, FontStyle.Bold) });
+                var cboDaFilter = new ComboBox
+                {
+                    Location = new Point(52, 7),
+                    Size = new Size(130, 24),
+                    Font = new Font("Segoe UI", 9),
+                    DropDownStyle = ComboBoxStyle.DropDownList
+                };
+                cboDaFilter.Items.Add("Tất cả");
+                dtPO.AsEnumerable().Select(r => r["MaDuAn"].ToString())
+                    .Where(v => !string.IsNullOrEmpty(v)).Distinct().OrderBy(v => v)
+                    .ToList().ForEach(v => cboDaFilter.Items.Add(v));
+                cboDaFilter.SelectedIndex = 0;
+                pFilter.Controls.Add(cboDaFilter);
+
+                pFilter.Controls.Add(new Label { Text = "MPR No:", Location = new Point(196, 10), Size = new Size(52, 18), Font = new Font("Segoe UI", 8, FontStyle.Bold) });
+                var txtMprFilter = new TextBox
+                {
+                    Location = new Point(250, 7),
+                    Size = new Size(120, 24),
+                    Font = new Font("Segoe UI", 9),
+                    PlaceholderText = "MPR No..."
+                };
+                pFilter.Controls.Add(txtMprFilter);
+
+                var btnDlgFilter = new Button
+                {
+                    Text = "🔍 Lọc",
+                    Location = new Point(382, 6),
+                    Size = new Size(70, 26),
+                    BackColor = Color.FromArgb(0, 120, 212),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 8, FontStyle.Bold)
+                };
+                btnDlgFilter.FlatAppearance.BorderSize = 0;
+                pFilter.Controls.Add(btnDlgFilter);
+
+                var btnDlgClear = new Button
+                {
+                    Text = "✖",
+                    Location = new Point(458, 6),
+                    Size = new Size(32, 26),
+                    BackColor = Color.FromArgb(108, 117, 125),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 8, FontStyle.Bold)
+                };
+                btnDlgClear.FlatAppearance.BorderSize = 0;
+                pFilter.Controls.Add(btnDlgClear);
+
+                BringInputsToFront(pFilter);
+
+                // ── BẢNG PO ──
+                var dgvDlg = new DataGridView
+                {
+                    Location = new Point(10, 82),
+                    Size = new Size(860, 290),
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    BackgroundColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    RowHeadersVisible = false,
+                    Font = new Font("Segoe UI", 9),
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+                };
+                dgvDlg.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 150, 100);
+                dgvDlg.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+                dgvDlg.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                dgvDlg.EnableHeadersVisualStyles = false;
+                dgvDlg.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
+                dlg.Controls.Add(dgvDlg);
+
+                // Hàm bind bảng PO theo filter
+                Action bindDlgGrid = () =>
+                {
+                    string selDa = cboDaFilter.SelectedItem?.ToString() ?? "Tất cả";
+                    string selMpr = txtMprFilter.Text.Trim().ToLower();
+                    var rows = dtPO.AsEnumerable().Where(r =>
+                    {
+                        if (selDa != "Tất cả" && r["MaDuAn"].ToString() != selDa) return false;
+                        if (!string.IsNullOrEmpty(selMpr) && !r["MPR_No"].ToString().ToLower().Contains(selMpr)) return false;
+                        return true;
+                    });
+                    dgvDlg.DataSource = rows.Any() ? rows.CopyToDataTable() : dtPO.Clone();
+                };
+                bindDlgGrid();
+
+                btnDlgFilter.Click += (s, ev) => bindDlgGrid();
+                btnDlgClear.Click += (s, ev) => { cboDaFilter.SelectedIndex = 0; txtMprFilter.Text = ""; bindDlgGrid(); };
+                cboDaFilter.SelectedIndexChanged += (s, ev) => bindDlgGrid();
+                txtMprFilter.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) bindDlgGrid(); };
+
+                // ── KHU VỰC NHẬP THÊM THÔNG TIN ──
+                int iy = dlg.ClientSize.Height - 140;
+
+                // Expect Delivery
+                dlg.Controls.Add(new Label
+                {
+                    Text = "Expect Delivery:",
+                    Location = new Point(10, iy + 3),
+                    Size = new Size(110, 20),
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold)
+                });
+
+                var cboExpDelivery = new ComboBox
+                {
+                    Location = new Point(125, iy),
+                    Size = new Size(180, 25),
+                    Font = new Font("Segoe UI", 9),
+                    DropDownStyle = ComboBoxStyle.DropDownList
+                };
+                // Gợi ý: hôm nay + 7/14/30/60/90 ngày
+                var today = DateTime.Today;
+                new[] { 7, 14, 30, 60, 90 }.ToList().ForEach(d =>
+                    cboExpDelivery.Items.Add(today.AddDays(d).ToString("dd/MM/yyyy") + $"  (+{d} ngày)"));
+                // Thêm tùy chọn DateTimePicker
+                cboExpDelivery.Items.Add("-- Chọn ngày khác --");
+                cboExpDelivery.SelectedIndex = 0;
+                dlg.Controls.Add(cboExpDelivery);
+
+                var dtpCustomDate = new DateTimePicker
+                {
+                    Location = new Point(315, iy),
+                    Size = new Size(130, 25),
+                    Font = new Font("Segoe UI", 9),
+                    Format = DateTimePickerFormat.Short,
+                    Visible = false
+                };
+                dlg.Controls.Add(dtpCustomDate);
+                cboExpDelivery.SelectedIndexChanged += (s, ev) =>
+                    dtpCustomDate.Visible = cboExpDelivery.SelectedItem?.ToString().StartsWith("--") == true;
+
+                // Ghi chú
+                dlg.Controls.Add(new Label
+                {
+                    Text = "Ghi chú:",
+                    Location = new Point(460, iy + 3),
+                    Size = new Size(60, 20),
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold)
+                });
+                var txtDlgNote = new TextBox
+                {
+                    Location = new Point(525, iy),
+                    Size = new Size(345, 25),
+                    Font = new Font("Segoe UI", 9),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                dlg.Controls.Add(txtDlgNote);
+
+                // ── NÚT OK & HỦY ──
+                var btnOK = new Button
+                {
+                    Text = "✔ OK",
+                    Location = new Point(dlg.ClientSize.Width - 220, dlg.ClientSize.Height - 45),
+                    Size = new Size(90, 32),
+                    BackColor = Color.FromArgb(40, 167, 69),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+                };
+                btnOK.FlatAppearance.BorderSize = 0;
+                dlg.Controls.Add(btnOK);
+
+                var btnCancel = new Button
+                {
+                    Text = "Hủy",
+                    Location = new Point(dlg.ClientSize.Width - 120, dlg.ClientSize.Height - 45),
+                    Size = new Size(85, 32),
+                    BackColor = Color.FromArgb(108, 117, 125),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                    DialogResult = DialogResult.Cancel
+                };
+                btnCancel.FlatAppearance.BorderSize = 0;
+                dlg.Controls.Add(btnCancel);
+                dlg.CancelButton = btnCancel;
+
+                // Resize sync
+                dlg.Resize += (s, ev) =>
+                {
+                    int newIy = dlg.ClientSize.Height - 140;
+                    cboExpDelivery.Top = newIy; dtpCustomDate.Top = newIy;
+                    txtDlgNote.Top = newIy;
+                    foreach (Control c in dlg.Controls)
+                        if (c is Label lbl && lbl.Text == "Expect Delivery:") { lbl.Top = newIy + 3; break; }
+                    btnOK.Location = new Point(dlg.ClientSize.Width - 220, dlg.ClientSize.Height - 45);
+                    btnCancel.Location = new Point(dlg.ClientSize.Width - 120, dlg.ClientSize.Height - 45);
+                    pFilter.Width = dlg.ClientSize.Width - 20;
+                    dgvDlg.Width = dlg.ClientSize.Width - 20;
+                    dgvDlg.Height = dlg.ClientSize.Height - 82 - 145;
+                };
+
+                BringInputsToFront(dlg);
+
+                // ── XỬ LÝ OK ──
+                btnOK.Click += (s, ev) =>
+                {
+                    if (dgvDlg.SelectedRows.Count == 0)
+                    {
+                        MessageBox.Show("Vui lòng chọn một PO!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    string selPONo = dgvDlg.SelectedRows[0].Cells["PONo"]?.Value?.ToString() ?? "";
+                    string selDaAn = dgvDlg.SelectedRows[0].Cells["MaDuAn"]?.Value?.ToString() ?? "";
+
+                    // Lấy ngày giao hàng
+                    DateTime expDate;
+                    if (dtpCustomDate.Visible)
+                        expDate = dtpCustomDate.Value.Date;
+                    else
+                    {
+                        string datePart = cboExpDelivery.SelectedItem?.ToString().Split(' ')[0] ?? "";
+                        if (!DateTime.TryParseExact(datePart, "dd/MM/yyyy",
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.None, out expDate))
+                            expDate = DateTime.Today.AddDays(30);
+                    }
+
+                    string note = txtDlgNote.Text.Trim();
+
+                    try
+                    {
+                        string sqlIns = @"
+                            IF NOT EXISTS (SELECT 1 FROM PO_DeliveryTracking WHERE PONo = @poNo AND ExpDelivery = @exp)
+                            INSERT INTO PO_DeliveryTracking (PONo, ExpDelivery, GhiChu, Status, ReceiverNote, Created_Date)
+                            VALUES (@poNo, @exp, @note, 'Pending', '', GETDATE())";
+                        using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                        {
+                            conn.Open();
+                            var cmd = new Microsoft.Data.SqlClient.SqlCommand(sqlIns, conn);
+                            cmd.Parameters.AddWithValue("@poNo", selPONo);
+                            cmd.Parameters.AddWithValue("@exp", expDate);
+                            cmd.Parameters.AddWithValue("@note", note);
+                            cmd.ExecuteNonQuery();
+                        }
+                        LoadDeliveries();
+                        dlg.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Lỗi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+
+                dlg.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { btnOK.PerformClick(); ev.Handled = true; } };
+                dlg.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi mở popup: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnClearHeader_Click(object sender, EventArgs e)
+        {
+            ClearHeader(); dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
+            dgvDelivery.Rows.Clear(); UpdateTotal(); _selectedPO_ID = 0; LoadPO();
+        }
 
         private void ClearHeader()
         {
