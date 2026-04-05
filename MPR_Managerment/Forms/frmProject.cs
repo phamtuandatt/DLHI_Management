@@ -26,16 +26,16 @@ namespace MPR_Managerment.Forms
         // Controls - Form
         private TextBox txtProjectName, txtProjectCode, txtWorkorderNo, txtCustomer;
         private TextBox txtPOCode, txtMPRCode, txtNotes;
-        private TextBox txtPOLink, txtRIRLink, txtMPRLink;
+        private TextBox txtPOLink, txtRIRLink, txtMPRLink, txtINVLink, txtDeliveryNoteLink;
         private NumericUpDown nudWeight, nudBudget;
         private ComboBox cboStatus;
 
         // Panels
         private Panel panelTop, panelForm, panelStats;
-        //private Panel panelHead, panelDetail;
 
         // Stats labels — hệ thống
         private Label lblMPRCount, lblPOCount, lblRIRCount, lblWeightTotal, lblBudgetTotal;
+
         // Stats labels — dự án đang chọn
         private Label lblMPRProject, lblPOProject, lblRIRProject, lblWeightProject, lblBudgetProject;
 
@@ -72,6 +72,7 @@ namespace MPR_Managerment.Forms
                 Location = new Point(10, 8),
                 Size = new Size(150, 18)
             });
+
             lblMPRCount = AddStatCard(panelStats, "📋 Tổng MPR", "0", Color.FromArgb(0, 120, 212), 10, 28);
             lblPOCount = AddStatCard(panelStats, "🛒 Tổng PO", "0", Color.FromArgb(40, 167, 69), 220, 28);
             lblRIRCount = AddStatCard(panelStats, "📦 Tổng RIR", "0", Color.FromArgb(102, 51, 153), 430, 28);
@@ -87,6 +88,7 @@ namespace MPR_Managerment.Forms
                 Location = new Point(10, 78),
                 Size = new Size(150, 18)
             });
+
             lblMPRProject = AddStatCard(panelStats, "📋 MPR dự án", "0", Color.FromArgb(0, 120, 212), 10, 98);
             lblPOProject = AddStatCard(panelStats, "🛒 PO dự án", "0", Color.FromArgb(40, 167, 69), 220, 98);
             lblRIRProject = AddStatCard(panelStats, "📦 RIR dự án", "0", Color.FromArgb(102, 51, 153), 430, 98);
@@ -121,6 +123,7 @@ namespace MPR_Managerment.Forms
                 PlaceholderText = "Tìm tên, mã dự án, khách hàng..."
             };
             panelTop.Controls.Add(txtSearch);
+
             txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnSearch_Click(null, null); };
 
             btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(270, 45), 80, 30);
@@ -142,8 +145,10 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
+
             cboFilterStatus.Items.AddRange(new[] { "Tất cả", "Đang thực hiện", "Hoàn thành", "Tạm dừng", "Hủy" });
             cboFilterStatus.SelectedIndex = 0;
+
             cboFilterStatus.SelectedIndexChanged += (s, e) => LoadProjects();
             panelTop.Controls.Add(cboFilterStatus);
 
@@ -281,7 +286,16 @@ namespace MPR_Managerment.Forms
             txtMPRLink = AddTxt(panelForm, 930, y, 250);
             txtMPRLink.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            // Row 4
+            // Row 4 (Thêm INV Link và Delivery Link)
+            y += 38;
+            AddLabel(panelForm, "INV Link:", 10, y);
+            txtINVLink = AddTxt(panelForm, 120, y, 330);
+
+            AddLabel(panelForm, "Delivery Link:", 465, y);
+            txtDeliveryNoteLink = AddTxt(panelForm, 560, y, 300);
+            txtDeliveryNoteLink.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+            // Row 5
             y += 38;
             AddLabel(panelForm, "Ghi chú:", 10, y);
             txtNotes = new TextBox
@@ -305,16 +319,7 @@ namespace MPR_Managerment.Forms
             btnClearForm.Click += (s, e) => ClearForm();
             panelForm.Controls.Add(btnClearForm);
 
-            //foreach (Panel panel in new[] { panelTop, panelForm, panelStats })
-            //{
-            //    foreach (Control c in panel.Controls)
-            //    {
-            //        if (c is TextBox || c is ComboBox || c is DateTimePicker || c is NumericUpDown)
-            //            c.BringToFront();
-            //    }
-            //}
             Common.Common.AutoBringToFontControl(new[] { panelTop, panelForm, panelStats });
-
         }
 
         private Label AddStatCard(Panel parent, string title, string value, Color color, int x, int y)
@@ -329,6 +334,7 @@ namespace MPR_Managerment.Forms
                 Location = new Point(6, 3),
                 Size = new Size(183, 18)
             });
+
             var lbl = new Label
             {
                 Text = value,
@@ -337,6 +343,7 @@ namespace MPR_Managerment.Forms
                 Location = new Point(6, 22),
                 Size = new Size(183, 18)
             };
+
             card.Controls.Add(lbl);
             return lbl;
         }
@@ -358,7 +365,9 @@ namespace MPR_Managerment.Forms
             var btn = new Button { Text = text, Location = loc, Size = new Size(w, h), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
             btn.FlatAppearance.BorderSize = 0;
             return btn;
-        }// ===== RESIZE =====
+        }
+
+        // ===== RESIZE =====
         private void FrmProject_Resize(object sender, EventArgs e)
         {
             int w = this.ClientSize.Width - 20;
@@ -372,6 +381,7 @@ namespace MPR_Managerment.Forms
             dgvProjects.Width = panelTop.Width - 20;
             txtNotes.Width = panelForm.Width - txtNotes.Left - 20;
             txtMPRLink.Width = panelForm.Width - txtMPRLink.Left - 20;
+            txtDeliveryNoteLink.Width = panelForm.Width - txtDeliveryNoteLink.Left - 20;
         }
 
         // ===== LOAD DỮ LIỆU =====
@@ -409,8 +419,11 @@ namespace MPR_Managerment.Forms
                 Tong_KG = p.PJWeight.ToString("N2"),
                 Budget = p.PJBudget.ToString("N0"),
                 Trang_Thai = p.Status,
+                INV_Link = p.INV_Link,
+                Delivery_Link = p.DeliveryNote_Link,
                 Ngay_Tao = p.CreatedDate.HasValue ? p.CreatedDate.Value.ToString("dd/MM/yyyy") : "",
                 Ngay_SuaDoi = p.ModifiedDate.HasValue ? p.ModifiedDate.Value.ToString("dd/MM/yyyy") : ""
+
             });
         }
 
@@ -453,8 +466,8 @@ namespace MPR_Managerment.Forms
                     var cmd = new SqlCommand(@"
                         SELECT
                             (SELECT COUNT(*) FROM MPR_Header WHERE Project_Code = @code)    AS MPR_Count,
-                            (SELECT COUNT(*) FROM PO_head    WHERE WorkorderNo  = @wono)    AS PO_Count,
-                            (SELECT COUNT(*) FROM RIR_head   WHERE WorkorderNo  = @wono)    AS RIR_Count,
+                            (SELECT COUNT(*) FROM PO_head WHERE WorkorderNo  = @wono)       AS PO_Count,
+                            (SELECT COUNT(*) FROM RIR_head WHERE WorkorderNo  = @wono)      AS RIR_Count,
                             (SELECT ISNULL(SUM(d.Weight_kg * d.Qty_Per_Sheet), 0)
                              FROM PO_Detail d
                              INNER JOIN PO_head h ON h.PO_ID = d.PO_ID
@@ -491,8 +504,10 @@ namespace MPR_Managerment.Forms
                 string kw = txtSearch.Text.Trim();
                 string filter = cboFilterStatus.SelectedItem?.ToString() ?? "Tất cả";
                 var result = string.IsNullOrEmpty(kw) ? _service.GetAll() : _service.Search(kw);
+
                 if (filter != "Tất cả")
                     result = result.FindAll(p => p.Status == filter);
+
                 _projects = result;
                 BindGrid(_projects);
                 lblStatus.Text = $"Tìm thấy: {result.Count} dự án";
@@ -506,6 +521,7 @@ namespace MPR_Managerment.Forms
         private void DgvProjects_SelectionChanged(object sender, EventArgs e)
         {
             if (dgvProjects.SelectedRows.Count == 0) return;
+
             var row = dgvProjects.SelectedRows[0];
             _selectedId = Convert.ToInt32(row.Cells["ID"].Value);
             var p = _projects.Find(x => x.Id == _selectedId);
@@ -521,6 +537,8 @@ namespace MPR_Managerment.Forms
             txtPOLink.Text = p.PO_Link;
             txtRIRLink.Text = p.RIR_Link;
             txtMPRLink.Text = p.MPR_Link;
+            txtINVLink.Text = p.INV_Link;
+            txtDeliveryNoteLink.Text = p.DeliveryNote_Link;
             nudWeight.Value = p.PJWeight > nudWeight.Maximum ? nudWeight.Maximum : p.PJWeight;
             nudBudget.Value = p.PJBudget > nudBudget.Maximum ? nudBudget.Maximum : p.PJBudget;
 
@@ -534,6 +552,7 @@ namespace MPR_Managerment.Forms
         private void DgvProjects_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
+
             if (dgvProjects.Columns[e.ColumnIndex].Name == "Trang_Thai")
             {
                 string val = e.Value?.ToString() ?? "";
@@ -542,6 +561,7 @@ namespace MPR_Managerment.Forms
                     val == "Active" ? Color.FromArgb(0, 120, 212) :
                     val == "Pending" ? Color.FromArgb(255, 140, 0) :
                                               Color.FromArgb(220, 53, 69);
+
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
         }
@@ -586,7 +606,9 @@ namespace MPR_Managerment.Forms
                     Notes = txtNotes.Text.Trim(),
                     PO_Link = txtPOLink.Text.Trim(),
                     RIR_Link = txtRIRLink.Text.Trim(),
-                    MPR_Link = txtMPRLink.Text.Trim()
+                    MPR_Link = txtMPRLink.Text.Trim(),
+                    INV_Link = txtINVLink.Text.Trim(),
+                    DeliveryNote_Link = txtDeliveryNoteLink.Text.Trim()
                 };
 
                 if (_selectedId == 0)
@@ -655,6 +677,8 @@ namespace MPR_Managerment.Forms
             txtPOLink.Text = "";
             txtRIRLink.Text = "";
             txtMPRLink.Text = "";
+            txtINVLink.Text = "";
+            txtDeliveryNoteLink.Text = "";
             nudWeight.Value = 0;
             nudBudget.Value = 0;
             cboStatus.SelectedIndex = 0;

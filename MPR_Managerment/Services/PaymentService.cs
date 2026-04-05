@@ -1,5 +1,4 @@
-﻿
-// ============================================================
+﻿// ============================================================
 //  FILE: Services/PaymentService.cs
 // ============================================================
 using System;
@@ -18,16 +17,64 @@ namespace MPR_Managerment.Services
         public List<PaymentSchedule> GetSchedules(int poId)
         {
             var list = new List<PaymentSchedule>();
-            using var conn = DatabaseHelper.GetConnection();
-            conn.Open();
-            var cmd = new SqlCommand(@"
-                SELECT ps.*, h.PONo, h.Project_Name
-                FROM PO_Payment_Schedule ps
-                INNER JOIN PO_head h ON h.PO_ID = ps.PO_ID
-                WHERE ps.PO_ID = @poId ORDER BY ps.Dot_TT", conn);
-            cmd.Parameters.AddWithValue("@poId", poId);
-            using var r = cmd.ExecuteReader();
-            while (r.Read()) list.Add(MapSchedule(r));
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                // Đặt tên alias rõ ràng — tránh conflict cột trùng tên khi SELECT *
+                var cmd = new SqlCommand(@"
+                    SELECT
+                        ps.Schedule_ID, ps.PO_ID, ps.Dot_TT,
+                        ps.Payment_Type, ps.Pay_Method, ps.Percent_TT,
+                        ps.Amount_Plan,  ps.Due_Date,   ps.Delivery_Ref,
+                        ps.Description,  ps.Status,
+                        ps.Created_Date, ps.Created_By,
+                        h.PONo          AS PONo,
+                        h.Project_Name  AS Project_Name
+                    FROM PO_Payment_Schedule ps
+                    INNER JOIN PO_head h ON h.PO_ID = ps.PO_ID
+                    WHERE ps.PO_ID = @poId
+                    ORDER BY ps.Dot_TT", conn);
+                cmd.Parameters.AddWithValue("@poId", poId);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    try { list.Add(MapSchedule(r)); }
+                    catch { /* bỏ qua dòng lỗi */ }
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        // Load TẤT CẢ schedules của mọi PO bằng 1 query duy nhất
+        public List<PaymentSchedule> GetAllSchedules()
+        {
+            var list = new List<PaymentSchedule>();
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    SELECT
+                        ps.Schedule_ID, ps.PO_ID, ps.Dot_TT,
+                        ps.Payment_Type, ps.Pay_Method, ps.Percent_TT,
+                        ps.Amount_Plan,  ps.Due_Date,   ps.Delivery_Ref,
+                        ps.Description,  ps.Status,
+                        ps.Created_Date, ps.Created_By,
+                        h.PONo          AS PONo,
+                        h.Project_Name  AS Project_Name
+                    FROM PO_Payment_Schedule ps
+                    INNER JOIN PO_head h ON h.PO_ID = ps.PO_ID
+                    ORDER BY ps.PO_ID, ps.Dot_TT", conn);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    try { list.Add(MapSchedule(r)); }
+                    catch { /* bỏ qua dòng lỗi, đọc tiếp */ }
+                }
+            }
+            catch { }
             return list;
         }
 
@@ -272,21 +319,21 @@ namespace MPR_Managerment.Services
 
         private PaymentSchedule MapSchedule(SqlDataReader r) => new PaymentSchedule
         {
-            Schedule_ID = Convert.ToInt32(r["Schedule_ID"]),
-            PO_ID = Convert.ToInt32(r["PO_ID"]),
-            PONo = r["PONo"]?.ToString() ?? "",
-            Project_Name = r["Project_Name"]?.ToString() ?? "",
-            Dot_TT = Convert.ToInt32(r["Dot_TT"]),
-            Payment_Type = r["Payment_Type"]?.ToString() ?? "",
-            Pay_Method = r["Pay_Method"]?.ToString() ?? "Full",
+            Schedule_ID = r["Schedule_ID"] != DBNull.Value ? Convert.ToInt32(r["Schedule_ID"]) : 0,
+            PO_ID = r["PO_ID"] != DBNull.Value ? Convert.ToInt32(r["PO_ID"]) : 0,
+            PONo = r["PONo"] != DBNull.Value ? r["PONo"].ToString() : "",
+            Project_Name = r["Project_Name"] != DBNull.Value ? r["Project_Name"].ToString() : "",
+            Dot_TT = r["Dot_TT"] != DBNull.Value ? Convert.ToInt32(r["Dot_TT"]) : 0,
+            Payment_Type = r["Payment_Type"] != DBNull.Value ? r["Payment_Type"].ToString() : "",
+            Pay_Method = r["Pay_Method"] != DBNull.Value ? r["Pay_Method"].ToString() : "Full",
             Percent_TT = D(r["Percent_TT"]),
             Amount_Plan = D(r["Amount_Plan"]),
-            Due_Date = r["Due_Date"] != DBNull.Value ? Convert.ToDateTime(r["Due_Date"]) : null,
-            Delivery_Ref = r["Delivery_Ref"]?.ToString() ?? "",
-            Description = r["Description"]?.ToString() ?? "",
-            Status = r["Status"]?.ToString() ?? "Chưa TT",
-            Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
-            Created_By = r["Created_By"]?.ToString() ?? ""
+            Due_Date = r["Due_Date"] != DBNull.Value ? Convert.ToDateTime(r["Due_Date"]) : (DateTime?)null,
+            Delivery_Ref = r["Delivery_Ref"] != DBNull.Value ? r["Delivery_Ref"].ToString() : "",
+            Description = r["Description"] != DBNull.Value ? r["Description"].ToString() : "",
+            Status = r["Status"] != DBNull.Value ? r["Status"].ToString() : "Chưa TT",
+            Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : (DateTime?)null,
+            Created_By = r["Created_By"] != DBNull.Value ? r["Created_By"].ToString() : ""
         };
 
         private PaymentHistory MapHistory(SqlDataReader r) => new PaymentHistory

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -77,10 +78,10 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand(@"
                     INSERT INTO ProjectInfo 
                         (ProjectName, ProjectCode, WorkorderNo, Customer, PJWeight, PJBudget,
-                         POCode, MPRCode, Status, Notes, PO_Link, RIR_link, MPR_link, CreatedDate)
+                         POCode, MPRCode, Status, Notes, PO_Link, RIR_link, MPR_link, INV_Link, DeliveryNote_Link, CreatedDate)
                     VALUES 
                         (@ProjectName, @ProjectCode, @WorkorderNo, @Customer, @PJWeight, @PJBudget,
-                         @POCode, @MPRCode, @Status, @Notes, @PO_Link, @RIR_link, @MPR_link, GETDATE());
+                         @POCode, @MPRCode, @Status, @Notes, @PO_Link, @RIR_link, @MPR_link, @INV_Link, @DeliveryNote_Link, GETDATE());
                     SELECT SCOPE_IDENTITY();", conn);
 
                 cmd.Parameters.AddWithValue("@ProjectName", p.ProjectName);
@@ -96,6 +97,8 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@PO_Link", p.PO_Link ?? "");
                 cmd.Parameters.AddWithValue("@RIR_link", p.RIR_Link ?? "");
                 cmd.Parameters.AddWithValue("@MPR_link", p.MPR_Link ?? "");
+                cmd.Parameters.AddWithValue("@INV_Link", p.INV_Link ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@DeliveryNote_Link", p.DeliveryNote_Link ?? (object)DBNull.Value);
 
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
@@ -121,6 +124,8 @@ namespace MPR_Managerment.Services
                         PO_Link      = @PO_Link,
                         RIR_link     = @RIR_link,
                         MPR_link     = @MPR_link,
+                        INV_Link     = @INV_Link,
+                        DeliveryNote_Link = @DeliveryNote_Link,
                         ModifiedDate = GETDATE()
                     WHERE Id = @Id", conn);
 
@@ -138,6 +143,9 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@PO_Link", p.PO_Link ?? "");
                 cmd.Parameters.AddWithValue("@RIR_link", p.RIR_Link ?? "");
                 cmd.Parameters.AddWithValue("@MPR_link", p.MPR_Link ?? "");
+                cmd.Parameters.AddWithValue("@INV_Link", p.INV_Link ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@DeliveryNote_Link", p.DeliveryNote_Link ?? (object)DBNull.Value);
+
                 cmd.ExecuteNonQuery();
             }
         }
@@ -189,6 +197,8 @@ namespace MPR_Managerment.Services
                 PO_Link = r["PO_Link"]?.ToString() ?? "",
                 RIR_Link = r["RIR_link"]?.ToString() ?? "",
                 MPR_Link = r["MPR_link"]?.ToString() ?? "",
+                INV_Link = r["INV_Link"]?.ToString() ?? "",
+                DeliveryNote_Link = r["DeliveryNote_Link"]?.ToString() ?? "",
                 CreatedDate = r["CreatedDate"] != DBNull.Value ? Convert.ToDateTime(r["CreatedDate"]) : null,
                 ModifiedDate = r["ModifiedDate"] != DBNull.Value ? Convert.ToDateTime(r["ModifiedDate"]) : null,
                 PNK_Link = r["PNK_LINK"]?.ToString() ?? "",

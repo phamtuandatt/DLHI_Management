@@ -396,9 +396,27 @@ namespace MPR_Managerment.Forms
             panelDetail.Controls.Add(btnSaveDetail); panelDetail.Controls.Add(btnExport);
             panelDetail.Controls.Add(btnCheckBySize);
 
-            lblSubTotal = new Label { Location = new Point(530, 45), Size = new Size(250, 22), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(220, 53, 69) };
+            // lblSubTotal và lblTotal căn mép PHẢI panelDetail — không bị button che
+            lblSubTotal = new Label
+            {
+                Size = new Size(220, 22),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 53, 69),
+                TextAlign = System.Drawing.ContentAlignment.MiddleRight,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            lblSubTotal.Location = new Point(panelDetail.Width - 220 - 280 - 10, 45);
             panelDetail.Controls.Add(lblSubTotal);
-            lblTotal = new Label { Location = new Point(790, 45), Size = new Size(300, 22), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) };
+
+            lblTotal = new Label
+            {
+                Size = new Size(270, 22),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212),
+                TextAlign = System.Drawing.ContentAlignment.MiddleRight,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            lblTotal.Location = new Point(panelDetail.Width - 270 - 10, 45);
             panelDetail.Controls.Add(lblTotal);
 
             dgvDetails = new DataGridView
@@ -585,7 +603,8 @@ namespace MPR_Managerment.Forms
         private void CboSupplier_TextChanged(object sender, EventArgs e)
         {
             if (_isSearching) return;
-            string keyword = cboSupplier.Text.Trim();
+            // KHÔNG dùng .Trim() để giữ khoảng trắng khi tìm kiếm
+            string keyword = cboSupplier.Text;
             if (string.IsNullOrEmpty(keyword)) { BindSupplierCombo(_supplierTable); cboSupplier.DroppedDown = false; return; }
             string kn = RemoveDiacritics(keyword).ToLower();
             var filtered = new System.Data.DataTable(); filtered.Columns.Add("ID", typeof(int)); filtered.Columns.Add("Name", typeof(string));
@@ -630,7 +649,7 @@ namespace MPR_Managerment.Forms
                             cboSupplier.BackColor = Color.White; e.SuppressKeyPress = true; e.Handled = true; return;
                         }
                     }
-                    string kw = cboSupplier.Text.Trim();
+                    string kw = cboSupplier.Text;
                     string kwn = RemoveDiacritics(kw).ToLower(); int matchId = 0;
                     foreach (System.Data.DataRowView drv in cboSupplier.Items)
                     {
@@ -792,6 +811,13 @@ namespace MPR_Managerment.Forms
             dgvPO.Width = panelTop.Width - 20;
             dgvDetails.Width = panelDetail.Width - 20; dgvDetails.Height = panelDetail.Height - 80;
             // txtNotes.Width được cố định 200px — KHÔNG resize theo form
+
+            // Giữ label tổng tiền luôn sát mép phải panelDetail
+            if (lblTotal != null && lblSubTotal != null && panelDetail != null)
+            {
+                lblTotal.Left = panelDetail.Width - lblTotal.Width - 10;
+                lblSubTotal.Left = lblTotal.Left - lblSubTotal.Width - 10;
+            }
         }
 
         private void LoadPO()
@@ -1369,16 +1395,55 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(poCode)) poCode = "PRJ"; string prefix = $"DV-{poCode}-PC-";
+                if (string.IsNullOrWhiteSpace(poCode)) poCode = "PRJ";
+                string prefix = $"DV-{poCode}-PC-";
+
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
                 {
-                    conn.Open(); var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT COUNT(*) FROM PO_head WHERE PONo LIKE @prefix", conn);
-                    cmd.Parameters.AddWithValue("@prefix", prefix + "%"); int count = Convert.ToInt32(cmd.ExecuteScalar());
-                    int inMemory = _poList.FindAll(p => (p.PONo ?? "").StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).Count;
-                    return $"{prefix}{Math.Max(count, inMemory) + 1:D3}";
+                    conn.Open();
+
+                    // Lấy tất cả PO No có prefix này, rồi tìm số thứ tự lớn nhất
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        "SELECT PONo FROM PO_head WHERE PONo LIKE @prefix", conn);
+                    cmd.Parameters.AddWithValue("@prefix", prefix + "%");
+
+                    int maxNo = 0;
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string poNo = reader["PONo"]?.ToString() ?? "";
+                            // Lấy phần số sau prefix, bỏ qua _RevX nếu có
+                            string suffix = poNo.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                                ? poNo.Substring(prefix.Length) : "";
+                            // Bỏ phần _Rev nếu có
+                            int revIdx = suffix.IndexOf("_Rev", StringComparison.OrdinalIgnoreCase);
+                            if (revIdx > 0) suffix = suffix.Substring(0, revIdx);
+                            if (int.TryParse(suffix, out int num))
+                                if (num > maxNo) maxNo = num;
+                        }
+                    }
+
+                    // Kiểm tra thêm trong _poList (dữ liệu chưa lưu DB)
+                    foreach (var p in _poList)
+                    {
+                        string poNo = p.PONo ?? "";
+                        if (!poNo.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                        string suffix = poNo.Substring(prefix.Length);
+                        int revIdx = suffix.IndexOf("_Rev", StringComparison.OrdinalIgnoreCase);
+                        if (revIdx > 0) suffix = suffix.Substring(0, revIdx);
+                        if (int.TryParse(suffix, out int num))
+                            if (num > maxNo) maxNo = num;
+                    }
+
+                    return $"{prefix}{maxNo + 1:D3}";
                 }
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("GenerateAutoPoNo error: " + ex.Message); return $"DV-{poCode}-PC-{DateTime.Now:ddMMHH}"; }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("GenerateAutoPoNo error: " + ex.Message);
+                return $"DV-{poCode}-PC-{DateTime.Now:ddMMHH}";
+            }
         }
 
         // =========================================================================
