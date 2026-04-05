@@ -38,5 +38,7 @@ namespace MPR_Managerment.Models
         public string Material_Detail_Name{ get; set; }
         public string Material_Detail_Code { get; set; }
         public string Item_Code_Existed { get; set; }
+
+        public string MaterialID { get; set; }
     }
 }

@@ -28,9 +28,10 @@
         /// </summary>
         private void InitializeComponent()
         {
-            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             panel1 = new Panel();
             groupBox1 = new GroupBox();
+            btnAddMAterial = new Button();
             dgvItemExist = new DataGridView();
             material_detail_id = new DataGridViewTextBoxColumn();
             material_detail_number = new DataGridViewTextBoxColumn();
@@ -89,15 +90,32 @@
             // 
             // groupBox1
             // 
+            groupBox1.Controls.Add(btnAddMAterial);
             groupBox1.Controls.Add(dgvItemExist);
-            groupBox1.Location = new Point(530, 52);
+            groupBox1.Location = new Point(530, 51);
             groupBox1.Margin = new Padding(3, 2, 3, 2);
             groupBox1.Name = "groupBox1";
             groupBox1.Padding = new Padding(3, 2, 3, 2);
-            groupBox1.Size = new Size(699, 204);
+            groupBox1.Size = new Size(699, 205);
             groupBox1.TabIndex = 25;
             groupBox1.TabStop = false;
             groupBox1.Text = "Items";
+            // 
+            // btnAddMAterial
+            // 
+            btnAddMAterial.BackColor = Color.MediumBlue;
+            btnAddMAterial.Dock = DockStyle.Top;
+            btnAddMAterial.FlatStyle = FlatStyle.Flat;
+            btnAddMAterial.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnAddMAterial.ForeColor = Color.White;
+            btnAddMAterial.Location = new Point(3, 18);
+            btnAddMAterial.Margin = new Padding(3, 2, 3, 2);
+            btnAddMAterial.Name = "btnAddMAterial";
+            btnAddMAterial.Size = new Size(693, 25);
+            btnAddMAterial.TabIndex = 29;
+            btnAddMAterial.Text = "➕ Thêm vật tư ";
+            btnAddMAterial.UseVisualStyleBackColor = false;
+            btnAddMAterial.Click += btnAddMAterial_Click;
             // 
             // dgvItemExist
             // 
@@ -105,23 +123,22 @@
             dgvItemExist.AllowUserToDeleteRows = false;
             dgvItemExist.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dgvItemExist.BackgroundColor = Color.White;
-            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle1.BackColor = Color.Blue;
-            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            dataGridViewCellStyle1.ForeColor = Color.White;
-            dataGridViewCellStyle1.SelectionBackColor = SystemColors.GradientInactiveCaption;
-            dataGridViewCellStyle1.SelectionForeColor = SystemColors.HighlightText;
-            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
-            dgvItemExist.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
+            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle2.BackColor = Color.Blue;
+            dataGridViewCellStyle2.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dataGridViewCellStyle2.ForeColor = Color.White;
+            dataGridViewCellStyle2.SelectionBackColor = SystemColors.GradientInactiveCaption;
+            dataGridViewCellStyle2.SelectionForeColor = SystemColors.HighlightText;
+            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.True;
+            dgvItemExist.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle2;
             dgvItemExist.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvItemExist.Columns.AddRange(new DataGridViewColumn[] { material_detail_id, material_detail_number, material_detail_name, material_detail_code, item_code_existed });
-            dgvItemExist.Dock = DockStyle.Fill;
-            dgvItemExist.Location = new Point(3, 18);
+            dgvItemExist.Location = new Point(3, 47);
             dgvItemExist.Margin = new Padding(3, 2, 3, 2);
             dgvItemExist.Name = "dgvItemExist";
             dgvItemExist.ReadOnly = true;
             dgvItemExist.RowHeadersWidth = 51;
-            dgvItemExist.Size = new Size(693, 184);
+            dgvItemExist.Size = new Size(693, 155);
             dgvItemExist.TabIndex = 0;
             dgvItemExist.CellClick += dgvItemExist_CellClick;
             dgvItemExist.RowPostPaint += dgvItemExist_RowPostPaint;
@@ -189,7 +206,7 @@
             // 
             // btnSave
             // 
-            btnSave.BackColor = Color.Lime;
+            btnSave.BackColor = Color.FromArgb(0, 229, 0);
             btnSave.Dock = DockStyle.Fill;
             btnSave.FlatStyle = FlatStyle.Flat;
             btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
@@ -222,9 +239,9 @@
             // tableLayoutPanel5
             // 
             tableLayoutPanel5.ColumnCount = 3;
-            tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31.8906612F));
-            tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68.10934F));
-            tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 133F));
+            tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.8003845F));
+            tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.1996155F));
+            tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
             tableLayoutPanel5.Controls.Add(btnGenerate, 2, 0);
             tableLayoutPanel5.Controls.Add(label6, 0, 0);
             tableLayoutPanel5.Controls.Add(txtCode, 1, 0);
@@ -233,7 +250,7 @@
             tableLayoutPanel5.Name = "tableLayoutPanel5";
             tableLayoutPanel5.RowCount = 1;
             tableLayoutPanel5.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel5.Size = new Size(520, 29);
+            tableLayoutPanel5.Size = new Size(530, 29);
             tableLayoutPanel5.TabIndex = 24;
             // 
             // btnGenerate
@@ -243,13 +260,14 @@
             btnGenerate.FlatStyle = FlatStyle.Flat;
             btnGenerate.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnGenerate.ForeColor = Color.White;
-            btnGenerate.Location = new Point(389, 2);
+            btnGenerate.Location = new Point(524, 2);
             btnGenerate.Margin = new Padding(3, 2, 3, 2);
             btnGenerate.Name = "btnGenerate";
-            btnGenerate.Size = new Size(128, 25);
+            btnGenerate.Size = new Size(3, 25);
             btnGenerate.TabIndex = 4;
             btnGenerate.Text = "➕ Generate";
             btnGenerate.UseVisualStyleBackColor = false;
+            btnGenerate.Visible = false;
             btnGenerate.Click += btnGenerate_Click;
             // 
             // label6
@@ -257,7 +275,7 @@
             label6.Dock = DockStyle.Fill;
             label6.Location = new Point(3, 0);
             label6.Name = "label6";
-            label6.Size = new Size(117, 29);
+            label6.Size = new Size(118, 29);
             label6.TabIndex = 2;
             label6.Text = "Code:";
             label6.TextAlign = ContentAlignment.MiddleLeft;
@@ -265,10 +283,10 @@
             // txtCode
             // 
             txtCode.Dock = DockStyle.Fill;
-            txtCode.Location = new Point(126, 4);
+            txtCode.Location = new Point(127, 4);
             txtCode.Margin = new Padding(3, 4, 3, 2);
             txtCode.Name = "txtCode";
-            txtCode.Size = new Size(257, 23);
+            txtCode.Size = new Size(391, 23);
             txtCode.TabIndex = 30;
             // 
             // tableLayoutPanel4
@@ -461,11 +479,14 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
+            AutoSize = true;
             ClientSize = new Size(1240, 264);
             Controls.Add(panel1);
             Margin = new Padding(3, 2, 3, 2);
+            MaximumSize = new Size(1256, 303);
+            MinimumSize = new Size(1256, 303);
             Name = "frmCreateItemCode";
-            Text = "frmCreateItemCode";
+            Text = "Thêm code cho vật thư";
             Load += frmCreateItemCode_Load;
             panel1.ResumeLayout(false);
             groupBox1.ResumeLayout(false);
@@ -511,5 +532,6 @@
         private DataGridViewTextBoxColumn material_detail_code;
         private DataGridViewTextBoxColumn item_code_existed;
         private Button btnShowExisted;
+        private Button btnAddMAterial;
     }
 }
