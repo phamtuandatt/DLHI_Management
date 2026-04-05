@@ -9,6 +9,42 @@ namespace MPR_Managerment.Services
 {
     public class POService
     {
+        public async Task<DataTable> GetPOByProjectCode(string projectCode)
+        {
+            string sqlQuery = string.Format("SELECT PO_ID, PONo FROM PO_head WHERE ProjectCode = '{0}'", projectCode);
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetPODetailByPO(int poId)
+        {
+            string sqlQuery = string.Format("  SELECT *FROM Warehouse_Import WHERE PO_ID = {0}", poId);
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         public List<POHead> GetAll()
         {
             var list = new List<POHead>();

@@ -63,6 +63,24 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public async Task<DataTable> GetWarehouseImportByPOId(int poID)
+        {
+            string sqlQuery = string.Format("SELECT *FROM Warehouse_Import WHERE PO_ID = {0}", poID);
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         // ===== NHẬP KHO =====
         public List<WarehouseImport> GetAllImports()
         {

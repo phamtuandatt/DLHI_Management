@@ -1,6 +1,7 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using MPR_Managerment.Forms.ExportGUI;
+using MPR_Managerment.Forms.ImportWarehouseGUI;
 using MPR_Managerment.Forms.ItemCodeGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -25,7 +26,7 @@ namespace MPR_Managerment.Forms
     public partial class frmWarehouses_v2 : Form
     {
         private TabControl mainTabControl;
-        private TabPage pageImport, pageExport, pageWarehouse;
+        private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo;
 
         private Button btnSearch, btnCancelSearch;
 
@@ -66,6 +67,7 @@ namespace MPR_Managerment.Forms
             BuidUI();
             SetupImportLayout(pageImport);
             SetupExportLayout(pageExport);
+            SetupFillInvoiceNotLayout(pageFillInvoiceNo);
             TrackButtonClick();
             LoadComboboxProject();
             HandleComboBoxIndexChange();
@@ -115,10 +117,15 @@ namespace MPR_Managerment.Forms
             pageWarehouse.Text = "  📦  Tồn kho  ";
             pageWarehouse.BackColor = Color.White;
 
+            pageFillInvoiceNo = new TabPage();
+            pageFillInvoiceNo.Text = "🧾 Hóa đơn";
+            pageFillInvoiceNo.BackColor = Color.White;
+
             // 5. Thêm các Page vào TabControl
             mainTabControl.TabPages.Add(pageWarehouse);
             mainTabControl.TabPages.Add(pageImport);
             mainTabControl.TabPages.Add(pageExport);
+            mainTabControl.TabPages.Add(pageFillInvoiceNo);
 
             this.Controls.Add(mainTabControl);
         }
@@ -355,6 +362,27 @@ namespace MPR_Managerment.Forms
             ucExportWarehouse.Dock = DockStyle.Fill;
             container.Controls.Add(ucExportWarehouse);
             ucExportWarehouse.BringToFront();
+        }
+
+        public void SetupFillInvoiceNotLayout(TabPage parent)
+        {
+            // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
+            Panel mainScrollPanel = new Panel();
+            mainScrollPanel.Dock = DockStyle.Fill;
+            mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+            parent.Controls.Add(mainScrollPanel);
+
+            // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
+            Panel container = new Panel();
+            container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
+            container.Height = 1200; // Độ cao ước tính cho 4 phần
+            container.Location = new Point(0, 0);
+            mainScrollPanel.Controls.Add(container);
+
+            ucFillInvoiceNo ucFillInvoiceNo = new ucFillInvoiceNo();
+            ucFillInvoiceNo.Dock = DockStyle.Fill;
+            container.Controls.Add(ucFillInvoiceNo);
+            ucFillInvoiceNo.BringToFront();
         }
 
         private void BtnDeleteRow_Click(object? sender, EventArgs e)
