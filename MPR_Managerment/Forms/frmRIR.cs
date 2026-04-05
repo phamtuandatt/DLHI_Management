@@ -1450,7 +1450,7 @@ namespace MPR_Managerment.Forms
                 }
 
                 string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "rir_template.xlsx");
-                string exportFolder = projects.PNK_Link;
+                string exportFolder = projects.RIR_Link;
                 if (!Directory.Exists(exportFolder))
                     Directory.CreateDirectory(exportFolder);
 
