@@ -369,7 +369,7 @@ namespace MPR_Managerment.Forms
             // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
             Panel mainScrollPanel = new Panel();
             mainScrollPanel.Dock = DockStyle.Fill;
-            mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+            //mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
             parent.Controls.Add(mainScrollPanel);
 
             // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
@@ -861,25 +861,11 @@ namespace MPR_Managerment.Forms
                     _service.InsertImport(imp, _currentUser);
                     saved++;
 
-                    var pModel = new ProductModel()
-                    {
-                        Name = imp.Item_Name,
-                        Des2 = imp.Size,
-                        Code = imp.ID_Code,
-                        ProdMaterialCode = imp.Material
-                    };
+
 
                     if (!_useItemCodeExisted)
                     {
-                        var rs = await _productServices.SaveProduct_Async(pModel, false);
-                        var material_Detail = new Material_Detail()
-                        {
-                            Material_Detail_Number = imp.Material_Detail_Number,
-                            Material_Detail_Name = $"{imp.Item_Name} {imp.Size}",
-                            Material_Detail_Code = imp.Material_Detail_ID.ToString(),
-                            Item_Code_Existed = imp.ID_Code
-                        };
-                        var rs_detail = await _productServices.InsertMaterialTypeDetailItem(material_Detail);
+
                     }
 
                 }

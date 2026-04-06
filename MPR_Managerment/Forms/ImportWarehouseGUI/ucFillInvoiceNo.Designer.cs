@@ -82,6 +82,8 @@
             dgvList.RowHeadersWidth = 51;
             dgvList.Size = new Size(983, 559);
             dgvList.TabIndex = 6;
+            dgvList.CellClick += dgvList_CellClick;
+            dgvList.Scroll += dgvList_Scroll;
             // 
             // groupBox1
             // 
@@ -171,6 +173,7 @@
             Controls.Add(panel1);
             Name = "ucFillInvoiceNo";
             Size = new Size(989, 624);
+            Load += ucFillInvoiceNo_Load;
             panel1.ResumeLayout(false);
             groupBox2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dgvList).EndInit();

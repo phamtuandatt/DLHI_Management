@@ -1,4 +1,5 @@
-﻿using MPR_Managerment.Services;
+﻿using MPR_Managerment.Models;
+using MPR_Managerment.Services;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -33,17 +34,28 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         {
             try
             {
-                var item_code = $"{cboOriginal.Text.ToString().Split('-')[0]}{MaterialDetailAdd.MaterialCode}{MaterialDetailAdd.MaterialDetailNumber}";
+                var number = IncrementString(MaterialDetailAdd.MaterialDetailNumber);
+                var item_code = ($"{cboOriginal.Text.ToString().Split('-')[0]}{MaterialDetailAdd.MaterialCode}{number}");
                 var material_Detail = new Models.Material_Detail()
                 {
-                    Material_Detail_Number = !string.IsNullOrEmpty(MaterialDetailAdd.MaterialDetailNumber) ? MaterialDetailAdd.MaterialDetailNumber : "001",
+                    Material_Detail_Number = number ?? "001",
                     Material_Detail_Code = MaterialDetailAdd.MaterialCode,
                     Item_Code_Existed = item_code,
                     Material_Detail_Name = txtCode.Text,
                     MaterialID = MaterialDetailAdd.MaterialID,
                 };
 
-                var rs = await _productServices.InsertMaterialTypeDetailItem(material_Detail);
+                var pModel = new ProductModel()
+                {
+                    Name = txtCode.Text,
+                    Des2 = MaterialDetailAdd.MaterialSize,
+                    Code = item_code,
+                    //ProdMaterialCode = imp.Material
+                };
+
+                var rs_t = await _productServices.InsertMaterialTypeDetailItem(material_Detail);
+                var rs = await _productServices.SaveProduct_Async(pModel, false);
+
                 MessageBox.Show($"Thêm vật tư thành công !","Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 this.Close();
             }
@@ -53,6 +65,22 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                 "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
+
+        public static string IncrementString(string input)
+        {
+            // 1. Kiểm tra nếu chuỗi rỗng hoặc không phải là số
+            if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input, out int number))
+            {
+                return "001"; // Hoặc xử lý lỗi tùy nhu cầu của bạn
+            }
+
+            // 2. Tăng giá trị lên 1
+            int incrementedNumber = number + 1;
+
+            // 3. Trả về chuỗi mới với cùng độ dài bằng cách thêm các số 0 phía trước (Padding)
+            // D2 là 2 chữ số, D3 là 3 chữ số. Ở đây ta dùng độ dài của chuỗi đầu vào.
+            return incrementedNumber.ToString().PadLeft(input.Length, '0');
+        }
     }
 
     public class MaterialAddViewModel
@@ -60,6 +88,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         public string MaterialDetailNumber { get; set; }
         public string MaterialCode { get; set; }
         public string MaterialID { get; set; }
+        public string MaterialSize { get; set; }
         //public string MaterialCode { get; set; }
     }
 }
