@@ -22,6 +22,8 @@ namespace MPR_Managerment.Common
             }
         }
 
+//ok
+
         public static void AutoCompleteComboboxValidating(ComboBox sender, CancelEventArgs e)
         {
             var cb = sender as ComboBox;
