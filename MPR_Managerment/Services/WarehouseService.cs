@@ -63,12 +63,32 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void Update(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    UPDATE Warehouse_Import SET
+                        InvoiceNo  = @InvoiceNo,
+                        InvoiceDate  = @InvoiceDate
+                    WHERE PO_ID = @PO_ID", conn);
+
+                cmd.Parameters.AddWithValue("@InvoiceNo", wi.InvoiceNo);
+                cmd.Parameters.AddWithValue("@InvoiceDate", wi.InvoiceDate);
+                cmd.Parameters.AddWithValue("@PO_ID", wi.PO_ID);
+
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public async Task<DataTable> GetWarehouseImportByPOId(int poID)
         {
-            string sqlQuery = string.Format("SELECT *FROM Warehouse_Import WHERE PO_ID = {0}", poID);
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
-                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+                SqlCommand cmd = new SqlCommand("sp_GetDataToFillInvoce", conn);
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@POID", poID);
 
                 DataTable dt = new DataTable();
                 await conn.OpenAsync(); // Mở kết nối ngầm

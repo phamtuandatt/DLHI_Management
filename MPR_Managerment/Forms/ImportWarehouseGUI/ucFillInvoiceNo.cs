@@ -1,5 +1,7 @@
 ﻿using MPR_Managerment.Common;
+using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using OfficeOpenXml.Utils;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -20,6 +22,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         private bool _isLoaded = false;
         private bool _isPOLoaded = false;
         DateTimePicker dtp = new DateTimePicker();
+        private DataTable dtSelected = new DataTable();
 
         public ucFillInvoiceNo()
         {
@@ -31,11 +34,21 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
 
         private async void LoadProjects()
         {
+            lblStatus.Visible = true;
             var dt = await _projectService.GetProjects();
             cboProject.DisplayMember = "ProjectCode";
             cboProject.ValueMember = "ProjectCode";
             cboProject.DataSource = dt;
             _isLoaded = true;
+        }
+
+        private void FormatLableStatus()
+        {
+            int count = dgvList.Rows.Count;
+            lblStatus.Text = $" ✅ PO có: {count} Item(s) chưa có hóa đơn";
+            lblStatus.ForeColor = Color.FromArgb(120, 158, 41);    // Xanh đậm (Prussian Blue)
+            //lblStatus.BackColor = Color.FromArgb(120, 158, 41); // Nền xanh nhạt (Light Sky Blue)
+            lblStatus.Font = new Font("Segoe UI", 9, FontStyle.Bold);
         }
 
         private void FormartGrid(DataGridView dataGridView, Color colorHeader)
@@ -93,8 +106,13 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         private async void btnSearch_Click(object sender, EventArgs e)
         {
             if (!_isPOLoaded || !_isLoaded) return;
-            var dt = await _warehouseServices.GetWarehouseImportByPOId(Convert.ToInt32(cboPO.SelectedValue.ToString()));
-            dgvList.DataSource = dt;
+            dtSelected = await _warehouseServices.GetWarehouseImportByPOId(Convert.ToInt32(cboPO.SelectedValue.ToString()));
+            dgvList.DataSource = dtSelected;
+            if (dgvList.Rows.Count > 0 && dtSelected.Rows.Count > 0)
+            {
+                SetupGridEditable();
+                FormatLableStatus();
+            }
         }
 
         private void cboProject_SelectedIndexChanged(object sender, EventArgs e)
@@ -136,9 +154,143 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
             }
         }
 
+        private void SetupGridEditable()
+        {
+            // 1. Cho phép Grid có thể chỉnh sửa (Tổng thể)
+            dgvList.ReadOnly = false;
+
+            // 2. Khóa tất cả các cột trước
+            foreach (DataGridViewColumn col in dgvList.Columns)
+            {
+                col.ReadOnly = true;
+
+                // Đổi màu nền các cột bị khóa để người dùng biết (Tùy chọn)
+                col.DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);
+            }
+
+            // 3. Mở khóa duy nhất cột invoice no
+            if (dgvList.Columns.Contains("InvoiceNo"))
+            {
+                dgvList.Columns["InvoiceNo"].ReadOnly = false;
+
+                // Đổi màu nền cột được sửa thành màu trắng hoặc vàng nhạt để nổi bật
+                dgvList.Columns["InvoiceNo"].DefaultCellStyle.BackColor = Color.White;
+
+                // Đổi màu chữ để báo hiệu ô này "sống"
+                dgvList.Columns["InvoiceNo"].DefaultCellStyle.ForeColor = Color.Blue;
+            }
+        }
+
         private void dgvList_Scroll(object sender, ScrollEventArgs e)
         {
             dtp.Visible = false;
+        }
+
+        private void dgvList_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+
+        }
+
+        private void btnCancelSer_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void btnClear_Click(object sender, EventArgs e)
+        {
+            if (dgvList.Rows.Count <= 0) return;
+            var result = MessageBox.Show("Bạn có muốn xóa toàn bộ số lượng đã nhập và reset ngày tháng không?",
+                                         "Xác nhận làm mới", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                // 2. Duyệt qua từng dòng trong DataTable gắn với Grid
+                foreach (DataRow row in dtSelected.Rows)
+                {
+                    // Reset cột Số lượng (cột bạn cho phép nhập)
+                    if (dtSelected.Columns.Contains("InvoiceNo"))
+                    {
+                        row["InvoiceNo"] = 0;
+                    }
+
+                    // Reset cột Ngày tháng (cột bạn cho phép chọn ngày)
+                    if (dtSelected.Columns.Contains("InvoiceDate"))
+                    {
+                        row["InvoiceDate"] = DateTime.Now;
+                    }
+
+                    //// Nếu bạn có cột Ghi chú (Notes) cũng cho phép nhập:
+                    //if (dtSelected.Columns.Contains("Notes"))
+                    //{
+                    //    row["Notes"] = DBNull.Value;
+                    //}
+                }
+
+                // 3. Cập nhật lại giao diện
+                dgvList.Refresh();
+
+                MessageBox.Show("Đã làm mới các ô nhập liệu!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void dgvList_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+        {
+            // Kiểm tra xem có đúng là cột Số lượng đang được sửa không
+            if (dgvList.CurrentCell.OwningColumn.Name == "InvoiceNo")
+            {
+                TextBox tb = e.Control as TextBox;
+                if (tb != null)
+                {
+                    // Quan trọng: Gỡ bỏ sự kiện cũ trước khi gán mới để tránh bị lặp lại nhiều lần
+                    tb.KeyPress -= OnlyNumber_KeyPress;
+                    tb.KeyPress += OnlyNumber_KeyPress;
+                }
+            }
+        }
+
+        private void OnlyNumber_KeyPress(object? sender, KeyPressEventArgs e)
+        {
+            // Chỉ cho phép: Số (0-9), Phím xóa (BackSpace), và dấu chấm thập phân (.)
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar) && (e.KeyChar != '.'))
+            {
+                e.Handled = true; // Từ chối ký tự này
+            }
+
+            // Kiểm tra nếu đã có dấu chấm rồi thì không cho nhập thêm dấu chấm thứ 2
+            TextBox txt = sender as TextBox;
+            if ((e.KeyChar == '.') && (txt.Text.IndexOf('.') > -1))
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void btnSaveInvoice_Click(object sender, EventArgs e)
+        {
+            if (dgvList.Rows.Count <= 0) return;
+            var invoiceNo = dgvList.Rows[0].Cells[0].Value.ToString();
+            var invoidDate = dgvList.Rows[0].Cells[1].Value.ToString();
+            var poId = dgvList.Rows[0].Cells["PO_ID"].Value.ToString();
+
+            var wM = new WarehouseImport()
+            {
+                InvoiceNo = invoiceNo,
+                InvoiceDate = invoidDate,
+                PO_ID = Convert.ToInt32(poId)
+            };
+
+            try
+            {
+                _warehouseServices.Update(wM);
+                MessageBox.Show("Đã làm cập nhật hóa đơn thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                dtSelected.Rows.Clear();
+                dgvList.Refresh();
+                lblStatus.Text = "";
+                dtp.Visible = false;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Cập nhật hóa đơn thất bại!\nLỗi: {ex.Message}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
 }

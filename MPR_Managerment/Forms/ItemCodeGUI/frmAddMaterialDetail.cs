@@ -56,7 +56,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                 var rs_t = await _productServices.InsertMaterialTypeDetailItem(material_Detail);
                 var rs = await _productServices.SaveProduct_Async(pModel, false);
 
-                MessageBox.Show($"Thêm vật tư thành công !","Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show($"Thêm vật tư thành công !","Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
             }
             catch (Exception ex)

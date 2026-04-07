@@ -482,7 +482,27 @@ GO
 
   --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
+/****** Object:  StoredProcedure [dbo].[GetSalesData]    Script Date: 07/04/2026 9:05:07 PM ******/
+CREATE PROCEDURE [dbo].[sp_GetDataToFillInvoce] @POID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+	SELECT 
+		W.InvoiceNo, 
+		W.InvoiceDate, 
+		W.ID_Code, 
+		W.Item_Name, 
+		W.Size, 
+		P.ProjectCode, 
+		S.Company_Name
+	FROM Warehouse_Import AS W
+	INNER JOIN PO_head AS P ON W.PO_ID = P.PO_ID
+	INNER JOIN Suppliers AS S ON P.Supplier_ID = S.Supplier_ID
+	WHERE P.PO_ID = @POID AND W.InvoiceNo IS NULL OR W.InvoiceNo < 0
+END
 
+  --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- GROUP ID_CODE TO SHOW QTY
 	--SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)

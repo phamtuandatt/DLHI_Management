@@ -30,9 +30,13 @@
         {
             panel1 = new Panel();
             groupBox2 = new GroupBox();
+            panel3 = new Panel();
             dgvList = new DataGridView();
+            panel2 = new Panel();
+            btnClear = new Button();
+            lblStatus = new Label();
+            btnSaveInvoice = new Button();
             groupBox1 = new GroupBox();
-            btnCancelSer = new Button();
             btnSearch = new Button();
             cboPO = new ComboBox();
             label1 = new Label();
@@ -40,7 +44,9 @@
             label2 = new Label();
             panel1.SuspendLayout();
             groupBox2.SuspendLayout();
+            panel3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvList).BeginInit();
+            panel2.SuspendLayout();
             groupBox1.SuspendLayout();
             SuspendLayout();
             // 
@@ -57,13 +63,23 @@
             // 
             // groupBox2
             // 
-            groupBox2.Controls.Add(dgvList);
+            groupBox2.Controls.Add(panel3);
+            groupBox2.Controls.Add(panel2);
             groupBox2.Dock = DockStyle.Fill;
             groupBox2.Location = new Point(0, 43);
             groupBox2.Name = "groupBox2";
             groupBox2.Size = new Size(989, 581);
             groupBox2.TabIndex = 0;
             groupBox2.TabStop = false;
+            // 
+            // panel3
+            // 
+            panel3.Controls.Add(dgvList);
+            panel3.Dock = DockStyle.Fill;
+            panel3.Location = new Point(3, 48);
+            panel3.Name = "panel3";
+            panel3.Size = new Size(983, 530);
+            panel3.TabIndex = 8;
             // 
             // dgvList
             // 
@@ -75,19 +91,73 @@
             dgvList.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
             dgvList.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvList.Dock = DockStyle.Fill;
-            dgvList.Location = new Point(3, 19);
+            dgvList.Location = new Point(0, 0);
             dgvList.Margin = new Padding(3, 2, 3, 2);
             dgvList.Name = "dgvList";
             dgvList.ReadOnly = true;
             dgvList.RowHeadersWidth = 51;
-            dgvList.Size = new Size(983, 559);
+            dgvList.Size = new Size(983, 530);
             dgvList.TabIndex = 6;
             dgvList.CellClick += dgvList_CellClick;
+            dgvList.CellContentClick += dgvList_CellContentClick;
+            dgvList.EditingControlShowing += dgvList_EditingControlShowing;
             dgvList.Scroll += dgvList_Scroll;
+            // 
+            // panel2
+            // 
+            panel2.Controls.Add(btnClear);
+            panel2.Controls.Add(lblStatus);
+            panel2.Controls.Add(btnSaveInvoice);
+            panel2.Dock = DockStyle.Top;
+            panel2.Location = new Point(3, 19);
+            panel2.Name = "panel2";
+            panel2.Size = new Size(983, 29);
+            panel2.TabIndex = 7;
+            // 
+            // btnClear
+            // 
+            btnClear.BackColor = Color.IndianRed;
+            btnClear.Dock = DockStyle.Right;
+            btnClear.FlatStyle = FlatStyle.Flat;
+            btnClear.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnClear.ForeColor = Color.White;
+            btnClear.Location = new Point(733, 0);
+            btnClear.Margin = new Padding(3, 2, 3, 2);
+            btnClear.Name = "btnClear";
+            btnClear.Size = new Size(101, 29);
+            btnClear.TabIndex = 8;
+            btnClear.Text = "🔄 Làm mới";
+            btnClear.UseVisualStyleBackColor = false;
+            btnClear.Click += btnClear_Click;
+            // 
+            // lblStatus
+            // 
+            lblStatus.AutoSize = true;
+            lblStatus.Location = new Point(11, 7);
+            lblStatus.Name = "lblStatus";
+            lblStatus.Size = new Size(41, 15);
+            lblStatus.TabIndex = 6;
+            lblStatus.Text = "Dự án:";
+            lblStatus.Visible = false;
+            // 
+            // btnSaveInvoice
+            // 
+            btnSaveInvoice.BackColor = Color.FromArgb(52, 152, 219);
+            btnSaveInvoice.Dock = DockStyle.Right;
+            btnSaveInvoice.FlatStyle = FlatStyle.Flat;
+            btnSaveInvoice.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnSaveInvoice.ForeColor = Color.White;
+            btnSaveInvoice.Location = new Point(834, 0);
+            btnSaveInvoice.Margin = new Padding(3, 2, 3, 2);
+            btnSaveInvoice.Name = "btnSaveInvoice";
+            btnSaveInvoice.Size = new Size(149, 29);
+            btnSaveInvoice.TabIndex = 7;
+            btnSaveInvoice.Text = "💾 Cập nhật hóa đơn";
+            btnSaveInvoice.UseVisualStyleBackColor = false;
+            btnSaveInvoice.Click += btnSaveInvoice_Click;
             // 
             // groupBox1
             // 
-            groupBox1.Controls.Add(btnCancelSer);
             groupBox1.Controls.Add(btnSearch);
             groupBox1.Controls.Add(cboPO);
             groupBox1.Controls.Add(label1);
@@ -99,20 +169,6 @@
             groupBox1.Size = new Size(989, 43);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
-            // 
-            // btnCancelSer
-            // 
-            btnCancelSer.BackColor = Color.DarkGray;
-            btnCancelSer.FlatStyle = FlatStyle.Flat;
-            btnCancelSer.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnCancelSer.ForeColor = Color.White;
-            btnCancelSer.Location = new Point(775, 8);
-            btnCancelSer.Margin = new Padding(3, 2, 3, 2);
-            btnCancelSer.Name = "btnCancelSer";
-            btnCancelSer.Size = new Size(101, 33);
-            btnCancelSer.TabIndex = 8;
-            btnCancelSer.Text = "✖ Xóa lọc";
-            btnCancelSer.UseVisualStyleBackColor = false;
             // 
             // btnSearch
             // 
@@ -131,6 +187,8 @@
             // 
             // cboPO
             // 
+            cboPO.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            cboPO.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboPO.FormattingEnabled = true;
             cboPO.Location = new Point(416, 14);
             cboPO.Margin = new Padding(3, 2, 3, 2);
@@ -149,6 +207,8 @@
             // 
             // cboProject
             // 
+            cboProject.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            cboProject.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboProject.FormattingEnabled = true;
             cboProject.Location = new Point(74, 14);
             cboProject.Margin = new Padding(3, 2, 3, 2);
@@ -176,7 +236,10 @@
             Load += ucFillInvoiceNo_Load;
             panel1.ResumeLayout(false);
             groupBox2.ResumeLayout(false);
+            panel3.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dgvList).EndInit();
+            panel2.ResumeLayout(false);
+            panel2.PerformLayout();
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             ResumeLayout(false);
@@ -187,12 +250,16 @@
         private Panel panel1;
         private GroupBox groupBox2;
         private GroupBox groupBox1;
-        private Button btnCancelSer;
         private Button btnSearch;
         private ComboBox cboPO;
         private Label label1;
         private ComboBox cboProject;
         private Label label2;
         private DataGridView dgvList;
+        private Panel panel3;
+        private Panel panel2;
+        private Label lblStatus;
+        private Button btnClear;
+        private Button btnSaveInvoice;
     }
 }

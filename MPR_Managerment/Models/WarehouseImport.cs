@@ -28,5 +28,8 @@ namespace MPR_Managerment.Models
 
         public string Material_Detail_ID { get; set; }
         public string Material_Detail_Number { get; set; }
+
+        public string InvoiceNo { get; set; }
+        public string InvoiceDate { get; set; }
     }
 }
