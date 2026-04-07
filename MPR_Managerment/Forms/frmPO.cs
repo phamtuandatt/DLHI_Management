@@ -319,7 +319,7 @@ namespace MPR_Managerment.Forms
 
             // Timer tự xóa dòng quá hạn (kiểm tra mỗi giờ)
             _deliveryTimer = new System.Windows.Forms.Timer { Interval = 3_600_000 };
-            _deliveryTimer.Tick += (s, e) => CleanExpiredDeliveries();
+            _deliveryTimer.Tick += (s, e) => { UpdateOverdueDeliveries(); LoadDeliveries(); };
             _deliveryTimer.Start();
 
             // QUY HOẠCH CÁC Ô NHẬP LIỆU BÊN TRÁI (Tối đa width = 790px)
@@ -526,10 +526,402 @@ namespace MPR_Managerment.Forms
         // ĐÃ KHẮC PHỤC LỖI CS7036: Chèn đúng danh sách _poList
         private void BtnSearchBySupp_Click(object sender, EventArgs e)
         {
-            using (var frmSearch = new frmSearchPOBySupplier(_poList))
+            try
             {
-                if (frmSearch.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(frmSearch.SelectedPONo))
-                    SelectPOByNo(frmSearch.SelectedPONo);
+                var suppliers = new SupplierService().GetAll();
+
+                // Build DataTable từ _poList
+                var dt = new System.Data.DataTable();
+                dt.Columns.Add("PO_ID", typeof(int));
+                dt.Columns.Add("PO No", typeof(string));
+                dt.Columns.Add("NCC", typeof(string));
+                dt.Columns.Add("Dự án", typeof(string));
+                dt.Columns.Add("MPR No", typeof(string));
+                dt.Columns.Add("Workorder", typeof(string));
+                dt.Columns.Add("Ngày PO", typeof(string));
+                dt.Columns.Add("Trạng thái", typeof(string));
+                dt.Columns.Add("Tổng tiền", typeof(string));
+
+                foreach (var h in _poList)
+                {
+                    var supp = suppliers.Find(s => s.Supplier_ID == h.Supplier_ID);
+                    dt.Rows.Add(
+                        h.PO_ID,
+                        h.PONo,
+                        supp?.Company_Name ?? supp?.Short_Name ?? "",
+                        h.Project_Name,
+                        h.MPR_No,
+                        h.WorkorderNo,
+                        h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
+                        h.Status,
+                        h.Total_Amount.ToString("N0")
+                    );
+                }
+
+                var dtFull = dt.Copy();
+                string selectedPONo = null;
+
+                // ── Popup ──
+                var popup = new Form
+                {
+                    Text = "🔍 Tìm theo NCC",
+                    Size = new Size(1100, 640),
+                    StartPosition = FormStartPosition.CenterParent,
+                    BackColor = Color.FromArgb(245, 245, 245),
+                    MinimumSize = new Size(800, 450)
+                };
+
+                popup.Controls.Add(new Label
+                {
+                    Text = "🔍  TÌM KIẾM PO THEO NHÀ CUNG CẤP",
+                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(102, 51, 153),
+                    Location = new Point(10, 8),
+                    Size = new Size(700, 26)
+                });
+
+                // Panel lọc
+                var pFilter = new Panel
+                {
+                    Location = new Point(10, 38),
+                    Size = new Size(popup.ClientSize.Width - 20, 46),
+                    BackColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                popup.Controls.Add(pFilter);
+
+                pFilter.Controls.Add(new Label { Text = "NCC:", Location = new Point(8, 12), Size = new Size(35, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+                var txtNCC = new TextBox { Location = new Point(43, 8), Size = new Size(220, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tên nhà cung cấp..." };
+                pFilter.Controls.Add(txtNCC);
+
+                pFilter.Controls.Add(new Label { Text = "Dự án:", Location = new Point(278, 12), Size = new Size(45, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+                var txtDA = new TextBox { Location = new Point(323, 8), Size = new Size(180, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tên dự án..." };
+                pFilter.Controls.Add(txtDA);
+
+                pFilter.Controls.Add(new Label { Text = "T.Thái:", Location = new Point(515, 12), Size = new Size(50, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+                var cboTT = new ComboBox { Location = new Point(565, 8), Size = new Size(120, 26), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
+                cboTT.Items.AddRange(new[] { "Tất cả", "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
+                cboTT.SelectedIndex = 0;
+                pFilter.Controls.Add(cboTT);
+
+                var btnF = new Button { Text = "🔍 Tìm", Location = new Point(700, 8), Size = new Size(80, 28), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnF.FlatAppearance.BorderSize = 0;
+                pFilter.Controls.Add(btnF);
+
+                var btnClear = new Button { Text = "✖ Xóa", Location = new Point(790, 8), Size = new Size(75, 28), BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+                btnClear.FlatAppearance.BorderSize = 0;
+                pFilter.Controls.Add(btnClear);
+
+                var lblCount = new Label { Text = "", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 90), Size = new Size(500, 20), Anchor = AnchorStyles.Top | AnchorStyles.Left };
+                popup.Controls.Add(lblCount);
+
+                // Grid
+                var dgv = new DataGridView
+                {
+                    Location = new Point(10, 114),
+                    Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 165),
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    BackgroundColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    RowHeadersVisible = false,
+                    Font = new Font("Segoe UI", 9),
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+                };
+                dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153);
+                dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+                dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                dgv.EnableHeadersVisualStyles = false;
+                dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+                popup.Controls.Add(dgv);
+
+                // Hàm apply filter
+                System.Data.DataTable dtCurrent = dtFull.Copy();
+                Action applyFilter = () =>
+                {
+                    string kNCC = txtNCC.Text.Trim().ToLower();
+                    string kDA = txtDA.Text.Trim().ToLower();
+                    string kTT = cboTT.SelectedItem?.ToString() ?? "Tất cả";
+                    var rows = dtFull.AsEnumerable().Where(r =>
+                    {
+                        if (!string.IsNullOrEmpty(kNCC) && !r["NCC"].ToString().ToLower().Contains(kNCC)) return false;
+                        if (!string.IsNullOrEmpty(kDA) && !r["Dự án"].ToString().ToLower().Contains(kDA)) return false;
+                        if (kTT != "Tất cả" && r["Trạng thái"].ToString() != kTT) return false;
+                        return true;
+                    });
+                    dtCurrent = rows.Any() ? rows.CopyToDataTable() : dtFull.Clone();
+                    dgv.DataSource = dtCurrent;
+                    if (dgv.Columns.Contains("PO_ID")) dgv.Columns["PO_ID"].Visible = false;
+                    lblCount.Text = $"Hiển thị: {dtCurrent.Rows.Count} / {dtFull.Rows.Count} PO";
+                };
+
+                applyFilter();
+                btnF.Click += (s, ev) => applyFilter();
+                btnClear.Click += (s, ev) => { txtNCC.Text = ""; txtDA.Text = ""; cboTT.SelectedIndex = 0; applyFilter(); };
+                popup.KeyPreview = true;
+                popup.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { applyFilter(); ev.SuppressKeyPress = true; } };
+                cboTT.SelectedIndexChanged += (s, ev) => applyFilter();
+
+                // Double-click chọn PO
+                dgv.CellDoubleClick += (s, ev) =>
+                {
+                    if (ev.RowIndex < 0) return;
+                    selectedPONo = dgv.Rows[ev.RowIndex].Cells["PO No"].Value?.ToString();
+                    popup.DialogResult = DialogResult.OK;
+                    popup.Close();
+                };
+
+                int btnY = popup.ClientSize.Height - 42;
+
+                // Nút Chọn PO
+                var btnSelect = new Button
+                {
+                    Text = "✔ Chọn PO này",
+                    Location = new Point(10, btnY),
+                    Size = new Size(130, 32),
+                    BackColor = Color.FromArgb(40, 167, 69),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+                };
+                btnSelect.FlatAppearance.BorderSize = 0;
+                btnSelect.Click += (s, ev) =>
+                {
+                    if (dgv.SelectedRows.Count == 0) { MessageBox.Show("Vui lòng chọn một dòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    selectedPONo = dgv.SelectedRows[0].Cells["PO No"].Value?.ToString();
+                    popup.DialogResult = DialogResult.OK;
+                    popup.Close();
+                };
+                popup.Controls.Add(btnSelect);
+
+                // Nút Export Excel
+                var btnExportNCC = new Button
+                {
+                    Text = "📥 Xuất Excel",
+                    Location = new Point(150, btnY),
+                    Size = new Size(130, 32),
+                    BackColor = Color.FromArgb(0, 150, 100),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+                };
+                btnExportNCC.FlatAppearance.BorderSize = 0;
+                btnExportNCC.Click += (s, ev) =>
+                {
+                    if (dtCurrent == null || dtCurrent.Rows.Count == 0)
+                    { MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+                    using var sfd = new SaveFileDialog
+                    {
+                        Title = "Xuất chi tiết PO theo NCC",
+                        Filter = "Excel Files|*.xlsx",
+                        FileName = $"PO_ChiTiet_NCC_{DateTime.Now:yyyyMMdd_HHmm}",
+                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                    };
+                    if (sfd.ShowDialog() != DialogResult.OK) return;
+
+                    try
+                    {
+                        OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                        using var pkg = new OfficeOpenXml.ExcelPackage();
+
+                        // Màu header
+                        var purple = Color.FromArgb(102, 51, 153);
+                        var blue = Color.FromArgb(0, 120, 212);
+                        var green = Color.FromArgb(0, 150, 100);
+
+                        int totalDetailRows = 0;
+
+                        foreach (System.Data.DataRow dr in dtCurrent.Rows)
+                        {
+                            int poId = Convert.ToInt32(dr["PO_ID"]);
+                            string poNo = dr["PO No"]?.ToString() ?? "";
+                            string ncc = dr["NCC"]?.ToString() ?? "";
+                            string duAn = dr["Dự án"]?.ToString() ?? "";
+                            string mprNo = dr["MPR No"]?.ToString() ?? "";
+                            string wo = dr["Workorder"]?.ToString() ?? "";
+                            string ngayPO = dr["Ngày PO"]?.ToString() ?? "";
+                            string status = dr["Trạng thái"]?.ToString() ?? "";
+
+                            // Mỗi PO = 1 sheet, tên sheet là PO No (tối đa 31 ký tự, bỏ ký tự không hợp lệ)
+                            string sheetName = System.Text.RegularExpressions.Regex.Replace(poNo, @"[\\\/\?\*\[\]:]", "_");
+                            if (sheetName.Length > 31) sheetName = sheetName.Substring(0, 31);
+
+                            var ws = pkg.Workbook.Worksheets.Add(sheetName);
+
+                            // ── Tiêu đề PO ──
+                            ws.Cells[1, 1].Value = $"CHI TIẾT ĐƠN HÀNG — {poNo}";
+                            ws.Cells[1, 1, 1, 11].Merge = true;
+                            ws.Cells[1, 1].Style.Font.Bold = true;
+                            ws.Cells[1, 1].Style.Font.Size = 13;
+                            ws.Cells[1, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            ws.Cells[1, 1].Style.Fill.BackgroundColor.SetColor(purple);
+                            ws.Cells[1, 1].Style.Font.Color.SetColor(Color.White);
+                            ws.Cells[1, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+
+                            // ── Thông tin header ──
+                            void WriteInfo(int r, string label, string val, Color col)
+                            {
+                                ws.Cells[r, 1].Value = label;
+                                ws.Cells[r, 1].Style.Font.Bold = true;
+                                ws.Cells[r, 1].Style.Font.Color.SetColor(col);
+                                ws.Cells[r, 2, r, 5].Merge = true;
+                                ws.Cells[r, 2].Value = val;
+                            }
+                            WriteInfo(2, "PO No:", poNo, blue);
+                            WriteInfo(3, "NCC:", ncc, blue);
+                            WriteInfo(4, "Dự án:", duAn, blue);
+                            WriteInfo(5, "MPR No:", mprNo, blue);
+                            WriteInfo(6, "Workorder:", wo, blue);
+                            WriteInfo(7, "Ngày PO:", ngayPO, blue);
+                            WriteInfo(8, "Trạng thái:", status, status == "Completed" ? green :
+                                                                  status == "Cancelled" ? Color.FromArgb(220, 53, 69) : blue);
+
+                            // ── Header bảng chi tiết ──
+                            int hRow = 10;
+                            string[] headers = { "STT", "Tên hàng", "Vật liệu", "A(mm)", "B(mm)", "C(mm)",
+                                                  "SL", "ĐVT", "KG", "Đơn giá", "VAT(%)", "Thành tiền" };
+                            for (int c = 0; c < headers.Length; c++)
+                            {
+                                ws.Cells[hRow, c + 1].Value = headers[c];
+                                ws.Cells[hRow, c + 1].Style.Font.Bold = true;
+                                ws.Cells[hRow, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                ws.Cells[hRow, c + 1].Style.Fill.BackgroundColor.SetColor(blue);
+                                ws.Cells[hRow, c + 1].Style.Font.Color.SetColor(Color.White);
+                                ws.Cells[hRow, c + 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                ws.Cells[hRow, c + 1].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                            }
+
+                            // ── Chi tiết vật tư ──
+                            var details = _service.GetDetails(poId);
+                            int dRow = hRow + 1;
+                            decimal subTotal = 0;
+
+                            for (int i = 0; i < details.Count; i++)
+                            {
+                                var d = details[i];
+                                string remarks = d.Remarks ?? "";
+                                decimal realPrice = d.Price;
+                                decimal baseVal = d.Qty_Per_Sheet;
+
+                                if (remarks.Contains("[CALC:KG]") && d.Weight_kg > 0 && d.Qty_Per_Sheet > 0)
+                                {
+                                    realPrice = Math.Round((d.Price * d.Qty_Per_Sheet) / d.Weight_kg, 0);
+                                    baseVal = d.Weight_kg;
+                                }
+                                decimal amtBeforeVat = Math.Round(baseVal * realPrice, 0);
+                                subTotal += amtBeforeVat;
+
+                                ws.Cells[dRow, 1].Value = i + 1;
+                                ws.Cells[dRow, 2].Value = d.Item_Name ?? "";
+                                ws.Cells[dRow, 3].Value = d.Material ?? "";
+                                ws.Cells[dRow, 4].Value = d.Asize;
+                                ws.Cells[dRow, 5].Value = d.Bsize;
+                                ws.Cells[dRow, 6].Value = d.Csize;
+                                ws.Cells[dRow, 7].Value = d.Qty_Per_Sheet;
+                                ws.Cells[dRow, 8].Value = d.UNIT ?? "";
+                                ws.Cells[dRow, 9].Value = d.Weight_kg;
+                                ws.Cells[dRow, 10].Value = realPrice;
+                                ws.Cells[dRow, 11].Value = d.VAT;
+                                ws.Cells[dRow, 12].Value = amtBeforeVat;
+
+                                // Số định dạng
+                                ws.Cells[dRow, 10].Style.Numberformat.Format = "#,##0";
+                                ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0";
+                                ws.Cells[dRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+
+                                // Border từng ô
+                                for (int c = 1; c <= 12; c++)
+                                    ws.Cells[dRow, c].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+
+                                // Màu xen kẽ
+                                if (i % 2 == 1)
+                                    for (int c = 1; c <= 12; c++)
+                                    {
+                                        ws.Cells[dRow, c].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                        ws.Cells[dRow, c].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 248, 255));
+                                    }
+                                dRow++;
+                                totalDetailRows++;
+                            }
+
+                            // ── Sub-total & VAT ──
+                            decimal vatAmt = Math.Round(subTotal * 0.1m, 0);
+                            decimal totalAmt = subTotal + vatAmt;
+
+                            ws.Cells[dRow, 11].Value = "Sub-Total:";
+                            ws.Cells[dRow, 11].Style.Font.Bold = true;
+                            ws.Cells[dRow, 12].Value = subTotal;
+                            ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0";
+                            ws.Cells[dRow, 12].Style.Font.Bold = true;
+                            dRow++;
+                            ws.Cells[dRow, 11].Value = "VAT (10%):";
+                            ws.Cells[dRow, 11].Style.Font.Bold = true;
+                            ws.Cells[dRow, 12].Value = vatAmt;
+                            ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0";
+                            dRow++;
+                            ws.Cells[dRow, 10, dRow, 11].Merge = true;
+                            ws.Cells[dRow, 10].Value = "TOTAL (included VAT):";
+                            ws.Cells[dRow, 10].Style.Font.Bold = true;
+                            ws.Cells[dRow, 10].Style.Font.Color.SetColor(blue);
+                            ws.Cells[dRow, 12].Value = totalAmt;
+                            ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0";
+                            ws.Cells[dRow, 12].Style.Font.Bold = true;
+                            ws.Cells[dRow, 12].Style.Font.Color.SetColor(blue);
+
+                            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                        }
+
+                        pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
+                        MessageBox.Show(
+                            $"✅ Đã xuất {dtCurrent.Rows.Count} PO với {totalDetailRows} dòng chi tiết!\n" +
+                            $"Mỗi PO = 1 sheet riêng trong file Excel.",
+                            "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex2)
+                    {
+                        MessageBox.Show("Lỗi xuất Excel: " + ex2.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+                popup.Controls.Add(btnExportNCC);
+
+                // Nút Đóng
+                var btnCloseNCC = new Button
+                {
+                    Text = "Đóng",
+                    Size = new Size(100, 32),
+                    BackColor = Color.FromArgb(108, 117, 125),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                    DialogResult = DialogResult.Cancel
+                };
+                btnCloseNCC.FlatAppearance.BorderSize = 0;
+                btnCloseNCC.Location = new Point(popup.ClientSize.Width - 115, btnY);
+                popup.Controls.Add(btnCloseNCC);
+                popup.CancelButton = btnCloseNCC;
+
+                popup.Resize += (s, ev) =>
+                {
+                    pFilter.Width = popup.ClientSize.Width - 20;
+                    dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 165);
+                    btnCloseNCC.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 42);
+                    btnSelect.Location = new Point(10, popup.ClientSize.Height - 42);
+                    btnExportNCC.Location = new Point(150, popup.ClientSize.Height - 42);
+                };
+
+                if (popup.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(selectedPONo))
+                    SelectPOByNo(selectedPONo);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1089,8 +1481,24 @@ namespace MPR_Managerment.Forms
                 txtPONo.Text = finalPONo;
                 SaveDetailsToDb();
                 MessageBox.Show($"Đã lưu toàn bộ PO thành công!\n- Số PO: {finalPONo}\n- Số dòng vật tư: {dgvDetails.Rows.Count}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Reload danh sách PO rồi re-select lại PO vừa lưu để chi tiết vẫn hiển thị
+                int savedId = _selectedPO_ID;
                 LoadPO();
-                LoadDetails(_selectedPO_ID);
+                // Tìm và chọn lại dòng PO vừa lưu trong dgvPO
+                foreach (DataGridViewRow row in dgvPO.Rows)
+                {
+                    if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == savedId)
+                    {
+                        dgvPO.ClearSelection();
+                        row.Selected = true;
+                        if (row.Index >= 0) dgvPO.FirstDisplayedScrollingRowIndex = row.Index;
+                        break;
+                    }
+                }
+                // LoadDetails đã được gọi qua DgvPO_SelectionChanged khi re-select
+                // Nếu chưa trigger thì gọi trực tiếp
+                if (_selectedPO_ID == savedId) LoadDetails(savedId);
             }
             catch (Exception ex)
             {
@@ -1455,8 +1863,8 @@ namespace MPR_Managerment.Forms
             dgvDelivery.Rows.Clear();
             try
             {
-                // Tự dọn dòng quá hạn trước khi load
-                CleanExpiredDeliveries();
+                // Cập nhật Status=Overdue cho các dòng quá hạn (không xóa)
+                UpdateOverdueDeliveries();
 
                 string sql = @"
                     SELECT dt.TrackID, dt.PONo, ISNULL(pi.ProjectCode,'') AS MaDuAn,
@@ -1467,6 +1875,7 @@ namespace MPR_Managerment.Forms
                     FROM PO_DeliveryTracking dt
                     LEFT JOIN PO_head ph ON ph.PONo = dt.PONo
                     LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
+                    WHERE ISNULL(dt.Status,'Pending') != 'Done'
                     ORDER BY dt.ExpDelivery ASC";
 
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
@@ -1476,21 +1885,10 @@ namespace MPR_Managerment.Forms
                     dt.Load(new Microsoft.Data.SqlClient.SqlCommand(sql, conn).ExecuteReader());
                     foreach (System.Data.DataRow r in dt.Rows)
                     {
-                        int idx = dgvDelivery.Rows.Add(
+                        dgvDelivery.Rows.Add(
                             r["TrackID"], r["PONo"], r["MaDuAn"],
                             r["ExpDelivery"], r["GhiChu"],
                             r["Status"], r["ReceiverNote"]);
-
-                        // Tô màu Overdue nếu quá hạn và chưa Done
-                        string st = r["Status"]?.ToString() ?? "";
-                        if (st != "Done" && DateTime.TryParseExact(
-                            r["ExpDelivery"]?.ToString(), "dd/MM/yyyy",
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            System.Globalization.DateTimeStyles.None, out DateTime exp)
-                            && exp.Date < DateTime.Today)
-                        {
-                            dgvDelivery.Rows[idx].Cells["Status"].Value = "Overdue";
-                        }
                     }
                 }
             }
@@ -1500,15 +1898,16 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        private void CleanExpiredDeliveries()
+        // Cập nhật Status = 'Overdue' trong DB cho các dòng quá hạn chưa Done
+        private void UpdateOverdueDeliveries()
         {
             try
             {
-                // Xóa các dòng đã quá ngày ExpDelivery (sau ngày đó 1 ngày)
                 string sql = @"
-                    DELETE FROM PO_DeliveryTracking
+                    UPDATE PO_DeliveryTracking
+                    SET Status = 'Overdue'
                     WHERE ExpDelivery < CAST(GETDATE() AS DATE)
-                      AND Status != 'Done'";
+                      AND ISNULL(Status,'Pending') NOT IN ('Done','Overdue')";
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -1517,7 +1916,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("CleanExpiredDeliveries: " + ex.Message);
+                System.Diagnostics.Debug.WriteLine("UpdateOverdueDeliveries: " + ex.Message);
             }
         }
 
