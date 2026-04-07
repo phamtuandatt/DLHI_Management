@@ -9,6 +9,19 @@ namespace MPR_Managerment.Services
 {
     public class POService
     {
+        public void MakeImported(POHead h, string importDate)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("[sp_UpdatePOHead_MakeImport]", conn);
+                cmd.CommandType = System.Data.CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@importDate", importDate);
+                cmd.Parameters.AddWithValue("@poNo", h.PONo);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public async Task<DataTable> GetPOByProjectCode(string projectCode)
         {
             string sqlQuery = string.Format("SELECT PO_ID, PONo FROM PO_head WHERE ProjectCode = '{0}'", projectCode);
@@ -52,6 +65,19 @@ namespace MPR_Managerment.Services
             {
                 conn.Open();
                 var cmd = new SqlCommand("SELECT * FROM PO_head ORDER BY Created_Date DESC", conn);
+                var r = cmd.ExecuteReader();
+                while (r.Read()) list.Add(MapHead(r));
+            }
+            return list;
+        }
+
+        public List<POHead> GetAllPOForImport()
+        {
+            var list = new List<POHead>();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("SELECT *FROM PO_head WHERE IS_Imported = 0 OR IS_Imported IS NULL ORDER BY Created_Date DESC", conn);
                 var r = cmd.ExecuteReader();
                 while (r.Read()) list.Add(MapHead(r));
             }

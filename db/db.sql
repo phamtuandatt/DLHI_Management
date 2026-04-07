@@ -490,11 +490,52 @@ GO
 	--WHERE Project_Code = '2508-DPCII'
 	--GROUP BY Item_Name, Material, Size, ID_Code
 
- SELECT *FROM Products
-SELECT *FROM Material_Detail
-SELECT * FROM Warehouse_Import WHERE Project_Code = '25G3-NGR'
-SELECT *FROM ProjectInfo
-SELECT *FROM PO_head WHERE ProjectCode = '25G3-NGR' OR Notes = '25G3-NGR'
-UPDATE PO_head SET ProjectCode = '25G3-NGR' WHERE Notes = '25G3-NGR'
+SELECT *FROM Material_Detail WHERE material_detail_code = 77
 SELECT *FROM Warehouse_Import
-SELECT *FROM Warehouse_Import WHERE Import_No = 'PNK-' + 'DV-NGR-PC-012'
+SELECT *FROM PO_head WHERE IS_Imported = 1 OR IS_Imported IS NULL ORDER BY Created_Date DESC
+
+UPDATE PO_head SET IS_Imported = 1, ImportedDate =  IMpor WHERE PO_ID = 351
+DELETE FROM Material_Detail WHERE material_detail_id = 700
+DELETE FROM Material_Detail WHERE material_detail_id = 701
+DELETE FROM Material_Detail WHERE material_detail_id = 702
+DELETE FROM Material_Detail WHERE material_detail_id = 703
+DELETE FROM Material_Detail WHERE material_detail_id = 704
+DELETE FROM Material_Detail WHERE material_detail_id = 705
+DELETE FROM Material_Detail WHERE material_detail_id = 706
+DELETE FROM Material_Detail WHERE material_detail_id = 707
+DELETE FROM Material_Detail WHERE material_detail_id = 708
+DELETE FROM Material_Detail WHERE material_detail_id = 709
+
+CREATE PROCEDURE [dbo].[sp_UpdatePOHead_MakeImport]
+    @PONO INT,
+    @ImportDate DATE(255)
+AS
+BEGIN
+    SET NOCOUNT OFF;
+
+    -- 1. Kiểm tra sự tồn tại của PO_ID
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[PO_head] WHERE [PONo] = @PONO)
+    BEGIN
+        RAISERROR(N'Lỗi: Không tìm thấy đơn hàng PO No: %d để cập nhật!', 16, 1, @PONO);
+        RETURN;
+    END
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- 2. Thực hiện cập nhật thông tin Header
+        UPDATE [dbo].[PO_head]
+        SET 
+            [IS_Imported] = 1,
+            [ImportedDate] = @ImportDate,
+        WHERE [PONo] = @PONO;
+
+        COMMIT TRANSACTION;
+        SELECT N'Cập nhật PO Header thành công!' AS Result;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        DECLARE @ErrMsg NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrMsg, 16, 1);
+    END CATCH
+END

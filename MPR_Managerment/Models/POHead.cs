@@ -23,5 +23,8 @@ namespace MPR_Managerment.Models
 
         public int Supplier_ID { get; set; }    
         public string ProjectCode {  get; set; }
+
+        public bool IsImported { get; set; } = false;
+        public DateTime? ImportedDate { get; set; }
     }
 }

@@ -860,15 +860,13 @@ namespace MPR_Managerment.Forms
                     imp.Import_Date = DateTime.Now;
                     _service.InsertImport(imp, _currentUser);
                     saved++;
-
-
-
-                    if (!_useItemCodeExisted)
-                    {
-
-                    }
-
                 }
+
+                POHead h = new POHead()
+                {
+                    PONo = cboPONo.SelectedItem.ToString().Trim(),
+                };
+                _poService.MakeImported(h, DateTime.UtcNow.ToString());
                 MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
                 RefreshQueueGrid();
@@ -987,7 +985,7 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                var allPO = _poService.GetAll();
+                var allPO = _poService.GetAllPOForImport();
                 if (string.IsNullOrEmpty(projectCode))
                 {
                     cboPONo.Items.Clear();
