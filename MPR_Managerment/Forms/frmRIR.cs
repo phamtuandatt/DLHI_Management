@@ -400,19 +400,25 @@ namespace MPR_Managerment.Forms
 
         // =====================================================================
         // COMBOBOX DỰ ÁN — DÙNG ProjectCode, TÌM KIẾM NHANH
-        // DataTable có 2 cột: ProjectCode (hiển thị) | RIR_Link (giá trị)
+        // DataTable có 4 cột: ProjectCode | RIR_Link | WorkorderNo | ProjectName
         // =====================================================================
         private void LoadProjectTable()
         {
             _projectTable = new DataTable();
             _projectTable.Columns.Add("ProjectCode", typeof(string));
             _projectTable.Columns.Add("RIR_Link", typeof(string));
+            _projectTable.Columns.Add("WorkorderNo", typeof(string));
+            _projectTable.Columns.Add("ProjectName", typeof(string));
 
             try
             {
                 var all = _projectServices.GetAll();
                 foreach (var p in all)
-                    _projectTable.Rows.Add(p.ProjectCode ?? "", p.RIR_Link ?? "");
+                    _projectTable.Rows.Add(
+                        p.ProjectCode ?? "",
+                        p.RIR_Link ?? "",
+                        p.WorkorderNo ?? "",
+                        p.ProjectName ?? "");
             }
             catch { }
         }
@@ -783,6 +789,7 @@ namespace MPR_Managerment.Forms
 
         private void BindRIRGrid(List<RIRHead> list)
         {
+            dgvRIR.SelectionChanged -= DgvRIR_SelectionChanged; // tạm ngắt event
             dgvRIR.DataSource = list.ConvertAll(r => new
             {
                 ID = r.RIR_ID,
@@ -799,6 +806,9 @@ namespace MPR_Managerment.Forms
 
             if (dgvRIR.Columns.Contains("ID"))
                 dgvRIR.Columns["ID"].Visible = false;
+
+            dgvRIR.ClearSelection(); // không tự chọn dòng nào khi load
+            dgvRIR.SelectionChanged += DgvRIR_SelectionChanged; // kết nối lại event
         }
 
         // ===== LOAD DETAILS =====
@@ -997,11 +1007,19 @@ namespace MPR_Managerment.Forms
                             MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     }
+
+                    // ── Tạo thư mục theo RIR No trong RIR_Link của dự án ──
+                    TryCreateRIRFolder(h.RIR_No);
+
                     MessageBox.Show("Tạo phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
                     _service.UpdateHead(h, _currentUser);
+
+                    // ── Tạo thư mục nếu chưa có (khi cập nhật cũng kiểm tra) ──
+                    TryCreateRIRFolder(h.RIR_No);
+
                     MessageBox.Show("Cập nhật phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 LoadRIR();
@@ -1009,6 +1027,86 @@ namespace MPR_Managerment.Forms
             catch (Exception ex)
             {
                 MessageBox.Show("Lỗi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // ── Tạo thư mục RIR No trong RIR_Link của dự án hiện tại ──
+        private void TryCreateRIRFolder(string rirNo)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rirNo)) return;
+
+                // Ưu tiên lấy RIR_Link từ combo nếu đang chọn
+                string rirLink = cboProjectRIR.SelectedValue?.ToString() ?? "";
+
+                // Nếu combo chưa có → tra cứu qua WorkorderNo trước, rồi ProjectName
+                if (string.IsNullOrWhiteSpace(rirLink))
+                {
+                    string wo = txtWorkorderNo.Text.Trim();
+                    string projName = txtProjectName.Text.Trim();
+
+                    foreach (DataRow row in _projectTable.Rows)
+                    {
+                        string rowWO = row["WorkorderNo"]?.ToString() ?? "";
+                        string rowPN = row["ProjectName"]?.ToString() ?? "";
+                        string rowCode = row["ProjectCode"]?.ToString() ?? "";
+                        string rowLink = row["RIR_Link"]?.ToString() ?? "";
+
+                        // Match theo WorkorderNo (chính xác nhất)
+                        if (!string.IsNullOrEmpty(wo) && rowWO.Equals(wo, StringComparison.OrdinalIgnoreCase))
+                        { rirLink = rowLink; break; }
+
+                        // Fallback: match theo ProjectName hoặc ProjectCode
+                        if (!string.IsNullOrEmpty(projName) &&
+                            (rowPN.Equals(projName, StringComparison.OrdinalIgnoreCase) ||
+                             rowCode.Equals(projName, StringComparison.OrdinalIgnoreCase)))
+                        { rirLink = rowLink; break; }
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(rirLink))
+                {
+                    MessageBox.Show(
+                        $"⚠ Không tìm thấy đường dẫn RIR Link của dự án.\n" +
+                        $"Workorder: {txtWorkorderNo.Text.Trim()}\n" +
+                        $"Dự án: {txtProjectName.Text.Trim()}\n\n" +
+                        "Vui lòng kiểm tra lại thông tin dự án trong phần Quản lý Dự án.",
+                        "Không tìm thấy RIR Link", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!System.IO.Directory.Exists(rirLink))
+                {
+                    MessageBox.Show(
+                        $"⚠ Thư mục RIR Link không tồn tại trên ổ đĩa:\n{rirLink}\nThư mục không được tạo.",
+                        "Thư mục không tồn tại", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Tên thư mục = RIR No (làm sạch ký tự không hợp lệ)
+                string safeName = string.Join("_", rirNo.Split(System.IO.Path.GetInvalidFileNameChars()));
+                string newFolderPath = System.IO.Path.Combine(rirLink, safeName);
+
+                if (System.IO.Directory.Exists(newFolderPath))
+                {
+                    MessageBox.Show(
+                        $"ℹ Thư mục đã tồn tại:\n{newFolderPath}",
+                        "Thư mục đã tồn tại", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                System.IO.Directory.CreateDirectory(newFolderPath);
+                MessageBox.Show(
+                    $"✅ Đã tạo thư mục thành công:\n{newFolderPath}",
+                    "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Refresh danh sách thư mục trong panel
+                LoadRIRFolders(rirLink);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi tạo thư mục: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

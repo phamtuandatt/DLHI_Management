@@ -216,6 +216,18 @@ namespace MPR_Managerment.Services
             cmd.ExecuteNonQuery();
         }
 
+        // Load summary cho 1 PO cụ thể — dùng sau khi cập nhật schedule
+        public POPaymentSummary GetPOSummary(int poId)
+        {
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand(
+                "SELECT * FROM vw_PO_Payment_Summary WHERE PO_ID = @id", conn);
+            cmd.Parameters.AddWithValue("@id", poId);
+            using var r = cmd.ExecuteReader();
+            return r.Read() ? MapSummary(r) : null;
+        }
+
         // =====================================================
         //  SUMMARY — Tổng hợp thanh toán PO
         // =====================================================
