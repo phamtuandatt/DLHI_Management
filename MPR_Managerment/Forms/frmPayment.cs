@@ -70,6 +70,24 @@ namespace MPR_Managerment.Forms
             this.Resize += (s, e) => ResizeAll();
         }
 
+        // Mở với filter sẵn theo PO No (gọi từ frmPO)
+        public frmPayment(string currentUser, string initPoNo = "") : this()
+        {
+            if (!string.IsNullOrEmpty(currentUser))
+                _currentUser = currentUser;
+            if (!string.IsNullOrEmpty(initPoNo))
+            {
+                txtSearchPO.Text = initPoNo;
+                FilterAndBind();
+                // Tự động chọn dòng đầu nếu tìm thấy đúng 1 PO
+                if (dgvPO.Rows.Count == 1)
+                {
+                    dgvPO.ClearSelection();
+                    dgvPO.Rows[0].Selected = true;
+                }
+            }
+        }
+
         // =====================================================================
         //  BUILD UI
         // =====================================================================
