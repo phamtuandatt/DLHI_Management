@@ -293,6 +293,7 @@ namespace MPR_Managerment.Forms
                 //Location = new Point(gbDetails.Width - 500, 20),
             };
             btnPaste.Click += (s, e) => PasteToEditableCells();
+            btnPaste.Visible = false;
 
             dgvImportQueue = new DataGridView()
             {

@@ -500,35 +500,8 @@ BEGIN
 	INNER JOIN Suppliers AS S ON P.Supplier_ID = S.Supplier_ID
 	WHERE P.PO_ID = @POID AND W.InvoiceNo IS NULL OR W.InvoiceNo < 0
 END
-
-<<<<<<< Updated upstream
-  --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
-
-=======
--- 165 - 172
->>>>>>> Stashed changes
--- GROUP ID_CODE TO SHOW QTY
-	--SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
-	--FROM Warehouse_Import
-	--WHERE Project_Code = '2508-DPCII'
-	--GROUP BY Item_Name, Material, Size, ID_Code
-
-SELECT *FROM Material_Detail WHERE material_detail_code = 77
-SELECT *FROM Warehouse_Import
-SELECT *FROM PO_head WHERE IS_Imported = 1 OR IS_Imported IS NULL ORDER BY Created_Date DESC
-
-UPDATE PO_head SET IS_Imported = 1, ImportedDate =  IMpor WHERE PO_ID = 351
-DELETE FROM Material_Detail WHERE material_detail_id = 700
-DELETE FROM Material_Detail WHERE material_detail_id = 701
-DELETE FROM Material_Detail WHERE material_detail_id = 702
-DELETE FROM Material_Detail WHERE material_detail_id = 703
-DELETE FROM Material_Detail WHERE material_detail_id = 704
-DELETE FROM Material_Detail WHERE material_detail_id = 705
-DELETE FROM Material_Detail WHERE material_detail_id = 706
-DELETE FROM Material_Detail WHERE material_detail_id = 707
-DELETE FROM Material_Detail WHERE material_detail_id = 708
-DELETE FROM Material_Detail WHERE material_detail_id = 709
 
 CREATE PROCEDURE [dbo].[sp_UpdatePOHead_MakeImport]
     @PONO INT,
@@ -564,19 +537,9 @@ BEGIN
     END CATCH
 END
 
-165
-166
-167
-168
-169
-170
-171
-172
-DELETE FROM Warehouse_Import WHERE Import_ID = 165
-DELETE FROM Warehouse_Import WHERE Import_ID = 166
-DELETE FROM Warehouse_Import WHERE Import_ID = 167
-DELETE FROM Warehouse_Import WHERE Import_ID = 168
-DELETE FROM Warehouse_Import WHERE Import_ID = 169
-DELETE FROM Warehouse_Import WHERE Import_ID = 170
-DELETE FROM Warehouse_Import WHERE Import_ID = 171
-DELETE FROM Warehouse_Import WHERE Import_ID = 172
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT W.ID_Code, W.Item_Name AS 'Name', M.material_detail_name AS 'Description', W.Size, SUM(W.Qty_import) AS [Qty (SUM)] FROM Warehouse_Import AS W LEFT JOIN Material_Detail AS M  ON LEFT(W.ID_Code, 9) = M.item_code_existed GROUP BY  W.ID_Code, W.Item_Name, M.material_detail_name, W.Size ORDER BY W.ID_Code; 
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
