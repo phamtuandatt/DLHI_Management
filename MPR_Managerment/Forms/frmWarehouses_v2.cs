@@ -268,30 +268,31 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 10, FontStyle.Bold)
             };
 
+            btnDeleteRow = new Button()
+            {
+                Text = "🗑 Xóa dòng chọn",
+                Location = new Point(gbDetails.Width - 150, 20),
+                Size = new Size(130, 35),
+                BackColor = Color.FromArgb(220, 53, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            };
+            btnDeleteRow.Click += BtnDeleteRow_Click;
+
             Button btnPaste = new Button()
             {
                 Text = " 📋 Dán từ Excel",
                 Size = new Size(130, 35),
+                Location = new Point(btnDeleteRow.Location.X - btnDeleteRow.Width + 20, btnDeleteRow.Location.Y), // Đặt bên cạnh nút "Thêm vào phiếu"
                 BackColor = Color.FromArgb(46, 204, 113), // Màu xanh lá nhẹ (Emerald)
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                //Location = new Point(btnDeleteRow.Location.X + btnDeleteRow.Width + 10, btnDeleteRow.Location.Y) // Đặt bên cạnh nút "Thêm vào phiếu"
-                Location = new Point(gbDetails.Width - 500, 20),
+                Cursor = Cursors.Hand
+                //Location = new Point(gbDetails.Width - 500, 20),
             };
             btnPaste.Click += (s, e) => PasteToEditableCells();
-
-            btnDeleteRow = new Button()
-            {
-                Text = "🗑 Xóa dòng chọn",
-                Location = new Point(gbDetails.Width - 125, 20),
-                Size = new Size(120, 30),
-                BackColor = Color.FromArgb(220, 53, 69),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnDeleteRow.Click += BtnDeleteRow_Click;
 
             dgvImportQueue = new DataGridView()
             {
