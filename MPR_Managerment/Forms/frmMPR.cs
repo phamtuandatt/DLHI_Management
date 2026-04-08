@@ -1007,50 +1007,294 @@ namespace MPR_Managerment.Forms
                 return;
             }
 
+            // ── Xác thực mật khẩu Admin trước khi lưu ──
+            if (!VerifyAdminPassword()) return;
+
             try
             {
                 int saved = 0;
-                foreach (DataGridViewRow row in dgvDetails.Rows)
+                using (var conn = DatabaseHelper.GetConnection())
                 {
-                    string itemName = row.Cells["Item_Name"].Value?.ToString() ?? "";
-                    if (string.IsNullOrWhiteSpace(itemName)) continue;
-
-                    var d = new MPRDetail
+                    conn.Open();
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
                     {
-                        Detail_ID = Convert.ToInt32(row.Cells["Detail_ID"].Value ?? 0),
-                        MPR_ID = _selectedMPR_ID,
-                        Item_No = Convert.ToInt32(row.Cells["Item_No"].Value ?? 0),
-                        Item_Name = itemName,
-                        Description = row.Cells["Description"].Value?.ToString() ?? "",
-                        Material = row.Cells["Material"].Value?.ToString() ?? "",
-                        Thickness_mm = DecimalVal(row.Cells["Thickness_mm"].Value),
-                        Depth_mm = DecimalVal(row.Cells["Depth_mm"].Value),
-                        C_Width_mm = DecimalVal(row.Cells["C_Width_mm"].Value),
-                        D_Web_mm = DecimalVal(row.Cells["D_Web_mm"].Value),
-                        E_Flange_mm = DecimalVal(row.Cells["E_Flange_mm"].Value),
-                        F_Length_mm = DecimalVal(row.Cells["F_Length_mm"].Value),
-                        UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
-                        Qty_Per_Sheet = (int)DecimalVal(row.Cells["Qty"].Value),
-                        Weight_kg = DecimalVal(row.Cells["Weight"].Value),
-                        MPS_Info = row.Cells["MPS_Info"].Value?.ToString() ?? "",
-                        Usage_Location = row.Cells["Usage_Location"].Value?.ToString() ?? "",
-                        REV = row.Cells["REV"].Value?.ToString() ?? "0",
-                        Remarks = row.Cells["Remarks"].Value?.ToString() ?? ""
-                    };
-                    if (d.Detail_ID == 0)
-                        _service.InsertDetail(d, _currentUser);
-                    else
-                        _service.UpdateDetail(d, _currentUser);
-                    saved++;
+                        if (row.IsNewRow) continue;
+                        string itemName = row.Cells["Item_Name"].Value?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(itemName)) continue;
+
+                        int detailId = Convert.ToInt32(row.Cells["Detail_ID"].Value ?? 0);
+                        int itemNo = Convert.ToInt32(row.Cells["Item_No"].Value ?? 0);
+                        string desc = row.Cells["Description"].Value?.ToString() ?? "";
+                        string material = row.Cells["Material"].Value?.ToString() ?? "";
+                        decimal thickMm = DecimalVal(row.Cells["Thickness_mm"].Value);
+                        decimal depthMm = DecimalVal(row.Cells["Depth_mm"].Value);
+                        decimal cWidthMm = DecimalVal(row.Cells["C_Width_mm"].Value);
+                        decimal dWebMm = DecimalVal(row.Cells["D_Web_mm"].Value);
+                        decimal eFlangeMm = DecimalVal(row.Cells["E_Flange_mm"].Value);
+                        decimal fLengthMm = DecimalVal(row.Cells["F_Length_mm"].Value);
+                        string unit = row.Cells["UNIT"].Value?.ToString() ?? "";
+                        int qty = (int)DecimalVal(row.Cells["Qty"].Value);
+                        decimal weight = DecimalVal(row.Cells["Weight"].Value);
+                        string mpsInfo = row.Cells["MPS_Info"].Value?.ToString() ?? "";
+                        string usageLoc = row.Cells["Usage_Location"].Value?.ToString() ?? "";
+                        string rev = row.Cells["REV"].Value?.ToString() ?? "0";
+                        string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
+                        string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+                        Microsoft.Data.SqlClient.SqlCommand cmd;
+
+                        if (detailId == 0)
+                        {
+                            // INSERT dòng mới
+                            cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                                INSERT INTO MPR_Details
+                                    (MPR_ID, Item_No, item_name, Description, Material,
+                                     Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm,
+                                     UNIT, Qty_Per_Sheet, Weight_kg, MPS_Info, Usage_Location, REV, Remarks,
+                                     Created_Date, Created_By, Modified_Date, Modified_By)
+                                VALUES
+                                    (@mprId, @itemNo, @itemName, @desc, @material,
+                                     @thick, @depth, @cWidth, @dWeb, @eFlange, @fLen,
+                                     @unit, @qty, @weight, @mps, @usage, @rev, @remarks,
+                                     @now, @user, @now, @user);
+                                SELECT SCOPE_IDENTITY();", conn);
+                        }
+                        else
+                        {
+                            // UPDATE dòng đã có
+                            cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                                UPDATE MPR_Details SET
+                                    Item_No       = @itemNo,
+                                    item_name     = @itemName,
+                                    Description   = @desc,
+                                    Material      = @material,
+                                    Thickness_mm  = @thick,
+                                    Depth_mm      = @depth,
+                                    C_Width_mm    = @cWidth,
+                                    D_Web_mm      = @dWeb,
+                                    E_Flange_mm   = @eFlange,
+                                    F_Length_mm   = @fLen,
+                                    UNIT          = @unit,
+                                    Qty_Per_Sheet = @qty,
+                                    Weight_kg     = @weight,
+                                    MPS_Info      = @mps,
+                                    Usage_Location= @usage,
+                                    REV           = @rev,
+                                    Remarks       = @remarks,
+                                    Modified_Date = @now,
+                                    Modified_By   = @user
+                                WHERE Detail_ID = @detailId", conn);
+                            cmd.Parameters.AddWithValue("@detailId", detailId);
+                        }
+
+                        cmd.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                        cmd.Parameters.AddWithValue("@itemNo", itemNo);
+                        cmd.Parameters.AddWithValue("@itemName", itemName);
+                        cmd.Parameters.AddWithValue("@desc", desc);
+                        cmd.Parameters.AddWithValue("@material", material);
+                        cmd.Parameters.AddWithValue("@thick", thickMm);
+                        cmd.Parameters.AddWithValue("@depth", depthMm);
+                        cmd.Parameters.AddWithValue("@cWidth", cWidthMm);
+                        cmd.Parameters.AddWithValue("@dWeb", dWebMm);
+                        cmd.Parameters.AddWithValue("@eFlange", eFlangeMm);
+                        cmd.Parameters.AddWithValue("@fLen", fLengthMm);
+                        cmd.Parameters.AddWithValue("@unit", unit);
+                        cmd.Parameters.AddWithValue("@qty", qty);
+                        cmd.Parameters.AddWithValue("@weight", weight);
+                        cmd.Parameters.AddWithValue("@mps", mpsInfo);
+                        cmd.Parameters.AddWithValue("@usage", usageLoc);
+                        cmd.Parameters.AddWithValue("@rev", rev);
+                        cmd.Parameters.AddWithValue("@remarks", remarks);
+                        cmd.Parameters.AddWithValue("@now", now);
+                        cmd.Parameters.AddWithValue("@user", _currentUser ?? "Admin");
+
+                        if (detailId == 0)
+                        {
+                            // Lấy ID vừa insert để cập nhật lại cell
+                            var newId = cmd.ExecuteScalar();
+                            if (newId != null && newId != DBNull.Value)
+                                row.Cells["Detail_ID"].Value = Convert.ToInt32(newId);
+                        }
+                        else
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        saved++;
+                    }
                 }
 
-                MessageBox.Show($"Đã lưu {saved} dòng chi tiết thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"✅ Đã lưu {saved} dòng chi tiết thành công!", "Thành công",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadDetails(_selectedMPR_ID);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        // =========================================================================
+        // XÁC THỰC MẬT KHẨU ADMIN
+        // =========================================================================
+        private bool VerifyAdminPassword()
+        {
+            // ── Tạo dialog nhập mật khẩu ──
+            var dlg = new Form
+            {
+                Text = "🔐 Xác thực Admin",
+                Size = new Size(380, 170),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(245, 245, 245),
+                KeyPreview = true
+            };
+
+            dlg.Controls.Add(new Label
+            {
+                Text = "Nhập mật khẩu tài khoản Admin để xác nhận lưu:",
+                Font = new Font("Segoe UI", 9),
+                Location = new Point(15, 15),
+                Size = new Size(340, 20)
+            });
+
+            var txtPwd = new TextBox
+            {
+                Location = new Point(15, 40),
+                Size = new Size(340, 26),
+                Font = new Font("Segoe UI", 10),
+                PasswordChar = '●',
+                UseSystemPasswordChar = false
+            };
+            dlg.Controls.Add(txtPwd);
+
+            var lblErr = new Label
+            {
+                Text = "",
+                ForeColor = Color.FromArgb(220, 53, 69),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Location = new Point(15, 72),
+                Size = new Size(340, 20)
+            };
+            dlg.Controls.Add(lblErr);
+
+            var btnOK = new Button
+            {
+                Text = "✔ Xác nhận",
+                Location = new Point(155, 98),
+                Size = new Size(100, 30),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnOK.FlatAppearance.BorderSize = 0;
+            dlg.Controls.Add(btnOK);
+
+            var btnCancel = new Button
+            {
+                Text = "Hủy",
+                Location = new Point(265, 98),
+                Size = new Size(90, 30),
+                BackColor = Color.FromArgb(108, 117, 125),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                DialogResult = DialogResult.Cancel
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            dlg.Controls.Add(btnCancel);
+            dlg.CancelButton = btnCancel;
+
+            bool verified = false;
+
+            btnOK.Click += (s, ev) =>
+            {
+                string pwd = txtPwd.Text;
+                if (string.IsNullOrEmpty(pwd))
+                { lblErr.Text = "Vui lòng nhập mật khẩu!"; return; }
+
+                // Kiểm tra mật khẩu Admin — so sánh hash SHA-256
+                try
+                {
+                    // Hash SHA-256 của mật khẩu nhập vào
+                    string inputHash;
+                    using (var sha256 = System.Security.Cryptography.SHA256.Create())
+                    {
+                        byte[] bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(pwd));
+                        inputHash = BitConverter.ToString(bytes).Replace("-", "").ToLower();
+                    }
+
+                    // Hash đã biết của tài khoản admin
+                    const string ADMIN_HASH = "e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7";
+
+                    bool match = false;
+
+                    // Cách 1: So sánh hash trực tiếp với hash đã biết
+                    if (inputHash == ADMIN_HASH)
+                    {
+                        match = true;
+                    }
+                    else
+                    {
+                        // Cách 2: So sánh với DB (phòng trường hợp password thay đổi)
+                        using var conn = DatabaseHelper.GetConnection();
+                        conn.Open();
+
+                        // Thử so sánh hash
+                        var cmd1 = new Microsoft.Data.SqlClient.SqlCommand(
+                            @"SELECT COUNT(1) FROM Users
+                              WHERE LOWER(Username) = 'admin'
+                                AND (LOWER(Password) = @hash
+                                  OR Password = @hashUpper)", conn);
+                        cmd1.Parameters.AddWithValue("@hash", inputHash);
+                        cmd1.Parameters.AddWithValue("@hashUpper", inputHash.ToUpper());
+                        if (Convert.ToInt32(cmd1.ExecuteScalar()) > 0)
+                            match = true;
+
+                        // Thử so sánh plaintext (phòng trường hợp DB lưu thường)
+                        if (!match)
+                        {
+                            var cmd2 = new Microsoft.Data.SqlClient.SqlCommand(
+                                @"SELECT COUNT(1) FROM Users
+                                  WHERE LOWER(Username) = 'admin'
+                                    AND Password = @pwd", conn);
+                            cmd2.Parameters.AddWithValue("@pwd", pwd);
+                            if (Convert.ToInt32(cmd2.ExecuteScalar()) > 0)
+                                match = true;
+                        }
+                    }
+
+                    if (match)
+                    {
+                        verified = true;
+                        dlg.DialogResult = DialogResult.OK;
+                        dlg.Close();
+                    }
+                    else
+                    {
+                        lblErr.Text = "❌ Mật khẩu không đúng!";
+                        txtPwd.Clear();
+                        txtPwd.Focus();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lblErr.Text = "Lỗi xác thực: " + ex.Message;
+                }
+            };
+
+            dlg.KeyDown += (s, ev) =>
+            {
+                if (ev.KeyCode == Keys.Enter) { btnOK.PerformClick(); ev.SuppressKeyPress = true; }
+            };
+
+            txtPwd.Focus();
+            dlg.ShowDialog(this);
+            return verified;
         }
 
         // =========================================================================
@@ -1121,7 +1365,7 @@ namespace MPR_Managerment.Forms
                 // ── TIÊU ĐỀ ──
                 popup.Controls.Add(new Label
                 {
-                    Text = "🔎  CHECK ALL ITEMS — Tổng hợp vật tư tất cả MPR & kết quả kiểm tra RIR",
+                    Text = "🔎  CHECK ALL ITEMS — Tổng hợp vật tư tất cả MPR & kết quả kiểm tra RIR  |  💡 Double click → mở MPR",
                     Font = new Font("Segoe UI", 10, FontStyle.Bold),
                     ForeColor = Color.FromArgb(102, 51, 153),
                     Location = new Point(10, 8),
@@ -1437,6 +1681,31 @@ namespace MPR_Managerment.Forms
                 cboDuAn.SelectedIndexChanged += (s, ev) => applyFilter();
                 cboDuAn.SelectedIndexChanged += (s, ev) => applyFilter();
                 cboFKQ.SelectedIndexChanged += (s, ev) => applyFilter();
+
+                // ── Double click dòng → điều hướng về MPR tương ứng trong frmMPR ──
+                dgv.CellDoubleClick += (s, ev) =>
+                {
+                    if (ev.RowIndex < 0) return;
+                    string mprNo = dgv.Rows[ev.RowIndex].Cells["MPR No"].Value?.ToString() ?? "";
+                    if (string.IsNullOrEmpty(mprNo)) return;
+
+                    // Tìm MPR_ID từ _mprList theo MPR No
+                    var target = _mprList.Find(m => m.MPR_No == mprNo);
+                    if (target == null)
+                    {
+                        MessageBox.Show($"Không tìm thấy MPR: {mprNo}", "Thông báo",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    // Đóng popup và điều hướng về MPR
+                    popup.Close();
+                    SelectMPRById(target.MPR_ID);
+                };
+
+                // Tooltip hướng dẫn double click
+                var ttip = new ToolTip();
+                ttip.SetToolTip(dgv, "Double click vào dòng để mở MPR tương ứng");
 
                 // Enter → lọc (dùng KeyPreview ở cấp Form, không dùng AcceptButton=btnClose)
                 popup.KeyDown += (s, ev) =>

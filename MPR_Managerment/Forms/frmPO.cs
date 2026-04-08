@@ -156,8 +156,9 @@ namespace MPR_Managerment.Forms
             panelTop.Controls.Add(dgvPO);
 
             // Button Payment — mở frmPayment với filter theo PO đang chọn
-            var btnPayment = CreateButton("💳 Payment", Color.FromArgb(0, 150, 100), new Point(850, 47), 110, 30);
+            var btnPayment = CreateButton("💳 Payment", Color.FromArgb(0, 150, 100), new Point(850, 48), 110, 30);
             btnPayment.Click += (s, ev) =>
+
             {
                 string poNo = "";
                 if (dgvPO.SelectedRows.Count > 0)
@@ -166,10 +167,7 @@ namespace MPR_Managerment.Forms
                 var frm = new frmPayment(_currentUser, poNo);
                 frm.Show();
             };
-
             panelTop.Controls.Add(btnPayment);
-
-            // 🔥 ĐẢM BẢO NẰM TRÊN LABEL
             btnPayment.BringToFront();
 
             // ===== PANEL HEADER =====
@@ -454,7 +452,7 @@ namespace MPR_Managerment.Forms
                 TextAlign = System.Drawing.ContentAlignment.MiddleRight,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            lblTotal.Location = new Point(panelDetail.Width - 270 - 10, 45);
+            lblTotal.Location = new Point(panelDetail.Width - 500 - 10, 45);
             panelDetail.Controls.Add(lblTotal);
 
             dgvDetails = new DataGridView
@@ -1092,12 +1090,16 @@ namespace MPR_Managerment.Forms
         }
 
         // =========================================================================
-        // BIND PO GRID — sắp xếp A-Z theo PO No
+        // BIND PO GRID — sắp xếp theo Ngày tạo mới nhất
         // =========================================================================
         private void BindPOGrid(List<POHead> list)
         {
             var suppliers = new SupplierService().GetAll();
-            var sorted = list.OrderBy(h => h.PONo, StringComparer.OrdinalIgnoreCase).ToList();
+            // Sắp xếp theo Created_Date giảm dần (mới nhất lên đầu)
+            var sorted = list
+                .OrderByDescending(h => h.Created_Date ?? DateTime.MinValue)
+                .ThenBy(h => h.PONo, StringComparer.OrdinalIgnoreCase)
+                .ToList();
             dgvPO.DataSource = sorted.ConvertAll(h =>
             {
                 var supplier = suppliers.Find(s => s.Supplier_ID == h.Supplier_ID);
@@ -2620,6 +2622,7 @@ namespace MPR_Managerment.Forms
                 var lblStat = new Label
                 {
                     Text = "",
+
                     Font = new Font("Segoe UI", 9, FontStyle.Bold),
                     ForeColor = Color.FromArgb(0, 120, 212),
                     Location = new Point(10, 108),
@@ -2649,6 +2652,16 @@ namespace MPR_Managerment.Forms
                 dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
                 popup.Controls.Add(dgv);
+
+                // Sau khi DataSource được set lần đầu → chỉnh width cột PO No
+                dgv.DataBindingComplete += (s, ev) =>
+                {
+                    if (dgv.Columns.Contains("PO No"))
+                    {
+                        dgv.Columns["PO No"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                        dgv.Columns["PO No"].Width = 150;
+                    }
+                };
 
                 // ── CellFormatting ──
                 dgv.CellFormatting += (s, ev) =>
@@ -2753,6 +2766,96 @@ namespace MPR_Managerment.Forms
 
                 cboDuAn.SelectedIndexChanged += (s, ev) => applyFilter();
 
+                // ── NÚT XUẤT EXCEL ──
+                var btnExport = new Button
+                {
+                    Text = "📥 Xuất Excel",
+                    Size = new Size(120, 30),
+                    BackColor = Color.FromArgb(0, 150, 100),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+                    Location = new Point(10, popup.ClientSize.Height - 40)
+                };
+                btnExport.FlatAppearance.BorderSize = 0;
+                btnExport.Click += (s, ev) =>
+                {
+                    if (dgv.Rows.Count == 0)
+                    { MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+                    using var sfd = new SaveFileDialog
+                    {
+                        Title = "Xuất Check by Size",
+                        Filter = "Excel Files|*.xlsx",
+                        FileName = $"CheckBySize_{DateTime.Now:yyyyMMdd_HHmm}",
+                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                    };
+                    if (sfd.ShowDialog() != DialogResult.OK) return;
+                    try
+                    {
+                        OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                        using var pkg = new OfficeOpenXml.ExcelPackage();
+                        var ws = pkg.Workbook.Worksheets.Add("Check by Size");
+
+                        // Header
+                        int colCount = dgv.Columns.Count;
+                        for (int c = 0; c < colCount; c++)
+                        {
+                            ws.Cells[1, c + 1].Value = dgv.Columns[c].HeaderText;
+                            ws.Cells[1, c + 1].Style.Font.Bold = true;
+                            ws.Cells[1, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            ws.Cells[1, c + 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
+                            ws.Cells[1, c + 1].Style.Font.Color.SetColor(Color.White);
+                            ws.Cells[1, c + 1].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                            ws.Cells[1, c + 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        }
+
+                        // Data — lấy từ DataTable hiện tại của dgv
+                        var dtExport = dgv.DataSource as DataTable;
+                        if (dtExport != null)
+                        {
+                            for (int r = 0; r < dtExport.Rows.Count; r++)
+                            {
+                                for (int c = 0; c < dtExport.Columns.Count; c++)
+                                {
+                                    var val = dtExport.Rows[r][c];
+                                    ws.Cells[r + 2, c + 1].Value = val != DBNull.Value ? val : null;
+                                }
+                                // Tô màu xen kẽ
+                                if (r % 2 == 1)
+                                    for (int c = 0; c < dtExport.Columns.Count; c++)
+                                    {
+                                        ws.Cells[r + 2, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                        ws.Cells[r + 2, c + 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(248, 240, 255));
+                                    }
+                            }
+                        }
+
+                        // Border và AutoFit
+                        if (ws.Dimension != null)
+                        {
+                            ws.Cells[ws.Dimension.Address].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            ws.Cells[ws.Dimension.Address].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            ws.Cells[ws.Dimension.Address].Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            ws.Cells[ws.Dimension.Address].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                        }
+                        ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                        ws.View.FreezePanes(2, 1);
+
+                        pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
+                        MessageBox.Show($"✅ Đã xuất {dgv.Rows.Count} dòng thành công!", "Thành công",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        { FileName = sfd.FileName, UseShellExecute = true });
+                    }
+                    catch (Exception ex2)
+                    {
+                        MessageBox.Show("Lỗi xuất Excel: " + ex2.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+                popup.Controls.Add(btnExport);
+
                 // ── NÚT ĐÓNG ──
                 var btnClose = new Button
                 {
@@ -2768,14 +2871,16 @@ namespace MPR_Managerment.Forms
                 btnClose.FlatAppearance.BorderSize = 0;
                 btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
                 popup.Controls.Add(btnClose);
-                popup.AcceptButton = btnFilter;   // Enter → Tìm kiếm
-                popup.CancelButton = btnClose;    // Escape → Đóng
+                popup.AcceptButton = btnFilter;
+                popup.CancelButton = btnClose;
 
                 // Resize handler
                 popup.Resize += (s, ev) =>
                 {
                     btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
+                    btnExport.Location = new Point(10, popup.ClientSize.Height - 40);
                     panelFilter.Width = popup.ClientSize.Width - 20;
+                    dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 180);
                 };
 
                 popup.ShowDialog(this);

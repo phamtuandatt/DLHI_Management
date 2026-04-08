@@ -609,7 +609,8 @@ namespace MPR_Managerment.Forms
         }
 
         // =====================================================================
-        // ĐÃ CẬP NHẬT: Bỏ cột Workorder, thêm cột RIR No theo PO
+        // LoadPOForMPR — dùng join qua MPR_Detail_ID (không phụ thuộc PO_head.MPR_No)
+        // Hỗ trợ 1 MPR có nhiều PO: hiển thị từng PO riêng với đầy đủ thông tin
         // =====================================================================
         private void LoadPOForMPR(string mprNo)
         {
@@ -618,23 +619,34 @@ namespace MPR_Managerment.Forms
             {
                 string sql = @"
                     SELECT
-                        h.PO_ID,
-                        h.PONo                                              AS [PO No],
-                        h.Project_Name                                      AS [Dự án],
-                        CONVERT(NVARCHAR(10), h.PO_Date, 103)               AS [Ngày PO],
-                        h.Status                                            AS [Trạng thái],
-                        FORMAT(h.Total_Amount, 'N0')                        AS [Tổng tiền],
+                        po.PO_ID,
+                        po.PONo                                             AS [PO No],
+                        po.Project_Name                                     AS [Dự án],
+                        CONVERT(NVARCHAR(10), po.PO_Date, 103)              AS [Ngày PO],
+                        po.Status                                           AS [Trạng thái],
+                        FORMAT(po.Total_Amount, 'N0')                       AS [Tổng tiền],
+                        (SELECT COUNT(DISTINCT pod2.PO_Detail_ID)
+                         FROM PO_Detail pod2 WHERE pod2.PO_ID = po.PO_ID)   AS [Số dòng vật tư],
                         ISNULL(
                             STUFF((
-                                SELECT N', ' + r.RIR_No
+                                SELECT DISTINCT ', ' + r.RIR_No
                                 FROM RIR_head r
-                                WHERE r.PONo = h.PONo
+                                WHERE r.PONo = po.PONo
                                 FOR XML PATH(''), TYPE
-                            ).value('.', 'NVARCHAR(MAX)'), 1, 2, N''),
-                        N'')                                                AS [RIR No]
-                    FROM PO_head h
-                    WHERE h.MPR_No = @mprNo
-                    ORDER BY h.PO_Date DESC";
+                            ).value('.', 'NVARCHAR(MAX)'), 1, 2, ''),
+                        'Chưa có RIR')                                      AS [Số RIR],
+                        po.PO_Date                                          AS _SortDate
+                    FROM PO_head po
+                    INNER JOIN MPR_Header mh ON mh.MPR_No = @mprNo
+                    WHERE
+                        po.MPR_No = @mprNo
+                        OR po.PO_ID IN (
+                            SELECT DISTINCT pod.PO_ID
+                            FROM PO_Detail pod
+                            INNER JOIN MPR_Details md ON md.Detail_ID = pod.MPR_Detail_ID
+                            WHERE md.MPR_ID = mh.MPR_ID
+                        )
+                    ORDER BY po.PO_Date DESC";
 
                 using (var conn = DatabaseHelper.GetConnection())
                 {
@@ -646,11 +658,37 @@ namespace MPR_Managerment.Forms
                     dgvMPRPO.DataSource = dt;
                     if (dgvMPRPO.Columns.Contains("PO_ID"))
                         dgvMPRPO.Columns["PO_ID"].Visible = false;
+                    if (dgvMPRPO.Columns.Contains("_SortDate"))
+                        dgvMPRPO.Columns["_SortDate"].Visible = false;
+
+                    // Format màu cột RIR
+                    if (!dgvMPRPO.Columns.Contains("Số RIR")) return;
+                    int rirColIdx = dgvMPRPO.Columns["Số RIR"].Index;
+                    foreach (DataGridViewRow row in dgvMPRPO.Rows)
+                    {
+                        string rirVal = row.Cells["Số RIR"].Value?.ToString() ?? "";
+                        if (rirVal == "Chưa có RIR")
+                        {
+                            row.Cells["Số RIR"].Style.ForeColor = Color.FromArgb(220, 53, 69);
+                            row.Cells["Số RIR"].Style.Font = new Font("Segoe UI", 9, FontStyle.Italic);
+                        }
+                        else if (!string.IsNullOrEmpty(rirVal))
+                        {
+                            row.Cells["Số RIR"].Style.ForeColor = Color.FromArgb(40, 167, 69);
+                            row.Cells["Số RIR"].Style.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                        }
+                    }
+
+                    // Cập nhật tiêu đề với số PO tìm được
+                    if (lblMPRPOTitle != null)
+                        lblMPRPOTitle.Text = $"📋  PO của MPR: {mprNo}  —  Tìm thấy {dt.Rows.Count} PO  —  double click để mở";
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("LoadPOForMPR: " + ex.Message);
+                MessageBox.Show("Lỗi tải danh sách PO:\n" + ex.Message, "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -981,7 +1019,6 @@ namespace MPR_Managerment.Forms
                 if (filter != "Tất cả")
                     where += $" AND h.Status = N'{filter}'";
 
-                // ĐÃ XÓA: [Người YC], [Số PO]
                 string sql = $@"
                     SELECT
                         h.MPR_ID,
@@ -992,19 +1029,25 @@ namespace MPR_Managerment.Forms
                         h.Rev                              AS [Rev],
                         COUNT(DISTINCT d.Detail_ID)        AS [Tổng items],
                         CASE
-                            WHEN COUNT(DISTINCT po.PO_ID) > 0 THEN N'✅ ' + CAST(COUNT(DISTINCT po.PO_ID) AS NVARCHAR(10)) + N' PO'
+                            WHEN COUNT(DISTINCT po.PO_ID) > 0
+                            THEN N'✅ ' + CAST(COUNT(DISTINCT po.PO_ID) AS NVARCHAR(10)) + N' PO'
                             ELSE N'❌ Chưa có PO'
                         END                                AS [Tình trạng PO],
                         CASE
                             WHEN COUNT(DISTINCT d.Detail_ID) = 0 THEN 0
-                            ELSE CAST(COUNT(DISTINCT pod.PO_Detail_ID) * 100.0 / COUNT(DISTINCT d.Detail_ID) AS DECIMAL(5,1))
+                            ELSE CAST(
+                                COUNT(DISTINCT pod.PO_Detail_ID) * 100.0
+                                / COUNT(DISTINCT d.Detail_ID)
+                                AS DECIMAL(5,1))
                         END                                AS [% Item đặt hàng],
                         DATEDIFF(DAY, h.Created_Date, MIN(po.Created_Date)) AS [Ngày đến PO],
                         h.Created_Date                     AS [Ngày tạo]
                     FROM MPR_Header h
-                    LEFT JOIN MPR_Details d   ON h.MPR_ID = d.MPR_ID
-                    LEFT JOIN PO_head po      ON po.MPR_No = h.MPR_No
-                    LEFT JOIN PO_Detail pod   ON pod.PO_ID = po.PO_ID AND pod.MPR_Detail_ID = d.Detail_ID
+                    LEFT JOIN MPR_Details d   ON d.MPR_ID = h.MPR_ID
+                    LEFT JOIN PO_Detail   pod ON pod.MPR_Detail_ID = d.Detail_ID
+                    -- Lấy PO qua 2 cách: qua MPR_Detail_ID HOẶC qua PO_head.MPR_No trực tiếp
+                    LEFT JOIN PO_head     po  ON po.PO_ID = pod.PO_ID
+                                              OR po.MPR_No = h.MPR_No
                     {where}
                     GROUP BY h.MPR_ID, h.MPR_No, h.Project_Name,
                              h.Required_Date, h.Status, h.Rev, h.Created_Date
@@ -1176,7 +1219,7 @@ namespace MPR_Managerment.Forms
                 var ws = pkg.Workbook.Worksheets.Add("Chi tiết MPR");
 
                 // ── Tiêu đề file ──
-                int TOTAL_COLS = 16; // tổng số cột
+                int TOTAL_COLS = 16; // sẽ cập nhật theo hdrs
                 ws.Cells[1, 1].Value = "BÁO CÁO CHI TIẾT ĐẶT HÀNG MPR";
                 ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
                 ws.Cells[1, 1].Style.Font.Size = 14;
@@ -1185,51 +1228,64 @@ namespace MPR_Managerment.Forms
                 ws.Cells[2, 1].Value = $"Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
                 ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
 
-                // ── Lấy danh sách MPR No đang HIỂN THỊ trong bảng (theo filter hiện tại) ──
+                // ── Lấy danh sách MPR No đang HIỂN THỊ ──
                 var mprNos = new System.Collections.Generic.List<string>();
                 foreach (DataGridViewRow row in dgvMPR.Rows)
                 {
-                    if (row.IsNewRow || !row.Visible) continue;  // chỉ lấy dòng đang visible
+                    if (row.IsNewRow || !row.Visible) continue;
                     string mno = row.Cells["MPR No"].Value?.ToString();
                     if (!string.IsNullOrEmpty(mno)) mprNos.Add(mno);
                 }
                 if (mprNos.Count == 0) { MessageBox.Show("Không có MPR nào!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
-                // ── Query toàn bộ detail MPR + PO tương ứng ──
                 string inClause = string.Join(",", mprNos.Select(m => $"N'{m.Replace("'", "''")}'"));
-                string sql = $@"
+
+                // ── Query: mỗi hạng mục MPR = 1 dòng, đầy đủ tất cả cột MPR_Details ──
+                string sql = @"
                     SELECT
                         h.MPR_No,
                         h.Project_Name,
-                        h.Status                                     AS MPR_Status,
-                        CONVERT(NVARCHAR(10), h.Required_Date, 103)  AS Required_Date,
+                        h.Status                                    AS MPR_Status,
+                        CONVERT(NVARCHAR(10), h.Required_Date, 103) AS Required_Date,
+                        ISNULL(h.Notes, '')                         AS MPR_Notes,
                         d.Item_No,
-                        d.item_name                                  AS Item_Name,
-                        d.Material,
-                        d.Thickness_mm,
-                        d.C_Width_mm,
-                        d.F_Length_mm,
-                        d.UNIT,
-                        d.Qty_Per_Sheet,
-                        d.Weight_kg,
-                        d.Usage_Location,
-                        d.MPS_Info,
-                        d.Remarks                                    AS Detail_Remarks,
-                        po.PONo,
-                        CONVERT(NVARCHAR(10), po.PO_Date, 103)       AS PO_Date,
-                        po.Status                                    AS PO_Status,
-                        po.Total_Amount,
-                        STUFF((
-                            SELECT N', ' + r.RIR_No
+                        ISNULL(d.item_name,     '')  AS Item_Name,
+                        ISNULL(d.Description,   '')  AS Description,
+                        ISNULL(d.Material,      '')  AS Material,
+                        ISNULL(CAST(NULLIF(d.Thickness_mm,0) AS NVARCHAR),'') AS A_Day,
+                        ISNULL(CAST(NULLIF(d.Depth_mm,    0) AS NVARCHAR),'') AS B_Sau,
+                        ISNULL(CAST(NULLIF(d.C_Width_mm,  0) AS NVARCHAR),'') AS C_Rong,
+                        ISNULL(CAST(NULLIF(d.D_Web_mm,    0) AS NVARCHAR),'') AS D_Bung,
+                        ISNULL(CAST(NULLIF(d.E_Flange_mm, 0) AS NVARCHAR),'') AS E_Canh,
+                        ISNULL(CAST(NULLIF(d.F_Length_mm, 0) AS NVARCHAR),'') AS F_Dai,
+                        ISNULL(d.UNIT,          '')  AS UNIT,
+                        ISNULL(d.Qty_Per_Sheet, 0)   AS SL,
+                        ISNULL(d.Weight_kg,     0)   AS KG,
+                        ISNULL(d.MPS_Info,     '')   AS MPS_Info,
+                        ISNULL(d.Usage_Location,'')  AS Usage_Location,
+                        ISNULL(d.REV,          '0')  AS REV,
+                        ISNULL(d.Remarks,      '')   AS Detail_Remarks,
+                        ISNULL(STUFF((
+                            SELECT DISTINCT ', ' + pox.PONo
+                            FROM PO_Detail podx
+                            INNER JOIN PO_head pox ON pox.PO_ID = podx.PO_ID
+                            WHERE podx.MPR_Detail_ID = d.Detail_ID
+                            FOR XML PATH(''), TYPE
+                        ).value('.','NVARCHAR(MAX)'), 1, 2, ''), '') AS PO_List,
+                        ISNULL(STUFF((
+                            SELECT DISTINCT ', ' + r.RIR_No
                             FROM RIR_head r
-                            WHERE r.PONo = po.PONo
-                            FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, N'')
-                                                                     AS RIR_Nos
-                    FROM MPR_Header h
-                    INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID
-                    LEFT JOIN  PO_Detail  pod ON pod.MPR_Detail_ID = d.Detail_ID
-                    LEFT JOIN  PO_head    po  ON po.PO_ID = pod.PO_ID
-                    WHERE h.MPR_No IN ({inClause})
+                            WHERE r.PONo IN (
+                                SELECT pox2.PONo
+                                FROM PO_Detail podx2
+                                INNER JOIN PO_head pox2 ON pox2.PO_ID = podx2.PO_ID
+                                WHERE podx2.MPR_Detail_ID = d.Detail_ID
+                            )
+                            FOR XML PATH(''), TYPE
+                        ).value('.','NVARCHAR(MAX)'), 1, 2, ''), '') AS RIR_List
+                    FROM MPR_Header  h
+                    INNER JOIN MPR_Details d ON d.MPR_ID = h.MPR_ID
+                    WHERE h.MPR_No IN (" + inClause + @")
                     ORDER BY h.MPR_No, d.Item_No";
 
                 DataTable dt;
@@ -1240,102 +1296,147 @@ namespace MPR_Managerment.Forms
                     dt.Load(new SqlCommand(sql, conn).ExecuteReader());
                 }
 
-                // ── Ghi Excel — gộp tất cả MPR vào 1 sheet ──
-                // Header cột (dòng 4)
+                // ── Header cột — khớp đúng với SQL ──
+                // Cột 1-5  : thông tin MPR header
+                // Cột 6-22 : chi tiết hạng mục MPR_Details đầy đủ
+                // Cột 23-24: PO và RIR
                 string[] hdrs = {
-                    "MPR No", "Dự án", "TT MPR", "Ngày cần",
-                    "STT", "Tên vật tư", "Vật liệu", "Dày(mm)", "Rộng(mm)", "Dài(mm)",
-                    "ĐVT", "SL", "KG", "Nơi dùng", "MPS Info", "Ghi chú",
-                    "PO No", "Ngày PO", "TT PO", "Tổng tiền PO", "Số RIR"
+                    // MPR header (5 cột)
+                    "MPR No", "Dự án", "TT MPR", "Ngày cần", "Ghi chú MPR",
+                    // Chi tiết hạng mục MPR_Details (17 cột)
+                    "STT", "Tên vật tư", "Mô tả", "Vật liệu",
+                    "A-Dày(mm)", "B-Sâu(mm)", "C-Rộng(mm)", "D-Bụng(mm)", "E-Cánh(mm)", "F-Dài(mm)",
+                    "ĐVT", "Số lượng", "KG",
+                    "MPS Info", "Nơi dùng", "REV", "Ghi chú",
+                    // PO và RIR (2 cột)
+                    "Số PO", "Số RIR"
                 };
-                TOTAL_COLS = hdrs.Length;
-                // Re-merge tiêu đề đúng số cột
+                TOTAL_COLS = hdrs.Length; // = 24
+
+                // Cập nhật merge tiêu đề
                 ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
                 ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
 
-                for (int col = 0; col < hdrs.Length; col++)
+                // Ghi header (dòng 4)
+                for (int c = 0; c < hdrs.Length; c++)
                 {
-                    var cell = ws.Cells[4, col + 1];
-                    cell.Value = hdrs[col];
-                    cell.Style.Font.Bold = true;
-                    cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                    cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212));
-                    cell.Style.Font.Color.SetColor(Color.White);
-                    cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
-                }
+                    var hCell = ws.Cells[4, c + 1];
+                    hCell.Value = hdrs[c];
+                    hCell.Style.Font.Bold = true;
+                    hCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    hCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    hCell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                    hCell.Style.WrapText = true;
+                    hCell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
 
+                    // Màu header: MPR=xanh đậm (1-5), chi tiết=xanh dương (6-22), PO/RIR=tím (23-24)
+                    Color hColor = c < 5 ? Color.FromArgb(0, 70, 127) :
+                                   c < 22 ? Color.FromArgb(0, 120, 212) :
+                                            Color.FromArgb(102, 51, 153);
+                    hCell.Style.Fill.BackgroundColor.SetColor(hColor);
+                    hCell.Style.Font.Color.SetColor(Color.White);
+                }
+                ws.Row(4).Height = 30;
+
+                // ── Ghi dữ liệu ──
                 int rowIdx = 5;
                 string lastMprNo = "";
-                Color[] rowColors = { Color.White, Color.FromArgb(240, 248, 255) };
                 int colorToggle = 0;
 
                 foreach (DataRow dr in dt.Rows)
                 {
                     string mprNo = dr["MPR_No"]?.ToString() ?? "";
 
-                    // Khi đổi sang MPR mới → thêm dòng phân cách tiêu đề nhóm
+                    // Dòng tiêu đề nhóm khi đổi MPR
                     if (mprNo != lastMprNo)
                     {
-                        if (lastMprNo != "") rowIdx++; // dòng trống ngăn cách giữa các MPR
+                        if (lastMprNo != "") rowIdx++; // dòng trống ngăn cách
 
-                        // Dòng tiêu đề nhóm MPR (màu cam)
                         ws.Cells[rowIdx, 1, rowIdx, TOTAL_COLS].Merge = true;
-                        ws.Cells[rowIdx, 1].Value = $"  MPR: {mprNo}  |  Dự án: {dr["Project_Name"]}  |  Ngày cần: {dr["Required_Date"]}  |  Trạng thái: {dr["MPR_Status"]}";
+                        ws.Cells[rowIdx, 1].Value =
+                            $"  📋  MPR: {mprNo}  |  Dự án: {dr["Project_Name"]}  " +
+                            $"|  Ngày cần: {dr["Required_Date"]}  |  Trạng thái: {dr["MPR_Status"]}";
                         ws.Cells[rowIdx, 1].Style.Font.Bold = true;
+                        ws.Cells[rowIdx, 1].Style.Font.Size = 10;
                         ws.Cells[rowIdx, 1].Style.Fill.PatternType = ExcelFillStyle.Solid;
                         ws.Cells[rowIdx, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 140, 0));
                         ws.Cells[rowIdx, 1].Style.Font.Color.SetColor(Color.White);
-                        ws.Row(rowIdx).Height = 18;
+                        ws.Row(rowIdx).Height = 20;
                         rowIdx++;
                         lastMprNo = mprNo;
                         colorToggle = 0;
                     }
 
-                    // Dòng chi tiết vật tư
+                    // Màu nền xen kẽ
                     var bg = colorToggle % 2 == 0 ? Color.White : Color.FromArgb(240, 248, 255);
+
+                    // ── Cột 1-5: thông tin MPR ──
                     ws.Cells[rowIdx, 1].Value = dr["MPR_No"]?.ToString();
                     ws.Cells[rowIdx, 2].Value = dr["Project_Name"]?.ToString();
                     ws.Cells[rowIdx, 3].Value = dr["MPR_Status"]?.ToString();
                     ws.Cells[rowIdx, 4].Value = dr["Required_Date"]?.ToString();
-                    ws.Cells[rowIdx, 5].Value = dr["Item_No"] != DBNull.Value ? Convert.ToInt32(dr["Item_No"]) : (object)"";
-                    ws.Cells[rowIdx, 6].Value = dr["Item_Name"]?.ToString();
-                    ws.Cells[rowIdx, 7].Value = dr["Material"]?.ToString();
-                    ws.Cells[rowIdx, 8].Value = dr["Thickness_mm"] != DBNull.Value ? Convert.ToDecimal(dr["Thickness_mm"]) : (object)"";
-                    ws.Cells[rowIdx, 9].Value = dr["C_Width_mm"] != DBNull.Value ? Convert.ToDecimal(dr["C_Width_mm"]) : (object)"";
-                    ws.Cells[rowIdx, 10].Value = dr["F_Length_mm"] != DBNull.Value ? Convert.ToDecimal(dr["F_Length_mm"]) : (object)"";
-                    ws.Cells[rowIdx, 11].Value = dr["UNIT"]?.ToString();
-                    ws.Cells[rowIdx, 12].Value = dr["Qty_Per_Sheet"] != DBNull.Value ? Convert.ToDecimal(dr["Qty_Per_Sheet"]) : (object)"";
-                    ws.Cells[rowIdx, 13].Value = dr["Weight_kg"] != DBNull.Value ? Convert.ToDecimal(dr["Weight_kg"]) : (object)"";
-                    ws.Cells[rowIdx, 14].Value = dr["Usage_Location"]?.ToString();
-                    ws.Cells[rowIdx, 15].Value = dr["MPS_Info"]?.ToString();
-                    ws.Cells[rowIdx, 16].Value = dr["Detail_Remarks"]?.ToString();
-                    ws.Cells[rowIdx, 17].Value = dr["PONo"]?.ToString();
-                    ws.Cells[rowIdx, 18].Value = dr["PO_Date"]?.ToString();
-                    ws.Cells[rowIdx, 19].Value = dr["PO_Status"]?.ToString();
-                    if (dr["Total_Amount"] != DBNull.Value)
+                    ws.Cells[rowIdx, 5].Value = dr["MPR_Notes"]?.ToString();
+
+                    // ── Cột 6-22: chi tiết hạng mục MPR_Details ──
+                    ws.Cells[rowIdx, 6].Value = dr["Item_No"] != DBNull.Value ? Convert.ToInt32(dr["Item_No"]) : (object)"";
+                    ws.Cells[rowIdx, 7].Value = dr["Item_Name"]?.ToString();      // Tên vật tư
+                    ws.Cells[rowIdx, 8].Value = dr["Description"]?.ToString();    // Mô tả
+                    ws.Cells[rowIdx, 9].Value = dr["Material"]?.ToString();       // Vật liệu
+                    ws.Cells[rowIdx, 10].Value = dr["A_Day"]?.ToString();          // A-Dày
+                    ws.Cells[rowIdx, 11].Value = dr["B_Sau"]?.ToString();          // B-Sâu
+                    ws.Cells[rowIdx, 12].Value = dr["C_Rong"]?.ToString();         // C-Rộng
+                    ws.Cells[rowIdx, 13].Value = dr["D_Bung"]?.ToString();         // D-Bụng
+                    ws.Cells[rowIdx, 14].Value = dr["E_Canh"]?.ToString();         // E-Cánh
+                    ws.Cells[rowIdx, 15].Value = dr["F_Dai"]?.ToString();          // F-Dài
+                    ws.Cells[rowIdx, 16].Value = dr["UNIT"]?.ToString();           // ĐVT
+                    ws.Cells[rowIdx, 17].Value = dr["SL"] != DBNull.Value ? Convert.ToDecimal(dr["SL"]) : (object)"";  // SL
+                    ws.Cells[rowIdx, 18].Value = dr["KG"] != DBNull.Value ? Convert.ToDecimal(dr["KG"]) : (object)"";  // KG
+                    ws.Cells[rowIdx, 19].Value = dr["MPS_Info"]?.ToString();       // MPS Info
+                    ws.Cells[rowIdx, 20].Value = dr["Usage_Location"]?.ToString(); // Nơi dùng
+                    ws.Cells[rowIdx, 21].Value = dr["REV"]?.ToString();            // REV
+                    ws.Cells[rowIdx, 22].Value = dr["Detail_Remarks"]?.ToString(); // Ghi chú
+
+                    // ── Cột 23: Số PO ──
+                    string poList = dr["PO_List"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(poList))
                     {
-                        ws.Cells[rowIdx, 20].Value = Convert.ToDecimal(dr["Total_Amount"]);
-                        ws.Cells[rowIdx, 20].Style.Numberformat.Format = "#,##0";
+                        ws.Cells[rowIdx, 23].Value = poList;
+                        ws.Cells[rowIdx, 23].Style.Font.Color.SetColor(Color.FromArgb(0, 120, 212));
+                        ws.Cells[rowIdx, 23].Style.Font.Bold = poList.Contains(",");
                     }
-                    // Số RIR theo PO
-                    string rirNos = dr["RIR_Nos"]?.ToString() ?? "";
-                    ws.Cells[rowIdx, 21].Value = rirNos;
-                    if (!string.IsNullOrEmpty(rirNos))
+                    else
                     {
-                        ws.Cells[rowIdx, 21].Style.Font.Color.SetColor(Color.FromArgb(102, 51, 153));
-                        ws.Cells[rowIdx, 21].Style.Font.Bold = true;
+                        ws.Cells[rowIdx, 23].Value = "Chưa có PO";
+                        ws.Cells[rowIdx, 23].Style.Font.Color.SetColor(Color.FromArgb(220, 53, 69));
+                        ws.Cells[rowIdx, 23].Style.Font.Italic = true;
                     }
 
-                    // Tô màu xen kẽ
+                    // ── Cột 24: Số RIR ──
+                    string rirList = dr["RIR_List"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(rirList))
+                    {
+                        ws.Cells[rowIdx, 24].Value = rirList;
+                        ws.Cells[rowIdx, 24].Style.Font.Color.SetColor(Color.FromArgb(40, 167, 69));
+                        ws.Cells[rowIdx, 24].Style.Font.Bold = rirList.Contains(",");
+                    }
+                    else
+                    {
+                        ws.Cells[rowIdx, 24].Value = "";
+                    }
+
+                    // Tô màu toàn dòng
                     ws.Cells[rowIdx, 1, rowIdx, TOTAL_COLS].Style.Fill.PatternType = ExcelFillStyle.Solid;
                     ws.Cells[rowIdx, 1, rowIdx, TOTAL_COLS].Style.Fill.BackgroundColor.SetColor(bg);
 
-                    // Tô đỏ nhạt nếu chưa có PO
-                    if (string.IsNullOrEmpty(dr["PONo"]?.ToString()))
+                    // Tô nền đỏ nhạt vùng PO/RIR nếu chưa có PO
+                    if (string.IsNullOrEmpty(poList))
                     {
-                        ws.Cells[rowIdx, 17, rowIdx, 21].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        ws.Cells[rowIdx, 17, rowIdx, 21].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 235, 235));
+                        ws.Cells[rowIdx, 23, rowIdx, 24].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                        ws.Cells[rowIdx, 23, rowIdx, 24].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 235, 235));
                     }
+
+                    // Border từng dòng
+                    ws.Cells[rowIdx, 1, rowIdx, TOTAL_COLS].Style.Border.BorderAround(ExcelBorderStyle.Hair);
 
                     colorToggle++;
                     rowIdx++;
@@ -1351,11 +1452,23 @@ namespace MPR_Managerment.Forms
                     dataRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
                 }
 
+                // Căn chỉnh cột số (STT, kích thước, SL, KG)
+                foreach (int c in new[] { 6, 10, 11, 12, 13, 14, 15, 17, 18 })
+                    if (c <= TOTAL_COLS)
+                        ws.Column(c).Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+
                 ws.Cells[ws.Dimension.Address].AutoFitColumns();
-                ws.View.FreezePanes(5, 1); // Freeze header
+
+                // Giới hạn width cột PO và RIR
+                ws.Column(23).Width = Math.Min(ws.Column(23).Width, 50);
+                ws.Column(24).Width = Math.Min(ws.Column(24).Width, 50);
+
+                ws.View.FreezePanes(5, 1);
 
                 pkg.SaveAs(new FileInfo(sfd.FileName));
-                MessageBox.Show($"✅ Xuất Excel thành công!\n{mprNos.Count} MPR, {dt.Rows.Count} dòng chi tiết.",
+                MessageBox.Show(
+                    $"✅ Xuất Excel thành công!\n" +
+                    $"{mprNos.Count} MPR, {dt.Rows.Count} hạng mục.",
                     "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 { FileName = sfd.FileName, UseShellExecute = true });

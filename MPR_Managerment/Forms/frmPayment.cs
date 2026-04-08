@@ -50,6 +50,8 @@ namespace MPR_Managerment.Forms
         private Panel panelPrintHistory;   // Danh sách PO đã in Request
         private DataGridView dgvPrintHistory;
         private DateTimePicker _phDateFrom, _phDateTo; // Bộ lọc thời gian
+        private DateTimePicker _schedDtp;              // DTP overlay cho cột Đến hạn
+        private int _schedDtpRow = -1;                 // Row đang được DTP overlay
         private ProgressBar progressPO;
 
         // Tab Debt
@@ -214,7 +216,7 @@ namespace MPR_Managerment.Forms
                 Size = new Size(115, 24),
                 Font = new Font("Segoe UI", 9),
                 Format = DateTimePickerFormat.Short,
-                Value = DateTime.Today.AddMonths(-3)
+                Value = DateTime.Today.AddYears(-2)   // mặc định 2 năm để không mất dữ liệu cũ
             };
             panelPrintHistory.Controls.Add(_phDateFrom);
 
@@ -233,16 +235,26 @@ namespace MPR_Managerment.Forms
             btnPhSearch.Click += (s, ev) => LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1).AddSeconds(-1));
             panelPrintHistory.Controls.Add(btnPhSearch);
 
-            var btnPhReset = Btn("✖ Reset", Color.FromArgb(108, 117, 125), 384, 26, 70, 26);
+            // Nút "Tất cả" — load toàn bộ lịch sử không giới hạn ngày
+            var btnPhAll = Btn("📋 Tất cả", Color.FromArgb(0, 150, 100), 384, 26, 85, 26);
+            btnPhAll.Click += (s, ev) =>
+            {
+                _phDateFrom.Value = new DateTime(2000, 1, 1);
+                _phDateTo.Value = DateTime.Today;
+                LoadPrintHistory(new DateTime(2000, 1, 1), DateTime.Today.AddDays(1).AddSeconds(-1));
+            };
+            panelPrintHistory.Controls.Add(btnPhAll);
+
+            var btnPhReset = Btn("✖ Reset", Color.FromArgb(108, 117, 125), 475, 26, 70, 26);
             btnPhReset.Click += (s, ev) =>
             {
-                _phDateFrom.Value = DateTime.Today.AddMonths(-3);
+                _phDateFrom.Value = DateTime.Today.AddYears(-2);
                 _phDateTo.Value = DateTime.Today;
                 LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1).AddSeconds(-1));
             };
             panelPrintHistory.Controls.Add(btnPhReset);
 
-            var btnPhDel = Btn("🗑 Xóa dòng", Color.FromArgb(220, 53, 69), 462, 26, 100, 26);
+            var btnPhDel = Btn("🗑 Xóa dòng", Color.FromArgb(220, 53, 69), 551, 26, 100, 26);
             btnPhDel.Click += BtnDeletePrintHistory_Click;
             panelPrintHistory.Controls.Add(btnPhDel);
 
@@ -254,6 +266,7 @@ namespace MPR_Managerment.Forms
             // Cột PH_ID ẩn để xóa DB
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_ID", HeaderText = "ID", Visible = false });
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_PONo", HeaderText = "PO No", Width = 150, ReadOnly = true });
+            dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Supp", HeaderText = "NCC", Width = 100, ReadOnly = true });
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Project", HeaderText = "Dự án", Width = 150, ReadOnly = true });
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Dot", HeaderText = "Đợt in", Width = 60, ReadOnly = true });
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Net", HeaderText = "Số tiền (Net)", Width = 120, ReadOnly = true });
@@ -384,7 +397,7 @@ namespace MPR_Managerment.Forms
             dgvSchedule.Columns.Add(cboStatus);
 
             // ── DateTimePicker ẩn — hiện khi click vào ô Due_Date ──
-            var dtp = new DateTimePicker
+            _schedDtp = new DateTimePicker
             {
                 Format = DateTimePickerFormat.Short,
                 Font = new Font("Segoe UI", 9),
@@ -393,22 +406,19 @@ namespace MPR_Managerment.Forms
             };
 
             // Thêm DTP vào panel cha của dgvSchedule
-            panelSched.Controls.Add(dtp);
-            dtp.BringToFront();
-
-            int _dtpRow = -1, _dtpCol = -1;
+            panelSched.Controls.Add(_schedDtp);
+            _schedDtp.BringToFront();
 
             // Hiện DTP khi click vào cột Due_Date
             dgvSchedule.CellClick += (s, ev) =>
             {
                 if (ev.RowIndex < 0 || dgvSchedule.Columns[ev.ColumnIndex].Name != "Due_Date") return;
 
-                _dtpRow = ev.RowIndex;
-                _dtpCol = ev.ColumnIndex;
+                _schedDtpRow = ev.RowIndex;
 
                 // Parse giá trị hiện tại
                 string cur = dgvSchedule.Rows[ev.RowIndex].Cells["Due_Date"].Value?.ToString() ?? "";
-                dtp.Value = DateTime.TryParseExact(cur, "dd/MM/yyyy",
+                _schedDtp.Value = DateTime.TryParseExact(cur, "dd/MM/yyyy",
                     System.Globalization.CultureInfo.InvariantCulture,
                     System.Globalization.DateTimeStyles.None, out DateTime parsed)
                     ? parsed : DateTime.Today;
@@ -418,37 +428,39 @@ namespace MPR_Managerment.Forms
                 var cellPos = dgvSchedule.PointToScreen(new Point(cellRect.Left, cellRect.Top));
                 var panelPos = panelSched.PointToClient(cellPos);
 
-                dtp.Location = new Point(panelPos.X, panelPos.Y);
-                dtp.Width = cellRect.Width;
-                dtp.Height = cellRect.Height;
-                dtp.Visible = true;
-                dtp.Focus();
+                _schedDtp.Location = new Point(panelPos.X, panelPos.Y);
+                _schedDtp.Width = cellRect.Width;
+                _schedDtp.Height = cellRect.Height;
+                _schedDtp.Visible = true;
+                _schedDtp.Focus();
             };
 
             // Ẩn DTP khi click ra ngoài
             dgvSchedule.CellClick += (s, ev) =>
             {
                 if (ev.ColumnIndex >= 0 && dgvSchedule.Columns[ev.ColumnIndex].Name != "Due_Date")
-                    dtp.Visible = false;
+                {
+                    CommitSchedDtp();
+                    _schedDtp.Visible = false;
+                }
             };
-            dgvSchedule.Scroll += (s, ev) => dtp.Visible = false;
+            dgvSchedule.Scroll += (s, ev) => { CommitSchedDtp(); _schedDtp.Visible = false; };
 
-            // Khi chọn ngày → ghi vào cell và ẩn DTP
-            dtp.ValueChanged += (s, ev) =>
+            // Khi chọn ngày → ghi vào cell ngay lập tức
+            _schedDtp.ValueChanged += (s, ev) =>
             {
-                if (_dtpRow < 0 || !dtp.Visible) return;
-                dgvSchedule.Rows[_dtpRow].Cells["Due_Date"].Value = dtp.Value.ToString("dd/MM/yyyy");
+                if (_schedDtpRow < 0 || !_schedDtp.Visible) return;
+                dgvSchedule.Rows[_schedDtpRow].Cells["Due_Date"].Value = _schedDtp.Value.ToString("dd/MM/yyyy");
             };
 
-            dtp.Leave += (s, ev) => dtp.Visible = false;
+            _schedDtp.Leave += (s, ev) => { CommitSchedDtp(); _schedDtp.Visible = false; };
 
-            dtp.KeyDown += (s, ev) =>
+            _schedDtp.KeyDown += (s, ev) =>
             {
                 if (ev.KeyCode == Keys.Escape || ev.KeyCode == Keys.Enter)
                 {
-                    if (ev.KeyCode == Keys.Enter && _dtpRow >= 0)
-                        dgvSchedule.Rows[_dtpRow].Cells["Due_Date"].Value = dtp.Value.ToString("dd/MM/yyyy");
-                    dtp.Visible = false;
+                    CommitSchedDtp();
+                    _schedDtp.Visible = false;
                     dgvSchedule.Focus();
                 }
             };
@@ -576,7 +588,7 @@ namespace MPR_Managerment.Forms
             }
             catch { }
             LoadPOSummary();
-            LoadPrintHistory(DateTime.Today.AddMonths(-3), DateTime.Today.AddDays(1).AddSeconds(-1));
+            LoadPrintHistory(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1).AddSeconds(-1));
         }
 
         private async void LoadPOSummary()
@@ -979,17 +991,61 @@ namespace MPR_Managerment.Forms
 
         private void BtnDelSched_Click(object sender, EventArgs e)
         {
-            if (_selectedSchedID == 0) { Warn("Vui lòng chọn đợt cần xóa!"); return; }
-            if (Ask("Xóa đợt thanh toán này?"))
+            // Lấy dòng đang chọn (ưu tiên SelectedRows, fallback CurrentRow)
+            DataGridViewRow selRow = null;
+            if (dgvSchedule.SelectedRows.Count > 0)
+                selRow = dgvSchedule.SelectedRows[0];
+            else if (dgvSchedule.CurrentRow != null)
+                selRow = dgvSchedule.CurrentRow;
+
+            if (selRow == null) { Warn("Vui lòng chọn đợt cần xóa!"); return; }
+
+            int schedId = 0;
+            try { schedId = Convert.ToInt32(selRow.Cells["S_ID"].Value ?? 0); } catch { }
+
+            string dotLabel = selRow.Cells["Dot_TT"].Value?.ToString() ?? "";
+            if (!Ask($"Xóa đợt thanh toán {dotLabel} này?\n(Thao tác này không thể hoàn tác)")) return;
+
+            try
             {
-                try { _svc.DeleteSchedule(_selectedSchedID); LoadSchedHist(); LoadPOSummary(); }
-                catch (Exception ex) { Err(ex.Message); }
+                // Nếu đã có ID trong DB → xóa DB trước
+                if (schedId > 0)
+                {
+                    _svc.DeleteSchedule(schedId);
+                    _selectedSchedID = 0;
+                }
+
+                // Xóa dòng khỏi grid
+                dgvSchedule.Rows.Remove(selRow);
+
+                // Cập nhật lại cache và summary
+                if (_allSchedulesCache.ContainsKey(_selectedPO_ID))
+                    _allSchedulesCache[_selectedPO_ID].RemoveAll(s => s.Schedule_ID == schedId);
+
+                LoadPOSummary();
+
+                MessageBox.Show("✅ Đã xóa đợt thanh toán thành công!", "Thành công",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+            catch (Exception ex) { Err(ex.Message); }
+        }
+
+        // Commit giá trị DTP vào cell trước khi lưu hoặc chuyển focus
+        private void CommitSchedDtp()
+        {
+            if (_schedDtp == null || !_schedDtp.Visible || _schedDtpRow < 0) return;
+            if (_schedDtpRow < dgvSchedule.Rows.Count)
+                dgvSchedule.Rows[_schedDtpRow].Cells["Due_Date"].Value =
+                    _schedDtp.Value.ToString("dd/MM/yyyy");
         }
 
         private async void BtnSaveSched_Click(object sender, EventArgs e)
         {
             if (_selectedPO_ID == 0) return;
+
+            // Force commit DTP nếu đang mở
+            CommitSchedDtp();
+            if (_schedDtp != null) _schedDtp.Visible = false;
             try
             {
                 int saved = 0;
@@ -1004,7 +1060,18 @@ namespace MPR_Managerment.Forms
                         Payment_Type = row.Cells["Payment_Type"].Value?.ToString() ?? "Chuyển khoản",
                         Percent_TT = decimal.TryParse(row.Cells["Percent_TT"].Value?.ToString(), out decimal pct) ? pct : 0,
                         Amount_Plan = decimal.TryParse((row.Cells["Amount_Plan"].Value?.ToString() ?? "0").Replace(",", ""), out decimal amt) ? amt : 0,
-                        Due_Date = DateTime.TryParse(row.Cells["Due_Date"].Value?.ToString(), out DateTime dd) ? dd : (DateTime?)null,
+                        Due_Date = (
+                            DateTime.TryParseExact(
+                                row.Cells["Due_Date"].Value?.ToString() ?? "",
+                                new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "M/d/yyyy" },
+                                System.Globalization.CultureInfo.InvariantCulture,
+                                System.Globalization.DateTimeStyles.None,
+                                out DateTime dd)
+                            ||
+                            DateTime.TryParse(
+                                row.Cells["Due_Date"].Value?.ToString() ?? "",
+                                out dd)
+                        ) ? dd : (DateTime?)null,
                         Delivery_Ref = row.Cells["Delivery_Ref"].Value?.ToString() ?? "",
                         Description = row.Cells["Description"].Value?.ToString() ?? "",
                         Status = row.Cells["S_Status"].Value?.ToString() ?? "Chưa TT"
@@ -1481,6 +1548,19 @@ namespace MPR_Managerment.Forms
                 string dot = s.Dot_TT == 1 ? "1st" : s.Dot_TT == 2 ? "2nd" :
                                 s.Dot_TT == 3 ? "3rd" : $"{s.Dot_TT}th";
 
+                // ── Lấy Short_Name NCC (dùng cho cả DB và grid) ──
+                string suppShortDb = "";
+                try
+                {
+                    var pSum = _poSummaries.Find(p => p.PONo == poNo);
+                    if (pSum != null)
+                    {
+                        var suppObj = _allSuppliers.Find(x => x.Supplier_ID == pSum.Supplier_ID);
+                        suppShortDb = suppObj?.Short_Name ?? suppObj?.Company_Name ?? suppObj?.Supplier_Name ?? "";
+                    }
+                }
+                catch { }
+
                 // ── Lưu vào DB ──
                 try
                 {
@@ -1490,11 +1570,11 @@ namespace MPR_Managerment.Forms
                         INSERT INTO PO_PrintRequestHistory
                             (PONo, Project_Name, Dot_TT, Dot_Label,
                              Amount_Net, Amount_VAT, Amount_Total,
-                             Printed_By, Printed_Date)
+                             Supplier_Short, Printed_By, Printed_Date)
                         VALUES
                             (@poNo, @proj, @dot, @dotLabel,
                              @net, @vat, @total,
-                             @by, GETDATE())", conn);
+                             @suppShort, @by, GETDATE())", conn);
                     cmd.Parameters.AddWithValue("@poNo", poNo);
                     cmd.Parameters.AddWithValue("@proj", project ?? "");
                     cmd.Parameters.AddWithValue("@dot", s.Dot_TT);
@@ -1502,6 +1582,7 @@ namespace MPR_Managerment.Forms
                     cmd.Parameters.AddWithValue("@net", net);
                     cmd.Parameters.AddWithValue("@vat", vat);
                     cmd.Parameters.AddWithValue("@total", total);
+                    cmd.Parameters.AddWithValue("@suppShort", suppShortDb);
                     cmd.Parameters.AddWithValue("@by", _currentUser ?? "");
                     cmd.ExecuteNonQuery();
                 }
@@ -1512,8 +1593,9 @@ namespace MPR_Managerment.Forms
 
                 // ── Thêm vào đầu grid (mới nhất lên trên) ──
                 dgvPrintHistory.Rows.Insert(0);
-                dgvPrintHistory.Rows[0].Cells["PH_ID"].Value = DBNull.Value; // sẽ có ID sau khi reload
+                dgvPrintHistory.Rows[0].Cells["PH_ID"].Value = DBNull.Value;
                 dgvPrintHistory.Rows[0].Cells["PH_PONo"].Value = poNo;
+                dgvPrintHistory.Rows[0].Cells["PH_Supp"].Value = suppShortDb;
                 dgvPrintHistory.Rows[0].Cells["PH_Project"].Value = project;
                 dgvPrintHistory.Rows[0].Cells["PH_Dot"].Value = dot;
                 dgvPrintHistory.Rows[0].Cells["PH_Net"].Value = net.ToString("N0");
@@ -1531,16 +1613,21 @@ namespace MPR_Managerment.Forms
         {
             if (dgvPrintHistory == null) return;
             dgvPrintHistory.Rows.Clear();
-            DateTime dtFrom = from ?? DateTime.Today.AddMonths(-3);
+            DateTime dtFrom = from ?? DateTime.Today.AddYears(-2);
             DateTime dtTo = to ?? DateTime.Today.AddDays(1).AddSeconds(-1);
             try
             {
                 using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
                 conn.Open();
                 var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
-                    SELECT Print_ID, PONo, Project_Name, Dot_Label,
-                           Amount_Net, Amount_VAT, Amount_Total,
-                           Printed_By,
+                    SELECT Print_ID, PONo,
+                           ISNULL(Supplier_Short, '') AS Supplier_Short,
+                           ISNULL(Project_Name,   '') AS Project_Name,
+                           ISNULL(Dot_Label,      '') AS Dot_Label,
+                           ISNULL(Amount_Net,     0)  AS Amount_Net,
+                           ISNULL(Amount_VAT,     0)  AS Amount_VAT,
+                           ISNULL(Amount_Total,   0)  AS Amount_Total,
+                           ISNULL(Printed_By,     '') AS Printed_By,
                            CONVERT(NVARCHAR(16), Printed_Date, 103) + ' '
                            + SUBSTRING(CONVERT(NVARCHAR(8), Printed_Date, 108), 1, 5) AS Printed_Date
                     FROM PO_PrintRequestHistory
@@ -1552,13 +1639,27 @@ namespace MPR_Managerment.Forms
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
-                    decimal net = reader["Amount_Net"] != DBNull.Value ? Convert.ToDecimal(reader["Amount_Net"]) : 0;
-                    decimal vat = reader["Amount_VAT"] != DBNull.Value ? Convert.ToDecimal(reader["Amount_VAT"]) : 0;
-                    decimal total = reader["Amount_Total"] != DBNull.Value ? Convert.ToDecimal(reader["Amount_Total"]) : 0;
+                    decimal net = Convert.ToDecimal(reader["Amount_Net"]);
+                    decimal vat = Convert.ToDecimal(reader["Amount_VAT"]);
+                    decimal total = Convert.ToDecimal(reader["Amount_Total"]);
+
+                    // Nếu Supplier_Short rỗng, thử tra từ _allSuppliers qua PONo
+                    string suppShort = reader["Supplier_Short"]?.ToString() ?? "";
+                    if (string.IsNullOrEmpty(suppShort))
+                    {
+                        string poNo = reader["PONo"]?.ToString() ?? "";
+                        var pSum = _poSummaries.Find(p => p.PONo == poNo);
+                        if (pSum != null)
+                        {
+                            var suppObj = _allSuppliers.Find(x => x.Supplier_ID == pSum.Supplier_ID);
+                            suppShort = suppObj?.Short_Name ?? suppObj?.Company_Name ?? suppObj?.Supplier_Name ?? "";
+                        }
+                    }
 
                     int i = dgvPrintHistory.Rows.Add();
                     dgvPrintHistory.Rows[i].Cells["PH_ID"].Value = reader["Print_ID"];
                     dgvPrintHistory.Rows[i].Cells["PH_PONo"].Value = reader["PONo"]?.ToString() ?? "";
+                    dgvPrintHistory.Rows[i].Cells["PH_Supp"].Value = suppShort;
                     dgvPrintHistory.Rows[i].Cells["PH_Project"].Value = reader["Project_Name"]?.ToString() ?? "";
                     dgvPrintHistory.Rows[i].Cells["PH_Dot"].Value = reader["Dot_Label"]?.ToString() ?? "";
                     dgvPrintHistory.Rows[i].Cells["PH_Net"].Value = net.ToString("N0");
@@ -1569,7 +1670,9 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("LoadPrintHistory error: " + ex.Message);
+                MessageBox.Show(
+                    "Lỗi tải lịch sử in Request:\n" + ex.Message,
+                    "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
