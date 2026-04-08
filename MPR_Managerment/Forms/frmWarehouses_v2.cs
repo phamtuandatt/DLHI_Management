@@ -75,6 +75,24 @@ namespace MPR_Managerment.Forms
             BuildStockTab_V2(pageWarehouse);
 
             this.Load += FrmWarehouses_v2_Load;
+
+
+            dgvImportQueue.Columns["ID_Code"].ReadOnly = false;
+            //Button btnPaste = new Button()
+            //{
+            //    Text = " 📋 Dán từ Excel",
+            //    Size = new Size(130, 35),
+            //    BackColor = Color.FromArgb(46, 204, 113), // Màu xanh lá nhẹ (Emerald)
+            //    ForeColor = Color.White,
+            //    FlatStyle = FlatStyle.Flat,
+            //    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            //    Cursor = Cursors.Hand,
+            //    //Location = new Point(btnDeleteRow.Location.X + btnDeleteRow.Width + 10, btnDeleteRow.Location.Y) // Đặt bên cạnh nút "Thêm vào phiếu"
+            //    Location = new Point(150, 500)
+            //};
+            //btnPaste.BringToFront();
+            //btnPaste.Click += (s, e) => PasteToEditableCells();
+            //this.Controls.Add(btnPaste);
         }
 
         private void FrmWarehouses_v2_Load(object? sender, EventArgs e)
@@ -249,6 +267,21 @@ namespace MPR_Managerment.Forms
                 ForeColor = Color.Orange,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold)
             };
+
+            Button btnPaste = new Button()
+            {
+                Text = " 📋 Dán từ Excel",
+                Size = new Size(130, 35),
+                BackColor = Color.FromArgb(46, 204, 113), // Màu xanh lá nhẹ (Emerald)
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                //Location = new Point(btnDeleteRow.Location.X + btnDeleteRow.Width + 10, btnDeleteRow.Location.Y) // Đặt bên cạnh nút "Thêm vào phiếu"
+                Location = new Point(gbDetails.Width - 500, 20),
+            };
+            btnPaste.Click += (s, e) => PasteToEditableCells();
+
             btnDeleteRow = new Button()
             {
                 Text = "🗑 Xóa dòng chọn",
@@ -288,8 +321,9 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.CellEndEdit += DgvImportQueue_CellEndEdit;
             dgvImportQueue.EditingControlShowing += DgvImportQueue_EditingControlShowing;
             dgvImportQueue.CellDoubleClick += DgvImportQueue_CellDoubleClick;
+            dgvImportQueue.KeyDown += DgvImportQueue_KeyDown;
 
-            gbDetails.Controls.AddRange(new Control[] { lblDetail, btnDeleteRow, dgvImportQueue });
+            gbDetails.Controls.AddRange(new Control[] { lblDetail, btnPaste, btnDeleteRow, dgvImportQueue });
 
             GroupBox gbHistory = new GroupBox();
             gbHistory.Text = "Truy xuất lịch sử";
@@ -341,6 +375,19 @@ namespace MPR_Managerment.Forms
             dgvImport.DefaultCellStyle.SelectionForeColor = Color.Black;
 
             gbHistory.Controls.AddRange(new Control[] { lblHistory, btnPrintPNK, dgvImport });
+        }
+
+        private void DgvImportQueue_KeyDown(object? sender, KeyEventArgs e)
+        {
+            //if (e.RowIndex < 0 || e.RowIndex >= _importQueue.Count) return;
+            //string colName = dgvImportQueue.Columns[e.ColumnIndex].Name;
+            //if (colName != "ID_Code") return;
+
+            //if (e.Control && e.KeyCode == Keys.V)
+            //{
+            //    PasteToEditableCells();
+            //    e.Handled = true;
+            //}
         }
 
         public void SetupExportLayout(TabPage parent)
@@ -1167,6 +1214,67 @@ namespace MPR_Managerment.Forms
                 }
             }
             catch { return $"PNK-{poNo}-{DateTime.Now:ddMMHHmm}"; }
+        }
+
+        private void PasteToEditableCells()
+        {
+            try
+            {
+                // 1. Lấy dữ liệu từ Clipboard
+                string copiedData = Clipboard.GetText();
+                if (string.IsNullOrEmpty(copiedData))
+                {
+                    MessageBox.Show("Bộ nhớ tạm (Clipboard) đang trống!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // 2. Tách dữ liệu thành các dòng và các ô (tab-separated)
+                string[] lines = copiedData.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+                // 3. Xác định tọa độ bắt đầu
+                int startRow = dgvImportQueue.CurrentCell?.RowIndex ?? 0;
+                int startCol = dgvImportQueue.CurrentCell?.ColumnIndex ?? 0;
+
+                DataTable dt = (DataTable)dgvImportQueue.DataSource;
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    int currentRow = startRow + i;
+
+                    // Nếu dòng hiện tại vượt quá số dòng trong Grid, thêm dòng mới vào DataTable
+                    if (currentRow >= dgvImportQueue.Rows.Count)
+                    {
+                        if (dt != null) dt.Rows.Add(dt.NewRow());
+                        else dgvImportQueue.Rows.Add();
+                    }
+
+                    string[] cells = lines[i].Split('\t');
+                    int currentGridCol = startCol;
+
+                    for (int j = 0; j < cells.Length; j++)
+                    {
+                        // VÒNG LẶP TÌM CỘT ĐƯỢC PHÉP NHẬP (Skip ReadOnly/Hidden)
+                        while (currentGridCol < dgvImportQueue.Columns.Count &&
+                              (dgvImportQueue.Columns[currentGridCol].ReadOnly || !dgvImportQueue.Columns[currentGridCol].Visible))
+                        {
+                            currentGridCol++;
+                        }
+
+                        // Nếu vẫn nằm trong phạm vi cột của Grid thì mới dán
+                        if (currentGridCol < dgvImportQueue.Columns.Count)
+                        {
+                            dgvImportQueue.Rows[currentRow].Cells[currentGridCol].Value = cells[j].Trim();
+                            currentGridCol++; // Di chuyển sang cột tiếp theo cho ô Excel kế tiếp
+                        }
+                    }
+                }
+
+                MessageBox.Show(" ✅ Đã dán dữ liệu vào các ô cho phép!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(" ❌ Lỗi dán dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

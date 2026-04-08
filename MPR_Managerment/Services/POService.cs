@@ -16,7 +16,7 @@ namespace MPR_Managerment.Services
                 conn.Open();
                 var cmd = new SqlCommand("[sp_UpdatePOHead_MakeImport]", conn);
                 cmd.CommandType = System.Data.CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@importDate", importDate);
+                cmd.Parameters.AddWithValue("@importDate", DateTime.UtcNow);
                 cmd.Parameters.AddWithValue("@poNo", h.PONo);
                 cmd.ExecuteNonQuery();
             }

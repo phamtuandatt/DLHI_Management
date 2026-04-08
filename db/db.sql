@@ -501,9 +501,13 @@ BEGIN
 	WHERE P.PO_ID = @POID AND W.InvoiceNo IS NULL OR W.InvoiceNo < 0
 END
 
+<<<<<<< Updated upstream
   --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 
+=======
+-- 165 - 172
+>>>>>>> Stashed changes
 -- GROUP ID_CODE TO SHOW QTY
 	--SELECT Item_Name, Material, Size, ID_Code, COUNT(Item_Name), SUM(Qty_Import)
 	--FROM Warehouse_Import
@@ -528,7 +532,7 @@ DELETE FROM Material_Detail WHERE material_detail_id = 709
 
 CREATE PROCEDURE [dbo].[sp_UpdatePOHead_MakeImport]
     @PONO INT,
-    @ImportDate DATE(255)
+    @ImportDate DATE
 AS
 BEGIN
     SET NOCOUNT OFF;
@@ -547,7 +551,7 @@ BEGIN
         UPDATE [dbo].[PO_head]
         SET 
             [IS_Imported] = 1,
-            [ImportedDate] = @ImportDate,
+            [ImportedDate] = @ImportDate
         WHERE [PONo] = @PONO;
 
         COMMIT TRANSACTION;
@@ -559,3 +563,20 @@ BEGIN
         RAISERROR(@ErrMsg, 16, 1);
     END CATCH
 END
+
+165
+166
+167
+168
+169
+170
+171
+172
+DELETE FROM Warehouse_Import WHERE Import_ID = 165
+DELETE FROM Warehouse_Import WHERE Import_ID = 166
+DELETE FROM Warehouse_Import WHERE Import_ID = 167
+DELETE FROM Warehouse_Import WHERE Import_ID = 168
+DELETE FROM Warehouse_Import WHERE Import_ID = 169
+DELETE FROM Warehouse_Import WHERE Import_ID = 170
+DELETE FROM Warehouse_Import WHERE Import_ID = 171
+DELETE FROM Warehouse_Import WHERE Import_ID = 172
