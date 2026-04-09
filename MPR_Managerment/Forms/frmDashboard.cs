@@ -125,17 +125,21 @@ namespace MPR_Managerment.Forms
 
                 if (dgvPO != null && dgvPOImports != null && tabPO != null)
                 {
-                    int totalW = tabPO.ClientSize.Width - 30; // Chừa khoảng lề 2 bên và giữa
+                    int totalW = tabPO.ClientSize.Width - 30;
+                    int totalH = tabPO.ClientSize.Height - 175 - 10;
 
-                    // Bảng bên trái chiếm 70%
-                    dgvPO.Width = (int)(totalW * 0.7);
+                    int poW = (int)(totalW * 0.65);
+                    int impW = totalW - poW - 10;
 
-                    // Bảng bên phải và tiêu đề dịch chuyển bám sát bảng trái
+                    dgvPO.Width = Math.Max(100, poW);
+                    dgvPO.Height = Math.Max(80, totalH);
+
                     var lblImport = tabPO.Controls.Find("lblImportTitle", false).FirstOrDefault();
-                    if (lblImport != null) lblImport.Left = dgvPO.Right + 10;
+                    if (lblImport != null) { lblImport.Left = dgvPO.Right + 10; lblImport.Width = Math.Max(50, impW); }
 
                     dgvPOImports.Left = dgvPO.Right + 10;
-                    dgvPOImports.Width = totalW - dgvPO.Width;
+                    dgvPOImports.Width = Math.Max(80, impW);
+                    dgvPOImports.Height = Math.Max(80, totalH);
                 }
             };
 
@@ -151,34 +155,46 @@ namespace MPR_Managerment.Forms
             panelPOSummary = new Panel
             {
                 Location = new Point(10, 10),
-                Size = new Size(900, 95),
+                Size = new Size(this.ClientSize.Width - 20, 95),
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             tabPO.Controls.Add(panelPOSummary);
             lblPOTotal = AddSummaryCard(panelPOSummary, "Tổng PO", "0", Color.FromArgb(0, 120, 212), 0);
-            lblPOInProgress = AddSummaryCard(panelPOSummary, "Đang giao", "0", Color.FromArgb(255, 140, 0), 220);
-            lblPOOverdue = AddSummaryCard(panelPOSummary, "Quá hạn", "0", Color.FromArgb(220, 53, 69), 440);
-            lblPOCompleted = AddSummaryCard(panelPOSummary, "Hoàn thành", "0", Color.FromArgb(40, 167, 69), 660);
+            lblPOInProgress = AddSummaryCard(panelPOSummary, "Đang giao", "0", Color.FromArgb(255, 140, 0), 1);
+            lblPOOverdue = AddSummaryCard(panelPOSummary, "Quá hạn", "0", Color.FromArgb(220, 53, 69), 2);
+            lblPOCompleted = AddSummaryCard(panelPOSummary, "Hoàn thành", "0", Color.FromArgb(40, 167, 69), 3);
 
             // Filter row
             int fy = 115;
-            AddLabel(tabPO, "Tìm kiếm:", 10, fy);
+            // Filter bar — dùng FlowLayoutPanel để tự wrap khi màn hình nhỏ
+            var pFilterPO = new FlowLayoutPanel
+            {
+                Location = new Point(10, fy),
+                Size = new Size(tabPO.ClientSize.Width - 20, 32),
+                AutoSize = false,
+                WrapContents = false,
+                FlowDirection = FlowDirection.LeftToRight,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BackColor = Color.Transparent
+            };
+            tabPO.Controls.Add(pFilterPO);
+            tabPO.ClientSizeChanged += (s, e) => pFilterPO.Width = tabPO.ClientSize.Width - 20;
+
+            pFilterPO.Controls.Add(new Label { Text = "Tìm kiếm:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             txtSearchPO = new TextBox
             {
-                Location = new Point(85, fy),
                 Size = new Size(200, 25),
                 Font = new Font("Segoe UI", 9),
                 PlaceholderText = "PO No hoặc MPR No..."
             };
             txtSearchPO.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) LoadPOData(); };
-            tabPO.Controls.Add(txtSearchPO);
+            pFilterPO.Controls.Add(txtSearchPO);
 
-            AddLabel(tabPO, "Trạng thái:", 300, fy);
+            pFilterPO.Controls.Add(new Label { Text = "Trạng thái:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             cboFilterPO = new ComboBox
             {
-                Location = new Point(380, fy),
-                Size = new Size(160, 25),
+                Size = new Size(150, 25),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -199,13 +215,13 @@ namespace MPR_Managerment.Forms
             cboFilterPO.SelectedIndexChanged += (s, e) => LoadPOData();
             tabPO.Controls.Add(cboFilterPO);
 
-            var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(550, fy - 1), 90, 28);
+            var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), Point.Empty, 90, 28);
             btnSearch.Click += (s, e) => LoadPOData();
-            tabPO.Controls.Add(btnSearch);
+            pFilterPO.Controls.Add(btnSearch);
 
-            var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), new Point(650, fy - 1), 90, 28);
+            var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), Point.Empty, 90, 28);
             btnClear.Click += (s, e) => { txtSearchPO.Text = ""; cboFilterPO.SelectedIndex = 0; LoadPOData(); };
-            tabPO.Controls.Add(btnClear);
+            pFilterPO.Controls.Add(btnClear);
 
             // TIÊU ĐỀ BẢNG BÊN TRÁI
             tabPO.Controls.Add(new Label
@@ -229,8 +245,7 @@ namespace MPR_Managerment.Forms
                 RowHeadersVisible = false,
                 Font = new Font("Segoe UI", 9),
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
-                // Cố định vào Góc Trái-Dưới để khi manual resize không bị giật
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom | AnchorStyles.Right
             };
             dgvPO.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvPO.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
@@ -257,7 +272,7 @@ namespace MPR_Managerment.Forms
             // BẢNG BÊN PHẢI
             dgvPOImports = new DataGridView
             {
-                Location = new Point(600, 175), // Sẽ tự cập nhật lại trong Form_Resize
+                Location = new Point(600, 175),
                 ReadOnly = true,
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -266,8 +281,7 @@ namespace MPR_Managerment.Forms
                 RowHeadersVisible = false,
                 Font = new Font("Segoe UI", 9),
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                // Không Anchor Right để tránh xung đột với Manual Resize
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
             };
             dgvPOImports.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(255, 140, 0);
             dgvPOImports.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
@@ -281,69 +295,117 @@ namespace MPR_Managerment.Forms
         }
 
         // =========================================================================
-        // HÀM CO GIÃN CỘT THÔNG MINH CHO DGV_PO (MIN 30 - MAX 100, DỰ ÁN FIX 30)
+        // ĐỘ RỘNG CỘT BẢNG "DANH SÁCH ĐƠN HÀNG (PO)"
+        // Chỉnh width tại đây để thay đổi độ rộng từng cột
         // =========================================================================
         private void AutoAdjustPOColumns()
         {
             if (dgvPO.Columns.Count == 0) return;
-
             dgvPO.SuspendLayout();
             dgvPO.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 
-            using (Graphics g = dgvPO.CreateGraphics())
+            // ── Cấu hình độ rộng từng cột — chỉnh số ở đây ──
+            var colWidths = new Dictionary<string, int>
             {
-                foreach (DataGridViewColumn col in dgvPO.Columns)
-                {
-                    if (!col.Visible) continue;
-                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                { "PO No",                 160 },
+                { "Dự án",                  50 },
+                { "MPR No",                130 },
+                { "Ngày PO",                90 },
+                { "Rev",                    40 },
+                { "Tổng items",             70 },
+                { "Tổng SL đặt",            80 },
+                { "Tổng SL nhận",           80 },
+                { "Ngày giao sớm nhất",    110 },
+                { "Trạng thái",            100 },
+                { "% Giao hàng",            85 },
+                { "Cảnh báo",               90 },
+            };
 
-                    // Yêu cầu đặc biệt: Cột Dự án cố định kích thước 30
-                    if (col.Name == "Dự án")
-                    {
-                        col.Width = 30;
-                        col.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
-                        continue;
-                    }
+            foreach (DataGridViewColumn col in dgvPO.Columns)
+            {
+                if (!col.Visible) continue;
+                col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
 
-                    int maxWidth = 30; // MinWidth = 30
-
-                    // Đo kích thước Header
-                    SizeF headerSize = g.MeasureString(col.HeaderText, dgvPO.ColumnHeadersDefaultCellStyle.Font ?? dgvPO.Font);
-                    if (headerSize.Width + 20 > maxWidth) maxWidth = (int)Math.Ceiling(headerSize.Width) + 20;
-
-                    // Đo kích thước Data
-                    foreach (DataGridViewRow row in dgvPO.Rows)
-                    {
-                        if (row.IsNewRow) continue;
-                        string val = row.Cells[col.Index].Value?.ToString() ?? "";
-                        if (!string.IsNullOrEmpty(val))
-                        {
-                            SizeF size = g.MeasureString(val, dgvPO.Font);
-                            if (size.Width + 15 > maxWidth) maxWidth = (int)Math.Ceiling(size.Width) + 15;
-                        }
-                    }
-
-                    // Giới hạn MaxWidth = 100
-                    if (maxWidth > 100)
-                    {
-                        col.Width = 100;
-                        col.DefaultCellStyle.WrapMode = DataGridViewTriState.True; // Dài quá 100 thì xuống dòng
-                    }
-                    else
-                    {
-                        col.Width = maxWidth;
-                        col.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
-                    }
-                }
+                if (colWidths.TryGetValue(col.Name, out int w))
+                    col.Width = w;
+                else
+                    col.Width = 80; // mặc định cho cột chưa khai báo
             }
 
-            dgvPO.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
+            dgvPO.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
             dgvPO.ResumeLayout();
         }
 
         // =========================================================================
-        // SỰ KIỆN LOAD LỊCH SỬ NHẬP KHO VÀ MỞ WAREHOUSE_V2
+        // ĐỘ RỘNG CỘT BẢNG "DANH SÁCH YÊU CẦU MUA HÀNG MPR" (bảng phải - tab MPR)
+        // Chỉnh width tại đây để thay đổi độ rộng từng cột
         // =========================================================================
+        private void AutoAdjustMPRColumns()
+        {
+            if (dgvMPR == null || dgvMPR.Columns.Count == 0) return;
+            dgvMPR.SuspendLayout();
+            dgvMPR.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+
+            var colWidths = new Dictionary<string, int>
+            {
+                { "MPR No",             180 },
+                { "Dự án",               55 },
+                { "Ngày cần",            90 },
+                { "Trạng thái",          95 },
+                { "Rev",                 40 },
+                { "Tổng items",          75 },
+                { "Tình trạng PO",      110 },
+                { "% Item đặt hàng",     95 },
+                { "Ngày đến PO",         85 },
+                { "Ngày tạo",            90 },
+            };
+
+            foreach (DataGridViewColumn col in dgvMPR.Columns)
+            {
+                if (!col.Visible) continue;
+                col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                if (colWidths.TryGetValue(col.Name, out int w))
+                    col.Width = w;
+                else
+                    col.Width = 80;
+            }
+
+            dgvMPR.ResumeLayout();
+        }
+
+        // =========================================================================
+        // ĐỘ RỘNG CỘT BẢNG "PO CỦA MPR ĐANG CHỌN" (bảng trái - tab MPR)
+        // Chỉnh width tại đây để thay đổi độ rộng từng cột
+        // =========================================================================
+        private void AutoAdjustMPRPOColumns()
+        {
+            if (dgvMPRPO == null || dgvMPRPO.Columns.Count == 0) return;
+            dgvMPRPO.SuspendLayout();
+            dgvMPRPO.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+
+            var colWidths = new Dictionary<string, int>
+            {
+                { "PO No",               120 },
+                { "Dự án",                55 },
+                { "Ngày PO",              90 },
+                { "Trạng thái",           95 },
+                { "Tổng tiền",           110 },
+                { "Số dòng vật tư",       90 },
+                { "Số RIR",              130 },
+            };
+
+            foreach (DataGridViewColumn col in dgvMPRPO.Columns)
+            {
+                if (!col.Visible) continue;
+                col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                if (colWidths.TryGetValue(col.Name, out int w))
+                    col.Width = w;
+                else
+                    col.Width = 80;
+            }
+
+            dgvMPRPO.ResumeLayout();
+        }
         private void DgvPO_SelectionChanged(object sender, EventArgs e)
         {
             if (dgvPO.SelectedRows.Count == 0) return;
@@ -401,34 +463,44 @@ namespace MPR_Managerment.Forms
             panelMPRSummary = new Panel
             {
                 Location = new Point(10, 10),
-                Size = new Size(900, 95),
+                Size = new Size(this.ClientSize.Width - 20, 95),
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             tabMPR.Controls.Add(panelMPRSummary);
             lblMPRTotal = AddSummaryCard(panelMPRSummary, "Tổng MPR", "0", Color.FromArgb(0, 120, 212), 0);
-            lblMPRHasPO = AddSummaryCard(panelMPRSummary, "Đã có PO", "0", Color.FromArgb(40, 167, 69), 220);
-            lblMPRNoPO = AddSummaryCard(panelMPRSummary, "Chưa có PO", "0", Color.FromArgb(220, 53, 69), 440);
-            lblMPRCompleted = AddSummaryCard(panelMPRSummary, "Hoàn thành", "0", Color.FromArgb(102, 51, 153), 660);
+            lblMPRHasPO = AddSummaryCard(panelMPRSummary, "Đã có PO", "0", Color.FromArgb(40, 167, 69), 1);
+            lblMPRNoPO = AddSummaryCard(panelMPRSummary, "Chưa có PO", "0", Color.FromArgb(220, 53, 69), 2);
+            lblMPRCompleted = AddSummaryCard(panelMPRSummary, "Hoàn thành", "0", Color.FromArgb(102, 51, 153), 3);
 
             // ===== FILTER BAR =====
             int fy = 115;
-            AddLabel(tabMPR, "Tìm kiếm:", 10, fy);
+            var pFilterMPR = new FlowLayoutPanel
+            {
+                Location = new Point(10, fy),
+                Size = new Size(tabMPR.ClientSize.Width - 20, 32),
+                WrapContents = false,
+                FlowDirection = FlowDirection.LeftToRight,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BackColor = Color.Transparent
+            };
+            tabMPR.Controls.Add(pFilterMPR);
+            tabMPR.ClientSizeChanged += (s, e) => pFilterMPR.Width = tabMPR.ClientSize.Width - 20;
+
+            pFilterMPR.Controls.Add(new Label { Text = "Tìm kiếm:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             txtSearchMPR = new TextBox
             {
-                Location = new Point(85, fy),
-                Size = new Size(200, 25),
+                Size = new Size(180, 25),
                 Font = new Font("Segoe UI", 9),
                 PlaceholderText = "MPR No hoặc tên dự án..."
             };
             txtSearchMPR.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) LoadMPRData(); };
-            tabMPR.Controls.Add(txtSearchMPR);
+            pFilterMPR.Controls.Add(txtSearchMPR);
 
-            AddLabel(tabMPR, "Trạng thái:", 300, fy);
+            pFilterMPR.Controls.Add(new Label { Text = "Trạng thái:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             cboFilterMPR = new ComboBox
             {
-                Location = new Point(380, fy),
-                Size = new Size(160, 25),
+                Size = new Size(140, 25),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -437,22 +509,21 @@ namespace MPR_Managerment.Forms
             cboFilterMPR.SelectedIndexChanged += (s, e) => LoadMPRData();
             tabMPR.Controls.Add(cboFilterMPR);
 
-            AddLabel(tabMPR, "% Đặt hàng:", 550, fy);
+            pFilterMPR.Controls.Add(new Label { Text = "% Đặt hàng:", Size = new Size(80, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             cboFilterPOStatus = new ComboBox
             {
-                Location = new Point(650, fy),
-                Size = new Size(155, 25),
+                Size = new Size(160, 25),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
             cboFilterPOStatus.Items.AddRange(new[] { "Tất cả", "✅ Hoàn thành (≥100%)", "⏳ Chưa hoàn thành (<100%)" });
             cboFilterPOStatus.SelectedIndex = 0;
             cboFilterPOStatus.SelectedIndexChanged += (s, e) => FilterMPRByPOStatus();
-            tabMPR.Controls.Add(cboFilterPOStatus);
+            pFilterMPR.Controls.Add(cboFilterPOStatus);
 
-            var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(815, fy - 1), 85, 28);
-            var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), new Point(908, fy - 1), 85, 28);
-            btnExportMPR = CreateButton("📥 Excel", Color.FromArgb(0, 150, 100), new Point(1001, fy - 1), 85, 28);
+            var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), Point.Empty, 80, 28);
+            var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), Point.Empty, 80, 28);
+            btnExportMPR = CreateButton("📥 Excel", Color.FromArgb(0, 150, 100), Point.Empty, 80, 28);
             btnSearch.Click += (s, e) => LoadMPRData();
             btnClear.Click += (s, e) =>
             {
@@ -462,9 +533,9 @@ namespace MPR_Managerment.Forms
                 LoadMPRData();
             };
             btnExportMPR.Click += BtnExportMPR_Click;
-            tabMPR.Controls.Add(btnSearch);
-            tabMPR.Controls.Add(btnClear);
-            tabMPR.Controls.Add(btnExportMPR);
+            pFilterMPR.Controls.Add(btnSearch);
+            pFilterMPR.Controls.Add(btnClear);
+            pFilterMPR.Controls.Add(btnExportMPR);
 
             // ===== LAYOUT: dgvMPRPO (trái) | dgvMPR (phải) =====
             // Dùng hằng số, KHÔNG dùng tabMPR.Width/Height vì lúc init = 0
@@ -661,6 +732,8 @@ namespace MPR_Managerment.Forms
                     if (dgvMPRPO.Columns.Contains("_SortDate"))
                         dgvMPRPO.Columns["_SortDate"].Visible = false;
 
+                    AutoAdjustMPRPOColumns();
+
                     // Format màu cột RIR
                     if (!dgvMPRPO.Columns.Contains("Số RIR")) return;
                     int rirColIdx = dgvMPRPO.Columns["Số RIR"].Index;
@@ -708,47 +781,58 @@ namespace MPR_Managerment.Forms
             panelRIRSummary = new Panel
             {
                 Location = new Point(10, 10),
-                Size = new Size(900, 95),
+                Size = new Size(this.ClientSize.Width - 20, 95),
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             tabRIR.Controls.Add(panelRIRSummary);
             lblRIRTotal = AddSummaryCard(panelRIRSummary, "Tổng RIR", "0", Color.FromArgb(0, 120, 212), 0);
-            lblRIRPending = AddSummaryCard(panelRIRSummary, "Chờ kiểm tra", "0", Color.FromArgb(255, 140, 0), 220);
-            lblRIRInspecting = AddSummaryCard(panelRIRSummary, "Đang kiểm tra", "0", Color.FromArgb(102, 51, 153), 440);
-            lblRIRDone = AddSummaryCard(panelRIRSummary, "Hoàn thành", "0", Color.FromArgb(40, 167, 69), 660);
+            lblRIRPending = AddSummaryCard(panelRIRSummary, "Chờ kiểm tra", "0", Color.FromArgb(255, 140, 0), 1);
+            lblRIRInspecting = AddSummaryCard(panelRIRSummary, "Đang kiểm tra", "0", Color.FromArgb(102, 51, 153), 2);
+            lblRIRDone = AddSummaryCard(panelRIRSummary, "Hoàn thành", "0", Color.FromArgb(40, 167, 69), 3);
 
             int fy = 115;
-            AddLabel(tabRIR, "Tìm kiếm:", 10, fy);
+            var pFilterRIR = new FlowLayoutPanel
+            {
+                Location = new Point(10, fy),
+                Size = new Size(tabRIR.ClientSize.Width - 20, 32),
+                WrapContents = false,
+                FlowDirection = FlowDirection.LeftToRight,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BackColor = Color.Transparent
+            };
+            tabRIR.Controls.Add(pFilterRIR);
+            tabRIR.ClientSizeChanged += (s, e) => pFilterRIR.Width = tabRIR.ClientSize.Width - 20;
+
+            pFilterRIR.Controls.Add(new Label { Text = "Tìm kiếm:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             txtSearchRIR = new TextBox
             {
-                Location = new Point(85, fy),
                 Size = new Size(200, 25),
                 Font = new Font("Segoe UI", 9),
                 PlaceholderText = "RIR No hoặc PO No..."
             };
             txtSearchRIR.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) LoadRIRData(); };
-            tabRIR.Controls.Add(txtSearchRIR);
+            pFilterRIR.Controls.Add(txtSearchRIR);
 
-            AddLabel(tabRIR, "Trạng thái:", 300, fy);
+            pFilterRIR.Controls.Add(new Label { Text = "Trạng thái:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             cboFilterRIR = new ComboBox
             {
-                Location = new Point(380, fy),
-                Size = new Size(160, 25),
+                Size = new Size(150, 25),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
             cboFilterRIR.Items.AddRange(new[] { "Tất cả", "Chờ kiểm tra", "Đang kiểm tra", "Hoàn thành" });
             cboFilterRIR.SelectedIndex = 0;
             cboFilterRIR.SelectedIndexChanged += (s, e) => LoadRIRData();
-            tabRIR.Controls.Add(cboFilterRIR);
-            var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(550, fy - 1), 90, 28);
-            btnSearch.Click += (s, e) => LoadRIRData();
-            tabRIR.Controls.Add(btnSearch);
+            pFilterRIR.Controls.Add(cboFilterRIR);
 
-            var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), new Point(650, fy - 1), 90, 28);
+            var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), Point.Empty, 90, 28);
+            btnSearch.Click += (s, e) => LoadRIRData();
+            pFilterRIR.Controls.Add(btnSearch);
+
+            var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), Point.Empty, 90, 28);
             btnClear.Click += (s, e) => { txtSearchRIR.Text = ""; cboFilterRIR.SelectedIndex = 0; LoadRIRData(); };
-            tabRIR.Controls.Add(btnClear);
+            pFilterRIR.Controls.Add(btnClear);
             tabRIR.Controls.Add(new Label
             {
                 Text = "DANH SÁCH PO & TIẾN ĐỘ RIR",
@@ -758,8 +842,10 @@ namespace MPR_Managerment.Forms
                 Size = new Size(300, 20)
             });
 
-            dgvRIR = BuildGrid(tabRIR, 173);
-            dgvRIR.Height = 200; // Chiều cao cố định
+            const int RIR_TOP = 173;
+            const int RIR_LBL_H = 22;
+
+            dgvRIR = BuildGrid(tabRIR, RIR_TOP);
             dgvRIR.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             dgvRIR.RowPrePaint += DgvRIR_RowPrePaint;
             dgvRIR.SelectionChanged += DgvRIR_SelectionChanged;
@@ -769,16 +855,41 @@ namespace MPR_Managerment.Forms
                 Text = "CHI TIẾT RIR THEO PO (click vào PO ở trên để xem)",
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 120, 212),
-                Location = new Point(10, 383),
-                Size = new Size(500, 20),
+                Size = new Size(600, RIR_LBL_H),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
             tabRIR.Controls.Add(lblDetailTitle);
 
-            dgvRIRDetail = BuildGrid(tabRIR, 404);
+            dgvRIRDetail = BuildGrid(tabRIR, RIR_TOP + 100 + RIR_LBL_H);
             dgvRIRDetail.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153);
             dgvRIRDetail.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
             dgvRIRDetail.CellFormatting += DgvRIRDetail_CellFormatting;
+
+            // Resize động: dgvRIR = 40%, dgvRIRDetail = 55% của vùng còn lại
+            void ApplyRIRLayout()
+            {
+                if (tabRIR == null || dgvRIR == null || dgvRIRDetail == null) return;
+                int w = tabRIR.ClientSize.Width - 20;
+                int h = tabRIR.ClientSize.Height;
+                if (w < 50 || h < 200) return;
+
+                int available = h - RIR_TOP - 10;
+                int topH = Math.Max(80, (int)(available * 0.40));
+                int lblY = RIR_TOP + topH + 4;
+                int bottomTop = lblY + RIR_LBL_H + 2;
+                int bottomH = Math.Max(80, h - bottomTop - 10);
+
+                dgvRIR.Location = new Point(10, RIR_TOP);
+                dgvRIR.Size = new Size(w, topH);
+
+                lblDetailTitle.Location = new Point(10, lblY);
+                lblDetailTitle.Width = w;
+
+                dgvRIRDetail.Location = new Point(10, bottomTop);
+                dgvRIRDetail.Size = new Size(w, bottomH);
+            }
+            tabRIR.ClientSizeChanged += (s, e) => ApplyRIRLayout();
+            this.Load += (s, e) => ApplyRIRLayout();
         }
 
         // ===== HELPERS =====
@@ -812,29 +923,57 @@ namespace MPR_Managerment.Forms
             return dgv;
         }
 
-        private Label AddSummaryCard(Panel parent, string title, string value, Color color, int x)
+        private Label AddSummaryCard(Panel parent, string title, string value, Color color, int slotIndex)
         {
-            var card = new Panel { Location = new Point(x, 0), Size = new Size(200, 90), BackColor = color };
+            // Tự tính vị trí và kích thước theo tỷ lệ, 4 card đều nhau
+            const int CARD_COUNT = 4;
+            const int GAP = 8;
+            // Card sẽ resize khi parent thay đổi — dùng Anchor + SizeChanged
+            int cardW = Math.Max(100, (parent.Width - GAP * (CARD_COUNT + 1)) / CARD_COUNT);
+            int cardX = GAP + slotIndex * (cardW + GAP);
+
+            var card = new Panel
+            {
+                Location = new Point(cardX, 4),
+                Size = new Size(cardW, 86),
+                BackColor = color,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
             parent.Controls.Add(card);
+
             card.Controls.Add(new Label
             {
                 Text = title,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.White,
+                Dock = DockStyle.None,
                 Location = new Point(0, 8),
-                Size = new Size(200, 22),
-                TextAlign = ContentAlignment.MiddleCenter
+                Size = new Size(cardW, 22),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             });
             var lbl = new Label
             {
                 Text = value,
-                Font = new Font("Segoe UI", 26, FontStyle.Bold),
+                Font = new Font("Segoe UI", 22, FontStyle.Bold),
                 ForeColor = Color.White,
                 Location = new Point(0, 32),
-                Size = new Size(200, 50),
-                TextAlign = ContentAlignment.MiddleCenter
+                Size = new Size(cardW, 50),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             card.Controls.Add(lbl);
+
+            // Resize card khi parent resize
+            parent.SizeChanged += (s, e) =>
+            {
+                int newW = Math.Max(100, (parent.Width - GAP * (CARD_COUNT + 1)) / CARD_COUNT);
+                int newX = GAP + slotIndex * (newW + GAP);
+                card.Location = new Point(newX, 4);
+                card.Width = newW;
+                foreach (Control c in card.Controls) c.Width = newW;
+            };
+
             return lbl;
         }
 
@@ -1062,14 +1201,6 @@ namespace MPR_Managerment.Forms
                     if (dgvMPR.Columns.Contains("MPR_ID"))
                         dgvMPR.Columns["MPR_ID"].Visible = false;
 
-                    // Cột "Dự án" cố định 60px
-                    if (dgvMPR.Columns.Contains("Dự án"))
-                    {
-                        dgvMPR.Columns["Dự án"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                        dgvMPR.Columns["Dự án"].Width = 60;
-                    }
-
-                    // Auto giãn tất cả cột còn lại: min 30, max 150
                     AutoAdjustMPRColumns();
 
                     dgvMPR.CellFormatting -= DgvMPR_CellFormatting;
@@ -1137,40 +1268,6 @@ namespace MPR_Managerment.Forms
         }
 
         // Auto giãn cột dgvMPR: min 30, max 150 — cột "Dự án" đã set 60 trước khi gọi hàm này
-        private void AutoAdjustMPRColumns()
-        {
-            if (dgvMPR == null || dgvMPR.Columns.Count == 0) return;
-            dgvMPR.SuspendLayout();
-            using (Graphics g = dgvMPR.CreateGraphics())
-            {
-                Font headerFont = dgvMPR.ColumnHeadersDefaultCellStyle.Font ?? dgvMPR.Font;
-                foreach (DataGridViewColumn col in dgvMPR.Columns)
-                {
-                    if (!col.Visible) continue;
-                    if (col.Name == "Dự án") continue; // đã cố định 60px
-
-                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-
-                    // Đo header
-                    int maxW = (int)Math.Ceiling(g.MeasureString(col.HeaderText, headerFont).Width) + 20;
-
-                    // Đo từng dòng
-                    foreach (DataGridViewRow row in dgvMPR.Rows)
-                    {
-                        if (row.IsNewRow) continue;
-                        string val = row.Cells[col.Index].FormattedValue?.ToString() ?? "";
-                        if (!string.IsNullOrEmpty(val))
-                        {
-                            int w = (int)Math.Ceiling(g.MeasureString(val, dgvMPR.Font).Width) + 15;
-                            if (w > maxW) maxW = w;
-                        }
-                    }
-                    col.Width = Math.Max(30, Math.Min(150, maxW));
-                }
-            }
-            dgvMPR.ResumeLayout();
-        }
-
         // Lọc dgvMPR theo Tình trạng PO (client-side, không query lại DB)
         private void FilterMPRByPOStatus()
         {

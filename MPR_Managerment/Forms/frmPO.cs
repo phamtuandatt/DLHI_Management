@@ -452,7 +452,7 @@ namespace MPR_Managerment.Forms
                 TextAlign = System.Drawing.ContentAlignment.MiddleRight,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            lblTotal.Location = new Point(panelDetail.Width - 500 - 10, 45);
+            lblTotal.Location = new Point(panelDetail.Width - 270 - 10, 45);
             panelDetail.Controls.Add(lblTotal);
 
             dgvDetails = new DataGridView
@@ -808,6 +808,24 @@ namespace MPR_Managerment.Forms
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             }
 
+            // Cột Mô tả (MPR) — chỉ xem, nền xanh nhạt, chữ nghiêng khi trống
+            if (colName == "MPR_Desc")
+            {
+                e.CellStyle.BackColor = Color.FromArgb(240, 248, 255);
+                string val = e.Value?.ToString() ?? "";
+                if (string.IsNullOrEmpty(val))
+                {
+                    e.Value = "(không có)";
+                    e.CellStyle.ForeColor = Color.FromArgb(180, 180, 180);
+                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Italic);
+                    e.FormattingApplied = true;
+                }
+                else
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(0, 100, 180);
+                }
+            }
+
             if (colName == "Ordered_PO")
             {
                 string val = e.Value?.ToString() ?? "";
@@ -1011,6 +1029,14 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeliveryLocation", HeaderText = "Nơi giao" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_No", HeaderText = "STT", ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên hàng" });
+            // Cột Description từ MPR — chỉ hiển thị, không lưu
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "MPR_Desc",
+                HeaderText = "Mô tả (MPR)",
+                ReadOnly = true,
+                DefaultCellStyle = { ForeColor = Color.FromArgb(0, 120, 212), BackColor = Color.FromArgb(240, 248, 255) }
+            });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material", HeaderText = "Vật liệu" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Asize", HeaderText = "A(mm)" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Bsize", HeaderText = "B(mm)" });
@@ -1126,6 +1152,30 @@ namespace MPR_Managerment.Forms
             try
             {
                 _details = new POService().GetDetails(poId);
+
+                // Load Description từ MPR_Details cho tất cả dòng có MPR_Detail_ID
+                var mprDescMap = new Dictionary<int, string>();
+                try
+                {
+                    var mprDetailIds = _details
+                        .Where(d => d.MPR_Detail_ID.HasValue && d.MPR_Detail_ID.Value > 0)
+                        .Select(d => d.MPR_Detail_ID.Value)
+                        .Distinct().ToList();
+
+                    if (mprDetailIds.Count > 0)
+                    {
+                        string ids = string.Join(",", mprDetailIds);
+                        using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                        conn.Open();
+                        var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                            $"SELECT Detail_ID, ISNULL(Description,'') AS Description FROM MPR_Details WHERE Detail_ID IN ({ids})", conn);
+                        using var reader = cmd.ExecuteReader();
+                        while (reader.Read())
+                            mprDescMap[Convert.ToInt32(reader["Detail_ID"])] = reader["Description"]?.ToString() ?? "";
+                    }
+                }
+                catch { /* Nếu lỗi query Description thì bỏ qua, vẫn load bình thường */ }
+
                 dgvDetails.CellValueChanged -= DgvDetails_CellValueChanged;
                 dgvDetails.Rows.Clear();
                 foreach (var d in _details)
@@ -1153,6 +1203,13 @@ namespace MPR_Managerment.Forms
                     row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID;
                     row.Cells["MPR_Detail_ID"].Value = d.MPR_Detail_ID.HasValue ? (object)d.MPR_Detail_ID.Value : DBNull.Value;
                     row.Cells["Item_No"].Value = d.Item_No; row.Cells["Item_Name"].Value = d.Item_Name; row.Cells["Material"].Value = d.Material;
+
+                    // Fill Description từ MPR (chỉ hiển thị)
+                    string mprDesc = "";
+                    if (d.MPR_Detail_ID.HasValue && d.MPR_Detail_ID.Value > 0)
+                        mprDescMap.TryGetValue(d.MPR_Detail_ID.Value, out mprDesc);
+                    row.Cells["MPR_Desc"].Value = mprDesc ?? "";
+
                     row.Cells["Asize"].Value = d.Asize;
                     row.Cells["Bsize"].Value = d.Bsize; row.Cells["Csize"].Value = d.Csize;
                     row.Cells["Qty"].Value = d.Qty_Per_Sheet; row.Cells["UNIT"].Value = d.UNIT; row.Cells["Weight"].Value = d.Weight_kg;

@@ -1314,8 +1314,8 @@ namespace MPR_Managerment.Forms
                     SELECT
                         ISNULL(pi.ProjectCode,  N'')                        AS [Mã dự án],
                         h.MPR_No                                            AS [MPR No],
-                        ISNULL(ph.PONo, N'')                                AS [PO No],
                         h.Rev                                               AS [Rev],
+                        d.Item_No                                           AS [Item No],
                         d.item_name                                         AS [Tên vật tư],
                         d.Material                                          AS [Vật liệu],
                         ISNULL(CAST(NULLIF(d.Thickness_mm,0) AS NVARCHAR), N'') AS [A-Dày(mm)],
@@ -1326,21 +1326,70 @@ namespace MPR_Managerment.Forms
                         ISNULL(CAST(NULLIF(d.F_Length_mm, 0) AS NVARCHAR), N'') AS [F-Dài(mm)],
                         ISNULL(d.UNIT,          N'')                        AS [ĐVT],
                         d.Qty_Per_Sheet                                     AS [SL],
-                        ISNULL(rd.Heatno,       N'')                        AS [Heat No],
-                        ISNULL(rd.Inspect_Result, N'Chưa KT')               AS [Kết quả KT],
-                        ISNULL(rh.RIR_No,       N'')                        AS [RIR No],
-                        ISNULL(rh.Status,       N'')                        AS [Trạng thái RIR]
-                    FROM MPR_Header h
-                    INNER JOIN MPR_Details d   ON d.MPR_ID = h.MPR_ID
-                    LEFT  JOIN ProjectInfo pi  ON pi.ProjectCode = h.Project_Code
-                    LEFT  JOIN PO_Detail  pod  ON pod.MPR_Detail_ID = d.Detail_ID
-                    LEFT  JOIN PO_head    ph   ON ph.PO_ID = pod.PO_ID
-                    LEFT  JOIN RIR_head   rh   ON rh.PONo  = ph.PONo
-                    LEFT  JOIN RIR_detail rd   ON rd.RIR_ID = rh.RIR_ID
-                        AND (
-                            ISNULL(rd.Size, N'') LIKE N'%' + ISNULL(CAST(NULLIF(d.Thickness_mm,0) AS NVARCHAR), N'') + N'%'
-                            OR (d.Thickness_mm = 0 AND d.Depth_mm = 0)
-                        )
+                        -- Gộp tất cả PO của hạng mục → 1 chuỗi, không duplicate
+                        ISNULL(STUFF((
+                            SELECT DISTINCT N', ' + ph2.PONo
+                            FROM PO_Detail pod2
+                            INNER JOIN PO_head ph2 ON ph2.PO_ID = pod2.PO_ID
+                            WHERE pod2.MPR_Detail_ID = d.Detail_ID
+                            FOR XML PATH(''), TYPE
+                        ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [PO No],
+                        -- Gộp Heat No từ RIR_detail của các PO liên quan
+                        ISNULL(STUFF((
+                            SELECT DISTINCT N', ' + rd2.Heatno
+                            FROM PO_Detail pod3
+                            INNER JOIN PO_head   ph3 ON ph3.PO_ID  = pod3.PO_ID
+                            INNER JOIN RIR_head  rh2 ON rh2.PONo   = ph3.PONo
+                            INNER JOIN RIR_detail rd2 ON rd2.RIR_ID = rh2.RIR_ID
+                            WHERE pod3.MPR_Detail_ID = d.Detail_ID
+                              AND ISNULL(rd2.Heatno, N'') != N''
+                            FOR XML PATH(''), TYPE
+                        ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [Heat No],
+                        -- Kết quả KT: lấy theo thứ tự ưu tiên Fail > Hold > Pass > Chưa KT
+                        ISNULL((
+                            SELECT TOP 1
+                                CASE rd3.Inspect_Result
+                                    WHEN N'Fail' THEN N'Fail'
+                                    WHEN N'Hold' THEN N'Hold'
+                                    WHEN N'Pass' THEN N'Pass'
+                                    ELSE N'Chưa KT'
+                                END
+                            FROM PO_Detail pod4
+                            INNER JOIN PO_head    ph4 ON ph4.PO_ID  = pod4.PO_ID
+                            INNER JOIN RIR_head   rh3 ON rh3.PONo   = ph4.PONo
+                            INNER JOIN RIR_detail rd3 ON rd3.RIR_ID = rh3.RIR_ID
+                            WHERE pod4.MPR_Detail_ID = d.Detail_ID
+                            ORDER BY
+                                CASE rd3.Inspect_Result
+                                    WHEN N'Fail' THEN 1
+                                    WHEN N'Hold' THEN 2
+                                    WHEN N'Pass' THEN 3
+                                    ELSE 4
+                                END
+                        ), N'Chưa KT')                                      AS [Kết quả KT],
+                        -- Gộp tất cả RIR No liên quan
+                        ISNULL(STUFF((
+                            SELECT DISTINCT N', ' + rh4.RIR_No
+                            FROM PO_Detail pod5
+                            INNER JOIN PO_head  ph5 ON ph5.PO_ID = pod5.PO_ID
+                            INNER JOIN RIR_head rh4 ON rh4.PONo  = ph5.PONo
+                            WHERE pod5.MPR_Detail_ID = d.Detail_ID
+                              AND ISNULL(rh4.RIR_No, N'') != N''
+                            FOR XML PATH(''), TYPE
+                        ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [RIR No],
+                        -- Trạng thái RIR: lấy trạng thái mới nhất
+                        ISNULL((
+                            SELECT TOP 1 rh5.Status
+                            FROM PO_Detail pod6
+                            INNER JOIN PO_head  ph6 ON ph6.PO_ID = pod6.PO_ID
+                            INNER JOIN RIR_head rh5 ON rh5.PONo  = ph6.PONo
+                            WHERE pod6.MPR_Detail_ID = d.Detail_ID
+                              AND ISNULL(rh5.Status, N'') != N''
+                            ORDER BY rh5.Issue_Date DESC
+                        ), N'')                                             AS [Trạng thái RIR]
+                    FROM MPR_Header  h
+                    INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID
+                    LEFT  JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
 
                 DataTable dtFull;
