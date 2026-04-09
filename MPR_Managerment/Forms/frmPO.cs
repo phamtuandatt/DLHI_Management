@@ -18,7 +18,7 @@ namespace MPR_Managerment.Forms
         private List<POHead> _poList = new List<POHead>();
         private List<PODetail> _details = new List<PODetail>();
         private int _selectedPO_ID = 0;
-        private string _currentUser = "Admin";
+        private string _currentUser = AppSession.CurrentUser.Full_Name ?? "Admin";
 
         private string _targetPoNo = "";
         private string _importMprNo = "";
@@ -947,6 +947,81 @@ namespace MPR_Managerment.Forms
             catch { }
         }
 
+        //private void BtnExport_Click(object sender, EventArgs e)
+        //{
+        //    if (_selectedPO_ID == 0) { MessageBox.Show("Vui lòng chọn PO cần xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        //    try
+        //    {
+        //        var po = _poList.Find(p => p.PO_ID == _selectedPO_ID);
+        //        var details = _service.GetDetails(_selectedPO_ID); if (po == null) return;
+        //        var suppliers = new SupplierService().GetAll();
+        //        var supplier = suppliers.Find(s => s.Supplier_ID == Convert.ToInt32(cboSupplier.SelectedValue?.ToString() ?? "0"));
+        //        var projects = new ProjectService().GetAll();
+        //        var project = projects.Find(p => p.WorkorderNo == po.WorkorderNo);
+        //        string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "po_template.xlsx");
+        //        if (!File.Exists(templatePath)) { MessageBox.Show($"Lỗi: Không tìm thấy file template!\nĐường dẫn dự kiến: {templatePath}", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+        //        var saveDialog = new SaveFileDialog { Title = "Lưu file PO", Filter = "Excel Files|*.xlsx", FileName = $"PO_{po.PONo}_{DateTime.Now:ddMMyyyy}", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
+        //        if (saveDialog.ShowDialog() != DialogResult.OK) return;
+        //        File.Copy(templatePath, saveDialog.FileName, true);
+        //        OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+        //        using (var package = new OfficeOpenXml.ExcelPackage(new FileInfo(saveDialog.FileName)))
+        //        {
+        //            var ws = package.Workbook.Worksheets[0];
+        //            ReplaceCell(ws, "<<PROJECT_NAME>>", project?.ProjectName ?? po.Project_Name ?? ""); ReplaceCell(ws, "<<WO-NO>>", po.WorkorderNo ?? ""); ReplaceCell(ws, "<<REV.NUM>>", po.Revise.ToString() ?? "0");
+        //            ReplaceCell(ws, "<<DATE>>", po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : DateTime.Today.ToString("dd/MM/yyyy")); ReplaceCell(ws, "<<MPR-NO>>", po.MPR_No ?? ""); ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
+        //            string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
+        //            ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
+        //            int startRow = 8; int detailCount = details.Count;
+        //            if (detailCount > 1) ws.InsertRow(startRow + 1, detailCount - 1);
+        //            for (int i = 0; i < detailCount; i++)
+        //            {
+        //                var d = details[i];
+        //                int row = startRow + i;
+        //                decimal q = d.Qty_Per_Sheet; decimal wk = d.Weight_kg; decimal realPrice = d.Price;
+        //                string rem = d.Remarks ?? "";
+        //                if (rem.Contains("[CALC:KG]"))
+        //                {
+        //                    rem = rem.Replace("[CALC:KG]", "").Trim();
+        //                    if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
+        //                }
+        //                else if (rem.Contains("[CALC:SL]")) rem = rem.Replace("[CALC:SL]", "").Trim();
+        //                ws.Cells[row, 1].Value = i + 1; ws.Cells[row, 2].Value = d.Item_Name ?? ""; ws.Cells[row, 3].Value = d.Material ?? "";
+        //                ws.Cells[row, 4].Value = d.Asize; ws.Cells[row, 5].Value = d.Bsize; ws.Cells[row, 6].Value = d.Csize;
+        //                ws.Cells[row, 7].Value = d.Qty_Per_Sheet;
+        //                ws.Cells[row, 8].Value = d.UNIT ?? ""; ws.Cells[row, 9].Value = d.Weight_kg;
+        //                ws.Cells[row, 10].Value = d.MPSNo ?? ""; ws.Cells[row, 11].Value = d.RequestDay;
+        //                ws.Cells[row, 12].Value = "Kho DLHI";
+        //                ws.Cells[row, 13].Value = Math.Round(realPrice, 0); ws.Cells[row, 14].Value = d.Amount; ws.Cells[row, 16].Value = rem;
+        //                if (i > 0)
+        //                {
+        //                    for (int col = 1; col <= 16; col++)
+        //                    {
+        //                        ws.Cells[row, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+        //                        ws.Cells[row, col].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+        //                        ws.Cells[row, col].Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin; 
+        //                        ws.Cells[row, col].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+        //                        ws.Cells[row, col].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; 
+        //                        ws.Cells[row, col].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+        //                        ws.Cells[row, col].Style.Font.Name = "Arial"; ws.Cells[row, col].Style.Font.Size = 9;
+        //                    }
+        //                    ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+        //                }
+        //            }
+        //            int subTotalRow = startRow + detailCount;
+        //            int vatRow = subTotalRow + 1;
+        //            ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL"; ws.Cells[subTotalRow, 9].Value = details.Sum(d => (double)d.Weight_kg);
+        //            ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
+        //            ws.Cells[vatRow, 3].Value = "Final Price Requested (Included 10% VAT)";
+        //            ws.Cells[vatRow, 14].Formula = $"=N{subTotalRow}*1.1";
+        //            for (int r = 1; r <= ws.Dimension.End.Row; r++) for (int c = 1; c <= ws.Dimension.End.Column; c++) if (ws.Cells[r, c].Value?.ToString() == "<<DATE>>") ws.Cells[r, c].Value = DateTime.Today.ToString("dd/MM/yyyy");
+        //            package.Save();
+        //        }
+        //        var result = MessageBox.Show($"✅ Xuất Excel thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file không?", "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        //        if (result == DialogResult.Yes) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveDialog.FileName, UseShellExecute = true });
+        //    }
+        //    catch (Exception ex) { MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        //}
+
         private void BtnExport_Click(object sender, EventArgs e)
         {
             if (_selectedPO_ID == 0) { MessageBox.Show("Vui lòng chọn PO cần xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
@@ -959,61 +1034,108 @@ namespace MPR_Managerment.Forms
                 var projects = new ProjectService().GetAll();
                 var project = projects.Find(p => p.WorkorderNo == po.WorkorderNo);
                 string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "po_template.xlsx");
+
                 if (!File.Exists(templatePath)) { MessageBox.Show($"Lỗi: Không tìm thấy file template!\nĐường dẫn dự kiến: {templatePath}", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+
                 var saveDialog = new SaveFileDialog { Title = "Lưu file PO", Filter = "Excel Files|*.xlsx", FileName = $"PO_{po.PONo}_{DateTime.Now:ddMMyyyy}", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
                 if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
                 File.Copy(templatePath, saveDialog.FileName, true);
                 OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
                 using (var package = new OfficeOpenXml.ExcelPackage(new FileInfo(saveDialog.FileName)))
                 {
                     var ws = package.Workbook.Worksheets[0];
-                    ReplaceCell(ws, "<<PROJECT_NAME>>", project?.ProjectName ?? po.Project_Name ?? ""); ReplaceCell(ws, "<<WO-NO>>", po.WorkorderNo ?? ""); ReplaceCell(ws, "<<REV.NUM>>", po.Revise.ToString() ?? "0");
-                    ReplaceCell(ws, "<<DATE>>", po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : DateTime.Today.ToString("dd/MM/yyyy")); ReplaceCell(ws, "<<MPR-NO>>", po.MPR_No ?? ""); ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
+
+                    // Thay thế Header
+                    ReplaceCell(ws, "<<PROJECT_NAME>>", project?.ProjectName ?? po.Project_Name ?? "");
+                    ReplaceCell(ws, "<<WO-NO>>", po.WorkorderNo ?? "");
+                    ReplaceCell(ws, "<<REV.NUM>>", po.Revise.ToString() ?? "0");
+                    ReplaceCell(ws, "<<DATE>>", po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : DateTime.Today.ToString("dd/MM/yyyy"));
+                    ReplaceCell(ws, "<<MPR-NO>>", po.MPR_No ?? "");
+                    ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
+
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
-                    int startRow = 8; int detailCount = details.Count;
+
+                    int startRow = 8;
+                    int detailCount = details.Count;
+
+                    // Chèn dòng nếu nhiều hơn 1 item
                     if (detailCount > 1) ws.InsertRow(startRow + 1, detailCount - 1);
+
                     for (int i = 0; i < detailCount; i++)
                     {
                         var d = details[i];
                         int row = startRow + i;
-                        decimal q = d.Qty_Per_Sheet; decimal wk = d.Weight_kg; decimal realPrice = d.Price;
+
+                        decimal q = d.Qty_Per_Sheet;
+                        decimal wk = d.Weight_kg;
+                        decimal realPrice = d.Price;
                         string rem = d.Remarks ?? "";
+
                         if (rem.Contains("[CALC:KG]"))
                         {
                             rem = rem.Replace("[CALC:KG]", "").Trim();
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
                         else if (rem.Contains("[CALC:SL]")) rem = rem.Replace("[CALC:SL]", "").Trim();
-                        ws.Cells[row, 1].Value = i + 1; ws.Cells[row, 2].Value = d.Item_Name ?? ""; ws.Cells[row, 3].Value = d.Material ?? "";
-                        ws.Cells[row, 4].Value = d.Asize; ws.Cells[row, 5].Value = d.Bsize; ws.Cells[row, 6].Value = d.Csize;
+
+                        // Gán giá trị vào các ô
+                        ws.Cells[row, 1].Value = i + 1;
+                        ws.Cells[row, 2].Value = d.Item_Name ?? "";
+                        ws.Cells[row, 3].Value = d.Material ?? "";
+                        ws.Cells[row, 4].Value = d.Asize;
+                        ws.Cells[row, 5].Value = d.Bsize;
+                        ws.Cells[row, 6].Value = d.Csize;
                         ws.Cells[row, 7].Value = d.Qty_Per_Sheet;
-                        ws.Cells[row, 8].Value = d.UNIT ?? ""; ws.Cells[row, 9].Value = d.Weight_kg;
-                        ws.Cells[row, 10].Value = d.MPSNo ?? ""; ws.Cells[row, 11].Value = d.RequestDay;
+                        ws.Cells[row, 8].Value = d.UNIT ?? "";
+                        ws.Cells[row, 9].Value = d.Weight_kg;
+                        ws.Cells[row, 10].Value = d.MPSNo ?? "";
+                        ws.Cells[row, 11].Value = d.RequestDay;
                         ws.Cells[row, 12].Value = "Kho DLHI";
-                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0); ws.Cells[row, 14].Value = d.Amount; ws.Cells[row, 16].Value = rem;
-                        if (i > 0)
+                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
+                        ws.Cells[row, 14].Value = d.Amount;
+                        ws.Cells[row, 16].Value = rem;
+
+                        // --- ĐỊNH DẠNG TOÀN BỘ CÁC DÒNG DỮ LIỆU ---
+                        using (var range = ws.Cells[row, 1, row, 16])
                         {
-                            for (int col = 1; col <= 16; col++)
-                            {
-                                ws.Cells[row, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                                ws.Cells[row, col].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                                ws.Cells[row, col].Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin; ws.Cells[row, col].Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                                ws.Cells[row, col].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; ws.Cells[row, col].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                                ws.Cells[row, col].Style.Font.Name = "Arial"; ws.Cells[row, col].Style.Font.Size = 9;
-                            }
-                            ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+                            range.Style.Font.Name = "Times New Roman";
+                            range.Style.Font.Size = 11;
+                            range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+
+                            // Kẻ khung
+                            range.Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            range.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            range.Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            range.Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
                         }
+
+                        // Riêng cột Tên vật tư (Cột 2) cho phép căn trái để dễ đọc hơn (Nếu bạn vẫn muốn giữa hết thì xóa 2 dòng dưới)
+                        ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
                     }
+
                     int subTotalRow = startRow + detailCount;
                     int vatRow = subTotalRow + 1;
-                    ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL"; ws.Cells[subTotalRow, 9].Value = details.Sum(d => (double)d.Weight_kg);
+
+                    ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
+                    ws.Cells[subTotalRow, 9].Value = details.Sum(d => (double)d.Weight_kg);
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
+
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included 10% VAT)";
                     ws.Cells[vatRow, 14].Formula = $"=N{subTotalRow}*1.1";
-                    for (int r = 1; r <= ws.Dimension.End.Row; r++) for (int c = 1; c <= ws.Dimension.End.Column; c++) if (ws.Cells[r, c].Value?.ToString() == "<<DATE>>") ws.Cells[r, c].Value = DateTime.Today.ToString("dd/MM/yyyy");
+
+                    // Quét lại toàn bộ file để thay thế các tag ngày tháng còn sót
+                    for (int r = 1; r <= ws.Dimension.End.Row; r++)
+                        for (int c = 1; c <= ws.Dimension.End.Column; c++)
+                            if (ws.Cells[r, c].Value?.ToString() == "<<DATE>>")
+                                ws.Cells[r, c].Value = DateTime.Today.ToString("dd/MM/yyyy");
+
                     package.Save();
                 }
+
                 var result = MessageBox.Show($"✅ Xuất Excel thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file không?", "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                 if (result == DialogResult.Yes) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveDialog.FileName, UseShellExecute = true });
             }

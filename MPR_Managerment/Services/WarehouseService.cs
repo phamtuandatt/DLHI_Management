@@ -303,13 +303,13 @@ namespace MPR_Managerment.Services
             return list;
         }
 
-        public List<WarehouseStock> GetStockWithRemaining()
+        public List<WarehouseStock> GetStockWithRemaining(string projectCode)
         {
             var list = new List<WarehouseStock>();
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                var cmd = new SqlCommand("SELECT * FROM vw_Warehouse_Stock WHERE Qty_Stock > 0 ORDER BY Import_Date DESC", conn);
+                var cmd = new SqlCommand($"SELECT * FROM vw_Warehouse_Stock WHERE Project_Code = '{projectCode}' AND Qty_Stock > 0 ORDER BY Import_Date DESC", conn);
                 var r = cmd.ExecuteReader();
                 while (r.Read()) list.Add(MapStock(r));
             }

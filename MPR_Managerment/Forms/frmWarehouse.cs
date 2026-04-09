@@ -944,7 +944,7 @@ namespace MPR_Managerment.Forms
 
         private void LoadStockOnly()
         {
-            try { if (dgvStock != null) BindStockGrid(_service.GetStockWithRemaining()); }
+            try { if (dgvStock != null) BindStockGrid(_service.GetStockWithRemaining(cboProjectFilter.SelectedText)); }
             catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
@@ -983,7 +983,7 @@ namespace MPR_Managerment.Forms
             try
             {
                 if (dgvStockForExport == null) return;
-                var stocks = _service.GetStockWithRemaining();
+                var stocks = _service.GetStockWithRemaining(cboProjectExportFilter.SelectedText);
                 if (!string.IsNullOrEmpty(projectCode))
                     stocks = stocks.FindAll(s => (s.Project_Code ?? "").Equals(projectCode, StringComparison.OrdinalIgnoreCase));
                 if (!string.IsNullOrEmpty(poNo))
