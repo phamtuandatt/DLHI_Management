@@ -540,6 +540,41 @@ END
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 
+--CREATE PROCEDURE [dbo].[sp_UpdateWarehouseQty]
+--    @Import_ID INT,             -- ID của dòng cần cập nhật
+--    @Qty_Subtract DECIMAL(18, 2) -- Số lượng muốn trừ đi
+--AS
+--BEGIN
+--    SET NOCOUNT ON;
+
+--    -- Kiểm tra xem dòng có tồn tại không
+--    IF EXISTS (SELECT 1 FROM [dbo].[Warehouse_Import] WHERE [Import_ID] = @Import_ID)
+--    BEGIN
+--        -- Thực hiện cập nhật số lượng
+--        UPDATE [dbo].[Warehouse_Import]
+--        SET [Qty_Import] = [Qty_Import] - @Qty_Subtract
+--        WHERE [Import_ID] = @Import_ID;
+
+--        -- Trả về kết quả để C# nhận biết thành công
+--        SELECT 1 AS ResultStatus;
+--    END
+--    ELSE
+--    BEGIN
+--        -- Trả về 0 nếu không tìm thấy ID
+--        SELECT 0 AS ResultStatus;
+--    END
+--END
+--GO
+
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
 SELECT W.ID_Code, W.Item_Name AS 'Name', M.material_detail_name AS 'Description', W.Size, SUM(W.Qty_import) AS [Qty (SUM)] FROM Warehouse_Import AS W LEFT JOIN Material_Detail AS M  ON LEFT(W.ID_Code, 9) = M.item_code_existed GROUP BY  W.ID_Code, W.Item_Name, M.material_detail_name, W.Size ORDER BY W.ID_Code; 
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
+UPDATE Warehouse_Import
+
+
+SELECT *FROM Material_Detail WHERE item_code_existed = 'DOV125001'
+SELECT *FROM Warehouse_Import WHERE ID_Code = 'DOV125001003'
+UPDATE Warehouse_Import SET Size = '125x125x10x10x6000' WHERE Import_ID = 132
