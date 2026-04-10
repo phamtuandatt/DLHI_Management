@@ -93,6 +93,11 @@ namespace MPR_Managerment.Forms.ExportGUI
                 dgvKho.Columns["Item_ID"].Visible = false;
                 dgvKho.Columns["Warehouse_ID"].Visible = false;
                 dgvKho.Columns["Item_Code"].Visible = false;
+
+                dgvKho.Columns["Location"].Visible = false;
+                dgvKho.Columns["Notes"].Visible = false;
+                dgvKho.Columns["MTRno"].Visible = false;
+                dgvKho.Columns["Heatno"].Visible = false;
             }
         }
 
@@ -206,9 +211,13 @@ namespace MPR_Managerment.Forms.ExportGUI
             dgvExportQue.Columns["Qty_Export"].HeaderText = "SL Xuất";
             dgvExportQue.Columns["ID_Code"].HeaderText = "Mã ITEM";
 
-            //dgvExportQue.Columns["Export_ID"].Visible = false;
-            //dgvExportQue.Columns["Warehouse_ID"].Visible = false;
-            //dgvExportQue.Columns["Import_ID"].Visible = false;
+            dgvExportQue.Columns["Export_ID"].Visible = false;
+            dgvExportQue.Columns["Export_No"].Visible = false;
+            dgvExportQue.Columns["Export_To"].Visible = false;
+            dgvExportQue.Columns["Purpose"].Visible = false;
+            dgvExportQue.Columns["Notes"].Visible = false;
+            dgvExportQue.Columns["Warehouse_ID"].Visible = false;
+            dgvExportQue.Columns["Import_ID"].Visible = false;
         }
 
         private void OpenInputQuantityForm(decimal maxQty, Action<decimal> onSuccess)
@@ -318,7 +327,13 @@ namespace MPR_Managerment.Forms.ExportGUI
         private void dgvKho_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
-
+            string col = dgvKho.Columns[e.ColumnIndex].Name;
+            if (col == "Qty_Import")
+            {
+                decimal val = e.Value != null ? Convert.ToDecimal(e.Value) : 0;
+                e.CellStyle.ForeColor = val > 0 ? Color.FromArgb(40, 167, 69) : Color.FromArgb(220, 53, 69);
+                e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
             // Lấy Import_ID của dòng đang hiển thị ở Grid 1
             var importId = dgvKho.Rows[e.RowIndex].Cells["Import_ID"].Value;
 
@@ -349,6 +364,9 @@ namespace MPR_Managerment.Forms.ExportGUI
             dgvHis.Columns["Export_ID"].Visible = false;
             dgvHis.Columns["Import_ID"].Visible = false;
             dgvHis.Columns["Warehouse_ID"].Visible = false;
+            dgvHis.Columns["Export_To"].Visible = false;
+            dgvHis.Columns["Purpose"].Visible = false;
+            dgvHis.Columns["Notes"].Visible = false;
 
             decimal totalQty = 0;
             decimal totalKg = 0;
@@ -432,6 +450,16 @@ namespace MPR_Managerment.Forms.ExportGUI
             //    row.DefaultCellStyle.ForeColor = Color.Black;
             //    row.DefaultCellStyle.Font = new Font(dgvHis.Font, FontStyle.Regular);
             //}
+        }
+
+        private void cboProject_Validating(object sender, CancelEventArgs e)
+        {
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
+        private void cboProjectCheck_Validating(object sender, CancelEventArgs e)
+        {
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
         }
     }
 }

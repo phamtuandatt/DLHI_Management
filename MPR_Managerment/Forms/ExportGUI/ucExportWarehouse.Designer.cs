@@ -134,12 +134,15 @@
             // 
             // cboProject
             // 
+            cboProject.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            cboProject.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboProject.FormattingEnabled = true;
             cboProject.Location = new Point(80, 48);
             cboProject.Margin = new Padding(3, 2, 3, 2);
             cboProject.Name = "cboProject";
             cboProject.Size = new Size(238, 23);
             cboProject.TabIndex = 2;
+            cboProject.Validating += cboProject_Validating;
             // 
             // lblStatus
             // 
@@ -261,7 +264,7 @@
             lblInfoKho.AutoSize = true;
             lblInfoKho.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblInfoKho.ForeColor = Color.LimeGreen;
-            lblInfoKho.Location = new Point(460, 22);
+            lblInfoKho.Location = new Point(460, 24);
             lblInfoKho.Name = "lblInfoKho";
             lblInfoKho.Size = new Size(42, 15);
             lblInfoKho.TabIndex = 1;
@@ -351,23 +354,31 @@
             // 
             // btnClearSearch
             // 
-            btnClearSearch.Location = new Point(1066, 20);
+            btnClearSearch.BackColor = Color.FromArgb(192, 0, 0);
+            btnClearSearch.FlatStyle = FlatStyle.Flat;
+            btnClearSearch.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnClearSearch.ForeColor = Color.White;
+            btnClearSearch.Location = new Point(1072, 18);
             btnClearSearch.Margin = new Padding(3, 2, 3, 2);
             btnClearSearch.Name = "btnClearSearch";
-            btnClearSearch.Size = new Size(90, 24);
+            btnClearSearch.Size = new Size(94, 29);
             btnClearSearch.TabIndex = 4;
-            btnClearSearch.Text = "Xóa";
-            btnClearSearch.UseVisualStyleBackColor = true;
+            btnClearSearch.Text = "🗑 Xóa lọc";
+            btnClearSearch.UseVisualStyleBackColor = false;
             // 
             // btnSearchHis
             // 
-            btnSearchHis.Location = new Point(973, 20);
+            btnSearchHis.BackColor = Color.RoyalBlue;
+            btnSearchHis.FlatStyle = FlatStyle.Flat;
+            btnSearchHis.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnSearchHis.ForeColor = Color.White;
+            btnSearchHis.Location = new Point(973, 18);
             btnSearchHis.Margin = new Padding(3, 2, 3, 2);
             btnSearchHis.Name = "btnSearchHis";
-            btnSearchHis.Size = new Size(90, 24);
+            btnSearchHis.Size = new Size(94, 29);
             btnSearchHis.TabIndex = 3;
-            btnSearchHis.Text = "Tìm kiếm";
-            btnSearchHis.UseVisualStyleBackColor = true;
+            btnSearchHis.Text = "🔍 Tìm kiếm";
+            btnSearchHis.UseVisualStyleBackColor = false;
             btnSearchHis.Click += btnSearchHis_Click;
             // 
             // lblInfoXK
@@ -405,12 +416,15 @@
             // 
             // cboProjectCheck
             // 
+            cboProjectCheck.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            cboProjectCheck.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboProjectCheck.FormattingEnabled = true;
             cboProjectCheck.Location = new Point(559, 20);
             cboProjectCheck.Margin = new Padding(3, 2, 3, 2);
             cboProjectCheck.Name = "cboProjectCheck";
             cboProjectCheck.Size = new Size(238, 23);
             cboProjectCheck.TabIndex = 2;
+            cboProjectCheck.Validating += cboProjectCheck_Validating;
             // 
             // label7
             // 
