@@ -1426,12 +1426,35 @@ namespace MPR_Managerment.Forms
             decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty);
             decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal weight);
             // Price có thể đang ở dạng "1,000,000" — cần bỏ dấu phẩy trước parse
-            decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal price);
+            //decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal price);
+            decimal price = ParseDecimal(row.Cells["Price"].Value);
             decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
             string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
             decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
             row.Cells["Amount"].Value = Math.Round(baseValue * price * (1 + vat / 100), 0);
             UpdateTotal();
+        }
+
+        private decimal ParseDecimal(object value)
+        {
+            if (value == null) return 0;
+            string input = value.ToString().Trim();
+            if (string.IsNullOrEmpty(input)) return 0;
+
+            if (input.Contains(",") && !input.Contains("."))
+            {
+                input = input.Replace(",", ".");
+            }
+
+            else if (input.Contains(",") && input.Contains("."))
+            {
+                input = input.Replace(",", "");
+            }
+
+            decimal.TryParse(input, System.Globalization.NumberStyles.Any,
+                             System.Globalization.CultureInfo.InvariantCulture, out decimal result);
+
+            return result;
         }
 
         private void DgvDetails_CellEndEdit(object sender, DataGridViewCellEventArgs e)
