@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ERP_Management_Infrastructor.Cache
 {
-    public static class CachKeys
+    public static class CacheKeys
     {
         public const string SUPPLIER_LIST = "SUPPLIER_List";
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -213,7 +214,7 @@ namespace MPR_Managerment.Forms
 });
             cboFilterPO.SelectedIndex = 0;
             cboFilterPO.SelectedIndexChanged += (s, e) => LoadPOData();
-            tabPO.Controls.Add(cboFilterPO);
+            pFilterPO.Controls.Add(cboFilterPO);
 
             var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), Point.Empty, 90, 28);
             btnSearch.Click += (s, e) => LoadPOData();
@@ -507,7 +508,7 @@ namespace MPR_Managerment.Forms
             cboFilterMPR.Items.AddRange(new[] { "Tất cả", "Mới", "Đang xử lý", "Đã duyệt", "Hoàn thành", "Hủy" });
             cboFilterMPR.SelectedIndex = 0;
             cboFilterMPR.SelectedIndexChanged += (s, e) => LoadMPRData();
-            tabMPR.Controls.Add(cboFilterMPR);
+            pFilterMPR.Controls.Add(cboFilterMPR);
 
             pFilterMPR.Controls.Add(new Label { Text = "% Đặt hàng:", Size = new Size(80, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
             cboFilterPOStatus = new ComboBox
@@ -1269,28 +1270,87 @@ namespace MPR_Managerment.Forms
 
         // Auto giãn cột dgvMPR: min 30, max 150 — cột "Dự án" đã set 60 trước khi gọi hàm này
         // Lọc dgvMPR theo Tình trạng PO (client-side, không query lại DB)
+        //private void FilterMPRByPOStatus()
+        //{
+        //    if (dgvMPR == null || dgvMPR.Rows.Count == 0) return;
+        //    string sel = cboFilterPOStatus.SelectedItem?.ToString() ?? "Tất cả";
+
+        //    foreach (DataGridViewRow row in dgvMPR.Rows)
+        //    {
+        //        if (row.IsNewRow) continue;
+        //        if (sel == "Tất cả") { row.Visible = true; continue; }
+
+        //        // Đọc % Item đặt hàng từ cột (có thể dạng "100.0%" hoặc số)
+        //        string pctRaw = row.Cells["% Item đặt hàng"].Value?.ToString() ?? "0";
+        //        pctRaw = pctRaw.Replace("%", "").Trim();
+        //        decimal.TryParse(pctRaw, System.Globalization.NumberStyles.Any,
+        //            System.Globalization.CultureInfo.InvariantCulture, out decimal pct);
+
+        //        if (sel.Contains("Hoàn thành"))
+        //            row.Visible = pct >= 100;
+        //        else if (sel.Contains("Chưa hoàn thành"))
+        //            row.Visible = pct < 100;
+        //        else
+        //            row.Visible = true;
+        //    }
+        //}
         private void FilterMPRByPOStatus()
         {
+            // Kiểm tra điều kiện đầu vào
             if (dgvMPR == null || dgvMPR.Rows.Count == 0) return;
+
+            // 1. QUAN TRỌNG: Hủy chọn dòng hiện tại để tránh lỗi InvalidOperationException
+            dgvMPR.CurrentCell = null;
+
             string sel = cboFilterPOStatus.SelectedItem?.ToString() ?? "Tất cả";
 
-            foreach (DataGridViewRow row in dgvMPR.Rows)
+            // Sử dụng CurrencyManager để tạm dừng quản lý vị trí dòng, giúp ẩn dòng mượt hơn
+            CurrencyManager currencyManager = (CurrencyManager)BindingContext[dgvMPR.DataSource];
+            currencyManager.SuspendBinding();
+
+            try
             {
-                if (row.IsNewRow) continue;
-                if (sel == "Tất cả") { row.Visible = true; continue; }
+                foreach (DataGridViewRow row in dgvMPR.Rows)
+                {
+                    if (row.IsNewRow) continue;
 
-                // Đọc % Item đặt hàng từ cột (có thể dạng "100.0%" hoặc số)
-                string pctRaw = row.Cells["% Item đặt hàng"].Value?.ToString() ?? "0";
-                pctRaw = pctRaw.Replace("%", "").Trim();
-                decimal.TryParse(pctRaw, System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out decimal pct);
+                    if (sel == "Tất cả")
+                    {
+                        row.Visible = true;
+                        continue;
+                    }
 
-                if (sel.Contains("Hoàn thành"))
-                    row.Visible = pct >= 100;
-                else if (sel.Contains("Chưa hoàn thành"))
-                    row.Visible = pct < 100;
-                else
-                    row.Visible = true;
+                    // Đọc % Item đặt hàng (Xử lý an toàn với CultureInfo.InvariantCulture như chúng ta đã làm)
+                    string pctRaw = row.Cells["% Item đặt hàng"].Value?.ToString() ?? "0";
+                    pctRaw = pctRaw.Replace("%", "").Trim();
+
+                    decimal.TryParse(pctRaw, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out decimal pct);
+
+                    // Thực hiện ẩn/hiện dựa trên điều kiện
+                    if (sel.Contains("Hoàn thành"))
+                    {
+                        row.Visible = (pct >= 100);
+                    }
+                    else if (sel.Contains("Chưa hoàn thành"))
+                    {
+                        row.Visible = (pct < 100);
+                    }
+                    else
+                    {
+                        row.Visible = true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Debug nếu có lỗi phát sinh trong quá trình lọc
+                Console.WriteLine("Lỗi lọc MPR: " + ex.Message);
+            }
+            finally
+            {
+                // 2. QUAN TRỌNG: Kích hoạt lại Binding sau khi lọc xong
+                currencyManager.ResumeBinding();
             }
         }
 
