@@ -215,7 +215,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             dgvExportQue.Columns["Export_No"].Visible = false;
             dgvExportQue.Columns["Export_To"].Visible = false;
             dgvExportQue.Columns["Purpose"].Visible = false;
-            dgvExportQue.Columns["Notes"].Visible = false;
+            //dgvExportQue.Columns["Notes"].Visible = false;
             dgvExportQue.Columns["Warehouse_ID"].Visible = false;
             dgvExportQue.Columns["Import_ID"].Visible = false;
         }
