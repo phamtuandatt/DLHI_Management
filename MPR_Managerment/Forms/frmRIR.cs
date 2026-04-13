@@ -997,7 +997,7 @@ namespace MPR_Managerment.Forms
                                 }
                                 else
                                 {
-                                    _service.UpdateDetail(d);
+                                    //_service.UpdateDetail(d);
                                 }
                                 saved++;
                             }
@@ -1499,7 +1499,7 @@ namespace MPR_Managerment.Forms
                     }
                     else
                     {
-                        _service.UpdateDetail(d);
+                        await _service.UpdateDetail(d);
                     }
                     saved++;
                 }

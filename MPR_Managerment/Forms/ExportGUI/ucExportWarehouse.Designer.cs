@@ -208,10 +208,10 @@
             dgvExportQue.Location = new Point(14, 49);
             dgvExportQue.Margin = new Padding(3, 2, 3, 2);
             dgvExportQue.Name = "dgvExportQue";
-            dgvExportQue.ReadOnly = true;
             dgvExportQue.RowHeadersWidth = 51;
             dgvExportQue.Size = new Size(1196, 440);
             dgvExportQue.TabIndex = 5;
+            dgvExportQue.CellFormatting += dgvExportQue_CellFormatting;
             // 
             // btnClear
             // 

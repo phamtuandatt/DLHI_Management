@@ -179,8 +179,11 @@ namespace MPR_Managerment.Forms
                 Name = "cbProject",
                 Location = new Point(70, 30),
                 Width = 200,
-                DropDownStyle = ComboBoxStyle.DropDownList
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems
             };
+            //cboProject.Validating += CboProject_Validating;
 
             Label lblPONo = new Label()
             {
@@ -193,8 +196,11 @@ namespace MPR_Managerment.Forms
                 Name = "cbPONo",
                 Location = new Point(350, 30),
                 Width = 200,
-                DropDownStyle = ComboBoxStyle.DropDownList
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems
             };
+            //cboPONo.Validating += CboPONo_Validating;
 
             btnSearch = new Button()
             {
@@ -421,7 +427,9 @@ namespace MPR_Managerment.Forms
                 Name = "cboFilterProject",
                 Location = new Point(230, 57),
                 Width = 200,
-                DropDownStyle = ComboBoxStyle.DropDownList
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems
             };
             cboFilterProject.SelectedIndexChanged += CboFilterProject_SelectedIndexChanged; ; // Tải lại PO khi chọn dự án khác
 
@@ -439,7 +447,9 @@ namespace MPR_Managerment.Forms
                 Name = "cboFilterPO",
                 Location = new Point(500, 57),
                 Width = 180,
-                DropDownStyle = ComboBoxStyle.DropDownList
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems
             };
 
             // 4. Nút Search (Nằm cuối hàng)
@@ -494,6 +504,16 @@ namespace MPR_Managerment.Forms
             });
         }
 
+        private void CboPONo_Validating(object? sender, CancelEventArgs e)
+        {
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
+        private void CboProject_Validating(object? sender, CancelEventArgs e)
+        {
+            Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
         private void CboFilterProject_SelectedIndexChanged(object? sender, EventArgs e)
         {
             try
@@ -507,6 +527,9 @@ namespace MPR_Managerment.Forms
 
         private void BtnSearchHistory_Click(object? sender, EventArgs e)
         {
+            if (!Common.Common.IsComboBoxValid(cboFilterProject, "Dự án")
+                || !Common.Common.IsComboBoxValid(cboFilterPO, "PO")) 
+                return;
             try
             {
                 string poNo = (cboFilterPO != null && cboFilterPO.SelectedIndex > 0) ? cboFilterPO.SelectedItem.ToString() : "";
@@ -1599,6 +1622,7 @@ namespace MPR_Managerment.Forms
 
         private async void BtnSave_Click(object? sender, EventArgs e)
         {
+            if (!Common.Common.IsDataGridViewValid(dgvImportQueue, "Danh sách vật tư")) return;
             foreach (DataGridViewRow item in dgvImportQueue.Rows)
             {
                 if (string.IsNullOrEmpty(item.Cells["ID_Code"].Value.ToString()))
@@ -1802,8 +1826,11 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                if (cboProject.Items.Count <= 0 || cboPONo.Items.Count <= 0 ||
-                    cboProject.SelectedIndex == -1 || cboPONo.SelectedIndex == -1) return;
+                if (!Common.Common.IsComboBoxValid(cboProject, "Dự án")
+                    || !Common.Common.IsComboBoxValid(cboPONo, "PO"))
+                    return;
+
+
                 string poNo = cboPONo.SelectedItem.ToString();
                 var po = _poService.GetAll().Find(p => p.PONo == poNo);
                 if (po == null) return;

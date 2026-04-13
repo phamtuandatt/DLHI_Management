@@ -239,33 +239,72 @@ namespace MPR_Managerment.Services
         }
 
         // ===== UPDATE DETAIL =====
-        public void UpdateDetail(RIRDetail d)
+        public async Task<bool> UpdateDetail(RIRDetail d)
         {
-            using (var conn = DatabaseHelper.GetConnection())
-            {
-                conn.Open();
-                var cmd = new SqlCommand(@"
-                    UPDATE RIR_detail SET
-                        Item_No      = @Item_No,
-                        item_name    = @item_name,
-                        Material     = @Material,
-                        Size         = @Size,
-                        UNIT         = @UNIT,
-                        Qty_Per_Sheet= @Qty_Per_Sheet,
-                        MTRno        = @MTRno,
-                        Heatno       = @Heatno
-                    WHERE RIR_Detail_ID = @RIR_Detail_ID", conn);
+            //using (var conn = DatabaseHelper.GetConnection())
+            //{
+            //    conn.Open();
+            //    var cmd = new SqlCommand(@"
+            //        UPDATE RIR_detail SET
+            //            Item_No      = @Item_No,
+            //            item_name    = @item_name,
+            //            Material     = @Material,
+            //            Size         = @Size,
+            //            UNIT         = @UNIT,
+            //            Qty_Per_Sheet= @Qty_Per_Sheet,
+            //            MTRno        = @MTRno,
+            //            Heatno       = @Heatno
+            //        WHERE RIR_Detail_ID = @RIR_Detail_ID", conn);
 
-                cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
-                cmd.Parameters.AddWithValue("@Item_No", d.Item_No);
-                cmd.Parameters.AddWithValue("@item_name", d.Item_Name ?? "");
-                cmd.Parameters.AddWithValue("@Material", d.Material ?? "");
-                cmd.Parameters.AddWithValue("@Size", d.Size ?? "");
-                cmd.Parameters.AddWithValue("@UNIT", d.UNIT ?? "");
-                cmd.Parameters.AddWithValue("@Qty_Per_Sheet", d.Qty_Required);
-                cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? "");
-                cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? "");
-                cmd.ExecuteNonQuery();
+            //    cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
+            //    cmd.Parameters.AddWithValue("@Item_No", d.Item_No);
+            //    cmd.Parameters.AddWithValue("@item_name", d.Item_Name ?? "");
+            //    cmd.Parameters.AddWithValue("@Material", d.Material ?? "");
+            //    cmd.Parameters.AddWithValue("@Size", d.Size ?? "");
+            //    cmd.Parameters.AddWithValue("@UNIT", d.UNIT ?? "");
+            //    cmd.Parameters.AddWithValue("@Qty_Per_Sheet", d.Qty_Required);
+            //    cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? "");
+            //    cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? "");
+            //    cmd.ExecuteNonQuery();
+            //}
+
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand("sp_UpdateRIRDetail_Warehouse", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    // Thêm các tham số cho Procedure
+                    //cmd.Parameters.AddWithValue("@RIR_ID", d.RIR_ID);
+                    cmd.Parameters.AddWithValue("@PO_Detail_ID", d.PO_Detail_ID);
+                    cmd.Parameters.AddWithValue("@Item_No", d.Item_No);
+                    cmd.Parameters.AddWithValue("@item_name", d.Item_Name ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Material", d.Material ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Size", d.Size ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@UNIT", d.UNIT ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Qty_Per_Sheet", d.Qty_Per_Sheet);
+                    cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Qty_Required", d.Qty_Required);
+                    cmd.Parameters.AddWithValue("@Qty_Received", d.Qty_Received);
+                    cmd.Parameters.AddWithValue("@Inspect_Result", d.Inspect_Result ?? "Accept");
+                    cmd.Parameters.AddWithValue("@ID_Code", d.ID_Code ?? "");
+                    cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
+
+                    try
+                    {
+                        await conn.OpenAsync();
+                        int result = await cmd.ExecuteNonQueryAsync();
+
+                        // Vì Procedure thực hiện cả Insert và Update nên result thường > 1
+                        return result > 0;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log lỗi hoặc quăng ngoại lệ ra tầng UI
+                        throw new Exception("Lỗi thực thi RIR & Update Stock: " + ex.Message);
+                    }
+                }
             }
         }
 

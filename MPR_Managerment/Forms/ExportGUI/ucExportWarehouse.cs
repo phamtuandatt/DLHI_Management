@@ -1,4 +1,5 @@
-﻿using MPR_Managerment.Models;
+﻿using MPR_Managerment.Common;
+using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml.Utils;
 using System;
@@ -36,14 +37,14 @@ namespace MPR_Managerment.Forms.ExportGUI
             InitGridSelected();
 
 
-            FormartGrid(dgvKho, Color.FromArgb(0, 120, 212));
-            FormartGrid(dgvExportQue, Color.FromArgb(255, 140, 0));
-            FormartGrid(dgvHis, Color.FromArgb(0, 120, 212));
+            FormartGrid(dgvKho, Color.FromArgb(0, 120, 212), true);
+            FormartGrid(dgvExportQue, Color.FromArgb(255, 140, 0), false);
+            FormartGrid(dgvHis, Color.FromArgb(0, 120, 212), true);
         }
 
-        private void FormartGrid(DataGridView dataGridView, Color colorHeader)
+        private void FormartGrid(DataGridView dataGridView, Color colorHeader, bool isReadOnly)
         {
-            dataGridView.ReadOnly = true;
+            dataGridView.ReadOnly = isReadOnly;
             dataGridView.AllowUserToAddRows = false;
             //dataGridView.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dataGridView.BackgroundColor = Color.White;
@@ -206,6 +207,33 @@ namespace MPR_Managerment.Forms.ExportGUI
 
             dgvExportQue.DataSource = dtSelected;
 
+            // --- PHẦN CẬP NHẬT ĐỂ NHẬP ĐƯỢC Ô NOTES ---
+
+            // 2. Mở khóa tổng thể Grid (Quan trọng nhất)
+            dgvExportQue.ReadOnly = false;
+
+            // 3. Khóa tất cả các cột bằng vòng lặp
+            foreach (DataGridViewColumn col in dgvExportQue.Columns)
+            {
+                col.ReadOnly = true;
+                // Đổi màu nền nhẹ để báo hiệu các cột này không được sửa
+                col.DefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
+            }
+
+            // 4. Mở khóa DUY NHẤT cột Notes
+            if (dgvExportQue.Columns.Contains("Notes"))
+            {
+                dgvExportQue.Columns["Notes"].ReadOnly = false;
+
+                // Làm nổi bật ô Notes để người dùng biết là nhập được
+                dgvExportQue.Columns["Notes"].HeaderText = "✏️ Ghi chú";
+                dgvExportQue.Columns["Notes"].DefaultCellStyle.BackColor = Color.White;
+                dgvExportQue.Columns["Notes"].DefaultCellStyle.ForeColor = Color.Blue;
+            }
+
+            // --- KẾT THÚC PHẦN CẬP NHẬT ---
+
+
             // Cấu hình tiêu đề cột cho dễ nhìn
             dgvExportQue.Columns["Item_Name"].HeaderText = "Tên vật tư";
             dgvExportQue.Columns["Qty_Export"].HeaderText = "SL Xuất";
@@ -215,7 +243,6 @@ namespace MPR_Managerment.Forms.ExportGUI
             dgvExportQue.Columns["Export_No"].Visible = false;
             dgvExportQue.Columns["Export_To"].Visible = false;
             dgvExportQue.Columns["Purpose"].Visible = false;
-            //dgvExportQue.Columns["Notes"].Visible = false;
             dgvExportQue.Columns["Warehouse_ID"].Visible = false;
             dgvExportQue.Columns["Import_ID"].Visible = false;
         }
@@ -354,6 +381,38 @@ namespace MPR_Managerment.Forms.ExportGUI
                     dgvKho.Rows[e.RowIndex].DefaultCellStyle.ForeColor = Color.Black;
                 }
             }
+
+            //var inspector_Result = dgvKho.Rows[e.RowIndex].Cells["QC_Status"].Value;
+
+            //if (dgvKho.Columns[e.ColumnIndex].Name == "QC_Status")
+            //{
+            //    string val = e.Value?.ToString() ?? "";
+            //    e.CellStyle.ForeColor =
+            //        val == "Pass" ? Color.FromArgb(40, 167, 69) :
+            //        val == "Fail" ? Color.FromArgb(220, 53, 69) :
+            //        val == "Hold" ? Color.FromArgb(255, 140, 0) :
+            //                        Color.Black;
+            //    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            //}
+
+            // 1. Định dạng cho cột "Số lượng" (Numeric)
+            var qtyRules = new List<NumericRule>
+            {
+                new NumericRule { MinValue = 0.01m, MaxValue = decimal.MaxValue, CellColor = Color.ForestGreen }, // > 0
+                new NumericRule { MinValue = decimal.MinValue, MaxValue = -0.01m, CellColor = Color.Red },       // < 0
+                new NumericRule { MinValue = 0, MaxValue = 0, CellColor = Color.Gray }                          // = 0
+            };
+            Common.Common.ApplyCustomFormatting(e, dgvKho, "Qty_Import", null, qtyRules);
+
+            // 2. Định dạng cho cột "Trạng thái" (String)
+            var statusRules = new List<StringRule>
+            {
+                new StringRule { Value = "Pass", CellColor = Color.SeaGreen },
+                new StringRule { Value = "Fail", CellColor = Color.Red },
+                new StringRule { Value = "Hold", CellColor = Color.Orange },
+                new StringRule { Value = "Pending", CellColor = Color.DimGray }
+            };
+            Common.Common.ApplyCustomFormatting(e, dgvKho, "QC_Status", statusRules, null);
         }
 
         private async void btnSearchHis_Click(object sender, EventArgs e)
@@ -366,7 +425,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             dgvHis.Columns["Warehouse_ID"].Visible = false;
             dgvHis.Columns["Export_To"].Visible = false;
             dgvHis.Columns["Purpose"].Visible = false;
-            dgvHis.Columns["Notes"].Visible = false;
+            //dgvHis.Columns["Notes"].Visible = false;
 
             decimal totalQty = 0;
             decimal totalKg = 0;
@@ -460,6 +519,38 @@ namespace MPR_Managerment.Forms.ExportGUI
         private void cboProjectCheck_Validating(object sender, CancelEventArgs e)
         {
             Common.Common.AutoCompleteComboboxValidating(sender as ComboBox, e);
+        }
+
+        private void dgvExportQue_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            string col = dgvExportQue.Columns[e.ColumnIndex].Name;
+            if (col == "Qty_Export")
+            {
+                decimal val = e.Value != null ? Convert.ToDecimal(e.Value) : 0;
+                e.CellStyle.ForeColor = val > 0 ? Color.FromArgb(40, 167, 69) : Color.FromArgb(220, 53, 69);
+                e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
+            //// Lấy Import_ID của dòng đang hiển thị ở Grid 1
+            //var importId = dgvKho.Rows[e.RowIndex].Cells["Import_ID"].Value;
+
+            //if (importId != null && dtSelected != null)
+            //{
+            //    // Kiểm tra xem Import_ID này đã có trong danh sách Grid 2 (dtSelected) chưa
+            //    bool isExisted = dtSelected.AsEnumerable().Any(r => r.Field<int>("Import_ID") == Convert.ToInt32(importId));
+
+            //    if (isExisted)
+            //    {
+            //        dgvKho.Rows[e.RowIndex].DefaultCellStyle.BackColor = Color.FromArgb(126, 205, 50);
+            //        dgvKho.Rows[e.RowIndex].DefaultCellStyle.ForeColor = Color.Black;
+            //    }
+            //    else
+            //    {
+            //        // Trả về màu mặc định nếu không có trong Grid 2
+            //        dgvKho.Rows[e.RowIndex].DefaultCellStyle.BackColor = Color.White;
+            //        dgvKho.Rows[e.RowIndex].DefaultCellStyle.ForeColor = Color.Black;
+            //    }
+            //}
         }
     }
 }

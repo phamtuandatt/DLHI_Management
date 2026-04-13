@@ -570,8 +570,74 @@ END
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 
 SELECT W.ID_Code, W.Item_Name AS 'Name', M.material_detail_name AS 'Description', W.Size, SUM(W.Qty_import) AS [Qty (SUM)] FROM Warehouse_Import AS W LEFT JOIN Material_Detail AS M  ON LEFT(W.ID_Code, 9) = M.item_code_existed GROUP BY  W.ID_Code, W.Item_Name, M.material_detail_name, W.Size ORDER BY W.ID_Code; 
+
+
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[sp_UpdateRIRDetail_Warehouse]
+    @PO_Detail_ID INT,
+    @Item_No NVARCHAR(100),
+    @item_name NVARCHAR(255),
+    @Material NVARCHAR(255),
+    @Size NVARCHAR(255),
+    @UNIT NVARCHAR(50),
+    @Qty_Per_Sheet DECIMAL(18, 2),
+    @MTRno NVARCHAR(100),
+    @Heatno NVARCHAR(100),
+    @Qty_Required DECIMAL(18, 2),
+    @Qty_Received DECIMAL(18, 2),
+    @Inspect_Result NVARCHAR(100),
+    @ID_Code NVARCHAR(100),
+	@RIR_Detail_ID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRANSACTION;
+    BEGIN TRY
+        -- 1. Cập nhật vào bảng RIR_Detail thay vì Insert
+        UPDATE [dbo].[RIR_Detail]
+        SET 
+            [Item_No] = @Item_No,
+            [item_name] = @item_name,
+            [Material] = @Material,
+            [Size] = @Size,
+            [UNIT] = @UNIT,
+            [Qty_Per_Sheet] = @Qty_Per_Sheet,
+            [MTRno] = @MTRno,
+            [Heatno] = @Heatno,
+            [Qty_Required] = @Qty_Required,
+            [Qty_Received] = @Qty_Received,
+            [Inspect_Result] = @Inspect_Result,
+            [ID_Code] = @ID_Code,
+            [Updated_Date] = GETDATE() -- Nên có cột này để theo dõi lịch sử chỉnh sửa
+        WHERE RIR_Detail_ID = @RIR_Detail_ID
+
+        -- 2. Cập nhật bảng Warehouse_Import (Giữ nguyên theo yêu cầu)
+        UPDATE [dbo].[Warehouse_Import]
+        SET [QC_Code] = @ID_Code, 
+            [QC_Status] = @Inspect_Result
+        WHERE [PO_Detail_ID] = @PO_Detail_ID;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        DECLARE @Err NVARCHAR(MAX) = ERROR_MESSAGE();
+        RAISERROR(@Err, 16, 1);
+    END CATCH
+END
+
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
 UPDATE Warehouse_Import
 
 

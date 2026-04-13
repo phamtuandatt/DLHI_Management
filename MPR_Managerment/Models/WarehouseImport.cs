@@ -31,5 +31,7 @@ namespace MPR_Managerment.Models
 
         public string InvoiceNo { get; set; }
         public string InvoiceDate { get; set; }
+
+        public string Inspector_Result { get; set; }
     }
 }
