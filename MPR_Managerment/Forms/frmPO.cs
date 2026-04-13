@@ -46,6 +46,7 @@ namespace MPR_Managerment.Forms
         private Button btnAddDetail, btnDeleteDetail;
         private Label lblTotal, lblSubTotal;
         private Panel panelTop, panelHeader, panelDetail;
+        private DataGridView dgvMPRFiles; // Bảng file MPR Link bên phải chi tiết
         private ComboBox cboSupplier;
         private System.Data.DataTable _supplierTable;
         private bool _isSearching = false;
@@ -367,6 +368,8 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "Tên dự án:", 190, y); txtProjectName = AddTxt(panelHeader, 260, y, 160);
             AddLabel(panelHeader, "Workorder:", 430, y); txtWorkorderNo = AddTxt(panelHeader, 505, y, 110);
             AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 105);
+            // Load MPR Files khi MPR No thay đổi (người dùng nhập xong và rời ô)
+            txtMPRNo.Leave += (s, e) => LoadMPRFiles();
 
             // Row 2
             y += 38;
@@ -376,6 +379,7 @@ namespace MPR_Managerment.Forms
             cboSupplier.Validating += CboSupplier_Validating; cboSupplier.SelectedIndexChanged += CboSupplier_SelectedIndexChanged;
             cboSupplier.TextChanged += CboSupplier_TextChanged; cboSupplier.KeyDown += CboSupplier_KeyDown;
             LoadSupplierCombo();
+
 
             AddLabel(panelHeader, "Ngày PO:", 350, y); dtpPODate = new DateTimePicker { Location = new Point(410, y), Size = new Size(100, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
             panelHeader.Controls.Add(dtpPODate);
@@ -413,8 +417,64 @@ namespace MPR_Managerment.Forms
             panelHeader.Controls.Add(btnHistory);
 
             // ===== PANEL DETAIL =====
-            panelDetail = new Panel { Location = new Point(10, 500), Size = new Size(1260, 285), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+            panelDetail = new Panel { Location = new Point(10, 500), Size = new Size(980, 285), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
             this.Controls.Add(panelDetail);
+
+            // ── Panel MPR Files (bên phải panelDetail) ──
+            var panelMPRFiles = new Panel
+            {
+                Location = new Point(panelDetail.Right + 10, panelDetail.Top),
+                Size = new Size(280, 285),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom
+            };
+            this.Controls.Add(panelMPRFiles);
+
+            panelMPRFiles.Controls.Add(new Label
+            {
+                Text = "📁 MPR Files",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(102, 51, 153),
+                Location = new Point(6, 8),
+                Size = new Size(260, 20)
+            });
+
+            dgvMPRFiles = new DataGridView
+            {
+                Location = new Point(4, 30),
+                Size = new Size(272, 248),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                Cursor = Cursors.Hand
+            };
+            dgvMPRFiles.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153);
+            dgvMPRFiles.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvMPRFiles.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvMPRFiles.EnableHeadersVisualStyles = false;
+            dgvMPRFiles.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+            dgvMPRFiles.Columns.Add(new DataGridViewTextBoxColumn { Name = "FileName", HeaderText = "Tên file" });
+            dgvMPRFiles.Columns.Add(new DataGridViewTextBoxColumn { Name = "FullPath", HeaderText = "Path", Visible = false });
+
+            // Double click → mở file
+            dgvMPRFiles.CellDoubleClick += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                string path = dgvMPRFiles.Rows[ev.RowIndex].Cells["FullPath"].Value?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    { FileName = path, UseShellExecute = true });
+                else
+                    MessageBox.Show("Không tìm thấy file!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            };
+            panelMPRFiles.Controls.Add(dgvMPRFiles);
             panelDetail.Controls.Add(new Label { Text = "CHI TIẾT ĐƠN HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(300, 25) });
 
             btnAddDetail = CreateButton("+ Thêm dòng", Color.FromArgb(40, 167, 69), new Point(10, 38), 120, 30);
@@ -737,7 +797,7 @@ namespace MPR_Managerment.Forms
                     int minWidth = (int)Math.Ceiling(headerSize.Width) + 20; int maxWidth = minWidth;
                     foreach (DataGridViewRow row in dgvDetails.Rows)
                     {
-                        if (row.IsNewRow) continue;
+                        if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
                         string cellValue = row.Cells[col.Index].Value?.ToString() ?? "";
                         if (!string.IsNullOrEmpty(cellValue))
                         {
@@ -858,12 +918,30 @@ namespace MPR_Managerment.Forms
         { try { _supplierTable = new SupplierService().GetForCombo(); BindSupplierCombo(_supplierTable); } catch (Exception ex) { MessageBox.Show("Lỗi tải nhà cung cấp: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); } }
 
         private void BindSupplierCombo(System.Data.DataTable dt)
-        { _isSearching = true; string ct = cboSupplier.Text; cboSupplier.DataSource = null; cboSupplier.DataSource = dt; cboSupplier.DisplayMember = "Name"; cboSupplier.ValueMember = "ID"; cboSupplier.Text = ct; _isSearching = false; }
+        {
+            _isSearching = true;
+            int curId = 0;
+            if (cboSupplier.SelectedValue != null)
+                int.TryParse(cboSupplier.SelectedValue.ToString(), out curId);
+            string curText = cboSupplier.Text;
+            cboSupplier.DataSource = null;
+            cboSupplier.DataSource = dt;
+            cboSupplier.DisplayMember = "Name";
+            cboSupplier.ValueMember = "ID";
+            // Restore: nếu đang tìm kiếm thì giữ text, nếu đã chọn thì restore ID
+            if (curId > 0)
+                cboSupplier.SelectedValue = curId;
+            else
+                cboSupplier.Text = curText;
+            _isSearching = false;
+        }
+
 
         private void CboSupplier_TextChanged(object sender, EventArgs e)
         {
             if (_isSearching) return;
-            // KHÔNG dùng .Trim() để giữ khoảng trắng khi tìm kiếm
+            // Chỉ xử lý khi combobox đang có focus (user đang gõ trực tiếp)
+            if (!cboSupplier.Focused) return;
             string keyword = cboSupplier.Text;
             if (string.IsNullOrEmpty(keyword)) { BindSupplierCombo(_supplierTable); cboSupplier.DroppedDown = false; return; }
             string kn = RemoveDiacritics(keyword).ToLower();
@@ -1370,19 +1448,80 @@ namespace MPR_Managerment.Forms
         {
             int w = this.ClientSize.Width - 20;
             int h = this.ClientSize.Height;
-            panelTop.Width = w; panelHeader.Width = w; panelDetail.Width = w;
+            panelTop.Width = w; panelHeader.Width = w;
             panelHeader.Top = panelTop.Bottom + 10;
-            panelDetail.Top = panelHeader.Bottom + 10; panelDetail.Height = h - panelDetail.Top - 10;
-            dgvPO.Width = panelTop.Width - 20;
-            dgvDetails.Width = panelDetail.Width - 20; dgvDetails.Height = panelDetail.Height - 80;
-            // txtNotes.Width được cố định 200px — KHÔNG resize theo form
+            panelDetail.Top = panelHeader.Bottom + 10;
+            panelDetail.Height = h - panelDetail.Top - 10;
 
-            // Giữ label tổng tiền luôn sát mép phải panelDetail
+            // panelMPRFiles: 280px cố định bên phải
+            var panelMPRFiles = this.Controls.OfType<Panel>()
+                .FirstOrDefault(p => p.Controls.OfType<DataGridView>()
+                    .Any(d => d.Name == "dgvMPRFiles" || (dgvMPRFiles != null && d == dgvMPRFiles)));
+            int mprW = 280;
+            int detailW = w - mprW - 10;
+            panelDetail.Width = detailW;
+            if (panelMPRFiles != null)
+            {
+                panelMPRFiles.Location = new Point(panelDetail.Right + 10, panelDetail.Top);
+                panelMPRFiles.Width = mprW;
+                panelMPRFiles.Height = panelDetail.Height;
+            }
+
+            dgvPO.Width = panelTop.Width - 20;
+            dgvDetails.Width = panelDetail.Width - 20;
+            dgvDetails.Height = panelDetail.Height - 80;
+
             if (lblTotal != null && lblSubTotal != null && panelDetail != null)
             {
                 lblTotal.Left = panelDetail.Width - lblTotal.Width - 10;
                 lblSubTotal.Left = lblTotal.Left - lblSubTotal.Width - 10;
             }
+        }
+
+        // Load danh sách file từ MPR_Link — tìm theo MPR No tại "Thông tin đơn đặt hàng"
+        private void LoadMPRFiles(string workorderNo = "")
+        {
+            if (dgvMPRFiles == null) return;
+            dgvMPRFiles.Rows.Clear();
+            try
+            {
+                // Lấy MPR No từ txtMPRNo trong bảng "Thông tin đơn đặt hàng"
+                string mprNo = txtMPRNo?.Text?.Trim() ?? "";
+                if (string.IsNullOrEmpty(mprNo)) return;
+
+                // Tìm MPR_Header theo MPR_No → lấy Project_Name
+                string projectName = "";
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        "SELECT TOP 1 Project_Name FROM MPR_Header WHERE MPR_No = @mprNo", conn);
+                    cmd.Parameters.AddWithValue("@mprNo", mprNo);
+                    var result = cmd.ExecuteScalar();
+                    projectName = result?.ToString() ?? "";
+                }
+
+                if (string.IsNullOrEmpty(projectName)) return;
+
+                // Tìm ProjectInfo theo Project_Name → lấy MPR_Link
+                var proj = new MPR_Managerment.Services.ProjectService().GetAll()
+                    .Find(p =>
+                        !string.IsNullOrEmpty(p.ProjectName) &&
+                        (p.ProjectName.Equals(projectName, StringComparison.OrdinalIgnoreCase) ||
+                         p.ProjectName.IndexOf(projectName, StringComparison.OrdinalIgnoreCase) >= 0));
+
+                string mprLink = proj?.MPR_Link?.Trim() ?? "";
+                if (string.IsNullOrEmpty(mprLink) || !System.IO.Directory.Exists(mprLink))
+                    return;
+
+                foreach (var f in System.IO.Directory.GetFiles(mprLink).OrderBy(x => x))
+                {
+                    int idx = dgvMPRFiles.Rows.Add();
+                    dgvMPRFiles.Rows[idx].Cells["FileName"].Value = System.IO.Path.GetFileName(f);
+                    dgvMPRFiles.Rows[idx].Cells["FullPath"].Value = f;
+                }
+            }
+            catch { }
         }
 
         private void LoadPO()
@@ -1518,17 +1657,54 @@ namespace MPR_Managerment.Forms
         {
             decimal total = 0;
             decimal subTotal = 0;
+            decimal totalQty = 0, totalKg = 0, totalAmount = 0;
+
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
-                if (row.IsNewRow) continue;
-                decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty); decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal weight);
-                decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal price); decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
-                string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG"; decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
-                decimal rowSubTotal = Math.Round(baseValue * price, 0); decimal rowTotalAmount = Math.Round(rowSubTotal * (1 + vat / 100), 0);
+                if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
+                decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty);
+                decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal weight);
+                decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal price);
+                decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
+                decimal.TryParse(row.Cells["Amount"].Value?.ToString(), out decimal amount);
+                string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
+                decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
+                decimal rowSubTotal = Math.Round(baseValue * price, 0);
+                decimal rowTotalAmount = Math.Round(rowSubTotal * (1 + vat / 100), 0);
                 subTotal += rowSubTotal; total += rowTotalAmount;
+                totalQty += qty;
+                totalKg += weight;
+                totalAmount += amount > 0 ? amount : rowTotalAmount;
             }
+
             if (lblSubTotal != null) lblSubTotal.Text = $"Trước VAT: {subTotal:N0} VND";
             if (lblTotal != null) lblTotal.Text = $"Sau VAT: {total:N0} VND";
+
+            // ── Cập nhật dòng Total ở cuối dgvDetails ──
+            // Xóa dòng total cũ nếu có
+            for (int i = dgvDetails.Rows.Count - 1; i >= 0; i--)
+                if (dgvDetails.Rows[i].Tag?.ToString() == "TOTAL")
+                { dgvDetails.Rows.RemoveAt(i); break; }
+
+            if (dgvDetails.Rows.Count > 0)
+            {
+                int idx = dgvDetails.Rows.Add();
+                var tr = dgvDetails.Rows[idx];
+                tr.Tag = "TOTAL";
+                tr.ReadOnly = true;
+
+                // Đặt giá trị tổng
+                if (dgvDetails.Columns.Contains("Item_Name")) tr.Cells["Item_Name"].Value = "TỔNG CỘNG";
+                if (dgvDetails.Columns.Contains("Qty")) tr.Cells["Qty"].Value = totalQty > 0 ? (object)totalQty : "";
+                if (dgvDetails.Columns.Contains("Weight")) tr.Cells["Weight"].Value = totalKg > 0 ? (object)Math.Round(totalKg, 2) : "";
+                if (dgvDetails.Columns.Contains("Amount")) tr.Cells["Amount"].Value = totalAmount > 0 ? (object)totalAmount : "";
+
+                // Style dòng total
+                tr.DefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+                tr.DefaultCellStyle.ForeColor = Color.White;
+                tr.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                tr.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            }
         }
 
         private void DgvDetails_KeyDown(object sender, KeyEventArgs e)
@@ -1645,17 +1821,30 @@ namespace MPR_Managerment.Forms
             var row = dgvPO.SelectedRows[0]; _selectedPO_ID = Convert.ToInt32(row.Cells["ID"].Value);
             var h = _poList.Find(x => x.PO_ID == _selectedPO_ID); if (h == null) return;
             txtPONo.Text = h.PONo; txtProjectName.Text = h.Project_Name; txtWorkorderNo.Text = h.WorkorderNo; txtMPRNo.Text = h.MPR_No;
+            LoadMPRFiles();
             txtPrepared.Text = h.Prepared; txtReviewed.Text = h.Reviewed;
             txtAgreement.Text = h.Agreement; txtApproved.Text = h.Approved;
             txtNotes.Text = h.Notes; nudRevise.Value = h.Revise;
             if (h.PO_Date.HasValue) dtpPODate.Value = h.PO_Date.Value;
             var idx = cboStatus.Items.IndexOf(h.Status); cboStatus.SelectedIndex = idx >= 0 ? idx : 0;
+
+            // Khôi phục nhà cung cấp
+            if (h.Supplier_ID > 0)
+            {
+                _isSearching = true;
+                BindSupplierCombo(_supplierTable);
+                cboSupplier.SelectedValue = h.Supplier_ID;
+                _isSearching = false;
+            }
+            else
+            {
+                _isSearching = true;
+                cboSupplier.Text = "";
+                _isSearching = false;
+            }
+
             LoadDetails(_selectedPO_ID);
-
-            // GỌI HÀM LOAD FILES KHI CHỌN PO
             LoadFiles(h.WorkorderNo, h.Project_Name);
-
-            // Load delivery tracking
             LoadDeliveries();
         }
 
@@ -1849,7 +2038,7 @@ namespace MPR_Managerment.Forms
             int itemNo = 1;
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
-                if (row.IsNewRow) continue;
+                if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
                 decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
                 decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
                 decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
@@ -1951,6 +2140,16 @@ namespace MPR_Managerment.Forms
             {
                 try
                 {
+                    // Xóa Revise History trước để tránh lỗi FK_PO_Transaction_PO
+                    using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                    {
+                        conn.Open();
+                        var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                            "DELETE FROM PO_Revise_Transactions WHERE po_id = @poId", conn);
+                        cmd.Parameters.AddWithValue("@poId", _selectedPO_ID);
+                        cmd.ExecuteNonQuery();
+                    }
+
                     _service.DeletePO(_selectedPO_ID);
                     MessageBox.Show($"Đã xóa thành công đơn PO '{poNo}'!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information); ClearHeader(); dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear(); UpdateTotal(); _selectedPO_ID = 0; LoadPO();
                 }
@@ -1963,15 +2162,37 @@ namespace MPR_Managerment.Forms
 
         private void BtnAddDetail_Click(object sender, EventArgs e)
         {
-            int nextItem = dgvDetails.Rows.Count + 1;
-            int newIdx = dgvDetails.Rows.Add(); var r = dgvDetails.Rows[newIdx];
-            r.Cells["DeliveryLocation"].Value = ""; r.Cells["Item_No"].Value = nextItem; r.Cells["Item_Name"].Value = ""; r.Cells["Material"].Value = "";
+            // Tính số thứ tự — không đếm dòng TOTAL
+            int dataRowCount = dgvDetails.Rows.Cast<DataGridViewRow>()
+                .Count(r => !r.IsNewRow && r.Tag?.ToString() != "TOTAL");
+            int nextItem = dataRowCount + 1;
+
+            // Chèn dòng mới TRƯỚC dòng TOTAL (nếu có)
+            int insertIdx = dgvDetails.Rows.Count;
+            for (int i = dgvDetails.Rows.Count - 1; i >= 0; i--)
+                if (dgvDetails.Rows[i].Tag?.ToString() == "TOTAL") { insertIdx = i; break; }
+
+            int newIdx;
+            if (insertIdx < dgvDetails.Rows.Count)
+            {
+                dgvDetails.Rows.Insert(insertIdx, 1);
+                newIdx = insertIdx;
+            }
+            else
+                newIdx = dgvDetails.Rows.Add();
+
+            var r = dgvDetails.Rows[newIdx];
+            r.Cells["DeliveryLocation"].Value = ""; r.Cells["Item_No"].Value = nextItem;
+            r.Cells["Item_Name"].Value = ""; r.Cells["Material"].Value = "";
             r.Cells["Asize"].Value = ""; r.Cells["Bsize"].Value = ""; r.Cells["Csize"].Value = "";
             r.Cells["Qty"].Value = 0; r.Cells["UNIT"].Value = "PCS"; r.Cells["Weight"].Value = 0;
             r.Cells["Price"].Value = 0; r.Cells["VAT"].Value = "10";
-            r.Cells["Amount"].Value = 0; r.Cells["Received"].Value = 0; r.Cells["MPSNo"].Value = ""; r.Cells["Remarks"].Value = "";
-            r.Cells["Calc_Method"].Value = "Theo KG"; r.Cells["Ordered_PO"].Value = ""; r.Cells["PO_Detail_ID"].Value = 0;
-            dgvDetails.CurrentCell = r.Cells["Item_Name"]; AutoAdjustColumnWidths();
+            r.Cells["Amount"].Value = 0; r.Cells["Received"].Value = 0;
+            r.Cells["MPSNo"].Value = ""; r.Cells["Remarks"].Value = "";
+            r.Cells["Calc_Method"].Value = "Theo KG"; r.Cells["Ordered_PO"].Value = "";
+            r.Cells["PO_Detail_ID"].Value = 0;
+            dgvDetails.CurrentCell = r.Cells["Item_Name"];
+            AutoAdjustColumnWidths();
         }
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
@@ -1988,10 +2209,12 @@ namespace MPR_Managerment.Forms
                 try
                 {
                     var rowsToDelete = new List<DataGridViewRow>();
-                    foreach (DataGridViewRow row in dgvDetails.SelectedRows) if (!row.IsNewRow) rowsToDelete.Add(row);
+                    foreach (DataGridViewRow row in dgvDetails.SelectedRows)
+                        if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") rowsToDelete.Add(row);
                     foreach (var row in rowsToDelete) dgvDetails.Rows.Remove(row);
                     int itemNo = 1;
-                    foreach (DataGridViewRow row in dgvDetails.Rows) if (!row.IsNewRow) row.Cells["Item_No"].Value = itemNo++;
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                        if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
                     UpdateTotal(); AutoAdjustColumnWidths();
                 }
                 catch (Exception ex)
@@ -2048,7 +2271,7 @@ namespace MPR_Managerment.Forms
                     ClearHeader(); _selectedPO_ID = 0; _details.Clear(); dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
                     var mpr = dlg.SelectedMPR;
                     var details = dlg.SelectedDetails; var poMapping = GetPoMappingForMpr(mpr.MPR_ID);
-                    txtProjectName.Text = mpr.Project_Name; txtMPRNo.Text = mpr.MPR_No;
+                    txtProjectName.Text = mpr.Project_Name; txtMPRNo.Text = mpr.MPR_No; LoadMPRFiles();
                     try
                     {
                         var projects = new ProjectService().GetAll();
@@ -2105,7 +2328,7 @@ namespace MPR_Managerment.Forms
                 }
                 ClearHeader();
                 _selectedPO_ID = 0; _details.Clear(); dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
-                var poMapping = GetPoMappingForMpr(mpr.MPR_ID); txtProjectName.Text = mpr.Project_Name; txtMPRNo.Text = mpr.MPR_No;
+                var poMapping = GetPoMappingForMpr(mpr.MPR_ID); txtProjectName.Text = mpr.Project_Name; txtMPRNo.Text = mpr.MPR_No; LoadMPRFiles();
                 try
                 {
                     var projects = new MPR_Managerment.Services.ProjectService().GetAll();
@@ -2419,34 +2642,10 @@ namespace MPR_Managerment.Forms
                 btnClose.FlatAppearance.BorderSize = 0;
                 popup.Controls.Add(btnClose);
                 popup.CancelButton = btnClose;
-
-                // ── Nút Tạo phiếu nhập kho ──
-                var btnNhapKho = new Button
-                {
-                    Text = "📥 Tạo phiếu nhập kho",
-                    Location = new Point(10, popup.ClientSize.Height - 42),
-                    Size = new Size(185, 32),
-                    BackColor = Color.FromArgb(0, 150, 100),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                    Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
-                    Cursor = Cursors.Hand
-                };
-                btnNhapKho.FlatAppearance.BorderSize = 0;
-                btnNhapKho.Click += (s, ev) =>
-                {
-                    popup.Hide();
-                    var frm = new frmWarehouses_v2(poNo);
-                    frm.Show(this);
-                };
-                popup.Controls.Add(btnNhapKho);
-
                 popup.Resize += (s, ev) =>
                 {
                     dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 140);
                     btnClose.Location = new Point(popup.ClientSize.Width - 110, popup.ClientSize.Height - 42);
-                    btnNhapKho.Location = new Point(10, popup.ClientSize.Height - 42);
                 };
                 popup.ShowDialog(this);
             }
