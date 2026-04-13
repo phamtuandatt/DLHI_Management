@@ -268,7 +268,7 @@ namespace MPR_Managerment.Forms
                 Location = new Point(1150, y),
                 Size = new Size(140, 25),
                 Font = new Font("Segoe UI", 9),
-                Maximum = 999999999,
+                Maximum = 999999999999999,
                 DecimalPlaces = 0,
                 ThousandsSeparator = true
             };
