@@ -987,7 +987,7 @@ namespace MPR_Managerment.Forms
                                     ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "",
                                     Inspect_Result = row.Cells["Inspect_Result"].Value?.ToString() ?? "",
                                     Remarks = row.Cells["Remarks"].Value?.ToString() ?? "",
-                                    Qty_Per_Sheet = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)),
+                                    Qty_Per_Sheet = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)) > 0 ? (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)) : (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Received"].Value ?? 0)),
                                     PO_Detail_ID = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value.ToString())
                                 };
 
@@ -1484,11 +1484,13 @@ namespace MPR_Managerment.Forms
                         UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
                         Qty_Required = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)),
                         Qty_Received = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Received"].Value ?? 0)),
+                        Qty_Per_Sheet = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)) > 0 ? (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0)) : (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Received"].Value ?? 0)),
                         MTRno = row.Cells["MTRno"].Value?.ToString() ?? "",
                         Heatno = row.Cells["Heatno"].Value?.ToString() ?? "",
                         ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "",
                         Inspect_Result = row.Cells["Inspect_Result"].Value?.ToString() ?? "",
-                        Remarks = row.Cells["Remarks"].Value?.ToString() ?? ""
+                        Remarks = row.Cells["Remarks"].Value?.ToString() ?? "",
+                        PO_Detail_ID = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value?.ToString() ?? "")
                     };
 
                     if (d.RIR_Detail_ID == 0)
