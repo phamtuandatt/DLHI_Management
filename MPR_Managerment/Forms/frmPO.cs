@@ -2259,10 +2259,34 @@ namespace MPR_Managerment.Forms
                 btnClose.FlatAppearance.BorderSize = 0;
                 popup.Controls.Add(btnClose);
                 popup.CancelButton = btnClose;
+
+                // ── Nút Tạo phiếu nhập kho ──
+                var btnNhapKho = new Button
+                {
+                    Text = "📥 Tạo phiếu nhập kho",
+                    Location = new Point(10, popup.ClientSize.Height - 42),
+                    Size = new Size(185, 32),
+                    BackColor = Color.FromArgb(0, 150, 100),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+                    Cursor = Cursors.Hand
+                };
+                btnNhapKho.FlatAppearance.BorderSize = 0;
+                btnNhapKho.Click += (s, ev) =>
+                {
+                    popup.Hide();
+                    var frm = new frmWarehouses_v2(poNo);
+                    frm.Show(this);
+                };
+                popup.Controls.Add(btnNhapKho);
+
                 popup.Resize += (s, ev) =>
                 {
                     dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 140);
                     btnClose.Location = new Point(popup.ClientSize.Width - 110, popup.ClientSize.Height - 42);
+                    btnNhapKho.Location = new Point(10, popup.ClientSize.Height - 42);
                 };
                 popup.ShowDialog(this);
             }

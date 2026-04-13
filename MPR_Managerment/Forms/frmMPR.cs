@@ -326,8 +326,12 @@ namespace MPR_Managerment.Forms
             dgvDetails.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvDetails.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvDetails.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvDetails.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            dgvDetails.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dgvDetails.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvDetails.EnableHeadersVisualStyles = false;
             dgvDetails.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvDetails.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgvDetails.CellFormatting += DgvDetails_CellFormatting;
 
             BuildDetailColumns();
@@ -456,30 +460,158 @@ namespace MPR_Managerment.Forms
         {
             dgvDetails.Columns.Clear();
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Detail_ID", HeaderText = "ID", Visible = false });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_No", HeaderText = "STT", Width = 45, ReadOnly = true });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên vật tư", Width = 180 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Description", HeaderText = "Mô tả", Width = 100 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material", HeaderText = "Vật liệu", Width = 85 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Thickness_mm", HeaderText = "A-Dày(mm)", Width = 75 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Depth_mm", HeaderText = "B-Sâu(mm)", Width = 75 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_Width_mm", HeaderText = "C-Rộng(mm)", Width = 80 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Web_mm", HeaderText = "D-Bụng(mm)", Width = 80 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "E_Flange_mm", HeaderText = "E-Cánh(mm)", Width = 80 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "F_Length_mm", HeaderText = "F-Dài(mm)", Width = 75 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT", Width = 50 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty", HeaderText = "SL", Width = 50 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight", HeaderText = "KG", Width = 55 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPS_Info", HeaderText = "MPS Info", Width = 100 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Usage_Location", HeaderText = "Vị trí dùng", Width = 110 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "REV", HeaderText = "REV", Width = 45 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú", FillWeight = 100 });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_No", HeaderText = "Đã lên PO", Width = 120, ReadOnly = true });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Item_No",
+                HeaderText = "STT",
+                Width = 45,
+                ReadOnly = true,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Item_Name",
+                HeaderText = "Tên vật tư",
+                Width = 180,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Description",
+                HeaderText = "Mô tả",
+                Width = 100,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Material",
+                HeaderText = "Vật liệu",
+                Width = 85,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            // Cột A-E cố định 45px, căn giữa
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Thickness_mm",
+                HeaderText = "A-Dày(mm)",
+                Width = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Depth_mm",
+                HeaderText = "B-Sâu(mm)",
+                Width = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "C_Width_mm",
+                HeaderText = "C-Rộng(mm)",
+                Width = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "D_Web_mm",
+                HeaderText = "D-Bụng(mm)",
+                Width = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "E_Flange_mm",
+                HeaderText = "E-Cánh(mm)",
+                Width = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "F_Length_mm",
+                HeaderText = "F-Dài(mm)",
+                Width = 75,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "UNIT",
+                HeaderText = "ĐVT",
+                Width = 50,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Qty",
+                HeaderText = "SL",
+                Width = 50,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Weight",
+                HeaderText = "KG",
+                Width = 55,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "MPS_Info",
+                HeaderText = "MPS Info",
+                Width = 100,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Usage_Location",
+                HeaderText = "Vị trí dùng",
+                Width = 110,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "REV",
+                HeaderText = "REV",
+                Width = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Remarks",
+                HeaderText = "Ghi chú",
+                FillWeight = 100,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "PO_No",
+                HeaderText = "Đã lên PO",
+                Width = 120,
+                ReadOnly = true,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
         }
 
         private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
-            if (dgvDetails.Columns[e.ColumnIndex].Name == "PO_No")
+            string colName = dgvDetails.Columns[e.ColumnIndex].Name;
+
+            // Ẩn giá trị = 0 cho các cột số (hiển thị trống thay vì "0")
+            if (colName == "Thickness_mm" || colName == "Depth_mm" ||
+                colName == "C_Width_mm" || colName == "D_Web_mm" ||
+                colName == "E_Flange_mm" || colName == "F_Length_mm" ||
+                colName == "Qty" || colName == "Weight")
+            {
+                if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal num) && num == 0)
+                {
+                    e.Value = "";
+                    e.FormattingApplied = true;
+                }
+                e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            }
+
+            // Cột PO_No — màu xanh bold
+            if (colName == "PO_No")
             {
                 string val = e.Value?.ToString() ?? "";
                 if (!string.IsNullOrEmpty(val))
