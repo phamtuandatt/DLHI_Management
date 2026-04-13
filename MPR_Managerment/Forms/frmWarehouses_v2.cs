@@ -555,23 +555,433 @@ namespace MPR_Managerment.Forms
 
         public void SetupFillInvoiceNotLayout(TabPage parent)
         {
-            // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
-            Panel mainScrollPanel = new Panel();
-            mainScrollPanel.Dock = DockStyle.Fill;
-            //mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
-            parent.Controls.Add(mainScrollPanel);
+            parent.AllowDrop = true;
+            parent.Padding = new Padding(0);
 
-            // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
-            Panel container = new Panel();
-            container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
-            container.Height = 1200; // Độ cao ước tính cho 4 phần
-            container.Location = new Point(0, 0);
-            mainScrollPanel.Controls.Add(container);
+            // ── Header: hàng 1 = Dự án + PO No + btn Lưu | hàng 2 = INV Link ──
+            var pHead = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 72,
+                BackColor = Color.FromArgb(240, 240, 240),
+            };
+            parent.Controls.Add(pHead);
 
-            ucFillInvoiceNo ucFillInvoiceNo = new ucFillInvoiceNo();
-            ucFillInvoiceNo.Dock = DockStyle.Fill;
-            container.Controls.Add(ucFillInvoiceNo);
-            ucFillInvoiceNo.BringToFront();
+            // Hàng 1: Dự án
+            pHead.Controls.Add(new Label { Text = "Dự án:", Location = new Point(8, 10), Size = new Size(50, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            var cboInvProject = new ComboBox
+            {
+                Location = new Point(60, 7),
+                Size = new Size(160, 26),
+                Font = new Font("Segoe UI", 9),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            pHead.Controls.Add(cboInvProject);
+
+            // Hàng 1: PO No — lọc theo dự án đang chọn
+            pHead.Controls.Add(new Label { Text = "PO No:", Location = new Point(232, 10), Size = new Size(50, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            var cboPONoInv = new ComboBox
+            {
+                Location = new Point(284, 7),
+                Size = new Size(200, 26),
+                Font = new Font("Segoe UI", 9),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            pHead.Controls.Add(cboPONoInv);
+
+            // Hàng 1: nút Lưu hóa đơn (góc phải)
+            var btnSaveInv = new Button
+            {
+                Text = "💾 Lưu hóa đơn",
+                Size = new Size(145, 28),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Cursor = Cursors.Hand,
+                Enabled = false
+            };
+            btnSaveInv.Location = new Point(pHead.Width - 155, 6);
+            btnSaveInv.FlatAppearance.BorderSize = 0;
+            pHead.Controls.Add(btnSaveInv);
+
+            // Hàng 2: INV Link path
+            var lblInvPath = new Label
+            {
+                Location = new Point(8, 40),
+                Size = new Size(pHead.Width - 16, 18),
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.FromArgb(100, 100, 100),
+                Text = "INV Link: —",
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+            pHead.Controls.Add(lblInvPath);
+
+            // Load PO theo dự án đang chọn vào cboPONoInv
+            Action loadPOForProject = () =>
+            {
+                cboPONoInv.Items.Clear();
+                cboPONoInv.Items.Add("-- Chọn PO No --");
+                try
+                {
+                    string code = cboInvProject.SelectedItem?.ToString() ?? "";
+                    var allPO = _poService.GetAll()
+                        .Where(p => string.IsNullOrEmpty(code) ||
+                                    p.ProjectCode == code ||
+                                    p.Project_Name?.Contains(code) == true)
+                        .OrderBy(p => p.PONo)
+                        .ToList();
+                    foreach (var po in allPO)
+                        cboPONoInv.Items.Add(po.PONo);
+                }
+                catch { }
+                cboPONoInv.SelectedIndex = 0;
+                btnSaveInv.Enabled = false; // reset khi đổi dự án
+            };
+
+            // Khi chọn PO No → cập nhật trạng thái nút Lưu
+            // (cboPONoInv.SelectedIndexChanged đăng ký sau khi khai báo _pendingDropPath)
+
+            // Resize
+            pHead.Resize += (s, e) =>
+            {
+                btnSaveInv.Location = new Point(pHead.Width - 155, 6);
+                lblInvPath.Width = pHead.Width - 16;
+            };
+
+            // ── State — khai báo sớm để các lambda bên dưới dùng được ──
+            string _invFolderPath = "";
+            string _pendingDropPath = "";
+            string _pendingDropName = "";
+
+            // Đăng ký sau khi đã khai báo _pendingDropPath
+            cboPONoInv.SelectedIndexChanged += (s, e) =>
+            {
+                string sel = cboPONoInv.SelectedItem?.ToString() ?? "";
+                bool validPO = !string.IsNullOrEmpty(sel) && sel != "-- Chọn PO No --";
+                btnSaveInv.Enabled = validPO && !string.IsNullOrEmpty(_pendingDropPath);
+            };
+
+            // ── Layout thủ công: pInvLeft (320px) | pInvRight (fill) ──
+            const int LEFT_W = 320;
+
+            var pInvRight = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White,
+                Padding = new Padding(0)
+            };
+            parent.Controls.Add(pInvRight);
+
+            var pInvLeft = new Panel
+            {
+                Dock = DockStyle.Left,
+                Width = LEFT_W,
+                BackColor = Color.White,
+                Padding = new Padding(0)
+            };
+            parent.Controls.Add(pInvLeft);
+            pInvLeft.BringToFront();
+
+            // Alias để code bên dưới dùng splitMain.Panel1 / Panel2 vẫn đúng
+
+            // ── Panel trái: INV list ──
+            pInvLeft.Controls.Add(new Label
+            {
+                Text = "📄  INV List  —  kéo thả file PDF vào đây",
+                Dock = DockStyle.Top,
+                Height = 26,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(4, 0, 0, 0)
+            });
+
+            var dgvInv = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                AllowDrop = true
+            };
+            dgvInv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvInv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvInv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvInv.EnableHeadersVisualStyles = false;
+            dgvInv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvInv.Columns.Add(new DataGridViewTextBoxColumn { Name = "FileName", HeaderText = "Tên file", FillWeight = 70 });
+            dgvInv.Columns.Add(new DataGridViewTextBoxColumn { Name = "FileSize", HeaderText = "Kích thước", FillWeight = 20 });
+            dgvInv.Columns.Add(new DataGridViewTextBoxColumn { Name = "FullPath", HeaderText = "FullPath", Visible = false });
+            dgvInv.Columns.Add(new DataGridViewTextBoxColumn { Name = "IsPending", HeaderText = "Trạng thái", FillWeight = 10 });
+            pInvLeft.Controls.Add(dgvInv);
+
+            // ── Panel phải: PDF Preview ──
+            pInvRight.Controls.Add(new Label
+            {
+                Text = "🔍  Xem nhanh PDF",
+                Dock = DockStyle.Top,
+                Height = 26,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(102, 51, 153),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(4, 0, 0, 0)
+            });
+
+            var webView = new System.Windows.Forms.WebBrowser
+            {
+                Dock = DockStyle.Fill,
+                ScrollBarsEnabled = true,
+                IsWebBrowserContextMenuEnabled = false
+            };
+            pInvRight.Controls.Add(webView);
+
+            // ── Load INV list từ thư mục ──
+            Action loadInvList = () =>
+            {
+                dgvInv.Rows.Clear();
+                _pendingDropPath = "";
+                _pendingDropName = "";
+                btnSaveInv.Enabled = false;
+
+                if (string.IsNullOrEmpty(_invFolderPath) || !System.IO.Directory.Exists(_invFolderPath))
+                {
+                    lblInvPath.Text = "INV Link: (thư mục không tồn tại)";
+                    lblInvPath.ForeColor = Color.FromArgb(200, 53, 69);
+                    return;
+                }
+                lblInvPath.Text = $"INV Link: {_invFolderPath}";
+                lblInvPath.ForeColor = Color.FromArgb(100, 100, 100);
+
+                foreach (var f in System.IO.Directory.GetFiles(_invFolderPath, "*.pdf")
+                                       .OrderBy(x => x))
+                {
+                    var fi = new System.IO.FileInfo(f);
+                    int idx = dgvInv.Rows.Add();
+                    dgvInv.Rows[idx].Cells["FileName"].Value = fi.Name;
+                    dgvInv.Rows[idx].Cells["FileSize"].Value = $"{fi.Length / 1024.0:0.#} KB";
+                    dgvInv.Rows[idx].Cells["FullPath"].Value = f;
+                    dgvInv.Rows[idx].Cells["IsPending"].Value = "";
+                }
+            };
+
+            // ── Chọn dự án → load INV path ──
+            try
+            {
+                foreach (var p in new ProjectService().GetAll())
+                    cboInvProject.Items.Add(p.ProjectCode);
+                if (cboInvProject.Items.Count > 0) cboInvProject.SelectedIndex = 0;
+            }
+            catch { }
+
+            cboInvProject.SelectedIndexChanged += (s, e) =>
+            {
+                _invFolderPath = "";
+                _pendingDropPath = "";
+                webView.Navigate("about:blank");
+                try
+                {
+                    string code = cboInvProject.SelectedItem?.ToString() ?? "";
+                    var proj = new ProjectService().GetAll().Find(p => p.ProjectCode == code);
+                    _invFolderPath = proj?.INV_Link?.Trim() ?? "";
+                }
+                catch { }
+                loadPOForProject();
+                loadInvList();
+            };
+
+            // ── Chọn dòng → preview PDF ──
+            dgvInv.SelectionChanged += (s, e) =>
+            {
+                if (dgvInv.SelectedRows.Count == 0) return;
+                string path = dgvInv.SelectedRows[0].Cells["FullPath"].Value?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
+                    webView.Navigate(path);
+                else
+                    webView.Navigate("about:blank");
+            };
+
+            // ── Double click → mở file PDF ──
+            dgvInv.CellDoubleClick += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                string path = dgvInv.Rows[ev.RowIndex].Cells["FullPath"].Value?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    { FileName = path, UseShellExecute = true });
+            };
+
+            // ── Kéo thả file PDF — hỗ trợ cả File Explorer và Outlook ──
+
+            // Hàm xử lý drop dùng chung cho dgvInv và pInvLeft
+            Action<DragEventArgs> handleDrop = (e) =>
+            {
+                string pdfPath = null;
+                string pdfName = null;
+                byte[] pdfBytes = null;
+
+                // Cách 1: Kéo từ File Explorer (DataFormats.FileDrop)
+                if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                {
+                    var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                    var pdf = System.Array.Find(files, f =>
+                        f.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+                    if (pdf != null) pdfPath = pdf;
+                }
+
+                // Cách 2: Kéo từ Outlook (FileGroupDescriptor + FileContents)
+                if (pdfPath == null &&
+                    e.Data.GetDataPresent("FileGroupDescriptorW") &&
+                    e.Data.GetDataPresent("FileContents"))
+                {
+                    try
+                    {
+                        // Lấy tên file từ FileGroupDescriptorW
+                        var fgd = e.Data.GetData("FileGroupDescriptorW") as System.IO.MemoryStream;
+                        if (fgd != null)
+                        {
+                            fgd.Position = 0;
+                            byte[] buf = fgd.ToArray();
+                            // Tên file bắt đầu từ byte 76, encoding Unicode
+                            string fname = System.Text.Encoding.Unicode
+                                .GetString(buf, 76, buf.Length - 76)
+                                .TrimEnd('\0').Trim();
+                            if (fname.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                            {
+                                pdfName = fname;
+                                // Lấy nội dung file từ FileContents
+                                var fc = e.Data.GetData("FileContents", true) as System.IO.MemoryStream;
+                                if (fc != null)
+                                {
+                                    fc.Position = 0;
+                                    pdfBytes = fc.ToArray();
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                // Nếu không có gì hợp lệ
+                if (pdfPath == null && pdfBytes == null)
+                {
+                    MessageBox.Show("Chỉ hỗ trợ file PDF!", "Thông báo",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
+                }
+
+                // Nếu từ Outlook → lưu tạm vào temp folder
+                if (pdfPath == null && pdfBytes != null)
+                {
+                    string tmpDir = System.IO.Path.GetTempPath();
+                    string tmpFile = System.IO.Path.Combine(tmpDir, pdfName ?? "invoice_temp.pdf");
+                    System.IO.File.WriteAllBytes(tmpFile, pdfBytes);
+                    pdfPath = tmpFile;
+                }
+
+                // Xóa dòng pending cũ
+                for (int r = dgvInv.Rows.Count - 1; r >= 0; r--)
+                    if (dgvInv.Rows[r].Cells["IsPending"].Value?.ToString() == "⏳ Chờ lưu")
+                        dgvInv.Rows.RemoveAt(r);
+
+                _pendingDropPath = pdfPath;
+                _pendingDropName = System.IO.Path.GetFileName(pdfPath);
+                var fi = new System.IO.FileInfo(pdfPath);
+
+                int idx = dgvInv.Rows.Add();
+                dgvInv.Rows[idx].Cells["FileName"].Value = _pendingDropName;
+                dgvInv.Rows[idx].Cells["FileSize"].Value = $"{fi.Length / 1024.0:0.#} KB";
+                dgvInv.Rows[idx].Cells["FullPath"].Value = pdfPath;
+                dgvInv.Rows[idx].Cells["IsPending"].Value = "⏳ Chờ lưu";
+                dgvInv.Rows[idx].DefaultCellStyle.ForeColor = Color.FromArgb(255, 140, 0);
+                dgvInv.Rows[idx].DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                dgvInv.ClearSelection();
+                dgvInv.Rows[idx].Selected = true;
+                webView.Navigate(pdfPath);
+                btnSaveInv.Enabled = !string.IsNullOrEmpty(_invFolderPath)
+                                  && cboPONoInv.SelectedItem?.ToString() != "-- Chọn PO No --"
+                                  && cboPONoInv.SelectedIndex > 0;
+            };
+
+            Action<DragEventArgs> handleDragEnter = (e) =>
+            {
+                bool hasFileDrop = e.Data.GetDataPresent(DataFormats.FileDrop);
+                bool hasOutlook = e.Data.GetDataPresent("FileGroupDescriptorW");
+                e.Effect = (hasFileDrop || hasOutlook)
+                    ? DragDropEffects.Copy
+                    : DragDropEffects.None;
+            };
+
+            // Đăng ký trên dgvInv
+            dgvInv.AllowDrop = true;
+            dgvInv.DragEnter += (s, e) => handleDragEnter(e);
+            dgvInv.DragOver += (s, e) => handleDragEnter(e);
+            dgvInv.DragDrop += (s, e) => handleDrop(e);
+
+            // Đăng ký trên pInvLeft (panel chứa) — bắt khi drop vào vùng trống
+            pInvLeft.AllowDrop = true;
+            pInvLeft.DragEnter += (s, e) => handleDragEnter(e);
+            pInvLeft.DragOver += (s, e) => handleDragEnter(e);
+            pInvLeft.DragDrop += (s, e) => handleDrop(e);
+
+            // ── Lưu hóa đơn ──
+            btnSaveInv.Click += (s, e) =>
+            {
+                if (string.IsNullOrEmpty(_pendingDropPath) || !System.IO.File.Exists(_pendingDropPath))
+                { MessageBox.Show("Không có file nào chờ lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+                if (!System.IO.Directory.Exists(_invFolderPath))
+                { MessageBox.Show("Thư mục INV Link không tồn tại!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+
+                // Lấy PO No từ bộ lọc trong tab hóa đơn
+                string poNo = cboPONoInv?.SelectedItem?.ToString()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(poNo) || poNo == "-- Chọn PO No --")
+                { MessageBox.Show("Vui lòng chọn số PO trước khi lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+                // Tạo tên file: INV_PONo.pdf, nếu trùng → INV_PONo_2.pdf, _3.pdf...
+                string baseName = $"INV_{poNo}";
+                string destPath = System.IO.Path.Combine(_invFolderPath, baseName + ".pdf");
+                int counter = 2;
+                while (System.IO.File.Exists(destPath))
+                {
+                    destPath = System.IO.Path.Combine(_invFolderPath,
+                        $"{baseName}_tờ{counter}.pdf");
+                    counter++;
+                }
+
+                try
+                {
+                    System.IO.File.Copy(_pendingDropPath, destPath, false);
+                    MessageBox.Show(
+                        $"✅ Đã lưu hóa đơn thành công!\nFile: {System.IO.Path.GetFileName(destPath)}",
+                        "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    _pendingDropPath = "";
+                    _pendingDropName = "";
+                    btnSaveInv.Enabled = false;
+                    loadInvList();
+
+                    // Preview file vừa lưu
+                    webView.Navigate(destPath);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Lỗi lưu file: " + ex.Message, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            // Load lần đầu
+            if (cboInvProject.Items.Count > 0)
+            {
+                cboInvProject.SelectedIndex = 0;
+                loadPOForProject();
+            }
         }
 
         private void BtnDeleteRow_Click(object? sender, EventArgs e)
@@ -693,7 +1103,7 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 9),
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-                Margin = new Padding(0,100,0,0),
+                Margin = new Padding(0, 100, 0, 0),
             };
             dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
