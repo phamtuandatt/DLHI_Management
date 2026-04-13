@@ -309,11 +309,12 @@ namespace MPR_Managerment.Forms
             dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "TrackID", HeaderText = "ID", Visible = false });
             // Cột hiển thị
             dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "PONo", HeaderText = "PO No", ReadOnly = true, FillWeight = 25 });
-            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "MaDuAn", HeaderText = "Mã DA", ReadOnly = true, FillWeight = 20 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "MaDuAn", HeaderText = "Mã DA", ReadOnly = true, FillWeight = 15 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "NCC", HeaderText = "Nhà CC", ReadOnly = true, FillWeight = 22 });
             dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "ExpDelivery", HeaderText = "Exp.Deliv", ReadOnly = true, FillWeight = 22 });
             dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "GhiChu", HeaderText = "Ghi chú", ReadOnly = true, FillWeight = 20 });
             dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "Status", HeaderText = "T.Thái", ReadOnly = true, FillWeight = 13 });
-            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "ReceiverNote", HeaderText = "Receiver", ReadOnly = false, FillWeight = 20 });
+            dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "ReceiverNote", HeaderText = "Ghi chú nhận", ReadOnly = false, FillWeight = 20 });
 
             // Màu sắc trạng thái
             dgvDelivery.CellFormatting += (s, ev) =>
@@ -1595,6 +1596,10 @@ namespace MPR_Managerment.Forms
                 MessageBox.Show("Không có dòng nào để lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
+            // ── Xác thực mật khẩu Admin trước khi lưu ──
+            if (!VerifyAdminPassword()) return;
+
             try
             {
                 SaveDetailsToDb();
@@ -1608,64 +1613,169 @@ namespace MPR_Managerment.Forms
         }
 
         // =========================================================================
+        // XÁC THỰC MẬT KHẨU ADMIN
+        // =========================================================================
+        private bool VerifyAdminPassword()
+        {
+            var dlg = new Form
+            {
+                Text = "🔐 Xác thực Admin",
+                Size = new Size(380, 170),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(245, 245, 245),
+                KeyPreview = true
+            };
+            dlg.Controls.Add(new Label { Text = "Nhập mật khẩu tài khoản Admin để xác nhận lưu:", Font = new Font("Segoe UI", 9), Location = new Point(15, 15), Size = new Size(340, 20) });
+            var txtPwd = new TextBox { Location = new Point(15, 40), Size = new Size(340, 26), Font = new Font("Segoe UI", 10), PasswordChar = '●' };
+            dlg.Controls.Add(txtPwd);
+            var lblErr = new Label { Text = "", ForeColor = Color.FromArgb(220, 53, 69), Font = new Font("Segoe UI", 9, FontStyle.Bold), Location = new Point(15, 72), Size = new Size(340, 20) };
+            dlg.Controls.Add(lblErr);
+            var btnOK = new Button { Text = "✔ Xác nhận", Location = new Point(155, 98), Size = new Size(100, 30), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+            btnOK.FlatAppearance.BorderSize = 0;
+            dlg.Controls.Add(btnOK);
+            var btnCancel = new Button { Text = "Hủy", Location = new Point(265, 98), Size = new Size(90, 30), BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), DialogResult = DialogResult.Cancel };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            dlg.Controls.Add(btnCancel);
+            dlg.CancelButton = btnCancel;
+
+            bool verified = false;
+            btnOK.Click += (s, ev) =>
+            {
+                string pwd = txtPwd.Text;
+                if (string.IsNullOrEmpty(pwd)) { lblErr.Text = "Vui lòng nhập mật khẩu!"; return; }
+                try
+                {
+                    string inputHash;
+                    using (var sha256 = System.Security.Cryptography.SHA256.Create())
+                    {
+                        byte[] bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(pwd));
+                        inputHash = BitConverter.ToString(bytes).Replace("-", "").ToLower();
+                    }
+                    const string ADMIN_HASH = "e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7";
+                    bool match = inputHash == ADMIN_HASH;
+                    if (!match)
+                    {
+                        using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                        conn.Open();
+                        var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                            "SELECT COUNT(1) FROM Users WHERE LOWER(Username)='admin' AND (LOWER(Password)=@hash OR Password=@pwd)", conn);
+                        cmd.Parameters.AddWithValue("@hash", inputHash);
+                        cmd.Parameters.AddWithValue("@pwd", pwd);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) match = true;
+                    }
+                    if (match) { verified = true; dlg.DialogResult = DialogResult.OK; dlg.Close(); }
+                    else { lblErr.Text = "❌ Mật khẩu không đúng!"; txtPwd.Clear(); txtPwd.Focus(); }
+                }
+                catch (Exception ex) { lblErr.Text = "Lỗi: " + ex.Message; }
+            };
+            dlg.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { btnOK.PerformClick(); ev.SuppressKeyPress = true; } };
+            txtPwd.Focus();
+            dlg.ShowDialog(this);
+            return verified;
+        }
+
+        // =========================================================================
         // HÀM CHUNG lưu detail — dùng bởi cả BtnSavePO và BtnSaveDetail
         // =========================================================================
         private void SaveDetailsToDb()
         {
             var oldDetails = _service.GetDetails(_selectedPO_ID);
-            foreach (var d in oldDetails) _service.DeleteDetail(d.PO_Detail_ID);
+
+            // ── Thu thập dữ liệu mới từ grid ──
+            var newRows = new System.Collections.Generic.List<PODetail>();
             int itemNo = 1;
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
                 if (row.IsNewRow) continue;
                 decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
-                decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ?
-                _wk : 0;
-                decimal p = decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal _p) ? _p : 0;
-                decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vat) ? _vat : 0;
+                decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
+                decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
+                decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
                 remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
                 decimal dbPrice = p;
-                if (calcMethod == "Theo KG")
-                {
-                    remarks += " [CALC:KG]";
-                    if (q > 0 && wk > 0) dbPrice = (wk * p) / q;
-                }
+                if (calcMethod == "Theo KG") { remarks += " [CALC:KG]"; if (q > 0 && wk > 0) dbPrice = (wk * p) / q; }
                 else remarks += " [CALC:SL]";
                 int? mprDetailId = null;
                 if (dgvDetails.Columns.Contains("MPR_Detail_ID") && row.Cells["MPR_Detail_ID"].Value != null)
                     if (int.TryParse(row.Cells["MPR_Detail_ID"].Value.ToString(), out int mdi) && mdi > 0) mprDetailId = mdi;
-                var detail = new PODetail
+                newRows.Add(new PODetail
                 {
                     Item_No = itemNo++,
-                    Item_Name = row.Cells["Item_Name"].Value?.ToString() ??
-                    "",
-                    Material = row.Cells["Material"].Value?.ToString() ??
-                    "",
-                    Asize = row.Cells["Asize"].Value?.ToString() ??
-                    "",
-                    Bsize = row.Cells["Bsize"].Value?.ToString() ??
-                    "",
-                    Csize = row.Cells["Csize"].Value?.ToString() ??
-                    "",
+                    Item_Name = row.Cells["Item_Name"].Value?.ToString() ?? "",
+                    Material = row.Cells["Material"].Value?.ToString() ?? "",
+                    Asize = row.Cells["Asize"].Value?.ToString() ?? "",
+                    Bsize = row.Cells["Bsize"].Value?.ToString() ?? "",
+                    Csize = row.Cells["Csize"].Value?.ToString() ?? "",
                     Qty_Per_Sheet = (int)q,
-                    UNIT = row.Cells["UNIT"].Value?.ToString() ??
-                    "",
+                    UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
                     Weight_kg = wk,
                     Price = dbPrice,
                     VAT = vat,
                     Amount = 0,
-                    Received = int.TryParse(row.Cells["Received"].Value?.ToString(), out int rec) ?
-                    rec : 0,
-                    MPSNo = row.Cells["MPSNo"].Value?.ToString() ??
-                    "",
-                    DeliveryLocation = row.Cells["DeliveryLocation"].Value?.ToString() ??
-                    "",
+                    Received = int.TryParse(row.Cells["Received"].Value?.ToString(), out int rec) ? rec : 0,
+                    MPSNo = row.Cells["MPSNo"].Value?.ToString() ?? "",
+                    DeliveryLocation = row.Cells["DeliveryLocation"].Value?.ToString() ?? "",
                     Remarks = remarks.Trim(),
                     MPR_Detail_ID = mprDetailId
-                };
-                _service.InsertDetail(detail, _selectedPO_ID);
+                });
+            }
+
+            // ── So sánh cũ vs mới → ghi Revise History ──
+            var reviseLogs = new System.Collections.Generic.List<(int ino, string col, string oldV, string newV)>();
+            foreach (var n in newRows)
+            {
+                var o = oldDetails.Find(x => x.Item_No == n.Item_No);
+                if (o == null) { reviseLogs.Add((n.Item_No, "Item mới", "", n.Item_Name)); continue; }
+                void Chk(string c, string ov, string nv) { if ((ov ?? "").Trim() != (nv ?? "").Trim()) reviseLogs.Add((n.Item_No, c, ov ?? "", nv ?? "")); }
+                Chk("Tên hàng", o.Item_Name, n.Item_Name);
+                Chk("Vật liệu", o.Material, n.Material);
+                Chk("A(mm)", o.Asize, n.Asize);
+                Chk("B(mm)", o.Bsize, n.Bsize);
+                Chk("C(mm)", o.Csize, n.Csize);
+                Chk("SL", o.Qty_Per_Sheet.ToString(), n.Qty_Per_Sheet.ToString());
+                Chk("ĐVT", o.UNIT, n.UNIT);
+                Chk("KG", o.Weight_kg.ToString("0.##"), n.Weight_kg.ToString("0.##"));
+                Chk("Đơn giá", o.Price.ToString("0.##"), n.Price.ToString("0.##"));
+                Chk("VAT", o.VAT.ToString("0.##"), n.VAT.ToString("0.##"));
+                Chk("Đã nhận", o.Received.ToString(), n.Received.ToString());
+                Chk("Ghi chú", o.Remarks, n.Remarks);
+                Chk("Nơi giao", o.DeliveryLocation, n.DeliveryLocation);
+                Chk("MPS No", o.MPSNo, n.MPSNo);
+            }
+            foreach (var o in oldDetails)
+                if (!newRows.Exists(n => n.Item_No == o.Item_No))
+                    reviseLogs.Add((o.Item_No, "Item xóa", o.Item_Name, ""));
+
+            // ── Xóa cũ, insert mới ──
+            foreach (var d in oldDetails) _service.DeleteDetail(d.PO_Detail_ID);
+            foreach (var d in newRows) _service.InsertDetail(d, _selectedPO_ID);
+
+            // ── Ghi Revise History ──
+            if (reviseLogs.Count > 0 && _selectedPO_ID > 0)
+            {
+                try
+                {
+                    using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                    conn.Open();
+                    foreach (var (ino, col, oldV, newV) in reviseLogs)
+                    {
+                        var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                            INSERT INTO PO_Revise_Transactions (po_id, item_no, column_name_change, old_value, new_value, trans_date)
+                            VALUES (@poId, @itemNo, @col, @oldVal, @newVal, GETDATE())", conn);
+                        cmd.Parameters.AddWithValue("@poId", _selectedPO_ID);
+                        cmd.Parameters.AddWithValue("@itemNo", ino);
+                        cmd.Parameters.AddWithValue("@col", col);
+                        cmd.Parameters.AddWithValue("@oldVal", oldV);
+                        cmd.Parameters.AddWithValue("@newVal", newV);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine("ReviseLog: " + ex.Message); }
             }
         }
 
@@ -1941,13 +2051,15 @@ namespace MPR_Managerment.Forms
 
                 string sql = @"
                     SELECT dt.TrackID, dt.PONo, ISNULL(pi.ProjectCode,'') AS MaDuAn,
+                           ISNULL(s.Short_Name, ISNULL(s.Company_Name,'')) AS NCC,
                            CONVERT(NVARCHAR(10), dt.ExpDelivery, 103) AS ExpDelivery,
                            ISNULL(dt.GhiChu,'') AS GhiChu,
                            ISNULL(dt.Status,'Pending') AS Status,
                            ISNULL(dt.ReceiverNote,'') AS ReceiverNote
                     FROM PO_DeliveryTracking dt
-                    LEFT JOIN PO_head ph ON ph.PONo = dt.PONo
+                    LEFT JOIN PO_head     ph ON ph.PONo        = dt.PONo
                     LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
+                    LEFT JOIN Suppliers   s  ON s.Supplier_ID  = ph.Supplier_ID
                     WHERE ISNULL(dt.Status,'Pending') != 'Done'
                     ORDER BY dt.ExpDelivery ASC";
 
@@ -1959,7 +2071,7 @@ namespace MPR_Managerment.Forms
                     foreach (System.Data.DataRow r in dt.Rows)
                     {
                         dgvDelivery.Rows.Add(
-                            r["TrackID"], r["PONo"], r["MaDuAn"],
+                            r["TrackID"], r["PONo"], r["MaDuAn"], r["NCC"],
                             r["ExpDelivery"], r["GhiChu"],
                             r["Status"], r["ReceiverNote"]);
                     }
@@ -2163,10 +2275,14 @@ namespace MPR_Managerment.Forms
             {
                 // ── Load danh sách PO chưa Complete ──
                 const string SQL_PO = @"
-                    SELECT ph.PONo, ISNULL(pi.ProjectCode,'') AS MaDuAn,
-                           ph.MPR_No, ph.Status
+                    SELECT ph.PONo,
+                           ISNULL(pi.ProjectCode,'')                        AS MaDuAn,
+                           ph.MPR_No,
+                           ph.Status,
+                           ISNULL(s.Short_Name, ISNULL(s.Company_Name,''))  AS NCC
                     FROM PO_head ph
                     LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
+                    LEFT JOIN Suppliers   s  ON s.Supplier_ID  = ph.Supplier_ID
                     WHERE ph.Status NOT IN ('Completed','Cancelled')
                     ORDER BY ph.PONo";
 
@@ -2200,24 +2316,20 @@ namespace MPR_Managerment.Forms
                 });
 
                 // ── PANEL BỘ LỌC ──
-                var pFilter = new Panel
+                var pFilter = new FlowLayoutPanel
                 {
                     Location = new Point(10, 36),
-                    Size = new Size(860, 38),
+                    Size = new Size(dlg.ClientSize.Width - 20, 38),
                     BackColor = Color.White,
                     BorderStyle = BorderStyle.FixedSingle,
+                    WrapContents = false,
+                    FlowDirection = FlowDirection.LeftToRight,
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
                 };
                 dlg.Controls.Add(pFilter);
 
-                pFilter.Controls.Add(new Label { Text = "Mã DA:", Location = new Point(6, 10), Size = new Size(45, 18), Font = new Font("Segoe UI", 8, FontStyle.Bold) });
-                var cboDaFilter = new ComboBox
-                {
-                    Location = new Point(52, 7),
-                    Size = new Size(130, 24),
-                    Font = new Font("Segoe UI", 9),
-                    DropDownStyle = ComboBoxStyle.DropDownList
-                };
+                pFilter.Controls.Add(new Label { Text = "Mã DA:", Size = new Size(45, 28), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 8, FontStyle.Bold) });
+                var cboDaFilter = new ComboBox { Size = new Size(115, 26), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
                 cboDaFilter.Items.Add("Tất cả");
                 dtPO.AsEnumerable().Select(r => r["MaDuAn"].ToString())
                     .Where(v => !string.IsNullOrEmpty(v)).Distinct().OrderBy(v => v)
@@ -2225,43 +2337,25 @@ namespace MPR_Managerment.Forms
                 cboDaFilter.SelectedIndex = 0;
                 pFilter.Controls.Add(cboDaFilter);
 
-                pFilter.Controls.Add(new Label { Text = "MPR No:", Location = new Point(196, 10), Size = new Size(52, 18), Font = new Font("Segoe UI", 8, FontStyle.Bold) });
-                var txtMprFilter = new TextBox
-                {
-                    Location = new Point(250, 7),
-                    Size = new Size(120, 24),
-                    Font = new Font("Segoe UI", 9),
-                    PlaceholderText = "MPR No..."
-                };
+                pFilter.Controls.Add(new Label { Text = "PO No:", Size = new Size(45, 28), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 8, FontStyle.Bold) });
+                var txtPoFilter = new TextBox { Size = new Size(110, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "PO No..." };
+                pFilter.Controls.Add(txtPoFilter);
+
+                pFilter.Controls.Add(new Label { Text = "MPR No:", Size = new Size(52, 28), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 8, FontStyle.Bold) });
+                var txtMprFilter = new TextBox { Size = new Size(105, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "MPR No..." };
                 pFilter.Controls.Add(txtMprFilter);
 
-                var btnDlgFilter = new Button
-                {
-                    Text = "🔍 Lọc",
-                    Location = new Point(382, 6),
-                    Size = new Size(70, 26),
-                    BackColor = Color.FromArgb(0, 120, 212),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 8, FontStyle.Bold)
-                };
+                pFilter.Controls.Add(new Label { Text = "NCC:", Size = new Size(35, 28), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 8, FontStyle.Bold) });
+                var txtNccFilter = new TextBox { Size = new Size(120, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Nhà cung cấp..." };
+                pFilter.Controls.Add(txtNccFilter);
+
+                var btnDlgFilter = new Button { Text = "🔍 Lọc", Size = new Size(70, 26), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 8, FontStyle.Bold) };
                 btnDlgFilter.FlatAppearance.BorderSize = 0;
                 pFilter.Controls.Add(btnDlgFilter);
 
-                var btnDlgClear = new Button
-                {
-                    Text = "✖",
-                    Location = new Point(458, 6),
-                    Size = new Size(32, 26),
-                    BackColor = Color.FromArgb(108, 117, 125),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 8, FontStyle.Bold)
-                };
+                var btnDlgClear = new Button { Text = "✖", Size = new Size(32, 26), BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 8, FontStyle.Bold) };
                 btnDlgClear.FlatAppearance.BorderSize = 0;
                 pFilter.Controls.Add(btnDlgClear);
-
-                BringInputsToFront(pFilter);
 
                 // ── BẢNG PO ──
                 var dgvDlg = new DataGridView
@@ -2285,15 +2379,29 @@ namespace MPR_Managerment.Forms
                 dgvDlg.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
                 dlg.Controls.Add(dgvDlg);
 
+                // Sau khi bind: đặt header, căn chỉnh width
+                dgvDlg.DataBindingComplete += (s, ev) =>
+                {
+                    if (dgvDlg.Columns.Contains("PONo")) { dgvDlg.Columns["PONo"].HeaderText = "PO No"; dgvDlg.Columns["PONo"].FillWeight = 28; }
+                    if (dgvDlg.Columns.Contains("MaDuAn")) { dgvDlg.Columns["MaDuAn"].HeaderText = "Mã DA"; dgvDlg.Columns["MaDuAn"].FillWeight = 15; }
+                    if (dgvDlg.Columns.Contains("NCC")) { dgvDlg.Columns["NCC"].HeaderText = "NCC"; dgvDlg.Columns["NCC"].FillWeight = 25; }
+                    if (dgvDlg.Columns.Contains("MPR_No")) { dgvDlg.Columns["MPR_No"].HeaderText = "MPR No"; dgvDlg.Columns["MPR_No"].FillWeight = 20; }
+                    if (dgvDlg.Columns.Contains("Status")) { dgvDlg.Columns["Status"].HeaderText = "Trạng thái"; dgvDlg.Columns["Status"].FillWeight = 12; }
+                };
+
                 // Hàm bind bảng PO theo filter
                 Action bindDlgGrid = () =>
                 {
                     string selDa = cboDaFilter.SelectedItem?.ToString() ?? "Tất cả";
+                    string selPo = txtPoFilter.Text.Trim().ToLower();
                     string selMpr = txtMprFilter.Text.Trim().ToLower();
+                    string selNcc = txtNccFilter.Text.Trim().ToLower();
                     var rows = dtPO.AsEnumerable().Where(r =>
                     {
                         if (selDa != "Tất cả" && r["MaDuAn"].ToString() != selDa) return false;
+                        if (!string.IsNullOrEmpty(selPo) && !r["PONo"].ToString().ToLower().Contains(selPo)) return false;
                         if (!string.IsNullOrEmpty(selMpr) && !r["MPR_No"].ToString().ToLower().Contains(selMpr)) return false;
+                        if (!string.IsNullOrEmpty(selNcc) && !r["NCC"].ToString().ToLower().Contains(selNcc)) return false;
                         return true;
                     });
                     dgvDlg.DataSource = rows.Any() ? rows.CopyToDataTable() : dtPO.Clone();
@@ -2301,9 +2409,18 @@ namespace MPR_Managerment.Forms
                 bindDlgGrid();
 
                 btnDlgFilter.Click += (s, ev) => bindDlgGrid();
-                btnDlgClear.Click += (s, ev) => { cboDaFilter.SelectedIndex = 0; txtMprFilter.Text = ""; bindDlgGrid(); };
+                btnDlgClear.Click += (s, ev) =>
+                {
+                    cboDaFilter.SelectedIndex = 0;
+                    txtPoFilter.Text = "";
+                    txtMprFilter.Text = "";
+                    txtNccFilter.Text = "";
+                    bindDlgGrid();
+                };
                 cboDaFilter.SelectedIndexChanged += (s, ev) => bindDlgGrid();
-                txtMprFilter.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) bindDlgGrid(); };
+                txtPoFilter.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { bindDlgGrid(); ev.SuppressKeyPress = true; } };
+                txtMprFilter.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { bindDlgGrid(); ev.SuppressKeyPress = true; } };
+                txtNccFilter.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { bindDlgGrid(); ev.SuppressKeyPress = true; } };
 
                 // ── KHU VỰC NHẬP THÊM THÔNG TIN ──
                 int iy = dlg.ClientSize.Height - 140;
@@ -2460,7 +2577,20 @@ namespace MPR_Managerment.Forms
                     }
                 };
 
-                dlg.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { btnOK.PerformClick(); ev.Handled = true; } };
+                dlg.KeyDown += (s, ev) =>
+                {
+                    if (ev.KeyCode != Keys.Enter) return;
+                    var focused = dlg.ActiveControl;
+                    if (focused == txtPoFilter || focused == txtMprFilter || focused == txtNccFilter)
+                    {
+                        bindDlgGrid();
+                        ev.Handled = true;
+                        ev.SuppressKeyPress = true;
+                        return;
+                    }
+                    btnOK.PerformClick();
+                    ev.Handled = true;
+                };
                 dlg.ShowDialog(this);
             }
             catch (Exception ex)

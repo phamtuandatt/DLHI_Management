@@ -1326,6 +1326,7 @@ namespace MPR_Managerment.Forms
                         ISNULL(CAST(NULLIF(d.F_Length_mm, 0) AS NVARCHAR), N'') AS [F-Dài(mm)],
                         ISNULL(d.UNIT,          N'')                        AS [ĐVT],
                         d.Qty_Per_Sheet                                     AS [SL],
+                        ISNULL(d.Weight_kg,     0)                          AS [KG],
                         -- Gộp tất cả PO của hạng mục → 1 chuỗi, không duplicate
                         ISNULL(STUFF((
                             SELECT DISTINCT N', ' + ph2.PONo
@@ -1847,7 +1848,28 @@ namespace MPR_Managerment.Forms
                                 for (int c = 0; c < dtExport.Columns.Count; c++)
                                 {
                                     var cell = ws.Cells[row + 4, c + 1];
-                                    cell.Value = dr[c]?.ToString() ?? "";
+                                    string colName = dtExport.Columns[c].ColumnName;
+
+                                    // Cột KG — ghi số thực, làm tròn 2 chữ số thập phân
+                                    if (colName == "KG")
+                                    {
+                                        if (dr[c] != DBNull.Value && decimal.TryParse(dr[c]?.ToString(), out decimal kg))
+                                        {
+                                            cell.Value = Math.Round(kg, 2);
+                                            cell.Style.Numberformat.Format = "#,##0.00";
+                                            cell.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                        }
+                                        else
+                                        {
+                                            cell.Value = 0.00m;
+                                            cell.Style.Numberformat.Format = "#,##0.00";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        cell.Value = dr[c]?.ToString() ?? "";
+                                    }
+
                                     cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
                                     cell.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
 
@@ -1859,7 +1881,7 @@ namespace MPR_Managerment.Forms
                                     }
 
                                     // Tô màu cột Kết quả KT
-                                    if (dtExport.Columns[c].ColumnName == "Kết quả KT")
+                                    if (colName == "Kết quả KT")
                                     {
                                         string kt = dr[c]?.ToString() ?? "";
                                         cell.Style.Font.Bold = true;
