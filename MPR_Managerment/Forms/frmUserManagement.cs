@@ -1,6 +1,6 @@
 ﻿// ============================================================
 //  FILE: Forms/frmUserManagement.cs
-//  Quản lý User + phân quyền theo module
+//  Quản lý User + phân quyền theo module & chức năng button
 // ============================================================
 using System;
 using System.Collections.Generic;
@@ -30,6 +30,33 @@ namespace MPR_Managerment.Forms
         private Label lblStatus;
         private Panel panelTop, panelForm, panelPerm;
 
+        // ── Danh sách module & permission tương ứng ──────────────────────────
+        // Mỗi module định nghĩa: Key, Tên hiển thị, và danh sách cột permission
+        // Key phải khớp với Module_Code trong DB
+        private static readonly List<ModuleDef> ModuleDefs = new List<ModuleDef>
+        {
+            new ModuleDef("PROJECT",  "Dự án (Project)",
+                new[]{ "Xem","Thêm mới","Lưu","Xóa","Làm mới" }),
+
+            new ModuleDef("MPR",      "Yêu cầu MH (MPR)",
+                new[]{ "Xem","Tạo MPR","Lưu Header","Xóa MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Tạo PO","Check All Items","Xuất Excel" }),
+
+            new ModuleDef("PO",       "Đơn đặt hàng (PO)",
+                new[]{ "Xem","Tạo PO","Lưu PO","Xóa PO","Import MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Payment","Revise History","Tìm theo NCC","Check by size","Xuất Excel" }),
+
+            new ModuleDef("PAYMENT",  "Thanh toán (Payment)",
+                new[]{ "Xem","Thêm đợt","Lưu","Xóa","Request to EC","In Request","Ghi nhận TT","Xuất Excel","Xem báo cáo" }),
+
+            new ModuleDef("RIR",      "Nhận hàng (RIR)",
+                new[]{ "Xem","Tạo RIR","Lưu Header","Xóa RIR","In RIR","Import Phiếu Nhập","Thêm dòng","Lưu chi tiết","Xóa dòng" }),
+
+            new ModuleDef("WAREHOUSE","Kho (Warehouse)",
+                new[]{ "Xem","Lưu hóa đơn","Xuất tồn kho" }),
+
+            new ModuleDef("USER_MGT", "Quản lý User",
+                new[]{ "Xem","Tạo user","Lưu user","Vô hiệu hóa","Reset Password","Phân quyền" }),
+        };
+
         public frmUserManagement()
         {
             InitializeComponent();
@@ -44,6 +71,9 @@ namespace MPR_Managerment.Forms
         private void BuildUI()
         {
             this.Text = "Quản lý Người dùng & Phân quyền";
+            this.Size = new Size(1400, 820);
+            this.MinimumSize = new Size(1100, 700);
+            this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(245, 245, 245);
 
             // ===== PANEL TOP: danh sách user =====
@@ -110,7 +140,6 @@ namespace MPR_Managerment.Forms
             AddLbl(panelForm, "Email:", 10, y); txtEmail = AddTxt(panelForm, 130, y, 200);
             AddLbl(panelForm, "SĐT:", 345, y); txtPhone = AddTxt(panelForm, 430, y, 100);
             AddLbl(panelForm, "Mật khẩu mới:", 540, y); txtNewPwd = AddTxt(panelForm, 640, y, 0);
-            // txtNewPwd sẽ ẩn khi edit, hiện khi tạo mới — xử lý ở BtnNew_Click
 
             y += 38;
             AddLbl(panelForm, "Phòng ban:", 10, y); txtDept = AddTxt(panelForm, 130, y, 200);
@@ -134,20 +163,20 @@ namespace MPR_Managerment.Forms
             btnDeactivate.Click += BtnDeactivate_Click;
             panelForm.Controls.AddRange(new Control[] { btnSave, btnResetPwd, btnDeactivate });
 
-            // ===== PANEL PERMISSION: bảng quyền =====
+            // ===== PANEL PERMISSION: bảng phân quyền chi tiết =====
             panelPerm = new Panel
             {
                 Location = new Point(700, 240),
-                Size = new Size(670, 230),
+                Size = new Size(670, 530),
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
             };
             this.Controls.Add(panelPerm);
 
             panelPerm.Controls.Add(new Label
             {
-                Text = "PHÂN QUYỀN MODULE (Override riêng cho user)",
+                Text = "PHÂN QUYỀN THEO MODULE & CHỨC NĂNG",
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 120, 212),
                 Location = new Point(10, 8),
@@ -156,34 +185,249 @@ namespace MPR_Managerment.Forms
 
             panelPerm.Controls.Add(new Label
             {
-                Text = "⚠ Nếu để mặc định (không tick Override) → dùng quyền theo Role",
+                Text = "⚠ Tick ✔ vào ô tương ứng để cấp quyền. Bỏ tick = từ chối quyền đó.",
                 Font = new Font("Segoe UI", 8),
                 ForeColor = Color.Gray,
                 Location = new Point(10, 35),
-                Size = new Size(600, 18)
+                Size = new Size(640, 18)
             });
 
-            dgvPermissions = BuildGrid(panelPerm, 58, 130);
+            // Nút Cấp tất cả / Thu hồi tất cả
+            var btnGrantAll = Btn("✅ Cấp tất cả", Color.FromArgb(40, 167, 69), new Point(10, 55), 125, 26);
+            var btnRevokeAll = Btn("❌ Thu hồi tất cả", Color.FromArgb(220, 53, 69), new Point(143, 55), 135, 26);
+            var btnGrantModule = Btn("☑ Cấp theo Role mẫu", Color.FromArgb(102, 51, 153), new Point(286, 55), 155, 26);
+            btnGrantAll.Click += (s, e) => SetAllPermissions(true);
+            btnRevokeAll.Click += (s, e) => SetAllPermissions(false);
+            btnGrantModule.Click += BtnApplyRoleTemplate_Click;
+            panelPerm.Controls.AddRange(new Control[] { btnGrantAll, btnRevokeAll, btnGrantModule });
+
+            dgvPermissions = new DataGridView
+            {
+                Location = new Point(10, 88),
+                Size = new Size(panelPerm.Width - 20, panelPerm.Height - 130),
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
+                MultiSelect = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                ScrollBars = ScrollBars.Both
+            };
+            dgvPermissions.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvPermissions.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvPermissions.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvPermissions.EnableHeadersVisualStyles = false;
+            dgvPermissions.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvPermissions.RowTemplate.Height = 26;
+            panelPerm.Controls.Add(dgvPermissions);
+
             BuildPermissionColumns();
 
-            btnSavePerms = Btn("💾 Lưu phân quyền", Color.FromArgb(0, 120, 212), new Point(10, 195), 155, 30);
-            btnResetPerms = Btn("🔄 Reset về Role", Color.FromArgb(108, 117, 125), new Point(175, 195), 145, 30);
+            int btnY = panelPerm.Height - 38;
+            btnSavePerms = Btn("💾 Lưu phân quyền", Color.FromArgb(0, 120, 212), new Point(10, btnY), 155, 30);
+            btnResetPerms = Btn("🔄 Reset về Role", Color.FromArgb(108, 117, 125), new Point(175, btnY), 145, 30);
+            btnSavePerms.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnResetPerms.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             btnSavePerms.Click += BtnSavePerms_Click;
             btnResetPerms.Click += BtnResetPerms_Click;
             panelPerm.Controls.AddRange(new Control[] { btnSavePerms, btnResetPerms });
+
+            // ===== PANEL FORM mở rộng xuống theo chiều cao còn lại =====
+            panelForm.Size = new Size(680, 530);
+            panelForm.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom;
+
+            // Bảng lịch sử phân quyền (phía dưới panelForm)
+            panelForm.Controls.Add(new Label
+            {
+                Text = "LỊCH SỬ THAY ĐỔI QUYỀN",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(102, 51, 153),
+                Location = new Point(10, 245),
+                Size = new Size(300, 22)
+            });
+
+            var dgvAudit = new DataGridView
+            {
+                Name = "dgvAudit",
+                Location = new Point(10, 270),
+                Size = new Size(655, 245),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 8),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+            };
+            dgvAudit.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153);
+            dgvAudit.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvAudit.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+            dgvAudit.EnableHeadersVisualStyles = false;
+            dgvAudit.Columns.Add(new DataGridViewTextBoxColumn { Name = "Thoi_Gian", HeaderText = "Thời gian", Width = 130 });
+            dgvAudit.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nguoi_Thay_Doi", HeaderText = "Người thay đổi", Width = 130 });
+            dgvAudit.Columns.Add(new DataGridViewTextBoxColumn { Name = "Hanh_Dong", HeaderText = "Hành động", Width = 395 });
+            panelForm.Controls.Add(dgvAudit);
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        //  XÂY DỰNG CỘT PERMISSION THEO TỪNG MODULE & CHỨC NĂNG
+        // ─────────────────────────────────────────────────────────────────────
         private void BuildPermissionColumns()
         {
             dgvPermissions.Columns.Clear();
-            dgvPermissions.Columns.Add(new DataGridViewTextBoxColumn { Name = "Module_ID", Visible = false });
-            dgvPermissions.Columns.Add(new DataGridViewTextBoxColumn { Name = "Module_Name", HeaderText = "Module", Width = 140, ReadOnly = true });
-            dgvPermissions.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Override", HeaderText = "Override", Width = 70 });
-            dgvPermissions.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Can_View", HeaderText = "Xem", Width = 55 });
-            dgvPermissions.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Can_Create", HeaderText = "Tạo", Width = 55 });
-            dgvPermissions.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Can_Edit", HeaderText = "Sửa", Width = 55 });
-            dgvPermissions.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Can_Delete", HeaderText = "Xóa", Width = 55 });
-            dgvPermissions.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Can_Export", HeaderText = "Xuất", Width = 55 });
+
+            // Cột cố định
+            dgvPermissions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Module_Code",
+                Visible = false
+            });
+            dgvPermissions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Module_Name",
+                HeaderText = "Module / Chức năng",
+                Width = 180,
+                ReadOnly = true
+            });
+
+            // Cột permission động theo từng module
+            // Dùng cột chung: mỗi cột = 1 permission key "MODULE:Action"
+            // Để bảng không quá rộng, ta dùng cột CheckBox với HeaderText ngắn
+            // và tooltip đầy đủ
+
+            // Tập hợp TẤT CẢ action từ mọi module (union)
+            var allActions = new List<string>();
+            foreach (var mod in ModuleDefs)
+                foreach (var act in mod.Actions)
+                    if (!allActions.Contains(act)) allActions.Add(act);
+
+            foreach (var act in allActions)
+            {
+                var col = new DataGridViewCheckBoxColumn
+                {
+                    Name = "ACT_" + act.Replace(" ", "_"),
+                    HeaderText = act,
+                    Width = 75,
+                    ToolTipText = act
+                };
+                dgvPermissions.Columns.Add(col);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  NẠP DỮ LIỆU PERMISSION VÀO LƯỚI
+        // ─────────────────────────────────────────────────────────────────────
+        private void LoadPermissions(int userId)
+        {
+            // Lấy permission hiệu lực của user từ DB
+            var perms = _svc.GetDetailedPermissions(userId); // Dictionary<"MODULE:Action", bool>
+
+            dgvPermissions.Rows.Clear();
+
+            foreach (var mod in ModuleDefs)
+            {
+                int idx = dgvPermissions.Rows.Add();
+                var row = dgvPermissions.Rows[idx];
+
+                row.Cells["Module_Code"].Value = mod.Code;
+                row.Cells["Module_Name"].Value = mod.DisplayName;
+
+                // Tô màu header row
+                row.DefaultCellStyle.BackColor = Color.FromArgb(220, 235, 252);
+                row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+
+                // Gán giá trị checkbox cho từng action
+                foreach (DataGridViewColumn col in dgvPermissions.Columns)
+                {
+                    if (!col.Name.StartsWith("ACT_")) continue;
+                    string actionName = col.HeaderText;
+
+                    if (mod.Actions.Contains(actionName))
+                    {
+                        // Action này thuộc module → cho phép tương tác
+                        string key = mod.Code + ":" + actionName;
+                        bool granted = perms.ContainsKey(key) && perms[key];
+                        row.Cells[col.Name].Value = granted;
+                        row.Cells[col.Name].ReadOnly = false;
+                    }
+                    else
+                    {
+                        // Action không thuộc module → ẩn / không áp dụng
+                        row.Cells[col.Name].Value = false;
+                        row.Cells[col.Name].ReadOnly = true;
+                        row.Cells[col.Name].Style.BackColor = Color.FromArgb(220, 220, 220);
+                        row.Cells[col.Name].Style.ForeColor = Color.FromArgb(180, 180, 180);
+                    }
+                }
+            }
+
+            // Load lịch sử audit
+            LoadAuditLog(userId);
+        }
+
+        private void LoadAuditLog(int userId)
+        {
+            var dgvAudit = panelForm.Controls["dgvAudit"] as DataGridView;
+            if (dgvAudit == null) return;
+            dgvAudit.Rows.Clear();
+
+            var logs = _svc.GetPermissionAuditLog(userId);
+            foreach (var log in logs)
+            {
+                int i = dgvAudit.Rows.Add();
+                dgvAudit.Rows[i].Cells["Thoi_Gian"].Value = log.Changed_At.ToString("dd/MM/yyyy HH:mm");
+                dgvAudit.Rows[i].Cells["Nguoi_Thay_Doi"].Value = log.Changed_By;
+                dgvAudit.Rows[i].Cells["Hanh_Dong"].Value = log.Action_Detail;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  CẤP / THU HỒI TẤT CẢ QUYỀN
+        // ─────────────────────────────────────────────────────────────────────
+        private void SetAllPermissions(bool grant)
+        {
+            foreach (DataGridViewRow row in dgvPermissions.Rows)
+            {
+                foreach (DataGridViewColumn col in dgvPermissions.Columns)
+                {
+                    if (!col.Name.StartsWith("ACT_")) continue;
+                    if (!row.Cells[col.Name].ReadOnly)
+                        row.Cells[col.Name].Value = grant;
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  ÁP DỤNG TEMPLATE QUYỀN THEO ROLE
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnApplyRoleTemplate_Click(object sender, EventArgs e)
+        {
+            if (_selectedUserId == 0) { MessageBox.Show("Vui lòng chọn user trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+            var u = _users.Find(x => x.User_ID == _selectedUserId);
+            if (u == null) return;
+
+            // Lấy template theo Role hiện tại
+            var template = _svc.GetRolePermissionTemplate(u.Role_ID); // Dictionary<"MODULE:Action", bool>
+
+            foreach (DataGridViewRow row in dgvPermissions.Rows)
+            {
+                string modCode = row.Cells["Module_Code"].Value?.ToString() ?? "";
+                foreach (DataGridViewColumn col in dgvPermissions.Columns)
+                {
+                    if (!col.Name.StartsWith("ACT_")) continue;
+                    if (row.Cells[col.Name].ReadOnly) continue;
+                    string key = modCode + ":" + col.HeaderText;
+                    row.Cells[col.Name].Value = template.ContainsKey(key) && template[key];
+                }
+            }
+
+            lblStatus.Text = $"Đã áp dụng template quyền theo Role: {u.Role_Name}";
         }
 
         // =====================================================================
@@ -235,27 +479,6 @@ namespace MPR_Managerment.Forms
             BindUserGrid(filtered);
         }
 
-        private void LoadPermissions(int userId)
-        {
-            var perms = _svc.GetEffectivePermissions(userId);
-            dgvPermissions.Rows.Clear();
-
-            foreach (var m in _modules)
-            {
-                var p = perms.Find(x => x.Module_ID == m.Module_ID);
-                int idx = dgvPermissions.Rows.Add();
-                var row = dgvPermissions.Rows[idx];
-                row.Cells["Module_ID"].Value = m.Module_ID;
-                row.Cells["Module_Name"].Value = m.Module_Name;
-                row.Cells["Override"].Value = p?.Is_Custom_Override ?? false;
-                row.Cells["Can_View"].Value = p?.Can_View ?? false;
-                row.Cells["Can_Create"].Value = p?.Can_Create ?? false;
-                row.Cells["Can_Edit"].Value = p?.Can_Edit ?? false;
-                row.Cells["Can_Delete"].Value = p?.Can_Delete ?? false;
-                row.Cells["Can_Export"].Value = p?.Can_Export ?? false;
-            }
-        }
-
         // =====================================================================
         //  EVENTS
         // =====================================================================
@@ -267,7 +490,7 @@ namespace MPR_Managerment.Forms
             if (u == null) return;
 
             txtUsername.Text = u.Username;
-            txtUsername.ReadOnly = true; // không cho sửa username
+            txtUsername.ReadOnly = true;
             txtFullName.Text = u.Full_Name;
             txtEmail.Text = u.Email;
             txtPhone.Text = u.Phone;
@@ -390,25 +613,27 @@ namespace MPR_Managerment.Forms
         {
             if (_selectedUserId == 0) { MessageBox.Show("Vui lòng chọn user trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
-            var perms = new List<UserPermission>();
+            // Thu thập tất cả permission từ lưới
+            var perms = new Dictionary<string, bool>(); // key = "MODULE:Action"
+
             foreach (DataGridViewRow row in dgvPermissions.Rows)
             {
-                bool isOverride = Convert.ToBoolean(row.Cells["Override"].Value ?? false);
-                if (!isOverride) continue; // chỉ lưu những dòng được tick Override
+                string modCode = row.Cells["Module_Code"].Value?.ToString() ?? "";
+                if (string.IsNullOrEmpty(modCode)) continue;
 
-                perms.Add(new UserPermission
+                foreach (DataGridViewColumn col in dgvPermissions.Columns)
                 {
-                    Module_ID = Convert.ToInt32(row.Cells["Module_ID"].Value),
-                    Can_View = Convert.ToBoolean(row.Cells["Can_View"].Value ?? false),
-                    Can_Create = Convert.ToBoolean(row.Cells["Can_Create"].Value ?? false),
-                    Can_Edit = Convert.ToBoolean(row.Cells["Can_Edit"].Value ?? false),
-                    Can_Delete = Convert.ToBoolean(row.Cells["Can_Delete"].Value ?? false),
-                    Can_Export = Convert.ToBoolean(row.Cells["Can_Export"].Value ?? false)
-                });
+                    if (!col.Name.StartsWith("ACT_")) continue;
+                    if (row.Cells[col.Name].ReadOnly) continue; // ô xám = không áp dụng
+
+                    string key = modCode + ":" + col.HeaderText;
+                    bool granted = Convert.ToBoolean(row.Cells[col.Name].Value ?? false);
+                    perms[key] = granted;
+                }
             }
 
-            _svc.SaveUserPermissions(_selectedUserId, perms);
-            MessageBox.Show("✅ Đã lưu phân quyền tùy chỉnh!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _svc.SaveDetailedPermissions(_selectedUserId, perms, AppSession.CurrentUser?.Username ?? "Admin");
+            MessageBox.Show("✅ Đã lưu phân quyền chi tiết!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             LoadPermissions(_selectedUserId);
         }
 
@@ -476,9 +701,31 @@ namespace MPR_Managerment.Forms
                 dgvUsers.Width = panelTop.Width - 20;
                 panelPerm.Width = w - panelForm.Width - 10;
                 panelPerm.Left = panelForm.Right + 10;
+                panelPerm.Height = this.ClientSize.Height - panelPerm.Top - 10;
+                panelForm.Height = this.ClientSize.Height - panelForm.Top - 10;
                 dgvPermissions.Width = panelPerm.Width - 20;
+                dgvPermissions.Height = panelPerm.Height - 130;
+                btnSavePerms.Top = panelPerm.Height - 38;
+                btnResetPerms.Top = panelPerm.Height - 38;
             }
             catch { }
+        }
+    }
+
+    // =========================================================================
+    //  HELPER CLASS: Định nghĩa module & danh sách action
+    // =========================================================================
+    public class ModuleDef
+    {
+        public string Code { get; }
+        public string DisplayName { get; }
+        public List<string> Actions { get; }
+
+        public ModuleDef(string code, string displayName, string[] actions)
+        {
+            Code = code;
+            DisplayName = displayName;
+            Actions = new List<string>(actions);
         }
     }
 }

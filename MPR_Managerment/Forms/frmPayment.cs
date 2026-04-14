@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using MPR_Managerment.Models;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
 using OfficeOpenXml;
 
@@ -945,6 +946,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnAddSched_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Thêm đợt", "Thêm đợt thanh toán")) return;
             if (_selectedPO_ID == 0) { Warn("Vui lòng chọn PO!"); return; }
 
             // Lấy tổng PO sau thuế của PO đang chọn
@@ -991,6 +993,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDelSched_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Xóa", "Xóa đợt thanh toán")) return;
             // Lấy dòng đang chọn (ưu tiên SelectedRows, fallback CurrentRow)
             DataGridViewRow selRow = null;
             if (dgvSchedule.SelectedRows.Count > 0)
@@ -1041,6 +1044,7 @@ namespace MPR_Managerment.Forms
 
         private async void BtnSaveSched_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Lưu", "Lưu thanh toán")) return;
             if (_selectedPO_ID == 0) return;
 
             // Force commit DTP nếu đang mở
@@ -1125,6 +1129,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnAddPayment_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Ghi nhận TT", "Ghi nhận thanh toán")) return;
             if (_selectedPO_ID == 0) { Warn("Vui lòng chọn PO!"); return; }
             using var dlg = new frmAddPayment(_selectedPO_ID, _schedules, _currentUser);
             if (dlg.ShowDialog() == DialogResult.OK) { LoadSchedHist(); LoadPOSummary(); }
@@ -1142,6 +1147,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnPaymentRequest_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Request to EC", "Request to EC")) return;
             if (_selectedPO_ID == 0)
             {
                 Warn("Vui lòng chọn một PO trong danh sách để tạo yêu cầu!");
@@ -1175,6 +1181,7 @@ namespace MPR_Managerment.Forms
         // =====================================================================
         private void BtnViewDebt_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Xem báo cáo", "Xem báo cáo")) return;
             try
             {
                 int? suppId = null;
@@ -1278,6 +1285,7 @@ namespace MPR_Managerment.Forms
         // =====================================================================
         private void BtnExportDebt_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Xuất Excel", "Xuất Excel")) return;
             if (_debtReport.Count == 0) { Warn("Vui lòng xem báo cáo trước!"); return; }
             using var sfd = new SaveFileDialog
             {
@@ -1749,6 +1757,7 @@ namespace MPR_Managerment.Forms
         // =====================================================================
         private void BtnPrintRequest_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "In Request", "In Request")) return;
             if (_selectedPO_ID == 0) { Warn("Vui lòng chọn một PO trước!"); return; }
 
             // Kiểm tra PO đã được in trong 3 tháng gần nhất chưa

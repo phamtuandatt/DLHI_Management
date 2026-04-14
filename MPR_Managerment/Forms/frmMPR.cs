@@ -49,6 +49,7 @@ namespace MPR_Managerment.Forms
             _targetMprId = mprId;
             InitializeComponent();
             BuildUI();
+            ApplyPermissions();
             LoadMPR();
             this.Resize += FrmMPR_Resize;
             this.WindowState = FormWindowState.Maximized;
@@ -939,6 +940,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnNewMPR_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Tạo MPR", "Tạo MPR")) return;
             _selectedMPR_ID = 0;
             ClearHeader();
             dgvDetails.Rows.Clear();
@@ -950,6 +952,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnSaveHeader_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Lưu Header", "Lưu Header")) return;
             if (string.IsNullOrWhiteSpace(txtMPRNo.Text))
             {
                 MessageBox.Show("Vui lòng nhập MPR No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -992,6 +995,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDeleteMPR_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Xóa MPR", "Xóa MPR")) return;
             if (_selectedMPR_ID == 0)
             {
                 MessageBox.Show("Vui lòng chọn phiếu MPR cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1030,6 +1034,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnCreatePO_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Tạo PO", "Tạo PO từ MPR")) return;
             if (_selectedMPR_ID == 0)
             {
                 MessageBox.Show("Vui lòng chọn một MPR trước!", "Thông báo",
@@ -1047,6 +1052,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnAddDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Thêm dòng", "Thêm dòng")) return;
             if (_selectedMPR_ID == 0)
             {
                 MessageBox.Show("Vui lòng chọn hoặc lưu phiếu MPR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1083,6 +1089,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Xóa dòng", "Xóa dòng")) return;
             if (dgvDetails.SelectedRows.Count == 0)
             {
                 MessageBox.Show("Vui lòng chọn dòng cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1128,6 +1135,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnSaveDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Lưu chi tiết", "Lưu chi tiết")) return;
             if (_selectedMPR_ID == 0)
             {
                 MessageBox.Show("Vui lòng lưu header MPR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1434,6 +1442,7 @@ namespace MPR_Managerment.Forms
         // =========================================================================
         private void BtnCheckAllItems_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("MPR", "Check All Items", "Check All Items")) return;
             ShowCheckAllItemsPopup();
         }
 
@@ -2098,5 +2107,22 @@ namespace MPR_Managerment.Forms
             dtpRequiredDate.Value = DateTime.Today;
             cboStatus.SelectedIndex = 0;
         }
+        // =====================================================
+        //  ÁP DỤNG PHÂN QUYỀN
+        // =====================================================
+        private void ApplyPermissions()
+        {
+            if (btnNewMPR != null) PermissionHelper.Apply(btnNewMPR, "MPR", "Tạo MPR");
+            if (btnDeleteMPR != null) PermissionHelper.Apply(btnDeleteMPR, "MPR", "Xóa MPR");
+            if (btnSaveHeader != null) PermissionHelper.Apply(btnSaveHeader, "MPR", "Lưu Header");
+            if (btnAddDetail != null) PermissionHelper.Apply(btnAddDetail, "MPR", "Thêm dòng");
+            if (btnDeleteDetail != null) PermissionHelper.Apply(btnDeleteDetail, "MPR", "Xóa dòng");
+            if (btnSaveDetail != null) PermissionHelper.Apply(btnSaveDetail, "MPR", "Lưu chi tiết");
+            foreach (var c in this.Controls.Find("btnCreatePO", true))
+                PermissionHelper.Apply(c, "MPR", "Tạo PO");
+            foreach (var c in this.Controls.Find("btnCheckAll", true))
+                PermissionHelper.Apply(c, "MPR", "Check All Items");
+        }
+
     }
 }

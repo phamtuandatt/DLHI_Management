@@ -1,5 +1,4 @@
-﻿
-// ============================================================
+﻿// ============================================================
 //  FILE: Services/UserService.cs
 //  Toàn bộ logic User + Permission
 // ============================================================
@@ -324,6 +323,131 @@ namespace MPR_Managerment.Services
             cmd.ExecuteNonQuery();
         }
 
+
+        // =====================================================
+        //  LẤY QUYỀN CHI TIẾT THEO MODULE:ACTION
+        // =====================================================
+        public Dictionary<string, bool> GetDetailedPermissions(int userId)
+        {
+            var result = new Dictionary<string, bool>();
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand(@"
+                SELECT Module_Code, Action_Name, Is_Granted
+                FROM User_Detailed_Permissions
+                WHERE User_ID = @uid", conn);
+            cmd.Parameters.AddWithValue("@uid", userId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                string key = r["Module_Code"].ToString() + ":" + r["Action_Name"].ToString();
+                result[key] = Convert.ToBoolean(r["Is_Granted"]);
+            }
+            return result;
+        }
+
+        // =====================================================
+        //  LƯU QUYỀN CHI TIẾT THEO MODULE:ACTION
+        // =====================================================
+        public void SaveDetailedPermissions(int userId, Dictionary<string, bool> perms, string changedBy)
+        {
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            using var tran = conn.BeginTransaction();
+            try
+            {
+                // Xóa quyền cũ
+                var delCmd = new SqlCommand(
+                    "DELETE FROM User_Detailed_Permissions WHERE User_ID = @uid", conn, tran);
+                delCmd.Parameters.AddWithValue("@uid", userId);
+                delCmd.ExecuteNonQuery();
+
+                // Insert quyền mới
+                foreach (var kv in perms)
+                {
+                    var parts = kv.Key.Split(':', 2);
+                    if (parts.Length != 2) continue;
+
+                    var insCmd = new SqlCommand(@"
+                        INSERT INTO User_Detailed_Permissions
+                            (User_ID, Module_Code, Action_Name, Is_Granted, Updated_By, Updated_At)
+                        VALUES
+                            (@uid, @mod, @act, @granted, @by, GETDATE())", conn, tran);
+                    insCmd.Parameters.AddWithValue("@uid", userId);
+                    insCmd.Parameters.AddWithValue("@mod", parts[0]);
+                    insCmd.Parameters.AddWithValue("@act", parts[1]);
+                    insCmd.Parameters.AddWithValue("@granted", kv.Value);
+                    insCmd.Parameters.AddWithValue("@by", changedBy);
+                    insCmd.ExecuteNonQuery();
+                }
+
+                // Ghi audit log
+                string detail = $"Cập nhật {perms.Count} quyền chi tiết";
+                var logCmd = new SqlCommand(@"
+                    INSERT INTO Permission_Audit_Log (User_ID, Changed_By, Action_Detail, Changed_At)
+                    VALUES (@uid, @by, @detail, GETDATE())", conn, tran);
+                logCmd.Parameters.AddWithValue("@uid", userId);
+                logCmd.Parameters.AddWithValue("@by", changedBy);
+                logCmd.Parameters.AddWithValue("@detail", detail);
+                logCmd.ExecuteNonQuery();
+
+                tran.Commit();
+            }
+            catch
+            {
+                tran.Rollback();
+                throw;
+            }
+        }
+
+        // =====================================================
+        //  LẤY TEMPLATE QUYỀN MẶC ĐỊNH THEO ROLE
+        // =====================================================
+        public Dictionary<string, bool> GetRolePermissionTemplate(int roleId)
+        {
+            var result = new Dictionary<string, bool>();
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand(@"
+                SELECT Module_Code, Action_Name, Is_Granted
+                FROM Role_Detailed_Permissions
+                WHERE Role_ID = @rid", conn);
+            cmd.Parameters.AddWithValue("@rid", roleId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                string key = r["Module_Code"].ToString() + ":" + r["Action_Name"].ToString();
+                result[key] = Convert.ToBoolean(r["Is_Granted"]);
+            }
+            return result;
+        }
+
+        // =====================================================
+        //  LẤY LỊCH SỬ THAY ĐỔI QUYỀN (AUDIT LOG)
+        // =====================================================
+        public List<PermissionAuditLog> GetPermissionAuditLog(int userId)
+        {
+            var result = new List<PermissionAuditLog>();
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand(@"
+                SELECT TOP 50 Changed_At, Changed_By, Action_Detail
+                FROM Permission_Audit_Log
+                WHERE User_ID = @uid
+                ORDER BY Changed_At DESC", conn);
+            cmd.Parameters.AddWithValue("@uid", userId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                result.Add(new PermissionAuditLog
+                {
+                    Changed_At = Convert.ToDateTime(r["Changed_At"]),
+                    Changed_By = r["Changed_By"]?.ToString() ?? "",
+                    Action_Detail = r["Action_Detail"]?.ToString() ?? ""
+                });
+            }
+            return result;
+        }
         // =====================================================
         //  MAP
         // =====================================================

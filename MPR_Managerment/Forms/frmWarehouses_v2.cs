@@ -528,7 +528,7 @@ namespace MPR_Managerment.Forms
         private void BtnSearchHistory_Click(object? sender, EventArgs e)
         {
             if (!Common.Common.IsComboBoxValid(cboFilterProject, "Dự án")
-                || !Common.Common.IsComboBoxValid(cboFilterPO, "PO")) 
+                || !Common.Common.IsComboBoxValid(cboFilterPO, "PO"))
                 return;
             try
             {
@@ -1009,6 +1009,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDeleteRow_Click(object? sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("WAREHOUSE", "Lưu hóa đơn", "Xóa dòng nhập kho")) return;
             if (dgvImportQueue.SelectedRows.Count == 0) return;
             int idx = dgvImportQueue.SelectedRows[0].Index;
             if (idx >= 0 && idx < _importQueue.Count)
@@ -1622,6 +1623,7 @@ namespace MPR_Managerment.Forms
 
         private async void BtnSave_Click(object? sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("WAREHOUSE", "Lưu hóa đơn", "Lưu hóa đơn nhập kho")) return;
             if (!Common.Common.IsDataGridViewValid(dgvImportQueue, "Danh sách vật tư")) return;
             foreach (DataGridViewRow item in dgvImportQueue.Rows)
             {
@@ -2029,5 +2031,14 @@ namespace MPR_Managerment.Forms
                 MessageBox.Show(" ❌ Lỗi dán dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+        // =====================================================
+        //  ÁP DỤNG PHÂN QUYỀN
+        // =====================================================
+        private void ApplyPermissions()
+        {
+            if (btnSave != null) PermissionHelper.Apply(btnSave, "WAREHOUSE", "Lưu hóa đơn");
+            if (btnDeleteRow != null) PermissionHelper.Apply(btnDeleteRow, "WAREHOUSE", "Lưu hóa đơn");
+        }
+
     }
 }

@@ -1,4 +1,5 @@
 ﻿using MPR_Managerment.Models;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
 using System;
 using System.Collections.Generic;
@@ -58,6 +59,7 @@ namespace MPR_Managerment.Forms
             _targetPoNo = poNo;
             InitializeComponent();
             BuildUI();
+            ApplyPermissions();
             LoadPO();
             LoadDeliveries();
             this.Resize += FrmPO_Resize;
@@ -1103,6 +1105,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnExport_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Xuất Excel", "Xuất Excel")) return;
             if (_selectedPO_ID == 0) { MessageBox.Show("Vui lòng chọn PO cần xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             try
             {
@@ -1850,6 +1853,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnNewPO_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Tạo PO", "Tạo PO")) return;
             ClearHeader(); _selectedPO_ID = 0; dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
             dgvDelivery.Rows.Clear();
             UpdateTotal(); txtPONo.Focus(); lblStatus.Text = "Đang tạo đơn PO mới...";
@@ -1860,6 +1864,7 @@ namespace MPR_Managerment.Forms
         // =========================================================================
         private void BtnSavePO_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Lưu PO", "Lưu PO")) return;
             dgvDetails.EndEdit();
             if (string.IsNullOrWhiteSpace(txtPONo.Text))
             {
@@ -1935,6 +1940,7 @@ namespace MPR_Managerment.Forms
         // =========================================================================
         private void BtnSaveDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Lưu chi tiết", "Lưu chi tiết")) return;
             dgvDetails.EndEdit();
             if (_selectedPO_ID == 0)
             {
@@ -2130,6 +2136,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDeletePO_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Xóa PO", "Xóa PO")) return;
             if (dgvPO.SelectedRows.Count == 0 || _selectedPO_ID == 0)
             {
                 MessageBox.Show("Vui lòng chọn một đơn PO trong 'Danh sách đơn đặt hàng' để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2162,6 +2169,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnAddDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Thêm dòng", "Thêm dòng chi tiết")) return;
             // Tính số thứ tự — không đếm dòng TOTAL
             int dataRowCount = dgvDetails.Rows.Cast<DataGridViewRow>()
                 .Count(r => !r.IsNewRow && r.Tag?.ToString() != "TOTAL");
@@ -2197,6 +2205,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Xóa dòng", "Xóa dòng chi tiết")) return;
             if (dgvDetails.SelectedRows.Count == 0)
             {
                 MessageBox.Show("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2264,6 +2273,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnImportMPR_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Import MPR", "Import MPR")) return;
             using (var dlg = new frmSelectMPR())
             {
                 if (dlg.ShowDialog() == DialogResult.OK && dlg.SelectedMPR != null)
@@ -3151,6 +3161,7 @@ namespace MPR_Managerment.Forms
         // =========================================================================
         private void BtnCheckBySize_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PO", "Check by size", "Check by size")) return;
             ShowCheckBySizePopup();
         }
 
@@ -3605,5 +3616,24 @@ namespace MPR_Managerment.Forms
                 MessageBox.Show("Lỗi khi tra cứu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+        // =====================================================
+        //  ÁP DỤNG PHÂN QUYỀN
+        // =====================================================
+        private void ApplyPermissions()
+        {
+            if (btnNewPO != null) PermissionHelper.Apply(btnNewPO, "PO", "Tạo PO");
+            if (btnDeletePO != null) PermissionHelper.Apply(btnDeletePO, "PO", "Xóa PO");
+            if (btnSavePO != null) PermissionHelper.Apply(btnSavePO, "PO", "Lưu PO");
+            if (btnExport != null) PermissionHelper.Apply(btnExport, "PO", "Xuất Excel");
+            if (btnAddDetail != null) PermissionHelper.Apply(btnAddDetail, "PO", "Thêm dòng");
+            if (btnDeleteDetail != null) PermissionHelper.Apply(btnDeleteDetail, "PO", "Xóa dòng");
+            foreach (var c in this.Controls.Find("btnImportMPR", true))
+                PermissionHelper.Apply(c, "PO", "Import MPR");
+            foreach (var c in this.Controls.Find("btnSaveDetail", true))
+                PermissionHelper.Apply(c, "PO", "Lưu chi tiết");
+            foreach (var c in this.Controls.Find("btnCheckBySize", true))
+                PermissionHelper.Apply(c, "PO", "Check by size");
+        }
+
     }
 }

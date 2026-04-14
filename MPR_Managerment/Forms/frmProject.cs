@@ -43,6 +43,7 @@ namespace MPR_Managerment.Forms
         {
             InitializeComponent();
             BuildUI();
+            ApplyPermissions();
             LoadProjects();
             this.Resize += FrmProject_Resize;
         }
@@ -568,6 +569,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnNew_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PROJECT", "Thêm mới", "Thêm dự án mới")) return;
             ClearForm();
             _selectedId = 0;
             txtProjectName.Focus();
@@ -576,6 +578,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnSave_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PROJECT", "Lưu", "Lưu dự án")) return;
             if (string.IsNullOrWhiteSpace(txtProjectName.Text))
             {
                 MessageBox.Show("Vui lòng nhập Tên dự án!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -633,6 +636,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDelete_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PROJECT", "Xóa", "Xóa dự án")) return;
             if (_selectedId == 0)
             {
                 MessageBox.Show("Vui lòng chọn dự án cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -691,5 +695,15 @@ namespace MPR_Managerment.Forms
             lblWeightProject.Text = "0";
             lblBudgetProject.Text = "0%";
         }
+        // =====================================================
+        //  ÁP DỤNG PHÂN QUYỀN
+        // =====================================================
+        private void ApplyPermissions()
+        {
+            if (btnNew != null) PermissionHelper.Apply(btnNew, "PROJECT", "Thêm mới");
+            if (btnDelete != null) PermissionHelper.Apply(btnDelete, "PROJECT", "Xóa");
+            if (btnSave != null) PermissionHelper.Apply(btnSave, "PROJECT", "Lưu");
+        }
+
     }
 }

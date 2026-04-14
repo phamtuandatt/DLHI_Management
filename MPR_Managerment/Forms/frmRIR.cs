@@ -49,6 +49,7 @@ namespace MPR_Managerment.Forms
         {
             InitializeComponent();
             BuildUI();
+            ApplyPermissions();
             LoadRIR();
             this.Resize += FrmRIR_Resize;
         }
@@ -558,6 +559,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnExportRIR_Click(object? sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "In RIR", "In RIR")) return;
             PrintRIR();
         }
 
@@ -928,6 +930,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnNewRIR_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "Tạo RIR", "Tạo RIR")) return;
             _selectedRIR_ID = 0;
             ClearHead();
             dgvDetails.Rows.Clear();
@@ -937,6 +940,7 @@ namespace MPR_Managerment.Forms
 
         private async void BtnSaveHead_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "Lưu Header", "Lưu Header")) return;
             if (string.IsNullOrWhiteSpace(txtRIRNo.Text))
             {
                 MessageBox.Show("Vui lòng nhập RIR No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1112,6 +1116,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDeleteRIR_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "Xóa RIR", "Xóa RIR")) return;
             if (_selectedRIR_ID == 0)
             {
                 MessageBox.Show("Vui lòng chọn phiếu RIR cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1140,6 +1145,7 @@ namespace MPR_Managerment.Forms
         // =========================================================================
         private void BtnImportPO_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "Import Phiếu Nhập", "Import từ Phiếu Nhập")) return;
             try
             {
                 using (var dlg = new Form())
@@ -1393,6 +1399,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnAddDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "Thêm dòng", "Thêm dòng")) return;
             if (_selectedRIR_ID == 0)
             {
                 MessageBox.Show("Vui lòng lưu header RIR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1422,6 +1429,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "Xóa dòng", "Xóa dòng")) return;
             if (dgvDetails.SelectedRows.Count == 0)
             {
                 MessageBox.Show("Vui lòng chọn dòng cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1454,6 +1462,7 @@ namespace MPR_Managerment.Forms
 
         private async void BtnSaveDetail_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("RIR", "Lưu chi tiết", "Lưu chi tiết")) return;
             if (_selectedRIR_ID == 0)
             {
                 MessageBox.Show("Vui lòng lưu header RIR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1775,5 +1784,20 @@ namespace MPR_Managerment.Forms
         //        MessageBox.Show("Lỗi khi in phiếu: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
         //    }
         //}
+        // =====================================================
+        //  ÁP DỤNG PHÂN QUYỀN
+        // =====================================================
+        private void ApplyPermissions()
+        {
+            if (btnNewRIR != null) PermissionHelper.Apply(btnNewRIR, "RIR", "Tạo RIR");
+            if (btnDeleteRIR != null) PermissionHelper.Apply(btnDeleteRIR, "RIR", "Xóa RIR");
+            if (btnSaveHead != null) PermissionHelper.Apply(btnSaveHead, "RIR", "Lưu Header");
+            if (btnExportRIR != null) PermissionHelper.Apply(btnExportRIR, "RIR", "In RIR");
+            if (btnImportPO != null) PermissionHelper.Apply(btnImportPO, "RIR", "Import Phiếu Nhập");
+            if (btnAddDetail != null) PermissionHelper.Apply(btnAddDetail, "RIR", "Thêm dòng");
+            if (btnDeleteDetail != null) PermissionHelper.Apply(btnDeleteDetail, "RIR", "Xóa dòng");
+            if (btnSaveDetail != null) PermissionHelper.Apply(btnSaveDetail, "RIR", "Lưu chi tiết");
+        }
+
     }
 }
