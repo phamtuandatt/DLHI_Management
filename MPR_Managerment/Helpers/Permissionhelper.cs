@@ -1,6 +1,7 @@
 ﻿// ============================================================
 //  FILE: Helpers/PermissionHelper.cs
 //  Helper kiểm tra quyền từ AppSession — dùng chung mọi form
+//  Admin (Role_ID=1) được bypass toàn bộ phân quyền
 // ============================================================
 using System;
 using System.Collections.Generic;
@@ -14,11 +15,22 @@ namespace MPR_Managerment.Helpers
         // Cache quyền cho session hiện tại (load 1 lần khi login)
         private static Dictionary<string, bool> _cache = new Dictionary<string, bool>();
         private static int _cachedUserId = -1;
+        private static bool _isAdmin = false; // Admin bypass toàn bộ phân quyền
 
         // Gọi hàm này sau khi login thành công để nạp quyền vào cache
         public static void LoadPermissions(int userId)
         {
             _cachedUserId = userId;
+
+            // Kiểm tra Admin qua AppSession (Role_Name hoặc Role_ID)
+            var currentUser = AppSession.CurrentUser;
+            _isAdmin = currentUser != null &&
+                       (currentUser.Role_Name?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true
+                        || currentUser.Role_ID == 1);
+
+            // Admin không cần load cache — bypass hết
+            if (_isAdmin) return;
+
             var svc = new UserService();
             _cache = svc.GetDetailedPermissions(userId);
         }
@@ -26,6 +38,9 @@ namespace MPR_Managerment.Helpers
         // Kiểm tra quyền: HasPermission("PO", "Tạo PO")
         public static bool HasPermission(string moduleCode, string action)
         {
+            // Admin luôn có quyền
+            if (_isAdmin) return true;
+
             string key = moduleCode + ":" + action;
             return _cache.ContainsKey(key) && _cache[key];
         }
@@ -56,11 +71,15 @@ namespace MPR_Managerment.Helpers
             return false;
         }
 
+        // Trả về true nếu user hiện tại là Admin
+        public static bool IsAdmin => _isAdmin;
+
         // Xóa cache khi logout
         public static void Clear()
         {
             _cache.Clear();
             _cachedUserId = -1;
+            _isAdmin = false;
         }
     }
 }

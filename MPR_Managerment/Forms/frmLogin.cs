@@ -5,6 +5,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using MPR_Managerment.Models;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
 
 namespace MPR_Managerment.Forms
@@ -194,6 +195,9 @@ namespace MPR_Managerment.Forms
                 // Lưu session
                 AppSession.CurrentUser = result.User;
                 AppSession.Permissions = result.Permissions;
+
+                // Nạp phân quyền chi tiết vào cache (Admin sẽ bypass tự động)
+                PermissionHelper.LoadPermissions(result.User!.User_ID);
 
                 // Cần đổi mật khẩu lần đầu?
                 if (result.User!.Must_Change_Password)
