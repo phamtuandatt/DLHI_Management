@@ -32,6 +32,7 @@ namespace MPR_Managerment.Forms
 
         private TextBox txtPONo, txtProjectName, txtWorkorderNo, txtMPRNo;
         private TextBox txtPrepared, txtReviewed, txtAgreement, txtApproved, txtNotes;
+        private ComboBox cboPaymentTerm;
         private DateTimePicker dtpPODate;
         private ComboBox cboStatus;
         private NumericUpDown nudRevise;
@@ -405,6 +406,36 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "Ghi chú:", 10, y);
             txtNotes = AddTxt(panelHeader, 80, y, 200);
             txtNotes.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            AddLabel(panelHeader, "Payment Term:", 295, y);
+            cboPaymentTerm = new ComboBox
+            {
+                Location = new Point(390, y),
+                Size = new Size(200, 25),
+                Font = new Font("Segoe UI", 9),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cboPaymentTerm.Items.AddRange(new[]
+            {
+                "T/T 100% within 7days after delivery",
+                "T/T 30% Advance + 70% before shipment",
+                "T/T 50% Advance + 50% before shipment",
+                "T/T 100% Advance",
+                "T/T 30 days after shipment",
+                "T/T 45 days after shipment",
+                "T/T 60 days after shipment",
+                "L/C at sight",
+                "L/C 30 days",
+                "L/C 60 days",
+                "D/P at sight",
+                "D/A 30 days",
+                "Cash on Delivery",
+                "Net 30",
+                "Net 45",
+                "Net 60"
+            });
+            cboPaymentTerm.SelectedIndex = 0;
+            cboPaymentTerm.BringToFront();
+            panelHeader.Controls.Add(cboPaymentTerm);
 
             // Row 5 (Buttons)
             y += 45;
@@ -1139,6 +1170,13 @@ namespace MPR_Managerment.Forms
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
 
+                    // Payment Term — set trực tiếp vào O5 (merged O5:Q5)
+                    ws.Cells[5, 15].Value = !string.IsNullOrEmpty(po.Payment_Term)
+                                             ? po.Payment_Term
+                                             : "Within 7 days after delivery";
+                    // Expect day = ngày hiện tại + 7 — set K8 trước InsertRow
+                    ws.Cells[8, 11].Value = DateTime.Today.AddDays(7).ToString("dd/MM/yyyy");
+
                     int startRow = 8;
                     int detailCount = details.Count;
 
@@ -1829,6 +1867,8 @@ namespace MPR_Managerment.Forms
             txtAgreement.Text = h.Agreement; txtApproved.Text = h.Approved;
             txtNotes.Text = h.Notes; nudRevise.Value = h.Revise;
             if (h.PO_Date.HasValue) dtpPODate.Value = h.PO_Date.Value;
+            var ptIdx = cboPaymentTerm.Items.IndexOf(h.Payment_Term ?? "");
+            cboPaymentTerm.SelectedIndex = ptIdx > 0 ? ptIdx : 0;
             var idx = cboStatus.Items.IndexOf(h.Status); cboStatus.SelectedIndex = idx >= 0 ? idx : 0;
 
             // Khôi phục nhà cung cấp
@@ -1903,6 +1943,9 @@ namespace MPR_Managerment.Forms
                     Agreement = txtAgreement.Text.Trim(),
                     Approved = txtApproved.Text.Trim(),
                     Notes = txtNotes.Text.Trim(),
+                    Payment_Term = cboPaymentTerm.SelectedIndex > 0
+                                   ? cboPaymentTerm.SelectedItem.ToString()
+                                   : "",
                     PO_Date = dtpPODate.Value,
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
                     Revise = (int)nudRevise.Value,
@@ -3154,6 +3197,7 @@ namespace MPR_Managerment.Forms
             txtPrepared.Text = ""; txtReviewed.Text = ""; txtAgreement.Text = "";
             txtApproved.Text = ""; txtNotes.Text = "";
             nudRevise.Value = 0; dtpPODate.Value = DateTime.Today; cboStatus.SelectedIndex = 0;
+            cboPaymentTerm.SelectedIndex = 0;
         }
 
         // =========================================================================

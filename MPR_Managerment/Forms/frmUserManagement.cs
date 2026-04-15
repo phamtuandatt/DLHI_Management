@@ -671,6 +671,8 @@ namespace MPR_Managerment.Forms
             dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgv.EnableHeadersVisualStyles = false;
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
             parent.Controls.Add(dgv);
             return dgv;
         }

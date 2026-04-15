@@ -158,6 +158,8 @@ namespace MPR_Managerment.Forms
             dgvMPR.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvMPR.EnableHeadersVisualStyles = false;
             dgvMPR.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvMPR.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvMPR.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvMPR.SelectionChanged += DgvMPR_SelectionChanged;
             panelTop.Controls.Add(dgvMPR);
 
@@ -204,6 +206,8 @@ namespace MPR_Managerment.Forms
             dgvFiles.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvFiles.EnableHeadersVisualStyles = false;
             dgvFiles.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvFiles.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvFiles.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvFiles.Columns.Add("FileName", "Tệp đính kèm (MPR Link)");
             dgvFiles.Columns.Add("FullPath", "FullPath");
             dgvFiles.Columns["FullPath"].Visible = false;
@@ -332,6 +336,8 @@ namespace MPR_Managerment.Forms
             dgvDetails.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvDetails.EnableHeadersVisualStyles = false;
             dgvDetails.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvDetails.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvDetails.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvDetails.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgvDetails.CellFormatting += DgvDetails_CellFormatting;
 
@@ -368,6 +374,8 @@ namespace MPR_Managerment.Forms
             dgvPOProgress.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvPOProgress.EnableHeadersVisualStyles = false;
             dgvPOProgress.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
+            dgvPOProgress.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvPOProgress.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvPOProgress.CellFormatting += DgvPOProgress_CellFormatting;
             dgvPOProgress.CellDoubleClick += DgvPOProgress_CellDoubleClick;
             panelDetail.Controls.Add(dgvPOProgress);
@@ -1740,6 +1748,8 @@ namespace MPR_Managerment.Forms
                 dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                 dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+                dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+                dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
                 popup.Controls.Add(dgv);
 
                 // CellFormatting
@@ -1837,8 +1847,9 @@ namespace MPR_Managerment.Forms
                     lblStat.Text = $"Hiển thị: {t}  |  ✅ Pass: {p}  |  ❌ Fail: {f}  |  ⏸ Hold: {h2}  |  ⏳ Chưa KT: {n}";
                 };
 
-                // Load toàn bộ khi mở
-                dgv.DataSource = dtFull;
+                // Không tự load khi mở — chờ người dùng bấm Lọc
+                dgv.DataSource = null;
+                lblStat.Text = "Nhấn [🔍 Lọc] để tìm kiếm dữ liệu.";
 
                 // ── Cấu hình cột sau khi bind ──
                 // Cột MPR No và PO No: AutoSize theo nội dung, tối đa 400px
@@ -1866,12 +1877,10 @@ namespace MPR_Managerment.Forms
                     txtFA.Text = ""; txtFB.Text = ""; txtFC.Text = "";
                     txtFD.Text = ""; txtFE.Text = ""; txtFF.Text = "";
                     txtFHeat.Text = ""; cboFKQ.SelectedIndex = 0;
-                    dgv.DataSource = dtFull;
-                    lblStat.Text = $"Tổng: {total}  |  ✅ Pass: {pass}  |  ❌ Fail: {fail}  |  ⏸ Hold: {hold}  |  ⏳ Chưa KT: {notYet}";
+                    dgv.DataSource = null;
+                    lblStat.Text = "Nhấn [🔍 Lọc] để tìm kiếm dữ liệu.";
                 };
-                cboDuAn.SelectedIndexChanged += (s, ev) => applyFilter();
-                cboDuAn.SelectedIndexChanged += (s, ev) => applyFilter();
-                cboFKQ.SelectedIndexChanged += (s, ev) => applyFilter();
+                // Không tự lọc khi đổi ComboBox — chỉ lọc khi bấm nút Lọc
 
                 // ── Double click dòng → điều hướng về MPR tương ứng trong frmMPR ──
                 dgv.CellDoubleClick += (s, ev) =>

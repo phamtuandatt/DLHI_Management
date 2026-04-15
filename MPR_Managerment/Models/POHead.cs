@@ -21,10 +21,11 @@ namespace MPR_Managerment.Models
         public DateTime? Created_Date { get; set; }
         public string Created_By { get; set; } = "";
 
-        public int Supplier_ID { get; set; }    
-        public string ProjectCode {  get; set; }
+        public int Supplier_ID { get; set; }
+        public string ProjectCode { get; set; }
 
         public bool IsImported { get; set; } = false;
         public DateTime? ImportedDate { get; set; }
+        public string Payment_Term { get; set; } = "";
     }
 }

@@ -43,12 +43,21 @@ namespace MPR_Managerment.Forms
         private ComboBox cboFilterRIR;
         private TextBox txtSearchRIR;
         private DataGridView dgvRIRDetail;
+        // NOTIFICATION SYSTEM
+        private Panel panelNotify;
+        private ListBox lstNotify;
+        private Label lblNotifyTitle, lblNotifyCount;
+        private System.Windows.Forms.Timer _notifyTimer;
+        private DateTime _lastCheckTime = DateTime.MinValue;
+        private Button btnNotifyToggle;
 
         public frmDashboard()
         {
             InitializeComponent();
             BuildUI();
             LoadData();
+            BuildNotificationPanel();
+            StartNotifyTimer();
 
             // Ép form gọi sự kiện Resize lần đầu để chia tỷ lệ ngay khi mở
             this.OnResize(EventArgs.Empty);
@@ -123,6 +132,10 @@ namespace MPR_Managerment.Forms
                 {
                     tabMain.Size = new Size(this.ClientSize.Width, this.ClientSize.Height - 45);
                 }
+                if (panelNotify != null && panelNotify.Visible)
+                    panelNotify.Location = new Point(
+                        this.ClientSize.Width - panelNotify.Width - 10,
+                        this.ClientSize.Height - panelNotify.Height - 10);
 
                 if (dgvPO != null && dgvPOImports != null && tabPO != null)
                 {
@@ -1808,5 +1821,302 @@ namespace MPR_Managerment.Forms
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
         }
+        // =====================================================================
+        //  NOTIFICATION SYSTEM
+        // =====================================================================
+        private void BuildNotificationPanel()
+        {
+            btnNotifyToggle = new Button
+            {
+                Text = "N",
+                Size = new Size(36, 28),
+                BackColor = Color.FromArgb(0, 90, 170),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            btnNotifyToggle.FlatAppearance.BorderSize = 0;
+            btnNotifyToggle.Click += (s, e) =>
+            {
+                panelNotify.Visible = !panelNotify.Visible;
+                if (panelNotify.Visible)
+                {
+                    panelNotify.BringToFront();
+                    panelNotify.Location = new Point(
+                        this.ClientSize.Width - panelNotify.Width - 10,
+                        this.ClientSize.Height - panelNotify.Height - 10);
+                    btnNotifyToggle.BackColor = Color.FromArgb(0, 90, 170);
+                }
+            };
+
+            var panelHeader = this.Controls.OfType<Panel>()
+                .FirstOrDefault(p => p.BackColor == Color.FromArgb(0, 120, 212));
+            if (panelHeader != null)
+            {
+                btnNotifyToggle.Location = new Point(panelHeader.Width - 195, 8);
+                panelHeader.Controls.Add(btnNotifyToggle);
+            }
+
+            panelNotify = new Panel
+            {
+                Size = new Size(340, 420),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Visible = false
+            };
+            panelNotify.Location = new Point(
+                this.ClientSize.Width - 350, this.ClientSize.Height - 430);
+
+            // Header chatbox
+            var pHead = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(340, 40),
+                BackColor = Color.FromArgb(0, 120, 212)
+            };
+            lblNotifyTitle = new Label
+            {
+                Text = "Thong bao he thong",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.White,
+                Location = new Point(10, 10),
+                Size = new Size(240, 22)
+            };
+            var btnClose = new Button
+            {
+                Text = "X",
+                Size = new Size(28, 28),
+                Location = new Point(308, 6),
+                BackColor = Color.FromArgb(0, 90, 170),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnClose.FlatAppearance.BorderSize = 0;
+            btnClose.Click += (s, e) => panelNotify.Visible = false;
+            pHead.Controls.Add(lblNotifyTitle);
+            pHead.Controls.Add(btnClose);
+            panelNotify.Controls.Add(pHead);
+
+            lblNotifyCount = new Label
+            {
+                Text = "Chua co thong bao moi",
+                Font = new Font("Segoe UI", 8, FontStyle.Italic),
+                ForeColor = Color.Gray,
+                Location = new Point(10, 46),
+                Size = new Size(320, 18)
+            };
+            panelNotify.Controls.Add(lblNotifyCount);
+
+            var btnRefreshNow = new Button
+            {
+                Text = "Lam moi ngay",
+                Size = new Size(130, 26),
+                Location = new Point(10, 68),
+                BackColor = Color.FromArgb(0, 150, 100),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnRefreshNow.FlatAppearance.BorderSize = 0;
+            btnRefreshNow.Click += (s, e) => CheckAndNotify(true);
+            panelNotify.Controls.Add(btnRefreshNow);
+
+            var btnClear = new Button
+            {
+                Text = "Xoa tat ca",
+                Size = new Size(110, 26),
+                Location = new Point(148, 68),
+                BackColor = Color.FromArgb(108, 117, 125),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnClear.FlatAppearance.BorderSize = 0;
+            btnClear.Click += (s, e) =>
+            {
+                lstNotify.Items.Clear();
+                lblNotifyCount.Text = "Da xoa tat ca thong bao";
+                btnNotifyToggle.BackColor = Color.FromArgb(0, 90, 170);
+            };
+            panelNotify.Controls.Add(btnClear);
+
+            lstNotify = new ListBox
+            {
+                Location = new Point(8, 100),
+                Size = new Size(322, 278),
+                Font = new Font("Segoe UI", 9),
+                BorderStyle = BorderStyle.None,
+                BackColor = Color.FromArgb(248, 248, 252),
+                ItemHeight = 44,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                IntegralHeight = false
+            };
+            lstNotify.DrawItem += LstNotify_DrawItem;
+            panelNotify.Controls.Add(lstNotify);
+
+            var lblNext = new Label
+            {
+                Name = "lblNextRefresh",
+                Text = "Tu dong cap nhat moi 5 phut",
+                Font = new Font("Segoe UI", 7, FontStyle.Italic),
+                ForeColor = Color.Silver,
+                Location = new Point(10, 384),
+                Size = new Size(320, 16)
+            };
+            panelNotify.Controls.Add(lblNext);
+
+            this.Controls.Add(panelNotify);
+            panelNotify.BringToFront();
+        }
+
+        private void LstNotify_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            string msg = lstNotify.Items[e.Index].ToString();
+            bool isPO = msg.StartsWith("[PO]");
+            bool isMPR = msg.StartsWith("[MPR]");
+
+            Color bg = e.Index % 2 == 0 ? Color.White : Color.FromArgb(245, 245, 252);
+            e.Graphics.FillRectangle(new SolidBrush(bg), e.Bounds);
+
+            Color barColor = isPO ? Color.FromArgb(0, 120, 212) :
+                             isMPR ? Color.FromArgb(40, 167, 69) :
+                                     Color.FromArgb(200, 200, 200);
+            e.Graphics.FillRectangle(new SolidBrush(barColor),
+                new Rectangle(e.Bounds.X, e.Bounds.Y, 4, e.Bounds.Height));
+
+            string[] parts = msg.Split('|');
+            string line1 = parts.Length > 0 ? parts[0].Trim() : msg;
+            string line2 = parts.Length > 1 ? parts[1].Trim() : "";
+
+            e.Graphics.DrawString(line1,
+                new Font("Segoe UI", 9, FontStyle.Bold),
+                new SolidBrush(barColor),
+                new RectangleF(e.Bounds.X + 10, e.Bounds.Y + 4, e.Bounds.Width - 14, 20));
+            if (!string.IsNullOrEmpty(line2))
+                e.Graphics.DrawString(line2,
+                    new Font("Segoe UI", 8),
+                    Brushes.DimGray,
+                    new RectangleF(e.Bounds.X + 10, e.Bounds.Y + 24, e.Bounds.Width - 14, 18));
+
+            e.Graphics.DrawLine(Pens.LightGray,
+                e.Bounds.X, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+        }
+
+        private void StartNotifyTimer()
+        {
+            _lastCheckTime = DateTime.Now;
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                _lastCheckTime = DateTime.Now;
+            }
+            catch { }
+
+            _notifyTimer = new System.Windows.Forms.Timer { Interval = 5 * 60 * 1000 };
+            _notifyTimer.Tick += (s, e) => CheckAndNotify(false);
+            _notifyTimer.Start();
+        }
+
+        private void CheckAndNotify(bool force)
+        {
+            try
+            {
+                int newPO = 0, newMPR = 0;
+                var msgList = new System.Collections.Generic.List<string>();
+
+                using (var conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sqlPO = "SELECT PONo, Project_Name, Created_Date FROM PO_head WHERE Created_Date > @since ORDER BY Created_Date DESC";
+                    using var cmdPO = new SqlCommand(sqlPO, conn);
+                    cmdPO.Parameters.AddWithValue("@since", _lastCheckTime);
+                    using var rPO = cmdPO.ExecuteReader();
+                    while (rPO.Read())
+                    {
+                        newPO++;
+                        string poNo = rPO["PONo"]?.ToString() ?? "";
+                        string proj = rPO["Project_Name"]?.ToString() ?? "";
+                        string dt = rPO["Created_Date"] != DBNull.Value
+                                      ? Convert.ToDateTime(rPO["Created_Date"]).ToString("dd/MM HH:mm") : "";
+                        msgList.Add("[PO] PO moi: " + poNo + " | " + proj + "  " + dt);
+                    }
+                    rPO.Close();
+
+                    string sqlMPR = "SELECT MPR_No, Project_Name, Modified_Date FROM MPR_Header WHERE Modified_Date > @since ORDER BY Modified_Date DESC";
+                    using var cmdMPR = new SqlCommand(sqlMPR, conn);
+                    cmdMPR.Parameters.AddWithValue("@since", _lastCheckTime);
+                    using var rMPR = cmdMPR.ExecuteReader();
+                    while (rMPR.Read())
+                    {
+                        newMPR++;
+                        string mprNo = rMPR["MPR_No"]?.ToString() ?? "";
+                        string proj = rMPR["Project_Name"]?.ToString() ?? "";
+                        string dt = rMPR["Modified_Date"] != DBNull.Value
+                                       ? Convert.ToDateTime(rMPR["Modified_Date"]).ToString("dd/MM HH:mm") : "";
+                        msgList.Add("[MPR] MPR cap nhat: " + mprNo + " | " + proj + "  " + dt);
+                    }
+                }
+
+                _lastCheckTime = DateTime.Now;
+                if (newPO == 0 && newMPR == 0 && !force) return;
+
+                if (this.InvokeRequired)
+                    this.Invoke(new Action(() => UpdateNotifyUI(newPO, newMPR, msgList, force)));
+                else
+                    UpdateNotifyUI(newPO, newMPR, msgList, force);
+            }
+            catch { }
+        }
+
+        private void UpdateNotifyUI(int newPO, int newMPR,
+            System.Collections.Generic.List<string> msgList, bool force)
+        {
+            string checkTime = DateTime.Now.ToString("HH:mm dd/MM");
+
+            if (newPO > 0 || newMPR > 0)
+            {
+                foreach (var msg in msgList)
+                    lstNotify.Items.Insert(0, msg);
+
+                var parts = new System.Collections.Generic.List<string>();
+                if (newPO > 0) parts.Add(newPO + " PO moi");
+                if (newMPR > 0) parts.Add(newMPR + " MPR cap nhat");
+                lblNotifyCount.Text = string.Join("  |  ", parts) + "  (" + checkTime + ")";
+                lblNotifyCount.ForeColor = Color.FromArgb(220, 53, 69);
+
+                int total = newPO + newMPR;
+                btnNotifyToggle.Text = total.ToString();
+                btnNotifyToggle.BackColor = Color.FromArgb(220, 53, 69);
+
+                if (!panelNotify.Visible)
+                {
+                    panelNotify.Visible = true;
+                    panelNotify.BringToFront();
+                    panelNotify.Location = new Point(
+                        this.ClientSize.Width - panelNotify.Width - 10,
+                        this.ClientSize.Height - panelNotify.Height - 10);
+                }
+                LoadData();
+            }
+            else if (force)
+            {
+                lblNotifyCount.Text = "Kiem tra luc " + checkTime + " - Khong co moi";
+                lblNotifyCount.ForeColor = Color.Gray;
+            }
+
+            var lblNext = panelNotify.Controls.Find("lblNextRefresh", false).FirstOrDefault() as Label;
+            if (lblNext != null)
+                lblNext.Text = "Kiem tra tiep: " + DateTime.Now.AddMinutes(5).ToString("HH:mm") + "  (moi 5 phut)";
+        }
+
+
     }
 }
