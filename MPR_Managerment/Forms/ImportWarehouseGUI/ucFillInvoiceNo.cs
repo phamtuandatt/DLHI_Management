@@ -29,6 +29,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
             InitializeComponent();
             LoadProjects();
 
+            InitGridSelected();
             FormartGrid(dgvList, Color.FromArgb(0, 120, 212));
         }
 
@@ -111,7 +112,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
             if (dgvList.Rows.Count > 0 && dtSelected.Rows.Count > 0)
             {
                 SetupGridEditable();
-                FormatLableStatus();
+                //FormatLableStatus();
             }
         }
 
@@ -123,17 +124,17 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
 
         private void ucFillInvoiceNo_Load(object sender, EventArgs e)
         {
-            // Thêm dtp vào Grid và ẩn đi
-            dgvList.Controls.Add(dtp);
-            dtp.Visible = false;
-            dtp.Format = DateTimePickerFormat.Custom;
-            dtp.CustomFormat = "dd-MM-yyyy";
+            //// Thêm dtp vào Grid và ẩn đi
+            //dgvList.Controls.Add(dtp);
+            //dtp.Visible = false;
+            //dtp.Format = DateTimePickerFormat.Custom;
+            //dtp.CustomFormat = "dd-MM-yyyy";
 
-            // Sự kiện khi chọn ngày xong
-            dtp.ValueChanged += (s, ev) =>
-            {
-                dgvList.CurrentCell.Value = dtp.Value.ToString("dd-MM-yyyy");
-            };
+            //// Sự kiện khi chọn ngày xong
+            //dtp.ValueChanged += (s, ev) =>
+            //{
+            //    dgvList.CurrentCell.Value = dtp.Value.ToString("dd-MM-yyyy");
+            //};
         }
 
         private void dgvList_CellClick(object sender, DataGridViewCellEventArgs e)
@@ -290,6 +291,26 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
             catch (Exception ex)
             {
                 MessageBox.Show($"Cập nhật hóa đơn thất bại!\nLỗi: {ex.Message}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void btnFill_Click(object sender, EventArgs e)
+        {
+            FillBulkData("InvoiceNo", txtInvoiceNo.Text.Trim());
+            FillBulkData("InvoiceDate", dtDate.Value.ToString("dd/MM/yyyy"));
+        }
+
+        private void FillBulkData(string columnName, string value)
+        {
+            if (dgvList.Rows.Count == 0) return;
+
+            foreach (DataGridViewRow row in dgvList.Rows)
+            {
+                //if (row.IsNewRow) continue;
+                if (row.Visible) // Chỉ điền cho các dòng đang hiển thị (đã lọc)
+                {
+                    row.Cells[columnName].Value = value;
+                }
             }
         }
     }

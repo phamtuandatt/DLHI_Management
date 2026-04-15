@@ -33,7 +33,11 @@
             panel3 = new Panel();
             dgvList = new DataGridView();
             panel2 = new Panel();
+            btnFill = new Button();
+            dtDate = new DateTimePicker();
+            txtInvoiceNo = new TextBox();
             btnClear = new Button();
+            label3 = new Label();
             lblStatus = new Label();
             btnSaveInvoice = new Button();
             groupBox1 = new GroupBox();
@@ -105,7 +109,11 @@
             // 
             // panel2
             // 
+            panel2.Controls.Add(btnFill);
+            panel2.Controls.Add(dtDate);
+            panel2.Controls.Add(txtInvoiceNo);
             panel2.Controls.Add(btnClear);
+            panel2.Controls.Add(label3);
             panel2.Controls.Add(lblStatus);
             panel2.Controls.Add(btnSaveInvoice);
             panel2.Dock = DockStyle.Top;
@@ -113,6 +121,38 @@
             panel2.Name = "panel2";
             panel2.Size = new Size(983, 29);
             panel2.TabIndex = 7;
+            // 
+            // btnFill
+            // 
+            btnFill.BackColor = Color.LimeGreen;
+            btnFill.Dock = DockStyle.Left;
+            btnFill.FlatStyle = FlatStyle.Flat;
+            btnFill.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnFill.ForeColor = Color.White;
+            btnFill.Location = new Point(0, 0);
+            btnFill.Margin = new Padding(3, 2, 3, 2);
+            btnFill.Name = "btnFill";
+            btnFill.Size = new Size(76, 29);
+            btnFill.TabIndex = 11;
+            btnFill.Text = "🔄 Fill";
+            btnFill.UseVisualStyleBackColor = false;
+            btnFill.Click += btnFill_Click;
+            // 
+            // dtDate
+            // 
+            dtDate.Format = DateTimePickerFormat.Short;
+            dtDate.Location = new Point(436, 1);
+            dtDate.Name = "dtDate";
+            dtDate.Size = new Size(140, 23);
+            dtDate.TabIndex = 10;
+            // 
+            // txtInvoiceNo
+            // 
+            txtInvoiceNo.Location = new Point(179, 1);
+            txtInvoiceNo.Margin = new Padding(3, 2, 3, 2);
+            txtInvoiceNo.Name = "txtInvoiceNo";
+            txtInvoiceNo.Size = new Size(167, 23);
+            txtInvoiceNo.TabIndex = 9;
             // 
             // btnClear
             // 
@@ -130,14 +170,24 @@
             btnClear.UseVisualStyleBackColor = false;
             btnClear.Click += btnClear_Click;
             // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.BackColor = Color.Transparent;
+            label3.Location = new Point(355, 5);
+            label3.Name = "label3";
+            label3.Size = new Size(75, 15);
+            label3.TabIndex = 6;
+            label3.Text = "Invoice Date:";
+            // 
             // lblStatus
             // 
             lblStatus.AutoSize = true;
-            lblStatus.Location = new Point(11, 7);
+            lblStatus.Location = new Point(96, 5);
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(41, 15);
+            lblStatus.Size = new Size(67, 15);
             lblStatus.TabIndex = 6;
-            lblStatus.Text = "Dự án:";
+            lblStatus.Text = "Invoice No:";
             lblStatus.Visible = false;
             // 
             // btnSaveInvoice
@@ -261,5 +311,9 @@
         private Label lblStatus;
         private Button btnClear;
         private Button btnSaveInvoice;
+        private DateTimePicker dtDate;
+        private TextBox txtInvoiceNo;
+        private Label label3;
+        private Button btnFill;
     }
 }

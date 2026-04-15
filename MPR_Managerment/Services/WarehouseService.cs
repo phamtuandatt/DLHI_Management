@@ -69,13 +69,14 @@ namespace MPR_Managerment.Services
             {
                 conn.Open();
                 var cmd = new SqlCommand(@"
+                    SET DATEFORMAT DMY
                     UPDATE Warehouse_Import SET
                         InvoiceNo  = @InvoiceNo,
                         InvoiceDate  = @InvoiceDate
                     WHERE PO_ID = @PO_ID", conn);
 
                 cmd.Parameters.AddWithValue("@InvoiceNo", wi.InvoiceNo);
-                cmd.Parameters.AddWithValue("@InvoiceDate", wi.InvoiceDate);
+                cmd.Parameters.AddWithValue("@InvoiceDate", Convert.ToDateTime(wi.InvoiceDate.ToString()).ToString("dd/MM/yyyy"));
                 cmd.Parameters.AddWithValue("@PO_ID", wi.PO_ID);
 
                 cmd.ExecuteNonQuery();

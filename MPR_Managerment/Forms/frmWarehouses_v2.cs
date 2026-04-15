@@ -16,6 +16,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Design;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -26,7 +27,7 @@ namespace MPR_Managerment.Forms
     public partial class frmWarehouses_v2 : Form
     {
         private TabControl mainTabControl;
-        private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo;
+        private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo, pageFillInvoiceNo_v2;
 
         private Button btnSearch, btnCancelSearch, btnSearchHistory;
 
@@ -69,6 +70,7 @@ namespace MPR_Managerment.Forms
             SetupImportLayout(pageImport);
             SetupExportLayout(pageExport);
             SetupFillInvoiceNotLayout(pageFillInvoiceNo);
+            SetupFillInvoiceNoLayout_v2(pageFillInvoiceNo_v2);
             TrackButtonClick();
             LoadComboboxProject();
             HandleComboBoxIndexChange();
@@ -140,11 +142,16 @@ namespace MPR_Managerment.Forms
             pageFillInvoiceNo.Text = "🧾 Hóa đơn";
             pageFillInvoiceNo.BackColor = Color.White;
 
+            pageFillInvoiceNo_v2 = new TabPage();
+            pageFillInvoiceNo_v2.Text = "🧾 Hóa đơn (v2)";
+            pageFillInvoiceNo_v2.BackColor = Color.White;
+
             // 5. Thêm các Page vào TabControl
             mainTabControl.TabPages.Add(pageWarehouse);
             mainTabControl.TabPages.Add(pageImport);
             mainTabControl.TabPages.Add(pageExport);
             mainTabControl.TabPages.Add(pageFillInvoiceNo);
+            mainTabControl.TabPages.Add(pageFillInvoiceNo_v2);
 
             this.Controls.Add(mainTabControl);
         }
@@ -574,6 +581,29 @@ namespace MPR_Managerment.Forms
             ucExportWarehouse.Dock = DockStyle.Fill;
             container.Controls.Add(ucExportWarehouse);
             ucExportWarehouse.BringToFront();
+        }
+
+        public void SetupFillInvoiceNoLayout_v2(TabPage parent)
+        {
+            // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
+            Panel mainScrollPanel = new Panel();
+            mainScrollPanel.Dock = DockStyle.Fill;
+            //mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+            parent.Controls.Add(mainScrollPanel);
+            parent.AllowDrop = true;
+            parent.Padding = new Padding(0);
+
+            // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
+            Panel container = new Panel();
+            container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
+            container.Height = 1200; // Độ cao ước tính cho 4 phần
+            container.Location = new Point(0, 0);
+            mainScrollPanel.Controls.Add(container);
+
+            ucFillInvoiceNo ucFillInvoiceNo = new ucFillInvoiceNo();
+            ucFillInvoiceNo.Dock = DockStyle.Fill;
+            container.Controls.Add(ucFillInvoiceNo);
+            ucFillInvoiceNo.BringToFront();
         }
 
         public void SetupFillInvoiceNotLayout(TabPage parent)

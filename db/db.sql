@@ -634,13 +634,4 @@ END
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
-
-
-
-UPDATE Warehouse_Import
-
-
-SELECT *FROM Material_Detail WHERE item_code_existed = 'DOV125001'
-SELECT *FROM Warehouse_Import WHERE ID_Code = 'DOV125001003'
-UPDATE Warehouse_Import SET Size = '125x125x10x10x6000' WHERE Import_ID = 132
+SELECT InvoiceNo, InvoiceNo, ID_Code, Item_Name, Size, Project_Code, Company_Name  FROM Warehouse_Import, Suppliers, PO_head WHERE Warehouse_Import.PO_ID = PO_head.PO_ID AND PO_head.Supplier_ID = Suppliers.Supplier_ID
