@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
+using MPR_Managerment.Forms.DeliveryGUI;
 using MPR_Managerment.Forms.ExportGUI;
 using MPR_Managerment.Forms.ImportWarehouseGUI;
 using MPR_Managerment.Forms.ItemCodeGUI;
@@ -28,6 +29,8 @@ namespace MPR_Managerment.Forms
     {
         private TabControl mainTabControl;
         private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo, pageFillInvoiceNo_v2;
+        private TabPage pageSaveDelivertNote;
+        private List<ProjectInfo> _dtProject = new List<ProjectInfo>();
 
         private Button btnSearch, btnCancelSearch, btnSearchHistory;
 
@@ -66,11 +69,13 @@ namespace MPR_Managerment.Forms
         {
             _targetPONo = targetPONo; // Tham số nhận từ màn hình Dashboard
             InitializeComponent();
+            _dtProject = new ProjectService().GetAll();
             BuidUI();
             SetupImportLayout(pageImport);
             SetupExportLayout(pageExport);
             SetupFillInvoiceNotLayout(pageFillInvoiceNo);
             SetupFillInvoiceNoLayout_v2(pageFillInvoiceNo_v2);
+            SetupSaveDeliveryNotetLayout(pageSaveDelivertNote);
             TrackButtonClick();
             LoadComboboxProject();
             HandleComboBoxIndexChange();
@@ -139,12 +144,16 @@ namespace MPR_Managerment.Forms
             pageWarehouse.BackColor = Color.White;
 
             pageFillInvoiceNo = new TabPage();
-            pageFillInvoiceNo.Text = "🧾 Hóa đơn";
+            pageFillInvoiceNo.Text = "🧾 Xem Hóa đơn";
             pageFillInvoiceNo.BackColor = Color.White;
 
             pageFillInvoiceNo_v2 = new TabPage();
-            pageFillInvoiceNo_v2.Text = "🧾 Hóa đơn (v2)";
+            pageFillInvoiceNo_v2.Text = "📝 Hóa đơn";
             pageFillInvoiceNo_v2.BackColor = Color.White;
+
+            pageSaveDelivertNote = new TabPage();
+            pageSaveDelivertNote.Text = "🗄️ Phiếu giao hàng";
+            pageSaveDelivertNote.BackColor = Color.White;
 
             // 5. Thêm các Page vào TabControl
             mainTabControl.TabPages.Add(pageWarehouse);
@@ -152,6 +161,7 @@ namespace MPR_Managerment.Forms
             mainTabControl.TabPages.Add(pageExport);
             mainTabControl.TabPages.Add(pageFillInvoiceNo);
             mainTabControl.TabPages.Add(pageFillInvoiceNo_v2);
+            mainTabControl.TabPages.Add(pageSaveDelivertNote);
 
             this.Controls.Add(mainTabControl);
         }
@@ -606,6 +616,14 @@ namespace MPR_Managerment.Forms
             ucFillInvoiceNo.BringToFront();
         }
 
+        public void SetupSaveDeliveryNotetLayout(TabPage parent)
+        {
+            ucDelivery ucDelivery = new ucDelivery(_dtProject);
+            ucDelivery.Dock = DockStyle.Fill;
+            parent.Controls.Add(ucDelivery);
+            ucDelivery.BringToFront();
+        }
+
         public void SetupFillInvoiceNotLayout(TabPage parent)
         {
             parent.AllowDrop = true;
@@ -827,7 +845,7 @@ namespace MPR_Managerment.Forms
             // ── Chọn dự án → load INV path ──
             try
             {
-                foreach (var p in new ProjectService().GetAll())
+                foreach (var p in _dtProject)    
                     cboInvProject.Items.Add(p.ProjectCode);
                 if (cboInvProject.Items.Count > 0) cboInvProject.SelectedIndex = 0;
             }
@@ -841,7 +859,7 @@ namespace MPR_Managerment.Forms
                 try
                 {
                     string code = cboInvProject.SelectedItem?.ToString() ?? "";
-                    var proj = new ProjectService().GetAll().Find(p => p.ProjectCode == code);
+                    var proj = _dtProject.Find(p => p.ProjectCode == code);
                     _invFolderPath = proj?.INV_Link?.Trim() ?? "";
                 }
                 catch { }
@@ -1701,7 +1719,7 @@ namespace MPR_Managerment.Forms
             {
                 cboProjectFilter.Items.Clear();
                 cboProjectFilter.Items.Add("Tất cả dự án");
-                foreach (var p in new ProjectService().GetAll()) cboProjectFilter.Items.Add(p.ProjectCode);
+                foreach (var p in _dtProject) cboProjectFilter.Items.Add(p.ProjectCode);
                 cboProjectFilter.SelectedIndex = 0;
             }
             catch { }
@@ -1713,7 +1731,7 @@ namespace MPR_Managerment.Forms
             {
                 cboProject.Items.Clear();
                 //cboProject.Items.Add("Tất cả dự án");
-                foreach (var p in new ProjectService().GetAll())
+                foreach (var p in _dtProject)
                     cboProject.Items.Add(p.ProjectCode);
                 cboProject.SelectedIndex = 0;
             }
@@ -1786,7 +1804,7 @@ namespace MPR_Managerment.Forms
                 cboProject.Items.Clear();
                 cboFilterProject.Items.Clear();
                 //cboProject.Items.Add("Tất cả dự án");
-                foreach (var p in new ProjectService().GetAll())
+                foreach (var p in _dtProject)
                 {
                     cboProject.Items.Add(p.ProjectCode);
                     cboFilterProject.Items.Add(p.ProjectCode);
@@ -1817,7 +1835,7 @@ namespace MPR_Managerment.Forms
                     cboFilterPO.SelectedIndex = 0;
                     return;
                 }
-                var projects = new ProjectService().GetAll();
+                var projects = _dtProject;
                 var proj = projects.Find(p => p.ProjectCode == projectCode);
                 List<POHead> filtered;
 
@@ -1934,7 +1952,7 @@ namespace MPR_Managerment.Forms
                             {
                                 try
                                 {
-                                    var pjs = new ProjectService().GetAll();
+                                    var pjs = _dtProject;
                                     projectCode = pjs.Find(p => p.WorkorderNo == po.WorkorderNo)?.ProjectCode ?? po.MPR_No ?? "";
                                 }
                                 catch { projectCode = po.MPR_No ?? ""; }

@@ -72,26 +72,26 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
 
         private void InitGridSelected()
         {
-            var dt = new DataTable();
-            // ... các cột khác ...
-            dt.Columns.Add("Export_Date", typeof(DateTime));
+            //var dt = new DataTable();
+            //// ... các cột khác ...
+            ////dt.Columns.Add("Export_Date", typeof(DateTime));
 
-            dgvList.DataSource = dt;
+            //dgvList.DataSource = dt;
 
-            // --- THAY THẾ CỘT THƯỜNG THÀNH CỘT LỊCH ---
-            if (dgvList.Columns.Contains("InvoiceDate"))
-            {
-                int columnIndex = dgvList.Columns["InvoiceDate"].Index;
-                dgvList.Columns.RemoveAt(columnIndex);
+            //// --- THAY THẾ CỘT THƯỜNG THÀNH CỘT LỊCH ---
+            //if (dgvList.Columns.Contains("InvoiceDate"))
+            //{
+            //    int columnIndex = dgvList.Columns["InvoiceDate"].Index;
+            //    dgvList.Columns.RemoveAt(columnIndex);
 
-                DataGridViewCalendarColumn calCol = new DataGridViewCalendarColumn();
-                calCol.Name = "InvoiceDate";
-                calCol.HeaderText = "📅 Ngày Xuất";
-                calCol.DataPropertyName = "InvoiceDate"; // Map với DataTable
-                calCol.Width = 120;
+            //    DataGridViewCalendarColumn calCol = new DataGridViewCalendarColumn();
+            //    calCol.Name = "InvoiceDate";
+            //    calCol.HeaderText = "📅 Ngày Xuất";
+            //    calCol.DataPropertyName = "InvoiceDate"; // Map với DataTable
+            //    calCol.Width = 120;
 
-                dgvList.Columns.Insert(columnIndex, calCol);
-            }
+            //    dgvList.Columns.Insert(columnIndex, calCol);
+            //}
         }
 
 
@@ -139,20 +139,20 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
 
         private void dgvList_CellClick(object sender, DataGridViewCellEventArgs e)
         {
-            // Kiểm tra nếu click vào cột Ngày (Giả sử cột 2 là cột ngày)
-            if (e.RowIndex >= 0 && dgvList.Columns[e.ColumnIndex].Name == "InvoiceDate")
-            {
-                // Lấy tọa độ ô đang chọn
-                Rectangle rect = dgvList.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, true);
+            //// Kiểm tra nếu click vào cột Ngày (Giả sử cột 2 là cột ngày)
+            //if (e.RowIndex >= 0 && dgvList.Columns[e.ColumnIndex].Name == "InvoiceDate")
+            //{
+            //    // Lấy tọa độ ô đang chọn
+            //    Rectangle rect = dgvList.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, true);
 
-                dtp.Size = new Size(rect.Width, rect.Height);
-                dtp.Location = new Point(rect.X, rect.Y);
-                dtp.Visible = true;
-            }
-            else
-            {
-                dtp.Visible = false;
-            }
+            //    dtp.Size = new Size(rect.Width, rect.Height);
+            //    dtp.Location = new Point(rect.X, rect.Y);
+            //    dtp.Visible = true;
+            //}
+            //else
+            //{
+            //    dtp.Visible = false;
+            //}
         }
 
         private void SetupGridEditable()
