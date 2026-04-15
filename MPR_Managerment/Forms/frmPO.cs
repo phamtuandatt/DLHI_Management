@@ -370,7 +370,7 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "PO No (*):", 10, y); txtPONo = AddTxt(panelHeader, 80, y, 100);
             AddLabel(panelHeader, "Tên dự án:", 190, y); txtProjectName = AddTxt(panelHeader, 260, y, 160);
             AddLabel(panelHeader, "Workorder:", 430, y); txtWorkorderNo = AddTxt(panelHeader, 505, y, 110);
-            AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 105);
+            AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 250);
             // Load MPR Files khi MPR No thay đổi (người dùng nhập xong và rời ô)
             txtMPRNo.Leave += (s, e) => LoadMPRFiles();
 
@@ -390,7 +390,7 @@ namespace MPR_Managerment.Forms
             cboStatus = new ComboBox { Location = new Point(590, y), Size = new Size(90, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
             cboStatus.Items.AddRange(new[] { "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
             cboStatus.SelectedIndex = 0; panelHeader.Controls.Add(cboStatus);
-            AddLabelCus(panelHeader, "Revise:", 690, y, 45, 20);
+            AddLabelCus(panelHeader, "Revise:", 690, y, 150, 20);
             nudRevise = new NumericUpDown { Location = new Point(740, y), Size = new Size(50, 25), Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
             nudRevise.BringToFront(); panelHeader.Controls.Add(nudRevise);
 
@@ -399,7 +399,7 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "Prepared:", 10, y); txtPrepared = AddTxt(panelHeader, 80, y, 100);
             AddLabel(panelHeader, "Reviewed:", 190, y); txtReviewed = AddTxt(panelHeader, 260, y, 110);
             AddLabel(panelHeader, "Agreement:", 380, y); txtAgreement = AddTxt(panelHeader, 455, y, 110);
-            AddLabel(panelHeader, "Approved:", 575, y); txtApproved = AddTxt(panelHeader, 645, y, 145);
+            AddLabel(panelHeader, "Approved:", 575, y); txtApproved = AddTxt(panelHeader, 645, y, 285);
 
             // Row 4
             y += 38;
@@ -1943,9 +1943,7 @@ namespace MPR_Managerment.Forms
                     Agreement = txtAgreement.Text.Trim(),
                     Approved = txtApproved.Text.Trim(),
                     Notes = txtNotes.Text.Trim(),
-                    Payment_Term = cboPaymentTerm.SelectedIndex > 0
-                                   ? cboPaymentTerm.SelectedItem.ToString()
-                                   : "",
+                    Payment_Term = cboPaymentTerm.SelectedItem.ToString() ?? "",
                     PO_Date = dtpPODate.Value,
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
                     Revise = (int)nudRevise.Value,
