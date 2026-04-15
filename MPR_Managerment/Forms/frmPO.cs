@@ -143,7 +143,10 @@ namespace MPR_Managerment.Forms
             dgvPO.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvPO.EnableHeadersVisualStyles = false;
             dgvPO.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvPO.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvPO.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvPO.SelectionChanged += DgvPO_SelectionChanged;
+            dgvPO.DataBindingComplete += (s, ev) => dgvPO.ClearSelection();
 
             // Click chuột trái vào bất kỳ ô nào → copy số PO vào clipboard
             dgvPO.CellClick += (s, ev) =>
@@ -200,6 +203,8 @@ namespace MPR_Managerment.Forms
             dgvFiles.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvFiles.EnableHeadersVisualStyles = false;
             dgvFiles.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvFiles.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvFiles.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvFiles.Columns.Add("FileName", "Tệp đính kèm (PO Link)");
             dgvFiles.Columns.Add("FullPath", "FullPath");
             dgvFiles.Columns["FullPath"].Visible = false;
@@ -309,6 +314,8 @@ namespace MPR_Managerment.Forms
             dgvDelivery.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
             dgvDelivery.EnableHeadersVisualStyles = false;
             dgvDelivery.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
+            dgvDelivery.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvDelivery.DefaultCellStyle.SelectionForeColor = Color.Black;
             // Cột ẩn
             dgvDelivery.Columns.Add(new DataGridViewTextBoxColumn { Name = "TrackID", HeaderText = "ID", Visible = false });
             // Cột hiển thị
@@ -370,7 +377,7 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "PO No (*):", 10, y); txtPONo = AddTxt(panelHeader, 80, y, 100);
             AddLabel(panelHeader, "Tên dự án:", 190, y); txtProjectName = AddTxt(panelHeader, 260, y, 160);
             AddLabel(panelHeader, "Workorder:", 430, y); txtWorkorderNo = AddTxt(panelHeader, 505, y, 110);
-            AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 250);
+            AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 105);
             // Load MPR Files khi MPR No thay đổi (người dùng nhập xong và rời ô)
             txtMPRNo.Leave += (s, e) => LoadMPRFiles();
 
@@ -390,7 +397,7 @@ namespace MPR_Managerment.Forms
             cboStatus = new ComboBox { Location = new Point(590, y), Size = new Size(90, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
             cboStatus.Items.AddRange(new[] { "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
             cboStatus.SelectedIndex = 0; panelHeader.Controls.Add(cboStatus);
-            AddLabelCus(panelHeader, "Revise:", 690, y, 150, 20);
+            AddLabelCus(panelHeader, "Revise:", 690, y, 45, 20);
             nudRevise = new NumericUpDown { Location = new Point(740, y), Size = new Size(50, 25), Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
             nudRevise.BringToFront(); panelHeader.Controls.Add(nudRevise);
 
@@ -399,7 +406,7 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "Prepared:", 10, y); txtPrepared = AddTxt(panelHeader, 80, y, 100);
             AddLabel(panelHeader, "Reviewed:", 190, y); txtReviewed = AddTxt(panelHeader, 260, y, 110);
             AddLabel(panelHeader, "Agreement:", 380, y); txtAgreement = AddTxt(panelHeader, 455, y, 110);
-            AddLabel(panelHeader, "Approved:", 575, y); txtApproved = AddTxt(panelHeader, 645, y, 285);
+            AddLabel(panelHeader, "Approved:", 575, y); txtApproved = AddTxt(panelHeader, 645, y, 145);
 
             // Row 4
             y += 38;
@@ -493,6 +500,8 @@ namespace MPR_Managerment.Forms
             dgvMPRFiles.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvMPRFiles.EnableHeadersVisualStyles = false;
             dgvMPRFiles.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+            dgvMPRFiles.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvMPRFiles.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvMPRFiles.Columns.Add(new DataGridViewTextBoxColumn { Name = "FileName", HeaderText = "Tên file" });
             dgvMPRFiles.Columns.Add(new DataGridViewTextBoxColumn { Name = "FullPath", HeaderText = "Path", Visible = false });
 
@@ -566,6 +575,8 @@ namespace MPR_Managerment.Forms
             dgvDetails.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvDetails.EnableHeadersVisualStyles = false;
             dgvDetails.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvDetails.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvDetails.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvDetails.CellEndEdit += DgvDetails_CellEndEdit; dgvDetails.KeyDown += DgvDetails_KeyDown;
             dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
             dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
@@ -708,6 +719,8 @@ namespace MPR_Managerment.Forms
                 var dgv = new DataGridView { Location = new Point(10, 114), Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 165), ReadOnly = true, AllowUserToAddRows = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle, RowHeadersVisible = false, Font = new Font("Segoe UI", 9), AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
                 dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153); dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White; dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold); dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+                dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+                dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
                 popup.Controls.Add(dgv);
 
                 Action applyFilter = () =>
@@ -1943,7 +1956,9 @@ namespace MPR_Managerment.Forms
                     Agreement = txtAgreement.Text.Trim(),
                     Approved = txtApproved.Text.Trim(),
                     Notes = txtNotes.Text.Trim(),
-                    Payment_Term = cboPaymentTerm.SelectedItem.ToString() ?? "",
+                    Payment_Term = cboPaymentTerm.SelectedIndex > 0
+                                   ? cboPaymentTerm.SelectedItem.ToString()
+                                   : "",
                     PO_Date = dtpPODate.Value,
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
                     Revise = (int)nudRevise.Value,
@@ -2088,12 +2103,8 @@ namespace MPR_Managerment.Forms
                 if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
                 decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
                 decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
-                //decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
-                //decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
-
-                decimal p = ParseDecimal(row.Cells["Price"].Value);
-                decimal vat = ParseDecimal(row.Cells["VAT"].Value);
-
+                decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
+                decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
                 remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
@@ -2659,6 +2670,8 @@ namespace MPR_Managerment.Forms
                 dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                 dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+                dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+                dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
                 dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "STT", HeaderText = "STT", Width = 42 });
                 dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "TenHang", HeaderText = "Tên hàng", Width = 200 });
                 dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "VatLieu", HeaderText = "Vật liệu", Width = 120 });
@@ -2815,6 +2828,8 @@ namespace MPR_Managerment.Forms
                 dgvDlg.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                 dgvDlg.EnableHeadersVisualStyles = false;
                 dgvDlg.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
+                dgvDlg.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+                dgvDlg.DefaultCellStyle.SelectionForeColor = Color.Black;
                 dlg.Controls.Add(dgvDlg);
 
                 // Sau khi bind: đặt header, căn chỉnh width
@@ -3138,6 +3153,8 @@ namespace MPR_Managerment.Forms
                 dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                 dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
+                dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+                dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
 
                 dgv.CellFormatting += (s, ev) =>
                 {
@@ -3423,6 +3440,8 @@ namespace MPR_Managerment.Forms
                 dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                 dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
+                dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+                dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
                 popup.Controls.Add(dgv);
 
                 // Sau khi DataSource được set lần đầu → chỉnh width cột PO No
