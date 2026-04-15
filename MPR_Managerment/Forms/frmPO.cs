@@ -2090,8 +2090,12 @@ namespace MPR_Managerment.Forms
                 if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
                 decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
                 decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
-                decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
-                decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
+                //decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
+                //decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
+
+                decimal p = ParseDecimal(row.Cells["Price"].Value);
+                decimal vat = ParseDecimal(row.Cells["VAT"].Value);
+
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
                 remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
