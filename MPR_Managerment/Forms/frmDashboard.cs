@@ -35,6 +35,7 @@ namespace MPR_Managerment.Forms
         private ComboBox cboFilterPOStatus;  // Lọc theo Tình trạng PO
         private TextBox txtSearchMPR;
         private Button btnExportMPR;         // Xuất Excel danh sách MPR
+        private Button btnSaveMPRNote;        // Lưu ghi chú MPR
 
         // RIR Tab
         private DataGridView dgvRIR;
@@ -372,6 +373,7 @@ namespace MPR_Managerment.Forms
                 { "% Item đặt hàng",     95 },
                 { "Ngày đến PO",         85 },
                 { "Ngày tạo",            90 },
+                { "Ghi chú",            160 },
             };
 
             foreach (DataGridViewColumn col in dgvMPR.Columns)
@@ -547,9 +549,12 @@ namespace MPR_Managerment.Forms
                 LoadMPRData();
             };
             btnExportMPR.Click += BtnExportMPR_Click;
+            btnSaveMPRNote = CreateButton("💾 Lưu ghi chú", Color.FromArgb(0, 120, 212), Point.Empty, 120, 28);
+            btnSaveMPRNote.Click += BtnSaveMPRNote_Click;
             pFilterMPR.Controls.Add(btnSearch);
             pFilterMPR.Controls.Add(btnClear);
             pFilterMPR.Controls.Add(btnExportMPR);
+            pFilterMPR.Controls.Add(btnSaveMPRNote);
 
             // ===== LAYOUT: dgvMPRPO (trái) | dgvMPR (phải) =====
             // Dùng hằng số, KHÔNG dùng tabMPR.Width/Height vì lúc init = 0
@@ -627,7 +632,8 @@ namespace MPR_Managerment.Forms
             {
                 Location = new Point(mprLeft, topGrid + 22),
                 Size = new Size(800, 400),   // chiều cao/rộng do Resize handler
-                ReadOnly = true,
+                ReadOnly = false,
+                EditMode = DataGridViewEditMode.EditOnKeystroke,
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 BackgroundColor = Color.White,
@@ -647,6 +653,13 @@ namespace MPR_Managerment.Forms
             dgvMPR.RowPrePaint += DgvMPR_RowPrePaint;
             dgvMPR.CellDoubleClick += DgvMPR_CellDoubleClick;
             dgvMPR.SelectionChanged += DgvMPR_SelectionChanged;
+            // One-click vao cot Ghi chu -> bat dau edit ngay
+            dgvMPR.CellClick += (s, ev) =>
+            {
+                if (ev.RowIndex < 0 || ev.ColumnIndex < 0) return;
+                if (dgvMPR.Columns[ev.ColumnIndex].Name == "Ghi chu")
+                    dgvMPR.BeginEdit(true);
+            };
             tabMPR.Controls.Add(dgvMPR);
 
             // Resize: chạy khi tab thay đổi kích thước — điều chỉnh chiều rộng/cao thực tế
@@ -1203,7 +1216,7 @@ namespace MPR_Managerment.Forms
                                               OR po.MPR_No = h.MPR_No
                     {where}
                     GROUP BY h.MPR_ID, h.MPR_No, h.Project_Name,
-                             h.Required_Date, h.Status, h.Rev, h.Created_Date
+                             h.Required_Date, h.Status, h.Rev, h.Created_Date, h.Notes
                     ORDER BY h.Created_Date DESC";
                 using (var conn = DatabaseHelper.GetConnection())
                 {
@@ -1214,6 +1227,54 @@ namespace MPR_Managerment.Forms
 
                     if (dgvMPR.Columns.Contains("MPR_ID"))
                         dgvMPR.Columns["MPR_ID"].Visible = false;
+
+                    // Tat ca cot bound: ReadOnly
+                    foreach (DataGridViewColumn col in dgvMPR.Columns)
+                        col.ReadOnly = true;
+
+                    // Them unbound column Ghi chu neu chua co
+                    if (!dgvMPR.Columns.Contains("Ghi chu"))
+                    {
+                        var colNote = new DataGridViewTextBoxColumn
+                        {
+                            Name = "Ghi chu",
+                            HeaderText = "Ghi chu",
+                            Width = 160,
+                            ReadOnly = false,
+                            DisplayIndex = dgvMPR.Columns.Count // cuoi cung
+                        };
+                        colNote.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 230);
+                        colNote.DefaultCellStyle.SelectionBackColor = Color.FromArgb(255, 245, 180);
+                        colNote.ToolTipText = "Click de nhap ghi chu, bam Luu ghi chu de luu";
+                        dgvMPR.Columns.Add(colNote);
+                    }
+                    else
+                    {
+                        dgvMPR.Columns["Ghi chu"].ReadOnly = false;
+                    }
+
+                    // Load Notes tu DB vao unbound column
+                    try
+                    {
+                        using var connNote = DatabaseHelper.GetConnection();
+                        connNote.Open();
+                        var cmdNote = new SqlCommand("SELECT MPR_ID, ISNULL(Notes,'') AS Notes FROM MPR_Header", connNote);
+                        var noteMap = new System.Collections.Generic.Dictionary<int, string>();
+                        using var rNote = cmdNote.ExecuteReader();
+                        while (rNote.Read())
+                            noteMap[Convert.ToInt32(rNote["MPR_ID"])] = rNote["Notes"].ToString();
+
+                        foreach (DataGridViewRow row in dgvMPR.Rows)
+                        {
+                            if (row.IsNewRow) continue;
+                            object idObj = row.Cells["MPR_ID"]?.Value;
+                            if (idObj == null || idObj == DBNull.Value) continue;
+                            int id = Convert.ToInt32(idObj);
+                            if (noteMap.TryGetValue(id, out string note))
+                                row.Cells["Ghi chu"].Value = note;
+                        }
+                    }
+                    catch { }
 
                     AutoAdjustMPRColumns();
 
@@ -2115,6 +2176,70 @@ namespace MPR_Managerment.Forms
             var lblNext = panelNotify.Controls.Find("lblNextRefresh", false).FirstOrDefault() as Label;
             if (lblNext != null)
                 lblNext.Text = "Kiem tra tiep: " + DateTime.Now.AddMinutes(5).ToString("HH:mm") + "  (moi 5 phut)";
+        }
+
+
+        // =====================================================================
+        //  LƯU GHI CHÚ MPR
+        // =====================================================================
+        private void BtnSaveMPRNote_Click(object sender, EventArgs e)
+        {
+            if (dgvMPR == null || dgvMPR.Rows.Count == 0)
+            {
+                MessageBox.Show("Khong co du lieu de luu!", "Thong bao",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int saved = 0, skipped = 0;
+            var errors = new System.Text.StringBuilder();
+
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+
+                foreach (DataGridViewRow row in dgvMPR.Rows)
+                {
+                    if (row.IsNewRow) continue;
+
+                    // Lay MPR_ID va Ghi chu tu unbound column
+                    object mprIdObj = row.Cells["MPR_ID"]?.Value;
+                    if (mprIdObj == null || mprIdObj == DBNull.Value) { skipped++; continue; }
+
+                    int mprId = Convert.ToInt32(mprIdObj);
+                    // Commit edit dang dang neu co
+                    if (dgvMPR.IsCurrentCellInEditMode) dgvMPR.EndEdit();
+                    string note = row.Cells["Ghi chu"]?.Value?.ToString() ?? "";
+
+                    try
+                    {
+                        var cmd = new SqlCommand(
+                            "UPDATE MPR_Header SET Notes = @note WHERE MPR_ID = @id", conn);
+                        cmd.Parameters.AddWithValue("@note", note);
+                        cmd.Parameters.AddWithValue("@id", mprId);
+                        cmd.ExecuteNonQuery();
+                        saved++;
+                    }
+                    catch (Exception exRow)
+                    {
+                        errors.AppendLine("MPR_ID " + mprId + ": " + exRow.Message);
+                    }
+                }
+
+                string msg = "Da luu ghi chu cho " + saved + " MPR.";
+                if (skipped > 0) msg += " (Bo qua " + skipped + " dong khong hop le)";
+                if (errors.Length > 0) msg += "\nLoi:\n" + errors;
+
+                MessageBox.Show(msg, "Luu ghi chu",
+                    MessageBoxButtons.OK,
+                    errors.Length > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Loi luu ghi chu: " + ex.Message, "Loi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
 
