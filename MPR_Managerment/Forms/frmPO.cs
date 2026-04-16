@@ -48,6 +48,9 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvDetails;
         private Button btnAddDetail, btnDeleteDetail;
         private Label lblTotal, lblSubTotal;
+        // Culture dinh dang so: dau "." ngan hang nghin, dau "," thap phan
+        private static readonly System.Globalization.CultureInfo _numCulture =
+            new System.Globalization.CultureInfo("vi-VN");
         private Panel panelTop, panelHeader, panelDetail;
         private DataGridView dgvMPRFiles; // Bảng file MPR Link bên phải chi tiết
         private ComboBox cboSupplier;
@@ -378,7 +381,7 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "PO No (*):", 10, y); txtPONo = AddTxt(panelHeader, 80, y, 100);
             AddLabel(panelHeader, "Tên dự án:", 190, y); txtProjectName = AddTxt(panelHeader, 260, y, 160);
             AddLabel(panelHeader, "Workorder:", 430, y); txtWorkorderNo = AddTxt(panelHeader, 505, y, 110);
-            AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 250);
+            AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 105);
             // Load MPR Files khi MPR No thay đổi (người dùng nhập xong và rời ô)
             txtMPRNo.Leave += (s, e) => LoadMPRFiles();
 
@@ -398,7 +401,7 @@ namespace MPR_Managerment.Forms
             cboStatus = new ComboBox { Location = new Point(590, y), Size = new Size(90, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
             cboStatus.Items.AddRange(new[] { "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
             cboStatus.SelectedIndex = 0; panelHeader.Controls.Add(cboStatus);
-            AddLabelCus(panelHeader, "Revise:", 690, y, 150, 20);
+            AddLabelCus(panelHeader, "Revise:", 690, y, 45, 20);
             nudRevise = new NumericUpDown { Location = new Point(740, y), Size = new Size(50, 25), Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
             nudRevise.BringToFront(); panelHeader.Controls.Add(nudRevise);
 
@@ -407,7 +410,7 @@ namespace MPR_Managerment.Forms
             AddLabel(panelHeader, "Prepared:", 10, y); txtPrepared = AddTxt(panelHeader, 80, y, 100);
             AddLabel(panelHeader, "Reviewed:", 190, y); txtReviewed = AddTxt(panelHeader, 260, y, 110);
             AddLabel(panelHeader, "Agreement:", 380, y); txtAgreement = AddTxt(panelHeader, 455, y, 110);
-            AddLabel(panelHeader, "Approved:", 575, y); txtApproved = AddTxt(panelHeader, 645, y, 285);
+            AddLabel(panelHeader, "Approved:", 575, y); txtApproved = AddTxt(panelHeader, 645, y, 145);
 
             // Row 4
             y += 38;
@@ -660,6 +663,7 @@ namespace MPR_Managerment.Forms
             dgvDetails.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
             dgvDetails.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvDetails.CellEndEdit += DgvDetails_CellEndEdit; dgvDetails.KeyDown += DgvDetails_KeyDown;
+            dgvDetails.CellParsing += DgvDetails_CellParsing;
             dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
             dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
             dgvDetails.CellFormatting += DgvDetails_CellFormatting;
@@ -768,7 +772,7 @@ namespace MPR_Managerment.Forms
                 {
                     var supp = suppliers.Find(s => s.Supplier_ID == h.Supplier_ID);
                     dt.Rows.Add(h.PO_ID, h.PONo, supp?.Company_Name ?? supp?.Short_Name ?? "", h.Project_Name, h.MPR_No, h.WorkorderNo,
-                        h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "", h.Status, h.Total_Amount.ToString("N2", CultureInfo.InvariantCulture));
+                        h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "", h.Status, h.Total_Amount.ToString("N2", _numCulture));
                 }
                 var dtFull = dt.Copy();
                 System.Data.DataTable dtCurrent = dtFull.Copy();
@@ -991,7 +995,7 @@ namespace MPR_Managerment.Forms
             {
                 if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal num))
                 {
-                    e.Value = num.ToString("N2", CultureInfo.InvariantCulture);
+                    e.Value = num.ToString("N2", _numCulture);
                     e.FormattingApplied = true;
                 }
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -1693,7 +1697,7 @@ namespace MPR_Managerment.Forms
                     Workorder = h.WorkorderNo,
                     Ngay_PO = h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
                     Trang_Thai = h.Status,
-                    Tong_Tien = h.Total_Amount.ToString("N2", CultureInfo.InvariantCulture),
+                    Tong_Tien = h.Total_Amount.ToString("N2", _numCulture),
                     Revise = h.Revise,
                     Ngay_Tao = h.Created_Date.HasValue ? h.Created_Date.Value.ToString("dd/MM/yyyy") : ""
                 };
@@ -1794,11 +1798,11 @@ namespace MPR_Managerment.Forms
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
                 if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
-                decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty);
-                decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal weight);
-                decimal.TryParse(row.Cells["Price"].Value?.ToString(), out decimal price);
+                decimal qty = ParseDecimalRaw(row.Cells["Qty"].Value?.ToString() ?? "");
+                decimal weight = ParseDecimalRaw(row.Cells["Weight"].Value?.ToString() ?? "");
+                decimal price = ParseDecimalRaw(row.Cells["Price"].Value?.ToString() ?? "");
                 decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
-                decimal.TryParse(row.Cells["Amount"].Value?.ToString(), out decimal amount);
+                decimal amount = ParseDecimalRaw(row.Cells["Amount"].Value?.ToString() ?? "");
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
                 decimal rowSubTotal = baseValue * price;
@@ -1809,8 +1813,8 @@ namespace MPR_Managerment.Forms
                 totalAmount += amount > 0 ? amount : rowTotalAmount;
             }
 
-            if (lblSubTotal != null) lblSubTotal.Text = "Truoc VAT: " + subTotal.ToString("N2", CultureInfo.InvariantCulture) + " VND";
-            if (lblTotal != null) lblTotal.Text = "Sau VAT: " + total.ToString("N2", CultureInfo.InvariantCulture) + " VND";
+            if (lblSubTotal != null) lblSubTotal.Text = "Truoc VAT: " + subTotal.ToString("N2", _numCulture) + " VND";
+            if (lblTotal != null) lblTotal.Text = "Sau VAT: " + total.ToString("N2", _numCulture) + " VND";
 
             // ── Cập nhật dòng Total ở cuối dgvDetails ──
             // Xóa dòng total cũ nếu có
@@ -1848,55 +1852,127 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        // Cac cot so: parse voi ParseDecimalRaw
+        private static readonly System.Collections.Generic.HashSet<string> _numericCols
+            = new System.Collections.Generic.HashSet<string>
+              { "Qty", "Weight", "Price", "Received" };
+
         private void PasteFromExcel()
         {
             try
             {
                 string copiedData = Clipboard.GetText();
                 if (string.IsNullOrEmpty(copiedData)) return;
-                string[] lines = copiedData.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries); if (lines.Length == 0) return;
-                int startRow = dgvDetails.CurrentCell?.RowIndex ?? 0; int startCol = dgvDetails.CurrentCell?.ColumnIndex ?? 0;
-                foreach (string line in lines)
+
+                // Tach thanh cac dong (ho tro CR, LF, CRLF)
+                string[] rows = copiedData.Split(
+                    new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+                // Bo dong cuoi neu rong (Excel thuong them \r\n cuoi)
+                if (rows.Length > 0 && string.IsNullOrEmpty(rows[rows.Length - 1]))
+                    rows = rows.Take(rows.Length - 1).ToArray();
+
+                if (rows.Length == 0) return;
+
+                int startRow = dgvDetails.CurrentCell?.RowIndex ?? 0;
+                int startCol = dgvDetails.CurrentCell?.ColumnIndex ?? 0;
+
+                // Build danh sach cot hien (visible, editable, khong hidden)
+                // De paste dung cot tuong ung voi vi tri clipboard
+                var pasteableCols = new System.Collections.Generic.List<int>();
+                for (int c = startCol; c < dgvDetails.Columns.Count; c++)
                 {
-                    string[] cells = line.Split('\t');
-                    if (startRow >= dgvDetails.Rows.Count)
+                    var col = dgvDetails.Columns[c];
+                    if (!col.Visible) continue;
+                    if (col.Name == "PO_Detail_ID" || col.Name == "MPR_Detail_ID") continue;
+                    pasteableCols.Add(c);
+                }
+
+                dgvDetails.SuspendLayout();
+                for (int ri = 0; ri < rows.Length; ri++)
+                {
+                    string[] cells = rows[ri].Split('\t');
+                    int curRow = startRow + ri;
+
+                    // Them dong moi neu can
+                    if (curRow >= dgvDetails.Rows.Count)
                     {
-                        int nextItem = dgvDetails.Rows.Count + 1;
-                        int newIdx = dgvDetails.Rows.Add(); var r = dgvDetails.Rows[newIdx];
-                        r.Cells["Item_No"].Value = nextItem; r.Cells["PO_Detail_ID"].Value = 0; r.Cells["UNIT"].Value = "PCS";
-                        r.Cells["Qty"].Value = 0;
-                        r.Cells["Weight"].Value = 0; r.Cells["Price"].Value = 0; r.Cells["VAT"].Value = "10";
-                        r.Cells["Amount"].Value = 0; r.Cells["Received"].Value = 0; r.Cells["Calc_Method"].Value = "Theo KG";
+                        int newIdx = dgvDetails.Rows.Add();
+                        var r = dgvDetails.Rows[newIdx];
+                        r.Cells["Item_No"].Value = newIdx + 1;
+                        r.Cells["PO_Detail_ID"].Value = 0;
+                        r.Cells["UNIT"].Value = "PCS";
+                        r.Cells["Qty"].Value = 0m;
+                        r.Cells["Weight"].Value = 0m;
+                        r.Cells["Price"].Value = 0m;
+                        r.Cells["VAT"].Value = "10";
+                        r.Cells["Amount"].Value = 0m;
+                        r.Cells["Received"].Value = 0m;
+                        r.Cells["Calc_Method"].Value = "Theo KG";
                         r.Cells["Ordered_PO"].Value = "";
                     }
-                    int colIndex = startCol;
-                    for (int i = 0; i < cells.Length; i++)
+
+                    var dgvRow = dgvDetails.Rows[curRow];
+                    if (dgvRow.IsNewRow || dgvRow.Tag?.ToString() == "TOTAL") continue;
+
+                    for (int ci = 0; ci < cells.Length && ci < pasteableCols.Count; ci++)
                     {
-                        while (colIndex < dgvDetails.Columns.Count && (!dgvDetails.Columns[colIndex].Visible || dgvDetails.Columns[colIndex].ReadOnly)) colIndex++;
-                        if (colIndex >= dgvDetails.Columns.Count) break;
-                        if (!(dgvDetails.Columns[colIndex] is DataGridViewComboBoxColumn)) dgvDetails.Rows[startRow].Cells[colIndex].Value = cells[i].Trim();
-                        else i--;
-                        colIndex++;
+                        int colIdx = pasteableCols[ci];
+                        var col = dgvDetails.Columns[colIdx];
+                        string val = cells[ci].Trim();
+
+                        if (col is DataGridViewComboBoxColumn cboCol)
+                        {
+                            // VAT: map gia tri hop le
+                            if (col.Name == "VAT")
+                            {
+                                string v = val.Replace("%", "").Trim();
+                                dgvRow.Cells[colIdx].Value =
+                                    v == "8" ? "8" : v == "0" ? "0" : "10";
+                            }
+                            else if (col.Name == "Calc_Method")
+                            {
+                                dgvRow.Cells[colIdx].Value =
+                                    val.Contains("SL") ? "Theo SL" : "Theo KG";
+                            }
+                        }
+                        else if (col.ReadOnly)
+                        {
+                            // Bo qua cot ReadOnly (Amount, SubAmount, Ordered_PO...)
+                            continue;
+                        }
+                        else if (_numericCols.Contains(col.Name))
+                        {
+                            // Parse so voi ParseDecimalRaw
+                            dgvRow.Cells[colIdx].Value = ParseDecimalRaw(val);
+                        }
+                        else
+                        {
+                            dgvRow.Cells[colIdx].Value = val;
+                        }
                     }
-                    RecalculateAmount(startRow);
-                    startRow++;
+                    RecalculateAmount(curRow);
                 }
+                dgvDetails.ResumeLayout();
                 AutoAdjustColumnWidths();
+                UpdateTotal();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi khi dán dữ liệu: " + ex.Message, "Lỗi Paste", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Loi khi dan du lieu: " + ex.Message,
+                    "Loi Paste", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void RecalculateAmount(int rowIndex)
         {
+            if (rowIndex < 0 || rowIndex >= dgvDetails.Rows.Count) return;
             var row = dgvDetails.Rows[rowIndex];
-            decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal qty);
-            decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal weight);
-            // Price có thể đang ở dạng "1,000,000" — cần bỏ dấu phẩy trước parse
-            //decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal price);
-            decimal price = ParseDecimal(row.Cells["Price"].Value);
+            if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") return;
+            // Dung ParseDecimalRaw de xu ly moi dinh dang nhap/paste
+            decimal qty = ParseDecimalRaw(row.Cells["Qty"].Value?.ToString() ?? "");
+            decimal weight = ParseDecimalRaw(row.Cells["Weight"].Value?.ToString() ?? "");
+            decimal price = ParseDecimalRaw(row.Cells["Price"].Value?.ToString() ?? "");
             decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
             string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
             decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
@@ -1912,26 +1988,70 @@ namespace MPR_Managerment.Forms
             string input = value.ToString().Trim();
             if (string.IsNullOrEmpty(input)) return 0;
 
-            // Dinh dang: "," la phan cach nghin, "." la thap phan (InvariantCulture)
-            // Vi du: "1,234.56" -> 1234.56
-            // Neu chi co "," (vi du "1,234") -> bo dau , di
-            if (input.Contains(",") && !input.Contains("."))
-            {
-                // Co the la: 1,234 (nghin) hoac 1,5 (thap phan kieu cu)
-                // Neu phan sau dau , co 3 chu so -> nghin separator
-                var parts = input.Split(',');
-                bool isThousand = parts.Length >= 2 && parts[parts.Length - 1].Length == 3;
-                input = isThousand ? input.Replace(",", "") : input.Replace(",", ".");
-            }
-            else if (input.Contains(",") && input.Contains("."))
-            {
-                // "1,234.56" -> bo dau ,
-                input = input.Replace(",", "");
-            }
+            // Dung ParseDecimalRaw de xu ly thong nhat
+            return ParseDecimalRaw(input);
+        }
 
-            decimal.TryParse(input, System.Globalization.NumberStyles.Any,
-                             System.Globalization.CultureInfo.InvariantCulture, out decimal result);
+        // Intercept gia tri khi nguoi dung nhap/paste — parse dung vi-VN
+        private void DgvDetails_CellParsing(object sender, DataGridViewCellParsingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
+            // Chi xu ly cac cot so
+            if (colName != "Price" && colName != "Qty" && colName != "Weight"
+                && colName != "Amount" && colName != "SubAmount" && colName != "Received") return;
+
+            string raw = e.Value?.ToString() ?? "";
+            if (string.IsNullOrWhiteSpace(raw)) return;
+
+            decimal parsed = ParseDecimalRaw(raw);
+            // Luu gia tri decimal thuc vao cell, tranh WinForms parse lai sai
+            e.Value = parsed;
+            e.ParsingApplied = true;
+            // Dong thoi ghi thang vao cell de dam bao
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+                dgvDetails.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = parsed;
+        }
+
+        // Parse so tu chuoi bat ky: xu ly ca vi-VN (. ngan , thap phan)
+        // lan InvariantCulture (, ngan . thap phan)
+        private decimal ParseDecimalRaw(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return 0;
+            raw = raw.Trim();
+
+            // Co ca "." va ","
+            if (raw.Contains(".") && raw.Contains(","))
+            {
+                if (raw.IndexOf(".") < raw.IndexOf(","))
+                {
+                    // "1.234,56" -> vi-VN -> bo . -> "1234,56"
+                    raw = raw.Replace(".", "");
+                }
+                else
+                {
+                    // "1,234.56" -> InvariantCulture -> bo , -> "1234.56" -> doi . thanh ,
+                    raw = raw.Replace(",", "").Replace(".", ",");
+                }
+            }
+            else if (raw.Contains(".") && !raw.Contains(","))
+            {
+                // Chi co "."
+                var parts = raw.Split('.');
+                // Neu tat ca phan sau dau . deu co 3 chu so -> day la ngan separator
+                bool allThousand = parts.Length > 1 &&
+                    parts.Skip(1).All(p => p.Length == 3);
+                if (allThousand)
+                    raw = raw.Replace(".", "");        // bo ngan
+                else
+                    raw = raw.Replace(".", ",");        // doi . -> , (thap phan vi-VN)
+            }
+            // Chi co "," hoac so nguyen: vi-VN hieu "," la thap phan -> giu nguyen
+
+            decimal.TryParse(raw,
+                System.Globalization.NumberStyles.Number,
+                _numCulture, out decimal result);
             return result;
         }
 
@@ -2064,7 +2184,9 @@ namespace MPR_Managerment.Forms
                     Agreement = txtAgreement.Text.Trim(),
                     Approved = txtApproved.Text.Trim(),
                     Notes = txtNotes.Text.Trim(),
-                    Payment_Term = cboPaymentTerm.SelectedItem?.ToString() ?? "",
+                    Payment_Term = cboPaymentTerm.SelectedIndex > 0
+                                   ? cboPaymentTerm.SelectedItem.ToString()
+                                   : "",
                     PO_Date = dtpPODate.Value,
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
                     Revise = (int)nudRevise.Value,
@@ -2209,12 +2331,8 @@ namespace MPR_Managerment.Forms
                 if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
                 decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
                 decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
-                //decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
-                //decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
-
-                decimal p = ParseDecimal(row.Cells["Price"].Value);
-                decimal vat = ParseDecimal(row.Cells["VAT"].Value);
-
+                decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
+                decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
                 remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
@@ -2752,7 +2870,7 @@ namespace MPR_Managerment.Forms
                 popup.Controls.Add(new Label { Text = $"📦  {poNo}", Font = new Font("Segoe UI", 12, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(600, 28) });
                 popup.Controls.Add(new Label
                 {
-                    Text = $"MPR No: {po.MPR_No ?? "—"}    |    Dự án: {po.Project_Name ?? "—"}    |    NCC: {suppName}    |    Ngày PO: {(po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : "—")}    |    Tổng: " + po.Total_Amount.ToString("N2", CultureInfo.InvariantCulture) + " VNĐ",
+                    Text = $"MPR No: {po.MPR_No ?? "—"}    |    Dự án: {po.Project_Name ?? "—"}    |    NCC: {suppName}    |    Ngày PO: {(po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : "—")}    |    Tổng: " + po.Total_Amount.ToString("N2", _numCulture) + " VNĐ",
                     Font = new Font("Segoe UI", 9),
                     ForeColor = Color.FromArgb(80, 80, 80),
                     Location = new Point(10, 38),
