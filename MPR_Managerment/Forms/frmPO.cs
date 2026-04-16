@@ -2,6 +2,7 @@
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -535,28 +536,109 @@ namespace MPR_Managerment.Forms
             panelDetail.Controls.Add(btnSaveDetail); panelDetail.Controls.Add(btnExport);
             panelDetail.Controls.Add(btnCheckBySize);
 
-            // lblSubTotal và lblTotal căn mép PHẢI panelDetail — không bị button che
-            lblSubTotal = new Label
+            // ── Panel phai: chua labels TruocVAT/SauVAT + apply VAT + apply Calc ──
+            // Anchor Right de tu can le phai khi resize
+            var panelRight = new Panel
             {
-                Size = new Size(220, 22),
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 53, 69),
-                TextAlign = System.Drawing.ContentAlignment.MiddleRight,
+                Size = new Size(590, 68),
+                BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            lblSubTotal.Location = new Point(panelDetail.Width - 220 - 280 - 10, 45);
-            panelDetail.Controls.Add(lblSubTotal);
+            // Vi tri: sat le phai panelDetail, dong voi hang buttons
+            panelRight.Location = new Point(panelDetail.Width - 590 - 5, 2);
+            panelDetail.Resize += (s, ev) =>
+                panelRight.Location = new Point(panelDetail.Width - panelRight.Width - 5, 2);
+
+            // -- Cot 1: Truoc VAT + Sau VAT (x=0, w=185) --
+            lblSubTotal = new Label
+            {
+                Location = new Point(0, 4),
+                Size = new Size(185, 20),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.FromArgb(200, 53, 53),
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+            };
+            panelRight.Controls.Add(lblSubTotal);
 
             lblTotal = new Label
             {
-                Size = new Size(270, 22),
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 120, 212),
-                TextAlign = System.Drawing.ContentAlignment.MiddleRight,
-                Anchor = AnchorStyles.Top | AnchorStyles.Right
+                Location = new Point(0, 28),
+                Size = new Size(185, 20),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 100, 200),
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft
             };
-            lblTotal.Location = new Point(panelDetail.Width - 270 - 10, 45);
-            panelDetail.Controls.Add(lblTotal);
+            panelRight.Controls.Add(lblTotal);
+
+            // -- Cot 2: Apply VAT (x=190) --
+            int xVAT = 190;
+            panelRight.Controls.Add(new Label
+            {
+                Text = "VAT(%):",
+                Location = new Point(xVAT, 4),
+                Size = new Size(50, 20),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+            });
+            var cboApplyVAT = new ComboBox
+            {
+                Location = new Point(xVAT, 26),
+                Size = new Size(72, 22),
+                Font = new Font("Segoe UI", 8),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cboApplyVAT.Items.AddRange(new object[] { "10%", "8%", "Khong VAT" });
+            cboApplyVAT.SelectedIndex = 0;
+            panelRight.Controls.Add(cboApplyVAT);
+            var btnApplyVAT = CreateButton("Ap dung", Color.FromArgb(255, 140, 0),
+                new Point(xVAT + 76, 26), 62, 22);
+            btnApplyVAT.Font = new Font("Segoe UI", 7, FontStyle.Bold);
+            btnApplyVAT.Click += (s, ev) =>
+            {
+                string vatVal = cboApplyVAT.SelectedItem?.ToString() == "Khong VAT" ? "0" :
+                    cboApplyVAT.SelectedItem?.ToString()?.Replace("%", "") ?? "10";
+                foreach (DataGridViewRow row in dgvDetails.Rows)
+                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
+                    { row.Cells["VAT"].Value = vatVal; RecalculateAmount(row.Index); }
+                UpdateTotal();
+            };
+            panelRight.Controls.Add(btnApplyVAT);
+
+            // -- Cot 3: Apply Calc_Method (x=340) --
+            int xCalc = 340;
+            panelRight.Controls.Add(new Label
+            {
+                Text = "Cach tinh:",
+                Location = new Point(xCalc, 4),
+                Size = new Size(65, 20),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+            });
+            var cboApplyCalc = new ComboBox
+            {
+                Location = new Point(xCalc, 26),
+                Size = new Size(72, 22),
+                Font = new Font("Segoe UI", 8),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cboApplyCalc.Items.AddRange(new object[] { "Theo KG", "Theo SL" });
+            cboApplyCalc.SelectedIndex = 0;
+            panelRight.Controls.Add(cboApplyCalc);
+            var btnApplyCalc = CreateButton("Ap dung", Color.FromArgb(255, 140, 0),
+                new Point(xCalc + 76, 26), 62, 22);
+            btnApplyCalc.Font = new Font("Segoe UI", 7, FontStyle.Bold);
+            btnApplyCalc.Click += (s, ev) =>
+            {
+                string calcVal = cboApplyCalc.SelectedItem?.ToString() ?? "Theo KG";
+                foreach (DataGridViewRow row in dgvDetails.Rows)
+                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
+                    { row.Cells["Calc_Method"].Value = calcVal; RecalculateAmount(row.Index); }
+                UpdateTotal();
+            };
+            panelRight.Controls.Add(btnApplyCalc);
+
+            panelDetail.Controls.Add(panelRight);
+            panelRight.BringToFront();
 
             dgvDetails = new DataGridView
             {
@@ -686,7 +768,7 @@ namespace MPR_Managerment.Forms
                 {
                     var supp = suppliers.Find(s => s.Supplier_ID == h.Supplier_ID);
                     dt.Rows.Add(h.PO_ID, h.PONo, supp?.Company_Name ?? supp?.Short_Name ?? "", h.Project_Name, h.MPR_No, h.WorkorderNo,
-                        h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "", h.Status, h.Total_Amount.ToString("N0"));
+                        h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "", h.Status, h.Total_Amount.ToString("N2", CultureInfo.InvariantCulture));
                 }
                 var dtFull = dt.Copy();
                 System.Data.DataTable dtCurrent = dtFull.Copy();
@@ -798,16 +880,16 @@ namespace MPR_Managerment.Forms
                                 ws.Cells[dRow, 1].Value = i + 1; ws.Cells[dRow, 2].Value = d.Item_Name ?? ""; ws.Cells[dRow, 3].Value = d.Material ?? "";
                                 ws.Cells[dRow, 4].Value = d.Asize; ws.Cells[dRow, 5].Value = d.Bsize; ws.Cells[dRow, 6].Value = d.Csize;
                                 ws.Cells[dRow, 7].Value = d.Qty_Per_Sheet; ws.Cells[dRow, 8].Value = d.UNIT ?? ""; ws.Cells[dRow, 9].Value = d.Weight_kg;
-                                ws.Cells[dRow, 10].Value = rp; ws.Cells[dRow, 10].Style.Numberformat.Format = "#,##0";
-                                ws.Cells[dRow, 11].Value = d.VAT; ws.Cells[dRow, 12].Value = amt; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0";
+                                ws.Cells[dRow, 10].Value = rp; ws.Cells[dRow, 10].Style.Numberformat.Format = "#,##0.##";
+                                ws.Cells[dRow, 11].Value = d.VAT; ws.Cells[dRow, 12].Value = amt; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##";
                                 if (i % 2 == 1) for (int c = 1; c <= 12; c++) { ws.Cells[dRow, c].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid; ws.Cells[dRow, c].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 248, 255)); }
                                 dRow++; totalRows++;
                             }
                             decimal vat = Math.Round(sub * 0.1m, 0);
-                            ws.Cells[dRow, 11].Value = "Sub-Total:"; ws.Cells[dRow, 11].Style.Font.Bold = true; ws.Cells[dRow, 12].Value = sub; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0"; ws.Cells[dRow, 12].Style.Font.Bold = true; dRow++;
-                            ws.Cells[dRow, 11].Value = "VAT (10%):"; ws.Cells[dRow, 12].Value = vat; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0"; dRow++;
+                            ws.Cells[dRow, 11].Value = "Sub-Total:"; ws.Cells[dRow, 11].Style.Font.Bold = true; ws.Cells[dRow, 12].Value = sub; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##"; ws.Cells[dRow, 12].Style.Font.Bold = true; dRow++;
+                            ws.Cells[dRow, 11].Value = "VAT (10%):"; ws.Cells[dRow, 12].Value = vat; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##"; dRow++;
                             ws.Cells[dRow, 10, dRow, 11].Merge = true; ws.Cells[dRow, 10].Value = "TOTAL (incl. VAT):"; ws.Cells[dRow, 10].Style.Font.Bold = true;
-                            ws.Cells[dRow, 12].Value = sub + vat; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0"; ws.Cells[dRow, 12].Style.Font.Bold = true;
+                            ws.Cells[dRow, 12].Value = sub + vat; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##"; ws.Cells[dRow, 12].Style.Font.Bold = true;
                             ws.Cells[ws.Dimension.Address].AutoFitColumns();
                         }
                         pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
@@ -905,11 +987,11 @@ namespace MPR_Managerment.Forms
             string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
             // Cột Đơn giá và Thành tiền — định dạng số có dấu phân cách, căn phải
-            if (colName == "Price" || colName == "Amount")
+            if (colName == "Price" || colName == "Amount" || colName == "SubAmount")
             {
                 if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal num))
                 {
-                    e.Value = num.ToString("N0");
+                    e.Value = num.ToString("N2", CultureInfo.InvariantCulture);
                     e.FormattingApplied = true;
                 }
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -1303,7 +1385,7 @@ namespace MPR_Managerment.Forms
                     // 3. CẬP NHẬT: Gán giá trị tổng sau thuế đã tính toán vào ô kết quả
                     // Chúng ta gán giá trị số trực tiếp và định dạng hiển thị cho chuyên nghiệp
                     ws.Cells[vatRow, 14].Value = totalAfterVAT;
-                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0"; // Định dạng dấu phân cách hàng nghìn
+                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.##"; // Định dạng dấu phân cách hàng nghìn
                     ws.Cells[vatRow, 14].Style.Font.Bold = true;
 
                     package.Save();
@@ -1469,9 +1551,10 @@ namespace MPR_Managerment.Forms
                 Width = 70,
                 FlatStyle = FlatStyle.Flat
             };
-            colVAT.Items.AddRange("10", "8");
+            colVAT.Items.AddRange("10", "8", "0");
             dgvDetails.Columns.Add(colVAT);
 
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "SubAmount", HeaderText = "TT trước thuế", ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Amount", HeaderText = "Thành tiền", ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No" });
@@ -1525,11 +1608,6 @@ namespace MPR_Managerment.Forms
             dgvDetails.Width = panelDetail.Width - 20;
             dgvDetails.Height = panelDetail.Height - 80;
 
-            if (lblTotal != null && lblSubTotal != null && panelDetail != null)
-            {
-                lblTotal.Left = panelDetail.Width - lblTotal.Width - 10;
-                lblSubTotal.Left = lblTotal.Left - lblSubTotal.Width - 10;
-            }
         }
 
         // Load danh sách file từ MPR_Link — tìm theo MPR No tại "Thông tin đơn đặt hàng"
@@ -1615,7 +1693,7 @@ namespace MPR_Managerment.Forms
                     Workorder = h.WorkorderNo,
                     Ngay_PO = h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
                     Trang_Thai = h.Status,
-                    Tong_Tien = h.Total_Amount.ToString("N0"),
+                    Tong_Tien = h.Total_Amount.ToString("N2", CultureInfo.InvariantCulture),
                     Revise = h.Revise,
                     Ngay_Tao = h.Created_Date.HasValue ? h.Created_Date.Value.ToString("dd/MM/yyyy") : ""
                 };
@@ -1723,16 +1801,16 @@ namespace MPR_Managerment.Forms
                 decimal.TryParse(row.Cells["Amount"].Value?.ToString(), out decimal amount);
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
-                decimal rowSubTotal = Math.Round(baseValue * price, 0);
-                decimal rowTotalAmount = Math.Round(rowSubTotal * (1 + vat / 100), 0);
+                decimal rowSubTotal = baseValue * price;
+                decimal rowTotalAmount = rowSubTotal * (1 + vat / 100);
                 subTotal += rowSubTotal; total += rowTotalAmount;
                 totalQty += qty;
                 totalKg += weight;
                 totalAmount += amount > 0 ? amount : rowTotalAmount;
             }
 
-            if (lblSubTotal != null) lblSubTotal.Text = $"Trước VAT: {subTotal:N0} VND";
-            if (lblTotal != null) lblTotal.Text = $"Sau VAT: {total:N0} VND";
+            if (lblSubTotal != null) lblSubTotal.Text = "Truoc VAT: " + subTotal.ToString("N2", CultureInfo.InvariantCulture) + " VND";
+            if (lblTotal != null) lblTotal.Text = "Sau VAT: " + total.ToString("N2", CultureInfo.InvariantCulture) + " VND";
 
             // ── Cập nhật dòng Total ở cuối dgvDetails ──
             // Xóa dòng total cũ nếu có
@@ -1822,7 +1900,9 @@ namespace MPR_Managerment.Forms
             decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
             string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
             decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
-            row.Cells["Amount"].Value = Math.Round(baseValue * price * (1 + vat / 100), 0);
+            decimal subAmt = baseValue * price;
+            if (dgvDetails.Columns.Contains("SubAmount")) row.Cells["SubAmount"].Value = subAmt;
+            row.Cells["Amount"].Value = subAmt * (1 + vat / 100);
             UpdateTotal();
         }
 
@@ -1832,13 +1912,20 @@ namespace MPR_Managerment.Forms
             string input = value.ToString().Trim();
             if (string.IsNullOrEmpty(input)) return 0;
 
+            // Dinh dang: "," la phan cach nghin, "." la thap phan (InvariantCulture)
+            // Vi du: "1,234.56" -> 1234.56
+            // Neu chi co "," (vi du "1,234") -> bo dau , di
             if (input.Contains(",") && !input.Contains("."))
             {
-                input = input.Replace(",", ".");
+                // Co the la: 1,234 (nghin) hoac 1,5 (thap phan kieu cu)
+                // Neu phan sau dau , co 3 chu so -> nghin separator
+                var parts = input.Split(',');
+                bool isThousand = parts.Length >= 2 && parts[parts.Length - 1].Length == 3;
+                input = isThousand ? input.Replace(",", "") : input.Replace(",", ".");
             }
-
             else if (input.Contains(",") && input.Contains("."))
             {
+                // "1,234.56" -> bo dau ,
                 input = input.Replace(",", "");
             }
 
@@ -1923,26 +2010,47 @@ namespace MPR_Managerment.Forms
             {
                 MessageBox.Show("Vui lòng nhập PO No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtPONo.Focus(); return;
             }
-            if (dgvDetails.Rows.Count == 0 && MessageBox.Show("Đơn hàng này chưa có chi tiết vật tư nào.\nBạn có chắc chắn muốn lưu chỉ với Header không?", "Cảnh báo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) return;
+            // Bat buoc chon Nha Cung Cap
+            int _suppId = Convert.ToInt32(cboSupplier.SelectedValue ?? 0);
+            if (_suppId <= 0 || string.IsNullOrWhiteSpace(cboSupplier.Text))
+            {
+                MessageBox.Show("Vui long chon Nha Cung Cap truoc khi luu PO!",
+                    "Thieu thong tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                cboSupplier.Focus(); return;
+            }
+            if (dgvDetails.Rows.Count == 0 && MessageBox.Show("Don hang nay chua co chi tiet vat tu nao.\nBan co chac chan muon luu chi voi Header khong?", "Canh bao", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) return;
             try
             {
                 string basePONo = txtPONo.Text.Trim();
                 int revIdx = basePONo.LastIndexOf("_Rev"); if (revIdx > 0) basePONo = basePONo.Substring(0, revIdx);
                 string finalPONo = basePONo;
-                bool isBaseDuplicate = _poList.Exists(p => p.PONo == basePONo && p.PO_ID != _selectedPO_ID);
-                if (isBaseDuplicate || nudRevise.Value > 0)
+
+                if (_selectedPO_ID == 0)
                 {
-                    if (nudRevise.Value == 0)
+                    // TAO MOI: kiem tra trung so PO
+                    bool isBaseDuplicate = _poList.Exists(p => p.PONo == basePONo && p.PO_ID != _selectedPO_ID);
+                    if (isBaseDuplicate || nudRevise.Value > 0)
                     {
-                        MessageBox.Show("Số PO này đã tồn tại!\nVui lòng tăng số Revise để tạo bản sửa đổi.", "Trùng lặp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        nudRevise.Focus(); return;
+                        if (nudRevise.Value == 0)
+                        {
+                            MessageBox.Show("So PO nay da ton tai!\nVui long tang so Revise de tao ban sua doi.",
+                                "Trung lap", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            nudRevise.Focus(); return;
+                        }
+                        finalPONo = $"{basePONo}_Rev{nudRevise.Value}";
+                        if (_poList.Exists(p => p.PONo == finalPONo && p.PO_ID != _selectedPO_ID))
+                        {
+                            MessageBox.Show($"Ban '{finalPONo}' cung da ton tai!\nVui long tang Revise len cao hon.",
+                                "Trung lap", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            nudRevise.Focus(); return;
+                        }
                     }
-                    finalPONo = $"{basePONo}_Rev{nudRevise.Value}";
-                    if (_poList.Exists(p => p.PONo == finalPONo && p.PO_ID != _selectedPO_ID))
-                    {
-                        MessageBox.Show($"Bản '{finalPONo}' cũng đã tồn tại!\nVui lòng tăng Revise lên mức cao hơn.", "Trùng lặp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        nudRevise.Focus(); return;
-                    }
+                }
+                else
+                {
+                    // UPDATE PO CU: giu nguyen so PO, khong check trung
+                    finalPONo = _poList.Find(p => p.PO_ID == _selectedPO_ID)?.PONo ?? basePONo;
+                    txtPONo.Text = finalPONo;
                 }
                 var h = new POHead
                 {
@@ -2644,7 +2752,7 @@ namespace MPR_Managerment.Forms
                 popup.Controls.Add(new Label { Text = $"📦  {poNo}", Font = new Font("Segoe UI", 12, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(600, 28) });
                 popup.Controls.Add(new Label
                 {
-                    Text = $"MPR No: {po.MPR_No ?? "—"}    |    Dự án: {po.Project_Name ?? "—"}    |    NCC: {suppName}    |    Ngày PO: {(po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : "—")}    |    Tổng: {po.Total_Amount:N0} VNĐ",
+                    Text = $"MPR No: {po.MPR_No ?? "—"}    |    Dự án: {po.Project_Name ?? "—"}    |    NCC: {suppName}    |    Ngày PO: {(po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : "—")}    |    Tổng: " + po.Total_Amount.ToString("N2", CultureInfo.InvariantCulture) + " VNĐ",
                     Font = new Font("Segoe UI", 9),
                     ForeColor = Color.FromArgb(80, 80, 80),
                     Location = new Point(10, 38),
@@ -3219,6 +3327,10 @@ namespace MPR_Managerment.Forms
             txtApproved.Text = ""; txtNotes.Text = "";
             nudRevise.Value = 0; dtpPODate.Value = DateTime.Today; cboStatus.SelectedIndex = 0;
             cboPaymentTerm.SelectedIndex = 0;
+            // Reset Nha CC ve rong
+            _isSearching = true; cboSupplier.Text = ""; cboSupplier.SelectedIndex = -1;
+            BindSupplierCombo(_supplierTable); _isSearching = false;
+            cboSupplier.BackColor = Color.White;
         }
 
         // =========================================================================
