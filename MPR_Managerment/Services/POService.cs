@@ -302,7 +302,7 @@ namespace MPR_Managerment.Services
                 Asize = r["Asize"]?.ToString() ?? "",
                 Bsize = r["Bsize"]?.ToString() ?? "",
                 Csize = r["Csize"]?.ToString() ?? "",
-                Qty_Per_Sheet = r["Qty_Per_Sheet"] != DBNull.Value ? Convert.ToInt32(r["Qty_Per_Sheet"]) : 0,
+                Qty_Per_Sheet = r["Qty_Per_Sheet"] != DBNull.Value ? Convert.ToDecimal(r["Qty_Per_Sheet"]) : 0,
                 UNIT = r["UNIT"]?.ToString() ?? "",
                 Weight_kg = r["Weight_kg"] != DBNull.Value ? Convert.ToDecimal(r["Weight_kg"]) : 0,
                 MPSNo = r["MPSNo"]?.ToString() ?? "",

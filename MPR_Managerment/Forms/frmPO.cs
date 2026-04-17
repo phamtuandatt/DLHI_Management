@@ -1551,6 +1551,8 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
                         ws.Cells[row, 16].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
 
+                        ws.Cells[row, 7].Style.Numberformat.Format = "#,##0.00";
+
                         ws.Cells[row, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
                         ws.Cells[row, 11].Style.Numberformat.Format = "dd/MM/yyyy";
 
