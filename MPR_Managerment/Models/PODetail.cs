@@ -12,7 +12,7 @@ namespace MPR_Managerment.Models
         public string Asize { get; set; }
         public string Bsize { get; set; }
         public string Csize { get; set; }
-        public int Qty_Per_Sheet { get; set; }
+        public decimal Qty_Per_Sheet { get; set; }
         public string UNIT { get; set; } = "";
         public decimal Weight_kg { get; set; }
         public string MPSNo { get; set; } = "";

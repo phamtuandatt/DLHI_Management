@@ -2559,7 +2559,7 @@ namespace MPR_Managerment.Forms
                     Asize = row.Cells["Asize"].Value?.ToString() ?? "",
                     Bsize = row.Cells["Bsize"].Value?.ToString() ?? "",
                     Csize = row.Cells["Csize"].Value?.ToString() ?? "",
-                    Qty_Per_Sheet = (int)q,
+                    Qty_Per_Sheet = q,
                     UNIT = row.Cells["UNIT"].Value?.ToString() ?? "",
                     Weight_kg = wk,
                     Price = dbPrice,
