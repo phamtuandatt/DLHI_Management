@@ -1524,7 +1524,8 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 10].Value = d.MPSNo ?? "";
                         ws.Cells[row, 11].Value = po.Expected_Delivery;
                         ws.Cells[row, 12].Value = "Kho DLHI";
-                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
+                        //ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
+                        ws.Cells[row, 13].Value = realPrice;
                         ws.Cells[row, 14].Value = d.Amount;
                         //ws.Cells[row, 16].Value = rem;
 
