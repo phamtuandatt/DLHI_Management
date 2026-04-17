@@ -778,55 +778,177 @@ namespace MPR_Managerment.Forms
                 System.Data.DataTable dtCurrent = dtFull.Copy();
                 string selectedPONo = null;
 
-                var popup = new Form { Text = "🔍 Tìm theo NCC", Size = new Size(1100, 640), StartPosition = FormStartPosition.CenterParent, BackColor = Color.FromArgb(245, 245, 245), MinimumSize = new Size(800, 450) };
+                var popup = new Form { Text = "🔍 Tìm theo NCC", Size = new Size(1100, 680), StartPosition = FormStartPosition.CenterParent, BackColor = Color.FromArgb(245, 245, 245), MinimumSize = new Size(800, 500) };
                 popup.Controls.Add(new Label { Text = "🔍  TÌM KIẾM PO THEO NHÀ CUNG CẤP", Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Color.FromArgb(102, 51, 153), Location = new Point(10, 8), Size = new Size(700, 26) });
 
-                var pF = new Panel { Location = new Point(10, 38), Size = new Size(popup.ClientSize.Width - 20, 46), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+                // ── Filter panel — 1 hàng: NCC | Dự án (dropdown multi-select) | T.Thái | Tìm | Xóa ──
+                const int PF_H = 46;
+                var pF = new Panel { Location = new Point(10, 38), Size = new Size(popup.ClientSize.Width - 20, PF_H), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
                 popup.Controls.Add(pF);
+                popup.Resize += (s, ev) => pF.Width = popup.ClientSize.Width - 20;
+
+                // NCC
                 pF.Controls.Add(new Label { Text = "NCC:", Location = new Point(8, 12), Size = new Size(35, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
                 var txtNCC = new TextBox { Location = new Point(43, 8), Size = new Size(200, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tên nhà cung cấp..." };
                 pF.Controls.Add(txtNCC);
-                pF.Controls.Add(new Label { Text = "Dự án:", Location = new Point(258, 12), Size = new Size(45, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-                var txtDA = new TextBox { Location = new Point(303, 8), Size = new Size(160, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tên dự án..." };
-                pF.Controls.Add(txtDA);
-                pF.Controls.Add(new Label { Text = "T.Thái:", Location = new Point(475, 12), Size = new Size(48, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-                var cboTT = new ComboBox { Location = new Point(523, 8), Size = new Size(115, 26), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
+
+                // Dự án — button giả dropdown
+                pF.Controls.Add(new Label { Text = "Dự án:", Location = new Point(255, 12), Size = new Size(45, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+                var btnDropDA = new Button
+                {
+                    Location = new Point(302, 8),
+                    Size = new Size(220, 26),
+                    Text = "Tất cả dự án  ▼",
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.White,
+                    ForeColor = Color.FromArgb(50, 50, 50),
+                    Font = new Font("Segoe UI", 9),
+                    Cursor = Cursors.Hand
+                };
+                btnDropDA.FlatAppearance.BorderColor = Color.FromArgb(180, 180, 180);
+                btnDropDA.FlatAppearance.BorderSize = 1;
+                pF.Controls.Add(btnDropDA);
+
+                // T.Thái
+                pF.Controls.Add(new Label { Text = "T.Thái:", Location = new Point(534, 12), Size = new Size(48, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+                var cboTT = new ComboBox { Location = new Point(584, 8), Size = new Size(125, 26), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
                 cboTT.Items.AddRange(new[] { "Tất cả", "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
                 cboTT.SelectedIndex = 0;
                 pF.Controls.Add(cboTT);
-                var btnF = new Button { Text = "🔍 Tìm", Location = new Point(648, 8), Size = new Size(80, 28), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+
+                var btnF = new Button { Text = "🔍 Tìm", Location = new Point(720, 8), Size = new Size(80, 28), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnF.FlatAppearance.BorderSize = 0; pF.Controls.Add(btnF);
-                var btnClear = new Button { Text = "✖ Xóa", Location = new Point(736, 8), Size = new Size(75, 28), BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+                var btnClear = new Button { Text = "✖ Xóa lọc", Location = new Point(808, 8), Size = new Size(85, 28), BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnClear.FlatAppearance.BorderSize = 0; pF.Controls.Add(btnClear);
 
-                var lblCount = new Label { Text = "", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 90), Size = new Size(500, 20), Anchor = AnchorStyles.Top | AnchorStyles.Left };
+                // ── Danh sách dự án unique ──
+                var projectList = dtFull.AsEnumerable()
+                    .Select(r => r["Dự án"]?.ToString() ?? "")
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Distinct()
+                    .OrderBy(v => v)
+                    .ToList();
+
+                // ── Panel nổi chứa CheckedListBox — hiện/ẩn khi click btnDropDA ──
+                int clbRowH = Math.Min(projectList.Count, 10) * 18 + 8;
+                var panelDropDA = new Panel
+                {
+                    Size = new Size(btnDropDA.Width + 60, clbRowH + 2),
+                    BackColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Visible = false
+                };
+                // Đặt vị trí ngay dưới btnDropDA — tính lại khi show
+                popup.Controls.Add(panelDropDA);
+                panelDropDA.BringToFront();
+
+                var clbDA = new CheckedListBox
+                {
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Segoe UI", 9),
+                    CheckOnClick = true,
+                    BorderStyle = BorderStyle.None,
+                    BackColor = Color.White
+                };
+                foreach (var p in projectList) clbDA.Items.Add(p, false);
+                panelDropDA.Controls.Add(clbDA);
+
+                // Hàm cập nhật text trên button dropdown
+                Action updateDropBtn = () =>
+                {
+                    var sel = clbDA.CheckedItems.Cast<string>().ToList();
+                    btnDropDA.Text = sel.Count == 0
+                        ? "Tất cả dự án  ▼"
+                        : (sel.Count == 1 ? sel[0] + "  ▼" : $"{sel.Count} dự án đã chọn  ▼");
+                    btnDropDA.ForeColor = sel.Count == 0
+                        ? Color.FromArgb(50, 50, 50)
+                        : Color.FromArgb(102, 51, 153);
+                    btnDropDA.Font = new Font("Segoe UI", 9, sel.Count > 0 ? FontStyle.Bold : FontStyle.Regular);
+                };
+
+                // Mở/đóng dropdown
+                btnDropDA.Click += (s, ev) =>
+                {
+                    if (panelDropDA.Visible) { panelDropDA.Visible = false; return; }
+                    // Tính vị trí tuyệt đối của btnDropDA trong popup
+                    var btnPos = popup.PointToClient(btnDropDA.Parent.PointToScreen(btnDropDA.Location));
+                    panelDropDA.Location = new Point(btnPos.X, btnPos.Y + btnDropDA.Height + 2);
+                    panelDropDA.Width = Math.Max(btnDropDA.Width + 60, 260);
+                    panelDropDA.BringToFront();
+                    panelDropDA.Visible = true;
+                    clbDA.Focus();
+                };
+
+                // Đóng dropdown khi click ra ngoài
+                popup.MouseDown += (s, ev) =>
+                {
+                    if (panelDropDA.Visible && !panelDropDA.Bounds.Contains(ev.Location))
+                        panelDropDA.Visible = false;
+                };
+
+                var lblCount = new Label { Text = "", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 38 + PF_H + 4), Size = new Size(700, 20), Anchor = AnchorStyles.Top | AnchorStyles.Left };
                 popup.Controls.Add(lblCount);
 
-                var dgv = new DataGridView { Location = new Point(10, 114), Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 165), ReadOnly = true, AllowUserToAddRows = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle, RowHeadersVisible = false, Font = new Font("Segoe UI", 9), AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+                int DGV_TOP = 38 + PF_H + 28;
+                var dgv = new DataGridView { Location = new Point(10, DGV_TOP), Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - DGV_TOP - 50), ReadOnly = true, AllowUserToAddRows = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle, RowHeadersVisible = false, Font = new Font("Segoe UI", 9), AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
                 dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153); dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White; dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold); dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
                 dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
                 dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
                 popup.Controls.Add(dgv);
 
+                popup.Resize += (s, ev) =>
+                {
+                    dgv.Width = popup.ClientSize.Width - 20;
+                    dgv.Height = popup.ClientSize.Height - DGV_TOP - 50;
+                    lblCount.Width = popup.ClientSize.Width - 20;
+                };
+
                 Action applyFilter = () =>
                 {
-                    string kNCC = txtNCC.Text.Trim().ToLower(), kDA = txtDA.Text.Trim().ToLower(), kTT = cboTT.SelectedItem?.ToString() ?? "Tất cả";
+                    string kNCC = txtNCC.Text.Trim().ToLower();
+                    string kTT = cboTT.SelectedItem?.ToString() ?? "Tất cả";
+                    var checkedProjects = clbDA.CheckedItems.Cast<string>().ToList();
+
                     var rows = dtFull.AsEnumerable().Where(r =>
                     {
                         if (!string.IsNullOrEmpty(kNCC) && !r["NCC"].ToString().ToLower().Contains(kNCC)) return false;
-                        if (!string.IsNullOrEmpty(kDA) && !r["Dự án"].ToString().ToLower().Contains(kDA)) return false;
                         if (kTT != "Tất cả" && r["Trạng thái"].ToString() != kTT) return false;
+                        // Lọc dự án: nếu có chọn thì chỉ lấy dự án được tick
+                        if (checkedProjects.Count > 0 && !checkedProjects.Contains(r["Dự án"].ToString())) return false;
                         return true;
                     });
                     dtCurrent = rows.Any() ? rows.CopyToDataTable() : dtFull.Clone();
                     dgv.DataSource = dtCurrent;
                     if (dgv.Columns.Contains("PO_ID")) dgv.Columns["PO_ID"].Visible = false;
-                    lblCount.Text = $"Hiển thị: {dtCurrent.Rows.Count} / {dtFull.Rows.Count} PO";
+
+                    int total = dtFull.Rows.Count, shown = dtCurrent.Rows.Count;
+                    string daInfo = checkedProjects.Count == 0 ? "tất cả dự án" : $"{checkedProjects.Count} dự án";
+                    lblCount.Text = $"Hiển thị: {shown} / {total} PO  ({daInfo})";
+                };
+                // Cập nhật button text + lọc khi check/uncheck dự án
+                // (đặt sau khai báo applyFilter để tránh CS0841)
+                clbDA.ItemCheck += (s, ev) =>
+                {
+                    // ItemCheck fires before state changes — dùng BeginInvoke để đọc sau khi state đã update
+                    clbDA.BeginInvoke(new Action(() =>
+                    {
+                        updateDropBtn();
+                        applyFilter();
+                    }));
                 };
                 applyFilter();
                 btnF.Click += (s, ev) => applyFilter();
-                btnClear.Click += (s, ev) => { txtNCC.Text = ""; txtDA.Text = ""; cboTT.SelectedIndex = 0; applyFilter(); };
+                btnClear.Click += (s, ev) =>
+                {
+                    txtNCC.Text = "";
+                    cboTT.SelectedIndex = 0;
+                    for (int i = 0; i < clbDA.Items.Count; i++) clbDA.SetItemChecked(i, false);
+                    updateDropBtn();
+                    panelDropDA.Visible = false;
+                    applyFilter();
+                };
                 popup.KeyPreview = true;
                 popup.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { applyFilter(); ev.SuppressKeyPress = true; } };
                 cboTT.SelectedIndexChanged += (s, ev) => applyFilter();
@@ -849,55 +971,128 @@ namespace MPR_Managerment.Forms
                     {
                         OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
                         using var pkg = new OfficeOpenXml.ExcelPackage();
+
+                        // ── 1 SHEET DUY NHẤT chứa toàn bộ detail tất cả PO ──
+                        var ws = pkg.Workbook.Worksheets.Add("Chi tiết PO theo NCC");
                         int totalRows = 0;
+                        const int TOTAL_COLS = 12;
+
+                        // ── Dòng 1: Tiêu đề ──
+                        string nccTitle = txtNCC.Text.Trim();
+                        if (string.IsNullOrEmpty(nccTitle)) nccTitle = "Tất cả NCC";
+                        ws.Cells[1, 1].Value = $"CHI TIẾT ĐẶT HÀNG THEO NHÀ CUNG CẤP — {nccTitle}";
+                        ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
+                        ws.Cells[1, 1].Style.Font.Bold = true; ws.Cells[1, 1].Style.Font.Size = 13;
+                        ws.Cells[1, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                        ws.Cells[1, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
+                        ws.Cells[1, 1].Style.Font.Color.SetColor(Color.White);
+                        ws.Cells[1, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+
+                        // ── Dòng 2: Thông tin xuất ──
+                        ws.Cells[2, 1].Value = $"Tổng PO: {dtCurrent.Rows.Count}   |   Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                        ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
+                        ws.Cells[2, 1].Style.Font.Italic = true; ws.Cells[2, 1].Style.Font.Size = 9;
+                        ws.Cells[2, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                        ws.Cells[2, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 230, 255));
+
+                        // ── Dòng 3: Header cột ──
+                        string[] hdrs = { "STT", "Tên hàng", "Vật liệu", "A(mm)", "B(mm)", "C(mm)", "SL", "ĐVT", "KG", "Đơn giá", "VAT(%)", "Thành tiền" };
+                        for (int c = 0; c < hdrs.Length; c++)
+                        {
+                            ws.Cells[3, c + 1].Value = hdrs[c];
+                            ws.Cells[3, c + 1].Style.Font.Bold = true;
+                            ws.Cells[3, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            ws.Cells[3, c + 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212));
+                            ws.Cells[3, c + 1].Style.Font.Color.SetColor(Color.White);
+                            ws.Cells[3, c + 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            ws.Cells[3, c + 1].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                        }
+                        ws.Row(3).Height = 22;
+                        ws.View.FreezePanes(4, 1);
+
+                        int curRow = 4;
+
                         foreach (System.Data.DataRow dr in dtCurrent.Rows)
                         {
                             int poId = Convert.ToInt32(dr["PO_ID"]);
                             string poNo = dr["PO No"]?.ToString() ?? "";
-                            string sheetName = System.Text.RegularExpressions.Regex.Replace(poNo, @"[\\\/\?\*\[\]:]", "_");
-                            if (sheetName.Length > 31) sheetName = sheetName.Substring(0, 31);
-                            var ws = pkg.Workbook.Worksheets.Add(sheetName);
 
-                            ws.Cells[1, 1].Value = $"CHI TIẾT ĐƠN HÀNG — {poNo}";
-                            ws.Cells[1, 1, 1, 11].Merge = true;
-                            ws.Cells[1, 1].Style.Font.Bold = true; ws.Cells[1, 1].Style.Font.Size = 13;
-                            ws.Cells[1, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                            ws.Cells[1, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
-                            ws.Cells[1, 1].Style.Font.Color.SetColor(Color.White);
-                            ws.Cells[1, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            // ── Dòng nhóm PO (màu tím) — Center Across Selection (không Merge) ──
+                            ws.Cells[curRow, 1].Value =
+                                $"  🛒  PO: {poNo}   |   NCC: {dr["NCC"]}   |   Dự án: {dr["Dự án"]}   |   MPR: {dr["MPR No"]}   |   Ngày PO: {dr["Ngày PO"]}   |   Trạng thái: {dr["Trạng thái"]}";
+                            var poHdrRange = ws.Cells[curRow, 1, curRow, TOTAL_COLS];
+                            poHdrRange.Style.Font.Bold = true;
+                            poHdrRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            poHdrRange.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
+                            poHdrRange.Style.Font.Color.SetColor(Color.White);
+                            poHdrRange.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.CenterContinuous;
+                            ws.Row(curRow).Height = 18;
+                            curRow++;
 
-                            void WI(int r, string lbl, string val) { ws.Cells[r, 1].Value = lbl; ws.Cells[r, 1].Style.Font.Bold = true; ws.Cells[r, 2, r, 5].Merge = true; ws.Cells[r, 2].Value = val; }
-                            WI(2, "PO No:", dr["PO No"]?.ToString() ?? ""); WI(3, "NCC:", dr["NCC"]?.ToString() ?? "");
-                            WI(4, "Dự án:", dr["Dự án"]?.ToString() ?? ""); WI(5, "MPR No:", dr["MPR No"]?.ToString() ?? "");
-                            WI(6, "Workorder:", dr["Workorder"]?.ToString() ?? ""); WI(7, "Ngày PO:", dr["Ngày PO"]?.ToString() ?? "");
-                            WI(8, "Trạng thái:", dr["Trạng thái"]?.ToString() ?? "");
-
-                            string[] hdrs = { "STT", "Tên hàng", "Vật liệu", "A(mm)", "B(mm)", "C(mm)", "SL", "ĐVT", "KG", "Đơn giá", "VAT(%)", "Thành tiền" };
-                            for (int c = 0; c < hdrs.Length; c++) { ws.Cells[10, c + 1].Value = hdrs[c]; ws.Cells[10, c + 1].Style.Font.Bold = true; ws.Cells[10, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid; ws.Cells[10, c + 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212)); ws.Cells[10, c + 1].Style.Font.Color.SetColor(Color.White); }
-
-                            var dets = _service.GetDetails(poId); int dRow = 11; decimal sub = 0;
+                            // ── Các dòng vật tư của PO này ──
+                            var dets = _service.GetDetails(poId);
+                            decimal sub = 0;
                             for (int i = 0; i < dets.Count; i++)
                             {
-                                var d = dets[i]; decimal rp = d.Price, bv = d.Qty_Per_Sheet;
-                                if ((d.Remarks ?? "").Contains("[CALC:KG]") && d.Weight_kg > 0 && d.Qty_Per_Sheet > 0) { rp = Math.Round((d.Price * d.Qty_Per_Sheet) / d.Weight_kg, 0); bv = d.Weight_kg; }
-                                decimal amt = Math.Round(bv * rp, 0); sub += amt;
-                                ws.Cells[dRow, 1].Value = i + 1; ws.Cells[dRow, 2].Value = d.Item_Name ?? ""; ws.Cells[dRow, 3].Value = d.Material ?? "";
-                                ws.Cells[dRow, 4].Value = d.Asize; ws.Cells[dRow, 5].Value = d.Bsize; ws.Cells[dRow, 6].Value = d.Csize;
-                                ws.Cells[dRow, 7].Value = d.Qty_Per_Sheet; ws.Cells[dRow, 8].Value = d.UNIT ?? ""; ws.Cells[dRow, 9].Value = d.Weight_kg;
-                                ws.Cells[dRow, 10].Value = rp; ws.Cells[dRow, 10].Style.Numberformat.Format = "#,##0.##";
-                                ws.Cells[dRow, 11].Value = d.VAT; ws.Cells[dRow, 12].Value = amt; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##";
-                                if (i % 2 == 1) for (int c = 1; c <= 12; c++) { ws.Cells[dRow, c].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid; ws.Cells[dRow, c].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 248, 255)); }
-                                dRow++; totalRows++;
+                                var d = dets[i];
+                                decimal rp = d.Price, bv = d.Qty_Per_Sheet;
+                                if ((d.Remarks ?? "").Contains("[CALC:KG]") && d.Weight_kg > 0 && d.Qty_Per_Sheet > 0)
+                                { rp = Math.Round((d.Price * d.Qty_Per_Sheet) / d.Weight_kg, 2); bv = d.Weight_kg; }
+                                decimal amt = Math.Round(bv * rp, 2); sub += amt;
+
+                                ws.Cells[curRow, 1].Value = i + 1;
+                                ws.Cells[curRow, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                ws.Cells[curRow, 2].Value = d.Item_Name ?? "";
+                                ws.Cells[curRow, 3].Value = d.Material ?? "";
+                                // A/B/C (mm) — tối đa 2 chữ số thập phân, bỏ số 0 thừa
+                                ws.Cells[curRow, 4].Value = d.Asize; ws.Cells[curRow, 4].Style.Numberformat.Format = "#,##0.##";
+                                ws.Cells[curRow, 5].Value = d.Bsize; ws.Cells[curRow, 5].Style.Numberformat.Format = "#,##0.##";
+                                ws.Cells[curRow, 6].Value = d.Csize; ws.Cells[curRow, 6].Style.Numberformat.Format = "#,##0.##";
+                                // SL — số nguyên
+                                ws.Cells[curRow, 7].Value = d.Qty_Per_Sheet; ws.Cells[curRow, 7].Style.Numberformat.Format = "#,##0";
+                                ws.Cells[curRow, 7].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                ws.Cells[curRow, 8].Value = d.UNIT ?? "";
+                                ws.Cells[curRow, 8].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                // KG — luôn hiển thị 2 chữ số thập phân
+                                ws.Cells[curRow, 9].Value = d.Weight_kg; ws.Cells[curRow, 9].Style.Numberformat.Format = "#,##0.00";
+                                ws.Cells[curRow, 9].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                // Đơn giá — luôn hiển thị 2 chữ số thập phân
+                                ws.Cells[curRow, 10].Value = rp; ws.Cells[curRow, 10].Style.Numberformat.Format = "#,##0.00";
+                                ws.Cells[curRow, 10].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                // VAT (%) — số nguyên
+                                ws.Cells[curRow, 11].Value = d.VAT; ws.Cells[curRow, 11].Style.Numberformat.Format = "#,##0";
+                                ws.Cells[curRow, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                // Thành tiền — luôn hiển thị 2 chữ số thập phân
+                                ws.Cells[curRow, 12].Value = amt; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00";
+                                ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+
+                                if (i % 2 == 1)
+                                    for (int c = 1; c <= TOTAL_COLS; c++)
+                                    { ws.Cells[curRow, c].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid; ws.Cells[curRow, c].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 248, 255)); }
+
+                                ws.Cells[curRow, 1, curRow, TOTAL_COLS].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Hair);
+                                curRow++; totalRows++;
                             }
-                            decimal vat = Math.Round(sub * 0.1m, 0);
-                            ws.Cells[dRow, 11].Value = "Sub-Total:"; ws.Cells[dRow, 11].Style.Font.Bold = true; ws.Cells[dRow, 12].Value = sub; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##"; ws.Cells[dRow, 12].Style.Font.Bold = true; dRow++;
-                            ws.Cells[dRow, 11].Value = "VAT (10%):"; ws.Cells[dRow, 12].Value = vat; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##"; dRow++;
-                            ws.Cells[dRow, 10, dRow, 11].Merge = true; ws.Cells[dRow, 10].Value = "TOTAL (incl. VAT):"; ws.Cells[dRow, 10].Style.Font.Bold = true;
-                            ws.Cells[dRow, 12].Value = sub + vat; ws.Cells[dRow, 12].Style.Numberformat.Format = "#,##0.##"; ws.Cells[dRow, 12].Style.Font.Bold = true;
-                            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+
+                            // ── Sub-Total / VAT / Total của PO này ──
+                            decimal vat = Math.Round(sub * 0.1m, 2);
+                            ws.Cells[curRow, 11].Value = "Sub-Total:"; ws.Cells[curRow, 11].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00"; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
+                            ws.Cells[curRow, 11].Value = "VAT (10%):";
+                            ws.Cells[curRow, 12].Value = vat; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00";
+                            ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
+                            ws.Cells[curRow, 10, curRow, 11].Merge = true; ws.Cells[curRow, 10].Value = "TOTAL (incl. VAT):"; ws.Cells[curRow, 10].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Value = sub + vat; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00"; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                            curRow += 2; // dòng trống giữa các PO
                         }
+
+                        ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                        ws.Column(2).Width = Math.Min(ws.Column(2).Width, 45);
+
                         pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
-                        MessageBox.Show($"✅ Đã xuất {dtCurrent.Rows.Count} PO với {totalRows} dòng chi tiết!\nMỗi PO = 1 sheet riêng.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show($"✅ Đã xuất {dtCurrent.Rows.Count} PO với {totalRows} dòng chi tiết!\nTất cả gộp vào 1 sheet duy nhất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex2) { MessageBox.Show("Lỗi xuất Excel: " + ex2.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                 };
