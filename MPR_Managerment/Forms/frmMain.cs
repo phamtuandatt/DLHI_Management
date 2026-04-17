@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using MPR_Managerment.Forms.RIRGUI;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 
@@ -153,6 +154,10 @@ namespace MPR_Managerment.Forms
             {
                 AddMenuBtn("📦  Kiểm tra (RIR)", Color.FromArgb(30, 30, 45), y); y += 42;
             }
+            if (AppSession.CanView("RIR for QC"))
+            {
+                AddMenuBtn("📦  Material Inspector Request", Color.FromArgb(30, 30, 45), y); y += 42;
+            }
             if (AppSession.CanView("WAREHOUSE"))
             {
                 AddMenuBtn("🏭  Kho vật tư", Color.FromArgb(30, 30, 45), y); y += 42;
@@ -227,6 +232,7 @@ namespace MPR_Managerment.Forms
             else if (tag.Contains("MPR")) OpenForm(new frmMPR());
             else if (tag.Contains("PO")) OpenForm(new frmPO());
             else if (tag.Contains("RIR")) OpenForm(new frmRIR());
+            else if (tag.Contains("Material Inspector Request")) OpenForm(new frmRIRForQC());
             else if (tag.Contains("Thanh toán Debit")) OpenForm(new frmPayment());
             //else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouse());
             else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouses_v2());

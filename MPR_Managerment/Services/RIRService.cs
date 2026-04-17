@@ -308,6 +308,41 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public async Task<bool> UpdateDetailForQC(RIRDetail d)
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand("sp_UpdateRIRDetail_For_QC", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    cmd.Parameters.AddWithValue("@PO_Detail_ID", d.PO_Detail_ID);
+                    cmd.Parameters.AddWithValue("@Qty_Per_Sheet", d.Qty_Per_Sheet);
+                    cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Qty_Required", d.Qty_Required);
+                    cmd.Parameters.AddWithValue("@Qty_Received", d.Qty_Received);
+                    cmd.Parameters.AddWithValue("@Inspect_Result", d.Inspect_Result ?? "Accept");
+                    cmd.Parameters.AddWithValue("@ID_Code", d.ID_Code ?? "");
+                    cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
+
+                    try
+                    {
+                        await conn.OpenAsync();
+                        int result = await cmd.ExecuteNonQueryAsync();
+
+                        // Vì Procedure thực hiện cả Insert và Update nên result thường > 1
+                        return result > 0;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log lỗi hoặc quăng ngoại lệ ra tầng UI
+                        throw new Exception("Lỗi thực thi RIR & Update Stock: " + ex.Message);
+                    }
+                }
+            }
+        }
+
         // ===== DELETE DETAIL =====
         public void DeleteDetail(int detailId)
         {

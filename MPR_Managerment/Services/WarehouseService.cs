@@ -9,6 +9,30 @@ namespace MPR_Managerment.Services
 {
     public class WarehouseService
     {
+        public async Task<DataTable> GetRIROfProject(string keyword)
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(@"
+                    SELECT RIR_ID, RIR_No
+                    FROM RIR_head
+                    WHERE RIR_No       LIKE @kw
+                       OR Project_Name LIKE @kw
+                       OR WorkorderNo  LIKE @kw
+                       OR PONo         LIKE @kw
+                    ORDER BY Created_Date DESC", conn);
+                cmd.Parameters.AddWithValue("@kw", $"%{keyword}%");
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         public async Task<bool> SaveExportList(DataTable dtSelected, string exportNo, string user)
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())
