@@ -95,8 +95,8 @@ namespace MPR_Managerment.Forms
             //    FlatStyle = FlatStyle.Flat,
             //    Font = new Font("Segoe UI", 9, FontStyle.Bold),
             //    Cursor = Cursors.Hand,
-            //    //Location = new Point(btnDeleteRow.Location.X + btnDeleteRow.Width + 10, btnDeleteRow.Location.Y) // Đặt bên cạnh nút "Thêm vào phiếu"
-            //    Location = new Point(150, 500)
+            //    Location = new Point(btnDeleteRow.Location.X + btnDeleteRow.Width + 10, btnDeleteRow.Location.Y) // Đặt bên cạnh nút "Thêm vào phiếu"
+            //    //Location = new Point(150, 500)
             //};
             //btnPaste.BringToFront();
             //btnPaste.Click += (s, e) => PasteToEditableCells();
@@ -308,7 +308,7 @@ namespace MPR_Managerment.Forms
             {
                 Text = " 📋 Dán từ Excel",
                 Size = new Size(130, 35),
-                Location = new Point(btnDeleteRow.Location.X - btnDeleteRow.Width + 20, btnDeleteRow.Location.Y), // Đặt bên cạnh nút "Thêm vào phiếu"
+                Location = new Point(btnDeleteRow.Location.X - btnDeleteRow.Width + 35, btnDeleteRow.Location.Y), // Đặt bên cạnh nút "Thêm vào phiếu"
                 BackColor = Color.FromArgb(46, 204, 113), // Màu xanh lá nhẹ (Emerald)
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -317,7 +317,7 @@ namespace MPR_Managerment.Forms
                 //Location = new Point(gbDetails.Width - 500, 20),
             };
             btnPaste.Click += (s, e) => PasteToEditableCells();
-            btnPaste.Visible = false;
+            //btnPaste.Visible = false;
 
             dgvImportQueue = new DataGridView()
             {
@@ -2056,19 +2056,10 @@ namespace MPR_Managerment.Forms
 
                     for (int j = 0; j < cells.Length; j++)
                     {
-                        // VÒNG LẶP TÌM CỘT ĐƯỢC PHÉP NHẬP (Skip ReadOnly/Hidden)
-                        while (currentGridCol < dgvImportQueue.Columns.Count &&
-                              (dgvImportQueue.Columns[currentGridCol].ReadOnly || !dgvImportQueue.Columns[currentGridCol].Visible))
-                        {
-                            currentGridCol++;
-                        }
+                        var colIn = 7; // Cột ID_Code trong Grid
+                        dgvImportQueue.Rows[currentRow].Cells[colIn].Value = cells[j].Trim();
 
-                        // Nếu vẫn nằm trong phạm vi cột của Grid thì mới dán
-                        if (currentGridCol < dgvImportQueue.Columns.Count)
-                        {
-                            dgvImportQueue.Rows[currentRow].Cells[currentGridCol].Value = cells[j].Trim();
-                            currentGridCol++; // Di chuyển sang cột tiếp theo cho ô Excel kế tiếp
-                        }
+                        _importQueue[currentRow].ID_Code = cells[j].Trim();
                     }
                 }
 
