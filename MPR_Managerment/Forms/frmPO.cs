@@ -34,7 +34,7 @@ namespace MPR_Managerment.Forms
         private TextBox txtPONo, txtProjectName, txtWorkorderNo, txtMPRNo;
         private TextBox txtPrepared, txtReviewed, txtAgreement, txtApproved, txtNotes;
         private ComboBox cboPaymentTerm;
-        private DateTimePicker dtpPODate;
+        private DateTimePicker dtpPODate, dtpPOExpectDelivery;
         private ComboBox cboStatus;
         private NumericUpDown nudRevise;
 
@@ -447,6 +447,9 @@ namespace MPR_Managerment.Forms
             cboPaymentTerm.SelectedIndex = 0;
             cboPaymentTerm.BringToFront();
             panelHeader.Controls.Add(cboPaymentTerm);
+            AddLabel(panelHeader, "Ngày Giao hàng:", 610, y); 
+            dtpPOExpectDelivery = new DateTimePicker { Location = new Point(680, y), Size = new Size(100, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
+            panelHeader.Controls.Add(dtpPOExpectDelivery);
 
             // Row 5 (Buttons)
             y += 45;
@@ -1519,7 +1522,7 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 8].Value = d.UNIT ?? "";
                         ws.Cells[row, 9].Value = d.Weight_kg;
                         ws.Cells[row, 10].Value = d.MPSNo ?? "";
-                        ws.Cells[row, 11].Value = d.RequestDay;
+                        ws.Cells[row, 11].Value = po.Expected_Delivery;
                         ws.Cells[row, 12].Value = "Kho DLHI";
                         ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
                         ws.Cells[row, 14].Value = d.Amount;
@@ -1546,13 +1549,22 @@ namespace MPR_Managerment.Forms
                         }
                         ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
                         ws.Cells[row, 16].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+
+                        ws.Cells[row, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        ws.Cells[row, 11].Style.Numberformat.Format = "dd/MM/yyyy";
+
+                        ws.Cells[row, 13].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                        ws.Cells[row, 13].Style.Numberformat.Format = "#,##0.00";
+
+                        ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                        ws.Cells[row, 14].Style.Numberformat.Format = "#,##0.00";
                     }
 
                     //// 4. TÍNH TỔNG (Dòng Sum sẽ bị đẩy xuống do lệnh InsertRow ở trên)
                     //int subTotalRow = startRow + detailCount;
                     //int vatRow = subTotalRow + 1;
 
-                    //ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
+
                     //ws.Cells[subTotalRow, 9].Formula = $"=SUM(I{startRow}:I{startRow + detailCount - 1})";
                     //ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
 
@@ -2386,7 +2398,8 @@ namespace MPR_Managerment.Forms
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
                     Revise = (int)nudRevise.Value,
                     Supplier_ID = Convert.ToInt32(cboSupplier.SelectedValue ?? 0),
-                    ProjectCode = _projectCodeImport
+                    ProjectCode = _projectCodeImport,
+                    Expected_Delivery = dtpPOExpectDelivery.Value
                 };
                 if (_selectedPO_ID == 0) _selectedPO_ID = _service.InsertHead(h, _currentUser);
                 else _service.UpdateHead(h, _currentUser);

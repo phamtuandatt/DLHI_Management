@@ -27,5 +27,6 @@ namespace MPR_Managerment.Models
         public bool IsImported { get; set; } = false;
         public DateTime? ImportedDate { get; set; }
         public string Payment_Term { get; set; } = "";
+        public DateTime? Expected_Delivery { get; set; }
     }
 }

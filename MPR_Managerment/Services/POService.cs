@@ -149,6 +149,7 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@SupplierID", h.Supplier_ID);
                 cmd.Parameters.AddWithValue("@ProjectCode", h.ProjectCode);
                 cmd.Parameters.AddWithValue("@Payment_Term", h.Payment_Term ?? "");
+                cmd.Parameters.AddWithValue("@Expected_Delivery", h.Expected_Delivery ?? DateTime.Now.AddDays(7));
                 var r = cmd.ExecuteReader();
                 if (r.Read()) return Convert.ToInt32(r["NewPO_ID"]);
                 return 0;
@@ -177,6 +178,7 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@Modified_By", modifiedBy);
                 cmd.Parameters.AddWithValue("@Revise", h.Revise);
                 cmd.Parameters.AddWithValue("@Payment_Term", h.Payment_Term ?? "");
+                cmd.Parameters.AddWithValue("@Expected_Delivery", h.Expected_Delivery ?? DateTime.Now.AddDays(7));
                 cmd.ExecuteNonQuery();
             }
         }
@@ -265,7 +267,8 @@ namespace MPR_Managerment.Services
                 // Lỗi chính nằm ở dòng Supplier_ID này (khi PO mới tạo chưa có NCC)
                 Supplier_ID = r["Supplier_ID"] != DBNull.Value ? Convert.ToInt32(r["Supplier_ID"]) : 0,
                 ProjectCode = r["ProjectCode"].ToString() ?? "",
-                Payment_Term = r["Payment_Term"] != DBNull.Value ? r["Payment_Term"].ToString() : ""
+                Payment_Term = r["Payment_Term"] != DBNull.Value ? r["Payment_Term"].ToString() : "",
+                Expected_Delivery = r["Expected_Delivery"] != DBNull.Value ? Convert.ToDateTime(r["Expected_Delivery"]) : DateTime.Now.AddDays(7),
             };
         }
 
