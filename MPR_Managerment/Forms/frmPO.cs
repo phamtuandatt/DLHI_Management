@@ -52,6 +52,7 @@ namespace MPR_Managerment.Forms
         private static readonly System.Globalization.CultureInfo _numCulture =
             new System.Globalization.CultureInfo("vi-VN");
         private Panel panelTop, panelHeader, panelDetail;
+        private Panel _mainScroll; // Panel bọc ngoài hỗ trợ scroll trên màn hình nhỏ
         private DataGridView dgvMPRFiles; // Bảng file MPR Link bên phải chi tiết
         private ComboBox cboSupplier;
         private System.Data.DataTable _supplierTable;
@@ -102,35 +103,82 @@ namespace MPR_Managerment.Forms
         {
             this.Text = "Quản lý Đơn Đặt Hàng (PO)";
             this.Size = new Size(1300, 780);
-            this.MinimumSize = new Size(1000, 650);
+            this.MinimumSize = new Size(600, 450);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(245, 245, 245);
+            this.AutoScroll = false;
+
+            // ===== MAIN SCROLL PANEL =====
+            _mainScroll = new Panel
+            {
+                Dock = DockStyle.Fill,   // Top = 0, chiếm toàn bộ form
+                AutoScroll = true,       // Tự thêm scrollbar dọc/ngang khi nội dung vượt kích thước
+                BackColor = Color.FromArgb(245, 245, 245),
+                Padding = new Padding(0) // Không có padding thừa
+            };
+            this.Controls.Add(_mainScroll);
 
             // ===== PANEL TOP =====
-            panelTop = new Panel { Location = new Point(10, 10), Size = new Size(1260, 210), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-            this.Controls.Add(panelTop);
+            panelTop = new Panel { Location = new Point(10, 10), Size = new Size(1260, 210), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left };
+            _mainScroll.Controls.Add(panelTop);
             panelTop.Controls.Add(new Label { Text = "DANH SÁCH ĐƠN ĐẶT HÀNG (PO)", Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 10), Size = new Size(450, 30) });
 
-            txtSearch = new TextBox { Location = new Point(10, 48), Size = new Size(300, 28), Font = new Font("Segoe UI", 10), PlaceholderText = "Tìm theo PO No, MPR No, tên dự án..." };
+            // ── Toolbar panelTop: search + buttons trong FlowLayout để scale đồng đều ──
+            var flowTop = new FlowLayoutPanel
+            {
+                Location = new Point(10, 42),
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Color.White,
+                Padding = new Padding(0),
+                Name = "flowTop"
+            };
+            panelTop.Controls.Add(flowTop);
+
+            txtSearch = new TextBox { Width = 300, Height = 28, Font = new Font("Segoe UI", 10), PlaceholderText = "Tìm theo PO No, MPR No, tên dự án...", Margin = new Padding(0, 1, 6, 0) };
             panelTop.Controls.Add(txtSearch);
+            txtSearch.Location = new Point(10, 45);
             txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnSearch_Click(null, null); };
 
-            btnSearch = CreateButton("Tìm", Color.FromArgb(0, 120, 212), new Point(320, 47), 70, 30);
-            btnNewPO = CreateButton("+ Tạo PO", Color.FromArgb(40, 167, 69), new Point(400, 47), 100, 30);
-            btnDeletePO = CreateButton("Xóa PO", Color.FromArgb(220, 53, 69), new Point(510, 47), 90, 30);
-            btnSearchBySupp = CreateButton("🔍 Tìm theo NCC", Color.FromArgb(102, 51, 153), new Point(610, 47), 130, 30);
+            btnSearch = CreateButton("Tìm", Color.FromArgb(0, 120, 212), Point.Empty, 70, 30); btnSearch.Tag = "70,30";
+            btnNewPO = CreateButton("+ Tạo PO", Color.FromArgb(40, 167, 69), Point.Empty, 100, 30); btnNewPO.Tag = "100,30";
+            btnDeletePO = CreateButton("Xóa PO", Color.FromArgb(220, 53, 69), Point.Empty, 90, 30); btnDeletePO.Tag = "90,30";
+            btnSearchBySupp = CreateButton("🔍 Tìm theo NCC", Color.FromArgb(102, 51, 153), Point.Empty, 130, 30); btnSearchBySupp.Tag = "130,30";
+            var btnPaymentTop = CreateButton("💳 Payment", Color.FromArgb(0, 150, 100), Point.Empty, 110, 30); btnPaymentTop.Tag = "110,30";
 
-            btnSearch.Click += BtnSearch_Click; btnNewPO.Click += BtnNewPO_Click;
-            btnDeletePO.Click += BtnDeletePO_Click; btnSearchBySupp.Click += BtnSearchBySupp_Click;
-            panelTop.Controls.Add(btnSearch); panelTop.Controls.Add(btnNewPO);
-            panelTop.Controls.Add(btnDeletePO); panelTop.Controls.Add(btnSearchBySupp);
+            foreach (var b in new[] { btnSearch, btnNewPO, btnDeletePO, btnSearchBySupp, btnPaymentTop })
+                b.Margin = new Padding(0, 0, 4, 0);
 
-            lblStatus = new Label { Location = new Point(750, 52), Size = new Size(400, 25), Font = new Font("Segoe UI", 9), ForeColor = Color.Gray };
+            btnSearch.Click += BtnSearch_Click;
+            btnNewPO.Click += BtnNewPO_Click;
+            btnDeletePO.Click += BtnDeletePO_Click;
+            btnSearchBySupp.Click += BtnSearchBySupp_Click;
+            btnPaymentTop.Click += (s, ev) =>
+            {
+                string poNo = dgvPO.SelectedRows.Count > 0 ? dgvPO.SelectedRows[0].Cells["PO_No"].Value?.ToString() ?? "" : "";
+                new frmPayment(_currentUser, poNo).Show();
+            };
+
+            flowTop.Controls.Add(btnSearch);
+            flowTop.Controls.Add(btnNewPO);
+            flowTop.Controls.Add(btnDeletePO);
+            flowTop.Controls.Add(btnSearchBySupp);
+            flowTop.Controls.Add(btnPaymentTop);
+
+            // Đặt flowTop ngay sau txtSearch
+            panelTop.SizeChanged += (s, e) =>
+            {
+                flowTop.Location = new Point(txtSearch.Right + 6, 44);
+            };
+
+            lblStatus = new Label { Location = new Point(10, 78), Size = new Size(800, 22), Font = new Font("Segoe UI", 9), ForeColor = Color.Gray };
             panelTop.Controls.Add(lblStatus);
 
             dgvPO = new DataGridView
             {
-                Location = new Point(10, 85),
+                Location = new Point(10, 105),
                 Size = new Size(1235, 115),
                 ReadOnly = true,
                 AllowUserToAddRows = false,
@@ -140,7 +188,7 @@ namespace MPR_Managerment.Forms
                 RowHeadersVisible = false,
                 Font = new Font("Segoe UI", 9),
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
             dgvPO.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvPO.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
@@ -166,24 +214,11 @@ namespace MPR_Managerment.Forms
 
             panelTop.Controls.Add(dgvPO);
 
-            // Button Payment — mở frmPayment với filter theo PO đang chọn
-            var btnPayment = CreateButton("💳 Payment", Color.FromArgb(0, 150, 100), new Point(850, 48), 110, 30);
-            btnPayment.Click += (s, ev) =>
-
-            {
-                string poNo = "";
-                if (dgvPO.SelectedRows.Count > 0)
-                    poNo = dgvPO.SelectedRows[0].Cells["PO_No"].Value?.ToString() ?? "";
-
-                var frm = new frmPayment(_currentUser, poNo);
-                frm.Show();
-            };
-            panelTop.Controls.Add(btnPayment);
-            btnPayment.BringToFront();
+            // btnPayment đã được tích hợp vào flowTop phía trên
 
             // ===== PANEL HEADER =====
-            panelHeader = new Panel { Location = new Point(10, 230), Size = new Size(1260, 245), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-            this.Controls.Add(panelHeader);
+            panelHeader = new Panel { Location = new Point(10, 230), Size = new Size(1260, 245), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left };
+            _mainScroll.Controls.Add(panelHeader);
             panelHeader.Controls.Add(new Label { Text = "THÔNG TIN ĐƠN ĐẶT HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(350, 25) });
 
             // BẢNG FILE ĐÍNH KÈM (Bên Phải cùng)
@@ -393,54 +428,99 @@ namespace MPR_Managerment.Forms
             _deliveryTimer.Tick += (s, e) => { UpdateOverdueDeliveries(); LoadDeliveries(); };
             _deliveryTimer.Start();
 
-            // QUY HOẠCH CÁC Ô NHẬP LIỆU BÊN TRÁI (Tối đa width = 790px)
-            int y = 38;
+            // ===== VÙNG NHẬP LIỆU: 3 rows nằm ngang, mỗi row là 1 FlowLayoutPanel ──
+            // Mỗi row trải dài hết chiều rộng bên trái (cách bảng giao hàng 50px).
+            // Chỉ wrap xuống dòng khi form bị kéo nhỏ hơn kích thước gốc.
 
-            // Row 1
-            AddLabel(panelHeader, "PO No (*):", 10, y); txtPONo = AddTxt(panelHeader, 80, y, 100);
-            AddLabel(panelHeader, "Tên dự án:", 190, y); txtProjectName = AddTxt(panelHeader, 260, y, 160);
-            AddLabel(panelHeader, "Workorder:", 430, y); txtWorkorderNo = AddTxt(panelHeader, 505, y, 110);
-            AddLabel(panelHeader, "MPR No:", 625, y); txtMPRNo = AddTxt(panelHeader, 685, y, 105);
-            // Load MPR Files khi MPR No thay đổi (người dùng nhập xong và rời ô)
+            // Khoảng cách bên phải dành cho Delivery + Files (delivW=550 + gap=6 + files=200 + 10 + 50)
+            const int rightReserved = 816;
+
+            // Hàm tạo Label + Control dàn đều trong một panel nhỏ
+            Panel MakeField(string labelText, Control ctrl, int labelW = 68, int gap = 4)
+            {
+                var lbl = new Label
+                {
+                    Text = labelText,
+                    Font = new Font("Segoe UI", 9),
+                    AutoSize = false,
+                    Size = new Size(labelW, 25),
+                    TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+                };
+                ctrl.Size = new Size(ctrl.Width, 25);
+                var pnl = new Panel
+                {
+                    Size = new Size(labelW + gap + ctrl.Width + 4, 30),
+                    BackColor = Color.White,
+                    Margin = new Padding(0, 2, 8, 2)
+                };
+                lbl.Location = new Point(0, 3);
+                ctrl.Location = new Point(labelW + gap, 2);
+                pnl.Controls.Add(lbl);
+                pnl.Controls.Add(ctrl);
+                return pnl;
+            }
+
+            // Hàm tạo một row FlowLayoutPanel — không wrap ở kích thước bình thường
+            FlowLayoutPanel MakeRow(int top)
+            {
+                var row = new FlowLayoutPanel
+                {
+                    Location = new Point(10, top),
+                    FlowDirection = FlowDirection.LeftToRight,
+                    WrapContents = true,          // wrap xuống dòng khi form bị kéo nhỏ
+                    AutoSize = true,              // tự tăng chiều cao khi wrap
+                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    BackColor = Color.White,
+                    Padding = new Padding(0),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left
+                };
+                // Khi row tự thay đổi chiều cao (do wrap), đẩy các row bên dưới xuống theo
+                panelHeader.Controls.Add(row);
+                return row;
+            }
+
+            // ── Row 1 (y=35): PO No | Tên dự án | Workorder | MPR No ──
+            var flowRow1 = MakeRow(35);
+            txtPONo = new TextBox { Width = 100, Font = new Font("Segoe UI", 9) };
+            txtProjectName = new TextBox { Width = 160, Font = new Font("Segoe UI", 9) };
+            txtWorkorderNo = new TextBox { Width = 120, Font = new Font("Segoe UI", 9) };
+            txtMPRNo = new TextBox { Width = 110, Font = new Font("Segoe UI", 9) };
             txtMPRNo.Leave += (s, e) => LoadMPRFiles();
+            flowRow1.Controls.Add(MakeField("PO No (*):", txtPONo, 60));
+            flowRow1.Controls.Add(MakeField("Tên dự án:", txtProjectName, 65));
+            flowRow1.Controls.Add(MakeField("Workorder:", txtWorkorderNo, 65));
+            flowRow1.Controls.Add(MakeField("MPR No:", txtMPRNo, 55));
 
-            // Row 2
-            y += 38;
-            AddLabel(panelHeader, "Nhà CC:", 10, y);
-            cboSupplier = new ComboBox { Location = new Point(80, y), Size = new Size(260, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.None };
-            panelHeader.Controls.Add(cboSupplier);
-            cboSupplier.Validating += CboSupplier_Validating; cboSupplier.SelectedIndexChanged += CboSupplier_SelectedIndexChanged;
-            cboSupplier.TextChanged += CboSupplier_TextChanged; cboSupplier.KeyDown += CboSupplier_KeyDown;
+            // ── Row 2 (y=71): Nhà CC | Ngày PO | Trạng thái | Revise ──
+            var flowRow2 = MakeRow(71);
+            cboSupplier = new ComboBox { Width = 195, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.None };
+            cboSupplier.Validating += CboSupplier_Validating;
+            cboSupplier.SelectedIndexChanged += CboSupplier_SelectedIndexChanged;
+            cboSupplier.TextChanged += CboSupplier_TextChanged;
+            cboSupplier.KeyDown += CboSupplier_KeyDown;
             LoadSupplierCombo();
-
-
-            AddLabel(panelHeader, "Ngày PO:", 350, y); dtpPODate = new DateTimePicker { Location = new Point(410, y), Size = new Size(100, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
-            panelHeader.Controls.Add(dtpPODate);
-            AddLabel(panelHeader, "Trạng thái:", 520, y);
-            cboStatus = new ComboBox { Location = new Point(590, y), Size = new Size(90, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
+            dtpPODate = new DateTimePicker { Width = 108, Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
+            cboStatus = new ComboBox { Width = 108, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
             cboStatus.Items.AddRange(new[] { "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
-            cboStatus.SelectedIndex = 0; panelHeader.Controls.Add(cboStatus);
-            AddLabelCus(panelHeader, "Revise:", 690, y, 45, 20);
-            nudRevise = new NumericUpDown { Location = new Point(740, y), Size = new Size(50, 25), Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
-            nudRevise.BringToFront(); panelHeader.Controls.Add(nudRevise);
+            cboStatus.SelectedIndex = 0;
+            nudRevise = new NumericUpDown { Width = 52, Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
+            flowRow2.Controls.Add(MakeField("Nhà CC:", cboSupplier, 50));
+            flowRow2.Controls.Add(MakeField("Ngày PO:", dtpPODate, 60));
+            flowRow2.Controls.Add(MakeField("Trạng thái:", cboStatus, 68));
+            flowRow2.Controls.Add(MakeField("Revise:", nudRevise, 48));
 
-            // Row 3
-            y += 38;
-            AddLabel(panelHeader, "Prepared:", 10, y); txtPrepared = AddTxt(panelHeader, 80, y, 100);
-            AddLabel(panelHeader, "Reviewed:", 190, y); txtReviewed = AddTxt(panelHeader, 260, y, 110);
-            AddLabel(panelHeader, "Agreement:", 380, y); txtAgreement = AddTxt(panelHeader, 455, y, 110);
-            AddLabel(panelHeader, "Approved:", 575, y); txtApproved = AddTxt(panelHeader, 645, y, 145);
+            // Khởi tạo các TextBox ẩn để giữ tương thích — không hiển thị trên UI
+            txtPrepared = new TextBox { Visible = false };
+            txtReviewed = new TextBox { Visible = false };
+            txtAgreement = new TextBox { Visible = false };
+            txtApproved = new TextBox { Visible = false };
 
-            // Row 4
-            y += 38;
-            AddLabel(panelHeader, "Ghi chú:", 10, y);
-            txtNotes = AddTxt(panelHeader, 80, y, 200);
-            txtNotes.Anchor = AnchorStyles.Top | AnchorStyles.Left;
-            AddLabel(panelHeader, "Payment Term:", 295, y);
+            // ── Row 3 (y=107): Ghi chú | Payment Term | Ngày giao hàng ──
+            var flowRow3 = MakeRow(107);
+            txtNotes = new TextBox { Width = 160, Font = new Font("Segoe UI", 9) };
             cboPaymentTerm = new ComboBox
             {
-                Location = new Point(390, y),
-                Size = new Size(200, 25),
+                Width = 210,
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -464,27 +544,91 @@ namespace MPR_Managerment.Forms
                 "Net 60"
             });
             cboPaymentTerm.SelectedIndex = 0;
-            cboPaymentTerm.BringToFront();
-            panelHeader.Controls.Add(cboPaymentTerm);
-            AddLabel(panelHeader, "Ngày Giao hàng:", 610, y);
-            dtpPOExpectDelivery = new DateTimePicker { Location = new Point(680, y), Size = new Size(100, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
-            panelHeader.Controls.Add(dtpPOExpectDelivery);
+            dtpPOExpectDelivery = new DateTimePicker { Width = 108, Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
+            flowRow3.Controls.Add(MakeField("Ghi chú:", txtNotes, 52));
+            flowRow3.Controls.Add(MakeField("Payment Term:", cboPaymentTerm, 88));
+            flowRow3.Controls.Add(MakeField("Ngày Giao hàng:", dtpPOExpectDelivery, 96));
 
-            // Row 5 (Buttons)
-            y += 45;
-            btnSavePO = CreateButton("💾 Lưu Toàn Bộ PO", Color.FromArgb(0, 120, 212), new Point(10, y), 150, 32);
-            btnSavePO.Click += BtnSavePO_Click; panelHeader.Controls.Add(btnSavePO);
-            btnClearHeader = CreateButton("Làm mới", Color.FromArgb(108, 117, 125), new Point(170, y), 100, 32);
-            btnClearHeader.Click += BtnClearHeader_Click; panelHeader.Controls.Add(btnClearHeader);
-            var btnImportMPR = CreateButton("Import MPR", Color.FromArgb(255, 140, 0), new Point(280, y), 120, 32);
-            btnImportMPR.Click += BtnImportMPR_Click; panelHeader.Controls.Add(btnImportMPR);
-            var btnHistory = CreateButton("Revise History", Color.FromArgb(102, 51, 153), new Point(410, y), 130, 32);
+            // Lưu tham chiếu flowHeader = flowRow1 để các handler cũ vẫn hoạt động
+            var flowHeader = flowRow1;
+
+            // ── Row 5: Buttons — dùng FlowLayoutPanel riêng để wrap ──
+            var flowBtns = new FlowLayoutPanel
+            {
+                Location = new Point(10, 145), // ngay dưới row3 (107+34+4)
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                BackColor = Color.White,
+                Padding = new Padding(0, 2, 0, 2),
+                Margin = new Padding(0),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+            panelHeader.Controls.Add(flowBtns);
+
+            // flowRow3.SizeChanged → đã tích hợp vào relayoutHeader bên dưới
+
+            btnSavePO = CreateButton("💾 Lưu Toàn Bộ PO", Color.FromArgb(0, 120, 212), Point.Empty, 150, 32);
+            btnSavePO.Margin = new Padding(0, 0, 6, 0); btnSavePO.Tag = "150,32";
+            btnSavePO.Click += BtnSavePO_Click;
+            btnClearHeader = CreateButton("Làm mới", Color.FromArgb(108, 117, 125), Point.Empty, 100, 32);
+            btnClearHeader.Margin = new Padding(0, 0, 6, 0); btnClearHeader.Tag = "100,32";
+            btnClearHeader.Click += BtnClearHeader_Click;
+            var btnImportMPR = CreateButton("Import MPR", Color.FromArgb(255, 140, 0), Point.Empty, 120, 32); btnImportMPR.Tag = "120,32";
+            btnImportMPR.Margin = new Padding(0, 0, 6, 0);
+            btnImportMPR.Click += BtnImportMPR_Click;
+            var btnHistory = CreateButton("Revise History", Color.FromArgb(102, 51, 153), Point.Empty, 130, 32); btnHistory.Tag = "130,32";
+            btnHistory.Margin = new Padding(0, 0, 6, 0);
             btnHistory.Click += (s, e) => { if (string.IsNullOrEmpty(txtPONo.Text)) { MessageBox.Show("Vui lòng chọn một PO trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; } new frmReviseHistory(txtPONo.Text).ShowDialog(); };
-            panelHeader.Controls.Add(btnHistory);
+            flowBtns.Controls.Add(btnSavePO);
+            flowBtns.Controls.Add(btnClearHeader);
+            flowBtns.Controls.Add(btnImportMPR);
+            flowBtns.Controls.Add(btnHistory);
+
+            // Resize 3 rows và tính lại vị trí dọc khi form thay đổi kích thước
+            Action relayoutHeader = () =>
+            {
+                // Chiều rộng field rows = panelHeader.Width - vùng phải (delivery+files+50px)
+                int flowW = Math.Max(panelHeader.Width - rightReserved - 10, 280);
+                // Các row field giới hạn theo flowW → wrap khi form nhỏ
+                flowRow1.MaximumSize = new Size(flowW, 0);
+                flowRow2.MaximumSize = new Size(flowW, 0);
+                flowRow3.MaximumSize = new Size(flowW, 0);
+                // flowBtns KHÔNG giới hạn theo rightReserved — luôn hiển thị 1 hàng
+                // khi form đủ rộng; chỉ wrap khi form quá hẹp (< tổng width 4 buttons)
+                flowBtns.MaximumSize = new Size(Math.Max(panelHeader.Width - 20, 100), 0);
+                // Tính lại Top từng row dựa trên Bottom của row trước (xử lý wrap)
+                flowRow1.Location = new Point(10, 35);
+                flowRow2.Location = new Point(10, flowRow1.Bottom + 4);
+                flowRow3.Location = new Point(10, flowRow2.Bottom + 4);
+                flowBtns.Location = new Point(10, flowRow3.Bottom + 4);
+                panelHeader.Height = flowBtns.Bottom + 8;
+
+                // ── Cập nhật chiều cao panelDelivery và dgvFiles theo panelHeader.Height ──
+                int newH = panelHeader.Height;
+                if (panelDelivery != null)
+                {
+                    panelDelivery.Height = newH - 16;
+                    if (dgvDelivery != null)
+                        dgvDelivery.Height = panelDelivery.Height - 26;
+                }
+                if (dgvFiles != null)
+                {
+                    dgvFiles.Height = newH - 20;
+                    dgvFiles.Location = new Point(panelHeader.Width - dgvFiles.Width - 10, 10);
+                }
+            };
+            panelHeader.SizeChanged += (s, e) => relayoutHeader();
+            // Mỗi row tự wrap → Bottom thay đổi → đẩy các row bên dưới
+            flowRow1.SizeChanged += (s, e) => relayoutHeader();
+            flowRow2.SizeChanged += (s, e) => relayoutHeader();
+            flowRow3.SizeChanged += (s, e) => relayoutHeader();
+            flowBtns.SizeChanged += (s, e) => relayoutHeader();
 
             // ===== PANEL DETAIL =====
-            panelDetail = new Panel { Location = new Point(10, 500), Size = new Size(980, 285), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
-            this.Controls.Add(panelDetail);
+            panelDetail = new Panel { Location = new Point(10, 500), Size = new Size(980, 285), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left };
+            _mainScroll.Controls.Add(panelDetail);
 
             // ── Panel MPR Files (bên phải panelDetail) ──
             var panelMPRFiles = new Panel
@@ -495,7 +639,7 @@ namespace MPR_Managerment.Forms
                 BorderStyle = BorderStyle.FixedSingle,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom
             };
-            this.Controls.Add(panelMPRFiles);
+            _mainScroll.Controls.Add(panelMPRFiles);
 
             panelMPRFiles.Controls.Add(new Label
             {
@@ -545,11 +689,39 @@ namespace MPR_Managerment.Forms
             panelMPRFiles.Controls.Add(dgvMPRFiles);
             panelDetail.Controls.Add(new Label { Text = "CHI TIẾT ĐƠN HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(300, 25) });
 
-            btnAddDetail = CreateButton("+ Thêm dòng", Color.FromArgb(40, 167, 69), new Point(10, 38), 120, 30);
-            btnDeleteDetail = CreateButton("Xóa dòng", Color.FromArgb(220, 53, 69), new Point(140, 38), 100, 30);
-            var btnSaveDetail = CreateButton("💾 Lưu chi tiết", Color.FromArgb(0, 120, 212), new Point(250, 38), 130, 30);
-            btnExport = CreateButton("📄 Xuất Excel", Color.FromArgb(0, 150, 100), new Point(390, 38), 130, 30);
-            var btnCheckBySize = CreateButton("🔍 Check by size", Color.FromArgb(102, 51, 153), new Point(530, 38), 145, 30);
+            // FlowLayoutPanel cho toolbar chi tiết — tự wrap khi form nhỏ
+            var flowDetailBtns = new FlowLayoutPanel
+            {
+                Location = new Point(10, 36),
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,   // wrap xuống dòng khi form bị kéo nhỏ
+                BackColor = Color.White,
+                Padding = new Padding(0),
+                Name = "flowDetailBtns",
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+            panelDetail.Controls.Add(flowDetailBtns);
+            // Cập nhật MaximumSize khi panelDetail resize để tránh wrap vào vùng panelRight (590px)
+            const int panelRightW = 600; // panelRight width + buffer
+            panelDetail.Resize += (s, ev) =>
+            {
+                int maxFlowW = Math.Max(panelDetail.Width - panelRightW, 200);
+                flowDetailBtns.MaximumSize = new Size(maxFlowW, 0);
+            };
+
+            btnAddDetail = CreateButton("+ Thêm dòng", Color.FromArgb(40, 167, 69), Point.Empty, 120, 30);
+            btnDeleteDetail = CreateButton("Xóa dòng", Color.FromArgb(220, 53, 69), Point.Empty, 100, 30);
+            var btnSaveDetail = CreateButton("💾 Lưu chi tiết", Color.FromArgb(0, 120, 212), Point.Empty, 130, 30); btnSaveDetail.Tag = "130,30";
+            btnExport = CreateButton("📄 Xuất Excel", Color.FromArgb(0, 150, 100), Point.Empty, 130, 30);
+            var btnCheckBySize = CreateButton("🔍 Check by size", Color.FromArgb(102, 51, 153), Point.Empty, 145, 30); btnCheckBySize.Tag = "145,30";
+
+            btnAddDetail.Margin = new Padding(0, 0, 4, 0); btnAddDetail.Tag = "120,30";
+            btnDeleteDetail.Margin = new Padding(0, 0, 4, 0); btnDeleteDetail.Tag = "100,30";
+            btnSaveDetail.Margin = new Padding(0, 0, 4, 0);
+            btnExport.Margin = new Padding(0, 0, 4, 0); btnExport.Tag = "130,30";
+            btnCheckBySize.Margin = new Padding(0, 0, 4, 0);
 
             btnAddDetail.Click += BtnAddDetail_Click;
             btnDeleteDetail.Click += BtnDeleteDetail_Click;
@@ -557,9 +729,18 @@ namespace MPR_Managerment.Forms
             btnExport.Click += BtnExport_Click;
             btnCheckBySize.Click += BtnCheckBySize_Click;
 
-            panelDetail.Controls.Add(btnAddDetail); panelDetail.Controls.Add(btnDeleteDetail);
-            panelDetail.Controls.Add(btnSaveDetail); panelDetail.Controls.Add(btnExport);
-            panelDetail.Controls.Add(btnCheckBySize);
+            flowDetailBtns.Controls.Add(btnAddDetail);
+            flowDetailBtns.Controls.Add(btnDeleteDetail);
+            flowDetailBtns.Controls.Add(btnSaveDetail);
+            flowDetailBtns.Controls.Add(btnExport);        // Xuất Excel
+            flowDetailBtns.Controls.Add(btnCheckBySize);   // Check by size — cạnh Xuất Excel
+
+            // Đẩy dgvDetails xuống dưới toolbar khi toolbar wrap
+            flowDetailBtns.SizeChanged += (s, e) =>
+            {
+                int dgvTop = flowDetailBtns.Bottom + 4;
+                if (dgvDetails != null) dgvDetails.Top = dgvTop;
+            };
 
             // ── Panel phai: chua labels TruocVAT/SauVAT + apply VAT + apply Calc ──
             // Anchor Right de tu can le phai khi resize
@@ -780,11 +961,14 @@ namespace MPR_Managerment.Forms
             try
             {
                 var suppliers = new SupplierService().GetAll();
+                // Nạp ProjectCode (Mã dự án) từ ProjectService để hiển thị trong cột "Mã DA"
+                var projects = new ProjectService().GetAll();
                 var dt = new System.Data.DataTable();
                 dt.Columns.Add("PO_ID", typeof(int));
                 dt.Columns.Add("PO No", typeof(string));
                 dt.Columns.Add("NCC", typeof(string));
-                dt.Columns.Add("Dự án", typeof(string));
+                dt.Columns.Add("Mã DA", typeof(string));   // Mã dự án (ProjectCode)
+                dt.Columns.Add("Dự án", typeof(string));   // Tên dự án (ẩn, dùng để filter nội bộ)
                 dt.Columns.Add("MPR No", typeof(string));
                 dt.Columns.Add("Workorder", typeof(string));
                 dt.Columns.Add("Ngày PO", typeof(string));
@@ -793,8 +977,15 @@ namespace MPR_Managerment.Forms
                 foreach (var h in _poList)
                 {
                     var supp = suppliers.Find(s => s.Supplier_ID == h.Supplier_ID);
-                    dt.Rows.Add(h.PO_ID, h.PONo, supp?.Company_Name ?? supp?.Short_Name ?? "", h.Project_Name, h.MPR_No, h.WorkorderNo,
-                        h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "", h.Status, h.Total_Amount.ToString("N2", _numCulture));
+                    // Tìm ProjectCode theo WorkorderNo hoặc ProjectName
+                    var prj = projects.Find(p =>
+                        (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(h.WorkorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(h.Project_Name, StringComparison.OrdinalIgnoreCase)));
+                    string maDA = prj?.ProjectCode ?? "";
+                    dt.Rows.Add(h.PO_ID, h.PONo, supp?.Company_Name ?? supp?.Short_Name ?? "",
+                        maDA, h.Project_Name, h.MPR_No, h.WorkorderNo,
+                        h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
+                        h.Status, h.Total_Amount.ToString("N2", _numCulture));
                 }
                 var dtFull = dt.Copy();
                 System.Data.DataTable dtCurrent = dtFull.Copy();
@@ -815,12 +1006,12 @@ namespace MPR_Managerment.Forms
                 pF.Controls.Add(txtNCC);
 
                 // Dự án — button giả dropdown
-                pF.Controls.Add(new Label { Text = "Dự án:", Location = new Point(255, 12), Size = new Size(45, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+                pF.Controls.Add(new Label { Text = "Mã DA:", Location = new Point(255, 12), Size = new Size(45, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
                 var btnDropDA = new Button
                 {
                     Location = new Point(302, 8),
                     Size = new Size(220, 26),
-                    Text = "Tất cả dự án  ▼",
+                    Text = "Tất cả mã DA  ▼",
                     TextAlign = ContentAlignment.MiddleLeft,
                     FlatStyle = FlatStyle.Flat,
                     BackColor = Color.White,
@@ -844,9 +1035,9 @@ namespace MPR_Managerment.Forms
                 var btnClear = new Button { Text = "✖ Xóa lọc", Location = new Point(808, 8), Size = new Size(85, 28), BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
                 btnClear.FlatAppearance.BorderSize = 0; pF.Controls.Add(btnClear);
 
-                // ── Danh sách dự án unique ──
+                // ── Danh sách mã dự án unique (ProjectCode) ──
                 var projectList = dtFull.AsEnumerable()
-                    .Select(r => r["Dự án"]?.ToString() ?? "")
+                    .Select(r => r["Mã DA"]?.ToString() ?? "")
                     .Where(v => !string.IsNullOrWhiteSpace(v))
                     .Distinct()
                     .OrderBy(v => v)
@@ -881,8 +1072,8 @@ namespace MPR_Managerment.Forms
                 {
                     var sel = clbDA.CheckedItems.Cast<string>().ToList();
                     btnDropDA.Text = sel.Count == 0
-                        ? "Tất cả dự án  ▼"
-                        : (sel.Count == 1 ? sel[0] + "  ▼" : $"{sel.Count} dự án đã chọn  ▼");
+                        ? "Tất cả mã DA  ▼"
+                        : (sel.Count == 1 ? sel[0] + "  ▼" : $"{sel.Count} mã DA đã chọn  ▼");
                     btnDropDA.ForeColor = sel.Count == 0
                         ? Color.FromArgb(50, 50, 50)
                         : Color.FromArgb(102, 51, 153);
@@ -938,15 +1129,16 @@ namespace MPR_Managerment.Forms
                         if (!string.IsNullOrEmpty(kNCC) && !r["NCC"].ToString().ToLower().Contains(kNCC)) return false;
                         if (kTT != "Tất cả" && r["Trạng thái"].ToString() != kTT) return false;
                         // Lọc dự án: nếu có chọn thì chỉ lấy dự án được tick
-                        if (checkedProjects.Count > 0 && !checkedProjects.Contains(r["Dự án"].ToString())) return false;
+                        if (checkedProjects.Count > 0 && !checkedProjects.Contains(r["Mã DA"].ToString())) return false;
                         return true;
                     });
                     dtCurrent = rows.Any() ? rows.CopyToDataTable() : dtFull.Clone();
                     dgv.DataSource = dtCurrent;
                     if (dgv.Columns.Contains("PO_ID")) dgv.Columns["PO_ID"].Visible = false;
+                    if (dgv.Columns.Contains("Dự án")) dgv.Columns["Dự án"].Visible = false; // ẩn tên DA, chỉ hiện Mã DA
 
                     int total = dtFull.Rows.Count, shown = dtCurrent.Rows.Count;
-                    string daInfo = checkedProjects.Count == 0 ? "tất cả dự án" : $"{checkedProjects.Count} dự án";
+                    string daInfo = checkedProjects.Count == 0 ? "tất cả mã DA" : $"{checkedProjects.Count} mã DA";
                     lblCount.Text = $"Hiển thị: {shown} / {total} PO  ({daInfo})";
                 };
                 // Cập nhật button text + lọc khi check/uncheck dự án
@@ -958,7 +1150,51 @@ namespace MPR_Managerment.Forms
                     {
                         updateDropBtn();
                         applyFilter();
+                        // KHÔNG đóng dropdown ở đây — người dùng có thể tick nhiều mã
                     }));
+                };
+
+                // ── Đóng dropdown khi nhấn Enter trong clbDA ──
+                clbDA.KeyDown += (s, ev) =>
+                {
+                    if (ev.KeyCode == Keys.Enter || ev.KeyCode == Keys.Escape)
+                    {
+                        panelDropDA.Visible = false;
+                        ev.Handled = true;
+                    }
+                };
+
+                // ── Lọc danh sách mã DA theo keyword NCC đang nhập ──
+                Action updateProjectList = () =>
+                {
+                    string kNCC = txtNCC.Text.Trim().ToLower();
+                    // Lấy các mã DA của PO có NCC khớp keyword (hoặc tất cả nếu NCC trống)
+                    var filteredMaDA = dtFull.AsEnumerable()
+                        .Where(r => string.IsNullOrEmpty(kNCC) ||
+                                    r["NCC"].ToString().ToLower().Contains(kNCC))
+                        .Select(r => r["Mã DA"]?.ToString() ?? "")
+                        .Where(v => !string.IsNullOrWhiteSpace(v))
+                        .Distinct()
+                        .OrderBy(v => v)
+                        .ToList();
+
+                    // Ghi nhớ các mã đang được tick để khôi phục sau khi rebuild list
+                    var checked_ = clbDA.CheckedItems.Cast<string>().ToList();
+                    clbDA.Items.Clear();
+                    foreach (var m in filteredMaDA)
+                        clbDA.Items.Add(m, checked_.Contains(m));
+
+                    // Resize panelDropDA theo số lượng mục mới
+                    int h = Math.Min(Math.Max(filteredMaDA.Count, 1), 10) * 18 + 8;
+                    panelDropDA.Height = h + 2;
+                    updateDropBtn();
+                };
+
+                // Gọi updateProjectList mỗi khi txtNCC thay đổi
+                txtNCC.TextChanged += (s, ev) =>
+                {
+                    updateProjectList();
+                    applyFilter();
                 };
                 applyFilter();
                 btnF.Click += (s, ev) => applyFilter();
@@ -1115,6 +1351,9 @@ namespace MPR_Managerment.Forms
 
                         pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
                         MessageBox.Show($"✅ Đã xuất {dtCurrent.Rows.Count} PO với {totalRows} dòng chi tiết!\nTất cả gộp vào 1 sheet duy nhất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // Tự động mở file Excel sau khi xuất
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        { FileName = sfd.FileName, UseShellExecute = true });
                     }
                     catch (Exception ex2) { MessageBox.Show("Lỗi xuất Excel: " + ex2.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                 };
@@ -1812,22 +2051,120 @@ namespace MPR_Managerment.Forms
             p.Controls.Add(txt); return txt;
         }
         private Button CreateButton(string text, Color color, Point loc, int w, int h) => new Button { Text = text, Location = loc, Size = new Size(w, h), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+
+        // =====================================================================
+        // SCALE BUTTONS — thay đổi kích thước buttons theo tỉ lệ chiều rộng form
+        // =====================================================================
+        private const int _baseFormW = 1280; // Chiều rộng thiết kế gốc (không scale khi form rộng hơn)
+        private void ScaleButtons()
+        {
+            if (_mainScroll == null) return;
+
+            // Chỉ thu nhỏ khi form nhỏ hơn kích thước gốc.
+            // Khi form >= 1280px → ratio = 1.0 → giữ nguyên kích thước gốc.
+            double ratio = Math.Min(1.0, (double)this.ClientSize.Width / _baseFormW);
+            // Clamp đáy 0.60 để button không bị quá nhỏ
+            ratio = Math.Max(0.60, ratio);
+
+            // Kích thước gốc của từng button (width, height)
+            var btnSizes = new (Button btn, int baseW, int baseH)[]
+            {
+                (btnSearch,       70, 30),
+                (btnNewPO,       100, 30),
+                (btnDeletePO,     90, 30),
+                (btnSearchBySupp,130, 30),
+                (btnSavePO,      150, 32),
+                (btnClearHeader, 100, 32),
+                (btnAddDetail,   120, 30),
+                (btnDeleteDetail,100, 30),
+                (btnExport,      130, 30),
+            };
+            foreach (var (btn, bw, bh) in btnSizes)
+            {
+                if (btn == null) continue;
+                btn.Width = (int)(bw * ratio);
+                btn.Height = (int)(bh * ratio);
+                btn.Font = new Font("Segoe UI", (float)Math.Max(7.0, 9.0 * ratio), FontStyle.Bold);
+            }
+
+            // Scale các buttons trong FlowLayoutPanel
+            ScaleFlowPanelButtons(_mainScroll, ratio);
+        }
+
+        private void ScaleFlowPanelButtons(Control parent, double ratio)
+        {
+            foreach (Control c in parent.Controls)
+            {
+                if (c is FlowLayoutPanel flp)
+                {
+                    foreach (Control child in flp.Controls)
+                    {
+                        if (child is Button b)
+                        {
+                            // Lấy kích thước gốc từ Tag (lưu một lần khi tạo)
+                            if (b.Tag == null)
+                                b.Tag = $"{b.Width},{b.Height}";
+                            var parts = b.Tag.ToString().Split(',');
+                            if (parts.Length == 2 &&
+                                int.TryParse(parts[0], out int ow) &&
+                                int.TryParse(parts[1], out int oh))
+                            {
+                                b.Width = (int)(ow * ratio);
+                                b.Height = (int)(oh * ratio);
+                                b.Font = new Font("Segoe UI",
+                                    (float)Math.Max(7.0, 9.0 * ratio), FontStyle.Bold);
+                            }
+                        }
+                    }
+                }
+                else if (c.Controls.Count > 0)
+                    ScaleFlowPanelButtons(c, ratio);
+            }
+        }
         private void FrmPO_Resize(object sender, EventArgs e)
         {
-            int w = this.ClientSize.Width - 20;
-            int h = this.ClientSize.Height;
-            panelTop.Width = w; panelHeader.Width = w;
+            if (_mainScroll == null) return;
+
+            // ── Chiều rộng nội dung: tối thiểu 1280px ──
+            // Nếu form hẹp hơn → _mainScroll tự thêm scrollbar ngang
+            const int minContentW = 1280;
+            int formW = this.ClientSize.Width - 2;
+            int w = Math.Max(formW, minContentW);
+
+            panelTop.Width = w;
+
+            // panelHeader: FlowLayout tự wrap → Height tự điều chỉnh
+            panelHeader.Width = w;
             panelHeader.Top = panelTop.Bottom + 10;
-            panelDetail.Top = panelHeader.Bottom + 10;
-            panelDetail.Height = h - panelDetail.Top - 10;
+            panelHeader.PerformLayout();
 
             // panelMPRFiles: 280px cố định bên phải
-            var panelMPRFiles = this.Controls.OfType<Panel>()
-                .FirstOrDefault(p => p.Controls.OfType<DataGridView>()
-                    .Any(d => d.Name == "dgvMPRFiles" || (dgvMPRFiles != null && d == dgvMPRFiles)));
+            var panelMPRFiles = _mainScroll.Controls.OfType<Panel>()
+                .FirstOrDefault(p => dgvMPRFiles != null &&
+                    p.Controls.OfType<DataGridView>().Any(d => d == dgvMPRFiles));
             int mprW = 280;
-            int detailW = w - mprW - 10;
-            panelDetail.Width = detailW;
+
+            panelDetail.Top = panelHeader.Bottom + 10;
+            panelDetail.Width = w - mprW - 10;
+
+            // dgvDetails.Top: ngay dưới flowDetailBtns
+            var flowDetailBtns = panelDetail.Controls.OfType<FlowLayoutPanel>().FirstOrDefault();
+            int dgvTop = flowDetailBtns != null ? flowDetailBtns.Bottom + 4 : 75;
+            dgvDetails.Top = dgvTop;
+            dgvDetails.Width = panelDetail.Width - 20;
+
+            // ── panelDetail.Height: cố định đủ để dgvDetails luôn hiển thị toàn bộ ──
+            // Không co theo form → _mainScroll tự thêm scrollbar dọc kéo đến đáy dgvDetails
+            int formH = this.ClientSize.Height;
+            int availH = formH - panelDetail.Top - 10;  // khoảng còn lại nếu form đủ cao
+            int minDgvH = 400;                           // dgvDetails tối thiểu 400px
+            int fixedPanelH = dgvTop + minDgvH + 5;     // chiều cao panel đủ chứa dgvDetails
+            // Lấy giá trị lớn hơn: form đủ cao thì lấp đầy form, form thấp thì giữ cố định
+            panelDetail.Height = Math.Max(availH, fixedPanelH);
+
+            // dgvDetails kéo dài đến đáy panelDetail
+            dgvDetails.Height = panelDetail.Height - dgvTop - 5;
+
             if (panelMPRFiles != null)
             {
                 panelMPRFiles.Location = new Point(panelDetail.Right + 10, panelDetail.Top);
@@ -1836,11 +2173,10 @@ namespace MPR_Managerment.Forms
             }
 
             dgvPO.Width = panelTop.Width - 20;
-            dgvDetails.Width = panelDetail.Width - 20;
-            dgvDetails.Height = panelDetail.Height - 80;
 
+            // ── Scale buttons: chỉ thu nhỏ khi form < 1280px ──
+            ScaleButtons();
         }
-
         // Load danh sách file từ MPR_Link — tìm theo MPR No tại "Thông tin đơn đặt hàng"
         private void LoadMPRFiles(string workorderNo = "")
         {
@@ -2310,8 +2646,7 @@ namespace MPR_Managerment.Forms
             var h = _poList.Find(x => x.PO_ID == _selectedPO_ID); if (h == null) return;
             txtPONo.Text = h.PONo; txtProjectName.Text = h.Project_Name; txtWorkorderNo.Text = h.WorkorderNo; txtMPRNo.Text = h.MPR_No;
             LoadMPRFiles();
-            txtPrepared.Text = h.Prepared; txtReviewed.Text = h.Reviewed;
-            txtAgreement.Text = h.Agreement; txtApproved.Text = h.Approved;
+            // Prepared được gán tự động khi lưu — không hiển thị trên UI
             txtNotes.Text = h.Notes; nudRevise.Value = h.Revise;
             if (h.PO_Date.HasValue) dtpPODate.Value = h.PO_Date.Value;
             var ptIdx = cboPaymentTerm.Items.IndexOf(h.Payment_Term ?? "");
@@ -2406,7 +2741,7 @@ namespace MPR_Managerment.Forms
                     Project_Name = txtProjectName.Text.Trim(),
                     WorkorderNo = txtWorkorderNo.Text.Trim(),
                     MPR_No = txtMPRNo.Text.Trim(),
-                    Prepared = txtPrepared.Text.Trim(),
+                    Prepared = _currentUser, // Tự động gán theo user đang đăng nhập
                     Reviewed = txtReviewed.Text.Trim(),
                     Agreement = txtAgreement.Text.Trim(),
                     Approved = txtApproved.Text.Trim(),
@@ -3842,8 +4177,7 @@ namespace MPR_Managerment.Forms
         private void ClearHeader()
         {
             txtPONo.Text = ""; txtProjectName.Text = ""; txtWorkorderNo.Text = ""; txtMPRNo.Text = "";
-            txtPrepared.Text = ""; txtReviewed.Text = ""; txtAgreement.Text = "";
-            txtApproved.Text = ""; txtNotes.Text = "";
+            txtNotes.Text = "";
             nudRevise.Value = 0; dtpPODate.Value = DateTime.Today; cboStatus.SelectedIndex = 0;
             cboPaymentTerm.SelectedIndex = 0;
             // Reset Nha CC ve rong
