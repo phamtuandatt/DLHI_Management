@@ -43,6 +43,8 @@ namespace MPR_Managerment.Forms
         private Label lblPOProgressTitle;
 
         private Panel panelTop, panelHeader, panelDetail;
+        private ComboBox _cboFilterPO;    // Loc theo Da len PO
+        private Button _btnExportDetail; // Xuat Excel chi tiet
 
         public frmMPR(int mprId = 0)
         {
@@ -314,6 +316,32 @@ namespace MPR_Managerment.Forms
             btnCheckAll.Click += BtnCheckAllItems_Click;
             panelDetail.Controls.Add(btnCheckAll);
 
+            // ── Loc theo Da len PO ──
+            panelDetail.Controls.Add(new Label
+            {
+                Text = "Da len PO:",
+                Location = new Point(695, 45),
+                Size = new Size(72, 22),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                TextAlign = System.Drawing.ContentAlignment.MiddleRight
+            });
+            _cboFilterPO = new ComboBox
+            {
+                Location = new Point(770, 44),
+                Size = new Size(120, 24),
+                Font = new Font("Segoe UI", 8),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            _cboFilterPO.Items.Add("(Tat ca)"); // placeholder, se duoc load dong
+            _cboFilterPO.SelectedIndex = 0;
+            _cboFilterPO.SelectedIndexChanged += (s, ev) => FilterDetailByPO();
+            panelDetail.Controls.Add(_cboFilterPO);
+
+            // ── Xuat Excel ──
+            _btnExportDetail = CreateButton("📥 Xuat Excel", Color.FromArgb(0, 150, 100), new Point(898, 38), 120, 30);
+            _btnExportDetail.Click += BtnExportDetail_Click;
+            panelDetail.Controls.Add(_btnExportDetail);
+
             dgvDetails = new DataGridView
             {
                 Location = new Point(10, 75),
@@ -338,6 +366,9 @@ namespace MPR_Managerment.Forms
             dgvDetails.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvDetails.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgvDetails.CellFormatting += DgvDetails_CellFormatting;
+            dgvDetails.KeyDown += DgvDetails_GridKeyDown;
+            // Cho phep copy nhieu o
+            dgvDetails.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
 
             BuildDetailColumns();
             panelDetail.Controls.Add(dgvDetails);
@@ -1010,6 +1041,8 @@ namespace MPR_Managerment.Forms
                     row.Cells["Remarks"].Value = d.Remarks;
                     row.Cells["PO_No"].Value = poMapping.ContainsKey(d.Detail_ID) ? poMapping[d.Detail_ID] : "";
                 }
+                // Populate combobox filter voi cac gia tri thuc te tu cot PO_No
+                RefreshPOFilterCombo();
             }
             catch (Exception ex)
             {
@@ -1775,20 +1808,89 @@ namespace MPR_Managerment.Forms
                 int x1 = 6;
 
                 addFL("Mã DA:", x1, row1Y, 48);
-                var cboDuAn = new ComboBox
+
+                // ── Checked-combo dropdown cho Mã DA (chọn nhiều) ──
+                var daProjectList = dtFull.AsEnumerable()
+                    .Select(r => r["Mã dự án"].ToString())
+                    .Where(v => !string.IsNullOrEmpty(v))
+                    .Distinct().OrderBy(v => v).ToList();
+
+                var clbDA = new CheckedListBox
+                {
+                    Font = new Font("Segoe UI", 9),
+                    CheckOnClick = true,
+                    BorderStyle = BorderStyle.None,
+                    BackColor = Color.White,
+                    IntegralHeight = false,
+                    Width = 220
+                };
+                foreach (var p in daProjectList) clbDA.Items.Add(p, false);
+                clbDA.Height = Math.Min(clbDA.Items.Count, 10) * 17 + 4;
+
+                var panelDropDA = new Panel
+                {
+                    Size = new Size(224, clbDA.Height + 2),
+                    BackColor = Color.White,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Visible = false
+                };
+                popup.Controls.Add(panelDropDA);
+                panelDropDA.Controls.Add(clbDA);
+                panelDropDA.BringToFront();
+
+                var btnDropDA = new Button
                 {
                     Location = new Point(x1 + 50, row1Y),
-                    Size = new Size(115, 22),
-                    Font = new Font("Segoe UI", 9),
-                    DropDownStyle = ComboBoxStyle.DropDownList
+                    Size = new Size(120, 22),
+                    Text = "(Tất cả)  ▼",
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Font = new Font("Segoe UI", 8),
+                    BackColor = Color.White,
+                    ForeColor = Color.FromArgb(30, 30, 30),
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand,
+                    Padding = new Padding(3, 0, 0, 0)
                 };
-                cboDuAn.Items.Add("Tất cả");
-                dtFull.AsEnumerable()
-                    .Select(r => r["Mã dự án"].ToString()).Where(v => !string.IsNullOrEmpty(v))
-                    .Distinct().OrderBy(v => v).ToList().ForEach(v => cboDuAn.Items.Add(v));
-                cboDuAn.SelectedIndex = 0;
-                pFilter.Controls.Add(cboDuAn);
-                x1 += 175;
+                btnDropDA.FlatAppearance.BorderColor = Color.FromArgb(171, 173, 179);
+                btnDropDA.FlatAppearance.BorderSize = 1;
+                btnDropDA.Paint += (s, ev) =>
+                {
+                    int ax = btnDropDA.Width - 14, ay = btnDropDA.Height / 2;
+                    ev.Graphics.FillPolygon(Brushes.DimGray, new[]
+                    {
+                        new Point(ax, ay - 3), new Point(ax + 7, ay - 3), new Point(ax + 3, ay + 3)
+                    });
+                };
+                pFilter.Controls.Add(btnDropDA);
+
+                Action updateBtnDA = () =>
+                {
+                    var sel = clbDA.CheckedItems.Cast<string>().ToList();
+                    btnDropDA.Text = sel.Count == 0 ? "(Tất cả)  ▼" :
+                                     sel.Count == 1 ? sel[0] + "  ▼" :
+                                     $"({sel.Count} DA)  ▼";
+                    btnDropDA.ForeColor = sel.Count > 0 ? Color.FromArgb(102, 51, 153) : Color.FromArgb(30, 30, 30);
+                    btnDropDA.Font = new Font("Segoe UI", 8, sel.Count > 0 ? FontStyle.Bold : FontStyle.Regular);
+                };
+
+                btnDropDA.Click += (s, ev) =>
+                {
+                    if (panelDropDA.Visible) { panelDropDA.Visible = false; return; }
+                    var pt = popup.PointToClient(btnDropDA.Parent.PointToScreen(
+                        new Point(btnDropDA.Left, btnDropDA.Bottom + 2)));
+                    panelDropDA.Location = pt;
+                    panelDropDA.BringToFront();
+                    panelDropDA.Visible = true;
+                    clbDA.Focus();
+                };
+
+                popup.MouseDown += (s, ev) =>
+                {
+                    if (panelDropDA.Visible && !panelDropDA.Bounds.Contains(ev.Location))
+                        panelDropDA.Visible = false;
+                };
+
+                x1 += 180;
 
                 addFL("Tên VT:", x1, row1Y, 50);
                 var txtFName = new TextBox { Location = new Point(x1 + 52, row1Y), Size = new Size(140, 22), Font = new Font("Segoe UI", 9), PlaceholderText = "Tên vật tư..." };
@@ -1878,7 +1980,9 @@ namespace MPR_Managerment.Forms
                 pFilter.Controls.Add(btnFClear);
 
                 foreach (Control c in pFilter.Controls)
-                    if (c is TextBox || c is ComboBox) c.BringToFront();
+                    if (c is TextBox || c is ComboBox || c is Button) c.BringToFront();
+                // Dropdown panel phải luôn nằm trên cùng khi hiện
+                panelDropDA.BringToFront();
 
                 var dgv = new DataGridView
                 {
@@ -1942,7 +2046,7 @@ namespace MPR_Managerment.Forms
 
                 Action applyFilter = () =>
                 {
-                    string selDA = cboDuAn.SelectedItem?.ToString() ?? "Tất cả";
+                    var selDA = clbDA.CheckedItems.Cast<string>().ToList();
                     string kName = txtFName.Text.Trim().ToLower();
                     string kA = txtFA.Text.Trim();
                     string kB = txtFB.Text.Trim();
@@ -1956,7 +2060,7 @@ namespace MPR_Managerment.Forms
 
                     var rows = dtFull.AsEnumerable().Where(r =>
                     {
-                        if (selDA != "Tất cả" && r["Mã dự án"].ToString() != selDA) return false;
+                        if (selDA.Count > 0 && !selDA.Contains(r["Mã dự án"].ToString())) return false;
                         if (!string.IsNullOrEmpty(kName) && !r["Tên vật tư"].ToString().ToLower().Contains(kName)) return false;
                         if (!string.IsNullOrEmpty(kMat) && !r["Vật liệu"].ToString().ToLower().Contains(kMat)) return false;
                         if (!string.IsNullOrEmpty(kA) && !r["A-Dày(mm)"].ToString().Contains(kA)) return false;
@@ -2011,10 +2115,22 @@ namespace MPR_Managerment.Forms
                     }
                 };
 
+                // ItemCheck: update button text + refilter (after applyFilter to avoid CS0841)
+                clbDA.ItemCheck += (s, ev) =>
+                {
+                    clbDA.BeginInvoke(new Action(() =>
+                    {
+                        updateBtnDA();
+                        applyFilter();
+                    }));
+                };
+
                 btnFSearch.Click += (s, ev) => applyFilter();
                 btnFClear.Click += (s, ev) =>
                 {
-                    cboDuAn.SelectedIndex = 0;
+                    for (int i = 0; i < clbDA.Items.Count; i++) clbDA.SetItemChecked(i, false);
+                    updateBtnDA();
+                    panelDropDA.Visible = false;
                     txtFName.Text = "";
                     txtFMat.Text = "";
                     txtFA.Text = ""; txtFB.Text = ""; txtFC.Text = "";
@@ -2261,6 +2377,323 @@ namespace MPR_Managerment.Forms
             foreach (var c in this.Controls.Find("btnCheckAll", true))
                 PermissionHelper.Apply(c, "MPR", "Check All Items");
         }
+
+        // =====================================================================
+        //  LOC DETAIL THEO DA LEN PO
+        // =====================================================================
+        // Load dong cac gia tri PO_No vao combobox filter
+        private void RefreshPOFilterCombo()
+        {
+            if (_cboFilterPO == null) return;
+            _cboFilterPO.SelectedIndexChanged -= (s, ev) => FilterDetailByPO();
+            _cboFilterPO.Items.Clear();
+            _cboFilterPO.Items.Add("(Tat ca)"); // mac dinh
+
+            // Lay cac gia tri duy nhat tu cot PO_No
+            var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            bool hasEmpty = false;
+            foreach (DataGridViewRow row in dgvDetails.Rows)
+            {
+                if (row.IsNewRow) continue;
+                string val = row.Cells["PO_No"]?.Value?.ToString() ?? "";
+                if (string.IsNullOrWhiteSpace(val)) hasEmpty = true;
+                else if (seen.Add(val)) _cboFilterPO.Items.Add(val);
+            }
+            // Them muc loc rong neu co dong chua len PO
+            if (hasEmpty) _cboFilterPO.Items.Add("(Chua len PO)");
+            _cboFilterPO.SelectedIndex = 0; // chon "(Tat ca)"
+            _cboFilterPO.SelectedIndexChanged += (s, ev) => FilterDetailByPO();
+        }
+
+        private void FilterDetailByPO()
+        {
+            if (_cboFilterPO == null || dgvDetails == null) return;
+            string sel = _cboFilterPO.SelectedItem?.ToString() ?? "(Tat ca)";
+
+            foreach (DataGridViewRow row in dgvDetails.Rows)
+            {
+                if (row.IsNewRow) continue;
+                string poVal = row.Cells["PO_No"]?.Value?.ToString() ?? "";
+
+                if (sel == "(Tat ca)")
+                    row.Visible = true;
+                else if (sel == "(Chua len PO)")
+                    row.Visible = string.IsNullOrWhiteSpace(poVal);
+                else
+                    row.Visible = string.Equals(poVal, sel, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // =====================================================================
+        //  XUAT EXCEL CHI TIET VAT TU
+        // =====================================================================
+        private void BtnExportDetail_Click(object sender, EventArgs e)
+        {
+            if (dgvDetails.Rows.Count == 0)
+            {
+                MessageBox.Show("Khong co du lieu de xuat!", "Thong bao",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using var sfd = new SaveFileDialog
+            {
+                Filter = "Excel Files|*.xlsx",
+                FileName = "MPR_ChiTiet_" + (txtMPRNo?.Text.Trim() ?? "export")
+                           + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
+                Title = "Luu file Excel"
+            };
+            if (sfd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                using var pkg = new OfficeOpenXml.ExcelPackage();
+                var ws = pkg.Workbook.Worksheets.Add("Chi tiet vat tu");
+
+                // Header row
+                var visCols = new System.Collections.Generic.List<DataGridViewColumn>();
+                foreach (DataGridViewColumn col in dgvDetails.Columns)
+                    if (col.Visible && col.Name != "Detail_ID")
+                        visCols.Add(col);
+
+                // Style header
+                for (int ci = 0; ci < visCols.Count; ci++)
+                {
+                    var cell = ws.Cells[1, ci + 1];
+                    cell.Value = visCols[ci].HeaderText;
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                    cell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(0, 120, 212));
+                    cell.Style.Font.Color.SetColor(System.Drawing.Color.White);
+                    cell.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                    cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                }
+
+                // Lay gia tri truc tiep tu _details (so nguyen/decimal thuc)
+                // de tranh bi format string boi CellFormatting
+                var poMap2 = GetPoMappingForMpr(_selectedMPR_ID);
+                // Build map Detail_ID -> row.Visible de biet dong nao dang hien
+                var visibleIds = new System.Collections.Generic.HashSet<int>();
+                foreach (DataGridViewRow dgvRow in dgvDetails.Rows)
+                {
+                    if (dgvRow.IsNewRow || !dgvRow.Visible) continue;
+                    if (dgvRow.Cells["Detail_ID"]?.Value is int rid) visibleIds.Add(rid);
+                    else if (int.TryParse(dgvRow.Cells["Detail_ID"]?.Value?.ToString(), out int rid2))
+                        visibleIds.Add(rid2);
+                }
+
+                int excelRow = 2;
+                foreach (var d in _details)
+                {
+                    if (!visibleIds.Contains(d.Detail_ID)) continue;
+
+                    string poNo = poMap2.ContainsKey(d.Detail_ID) ? poMap2[d.Detail_ID] : "";
+
+                    // Map gia tri theo ten cot
+                    var rowData = new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        ["Item_No"] = d.Item_No,
+                        ["Item_Name"] = d.Item_Name ?? "",
+                        ["Description"] = d.Description ?? "",
+                        ["Material"] = d.Material ?? "",
+                        ["Thickness_mm"] = d.Thickness_mm,
+                        ["Depth_mm"] = d.Depth_mm,
+                        ["C_Width_mm"] = d.C_Width_mm,
+                        ["D_Web_mm"] = d.D_Web_mm,
+                        ["E_Flange_mm"] = d.E_Flange_mm,
+                        ["F_Length_mm"] = d.F_Length_mm,
+                        ["UNIT"] = d.UNIT ?? "",
+                        ["Qty"] = d.Qty_Per_Sheet,
+                        ["Weight"] = d.Weight_kg,
+                        ["MPS_Info"] = d.MPS_Info ?? "",
+                        ["Usage_Location"] = d.Usage_Location ?? "",
+                        ["REV"] = d.REV,
+                        ["Remarks"] = d.Remarks ?? "",
+                        ["PO_No"] = poNo
+                    };
+
+                    var numericSet = new System.Collections.Generic.HashSet<string>
+                        { "Thickness_mm","Depth_mm","C_Width_mm","D_Web_mm",
+                          "E_Flange_mm","F_Length_mm","Qty","Weight" };
+
+                    for (int ci = 0; ci < visCols.Count; ci++)
+                    {
+                        string colN = visCols[ci].Name;
+                        var cell = ws.Cells[excelRow, ci + 1];
+
+                        if (!rowData.ContainsKey(colN)) { cell.Value = ""; continue; }
+
+                        object rawVal = rowData[colN];
+
+                        if (numericSet.Contains(colN))
+                        {
+                            // Set so thuc truc tiep - KHONG qua string
+                            double dbl = Convert.ToDouble(rawVal);
+                            cell.Value = dbl;
+                            // Format: hien so thap phan neu co, khong co separator
+                            cell.Style.Numberformat.Format = "0.##";
+                        }
+                        else
+                            cell.Value = rawVal;
+
+                        // Mau dong xen ke
+                        if (excelRow % 2 == 0)
+                        {
+                            cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            cell.Style.Fill.BackgroundColor.SetColor(
+                                System.Drawing.Color.FromArgb(240, 248, 255));
+                        }
+
+                        // Mau cot Da len PO
+                        if (colN == "PO_No" && !string.IsNullOrWhiteSpace(poNo))
+                        {
+                            cell.Style.Font.Bold = true;
+                            cell.Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(40, 167, 69));
+                        }
+
+                        cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Hair);
+                    }
+                    excelRow++;
+                }
+
+                // Title MPR info
+                ws.InsertRow(1, 2);
+                ws.Cells[1, 1].Value = "BANG CHI TIET VAT TU MPR";
+                ws.Cells[1, 1].Style.Font.Bold = true;
+                ws.Cells[1, 1].Style.Font.Size = 13;
+                ws.Cells[1, 1, 1, visCols.Count].Merge = true;
+
+                ws.Cells[2, 1].Value = "MPR No: " + (txtMPRNo?.Text ?? "") +
+                                       "   Du an: " + (txtProjectName?.Text ?? "") +
+                                       "   Ngay: " + DateTime.Now.ToString("dd/MM/yyyy");
+                ws.Cells[2, 1, 2, visCols.Count].Merge = true;
+
+                // Filter info
+                string filterInfo = _cboFilterPO?.SelectedItem?.ToString() ?? "Tat ca";
+                ws.Cells[2, 1].Value += "   Loc: " + filterInfo;
+
+                // Auto fit
+                ws.Cells[ws.Dimension.Address].AutoFitColumns(8, 50);
+
+                pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
+
+                if (MessageBox.Show("Xuat Excel thanh cong!\nMo file ngay?", "Thanh cong",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    System.Diagnostics.Process.Start(
+                        new System.Diagnostics.ProcessStartInfo
+                        { FileName = sfd.FileName, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Loi xuat Excel: " + ex.Message, "Loi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+
+        // =====================================================================
+        //  COPY BANG SANG CLIPBOARD (Ctrl+C / Ctrl+Shift+C)
+        // =====================================================================
+        private void DgvDetails_GridKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.C)
+            {
+                CopyGridToClipboard(e.Shift); // Shift = kem header
+                e.Handled = true;
+            }
+        }
+
+        private void CopyGridToClipboard(bool withHeader)
+        {
+            try
+            {
+                // Chi copy cac dong DANG DUOC CHON (selected rows)
+                var selectedRows = dgvDetails.SelectedRows
+                    .Cast<DataGridViewRow>()
+                    .Where(r => !r.IsNewRow)
+                    .OrderBy(r => r.Index)
+                    .ToList();
+
+                if (selectedRows.Count == 0)
+                {
+                    MessageBox.Show("Vui long chon it nhat mot dong de copy!",
+                        "Thong bao", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // Lay cot hien thi
+                var visCols = dgvDetails.Columns
+                    .Cast<DataGridViewColumn>()
+                    .Where(c => c.Visible && c.Name != "Detail_ID")
+                    .OrderBy(c => c.DisplayIndex)
+                    .ToList();
+
+                var numSet = new System.Collections.Generic.HashSet<string>
+                    { "Qty","Weight","Thickness_mm","Depth_mm",
+                      "C_Width_mm","D_Web_mm","E_Flange_mm","F_Length_mm" };
+
+                var sb = new System.Text.StringBuilder();
+
+                // Header neu can
+                if (withHeader)
+                    sb.AppendLine(string.Join("\t", visCols.Select(c => c.HeaderText)));
+
+                // Doc gia tri tu _details theo Detail_ID de dam bao la so thuc
+                var poMap = GetPoMappingForMpr(_selectedMPR_ID);
+
+                foreach (var row in selectedRows)
+                {
+                    int detId = 0;
+                    int.TryParse(row.Cells["Detail_ID"]?.Value?.ToString(), out detId);
+                    var d = _details.Find(x => x.Detail_ID == detId);
+
+                    var parts = new System.Collections.Generic.List<string>();
+                    foreach (var col in visCols)
+                    {
+                        string colN = col.Name;
+                        string cellVal;
+
+                        if (d != null && numSet.Contains(colN))
+                        {
+                            // Doc so thuc tu _details, xuat dang InvariantCulture
+                            double dbl = colN switch
+                            {
+                                "Qty" => (double)d.Qty_Per_Sheet,
+                                "Weight" => (double)d.Weight_kg,
+                                "Thickness_mm" => (double)d.Thickness_mm,
+                                "Depth_mm" => (double)d.Depth_mm,
+                                "C_Width_mm" => (double)d.C_Width_mm,
+                                "D_Web_mm" => (double)d.D_Web_mm,
+                                "E_Flange_mm" => (double)d.E_Flange_mm,
+                                "F_Length_mm" => (double)d.F_Length_mm,
+                                _ => 0
+                            };
+                            // Xuat: so nguyen thi khong co thap phan
+                            cellVal = (dbl == Math.Floor(dbl))
+                                ? ((long)dbl).ToString()
+                                : dbl.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        }
+                        else if (colN == "PO_No")
+                            cellVal = (d != null && poMap.ContainsKey(d.Detail_ID))
+                                ? poMap[d.Detail_ID] : "";
+                        else
+                            cellVal = row.Cells[colN]?.Value?.ToString() ?? "";
+
+                        parts.Add(cellVal);
+                    }
+                    sb.AppendLine(string.Join("\t", parts));
+                }
+
+                Clipboard.SetText(sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Loi copy: " + ex.Message, "Loi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
 
     }
 }
