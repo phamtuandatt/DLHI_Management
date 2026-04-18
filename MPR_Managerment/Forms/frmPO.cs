@@ -335,7 +335,9 @@ namespace MPR_Managerment.Forms
             dgvDelivery.CellFormatting += (s, ev) =>
             {
                 if (ev.RowIndex < 0) return;
-                if (dgvDelivery.Columns[ev.ColumnIndex].Name == "Status")
+                string colName = dgvDelivery.Columns[ev.ColumnIndex].Name;
+
+                if (colName == "Status")
                 {
                     string v = ev.Value?.ToString() ?? "";
                     ev.CellStyle.ForeColor =
@@ -343,6 +345,23 @@ namespace MPR_Managerment.Forms
                         v == "Overdue" ? Color.FromArgb(220, 53, 69) :
                         Color.FromArgb(255, 140, 0);
                     ev.CellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+                }
+
+                // Tô màu vàng ô Exp.Deliv nếu trùng ngày hôm nay
+                if (colName == "ExpDelivery")
+                {
+                    string dateStr = ev.Value?.ToString() ?? "";
+                    if (DateTime.TryParseExact(dateStr, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "M/d/yyyy", "d/M/yyyy" },
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out DateTime expDate))
+                    {
+                        if (expDate.Date == DateTime.Today)
+                        {
+                            ev.CellStyle.BackColor = Color.Yellow;
+                            ev.CellStyle.ForeColor = Color.FromArgb(100, 60, 0);
+                            ev.CellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+                        }
+                    }
                 }
             };
             dgvDelivery.RowPrePaint += (s, ev) =>
@@ -447,7 +466,7 @@ namespace MPR_Managerment.Forms
             cboPaymentTerm.SelectedIndex = 0;
             cboPaymentTerm.BringToFront();
             panelHeader.Controls.Add(cboPaymentTerm);
-            AddLabel(panelHeader, "Ngày Giao hàng:", 610, y); 
+            AddLabel(panelHeader, "Ngày Giao hàng:", 610, y);
             dtpPOExpectDelivery = new DateTimePicker { Location = new Point(680, y), Size = new Size(100, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
             panelHeader.Controls.Add(dtpPOExpectDelivery);
 
@@ -1551,8 +1570,6 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
                         ws.Cells[row, 16].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
 
-                        ws.Cells[row, 7].Style.Numberformat.Format = "#,##0.00";
-
                         ws.Cells[row, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
                         ws.Cells[row, 11].Style.Numberformat.Format = "dd/MM/yyyy";
 
@@ -2410,6 +2427,9 @@ namespace MPR_Managerment.Forms
                 SaveDetailsToDb();
                 MessageBox.Show($"Đã lưu toàn bộ PO thành công!\n- Số PO: {finalPONo}\n- Số dòng vật tư: {dgvDetails.Rows.Count}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
+                // Tự động xuất Excel vào thư mục PO Link của dự án
+                AutoSavePOExcelToPOLink(h, _selectedPO_ID);
+
                 int savedId = _selectedPO_ID;
                 LoadPO();
                 foreach (DataGridViewRow row in dgvPO.Rows)
@@ -2427,6 +2447,176 @@ namespace MPR_Managerment.Forms
             catch (Exception ex)
             {
                 MessageBox.Show("Lỗi khi lưu PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // =========================================================================
+        // TỰ ĐỘNG XUẤT EXCEL PO VÀO THƯ MỤC PO LINK CỦA DỰ ÁN
+        // =========================================================================
+        private void AutoSavePOExcelToPOLink(POHead poHead, int poId)
+        {
+            try
+            {
+                // 1. Tìm dự án hiện tại để lấy PO_Link
+                var projects = new ProjectService().GetAll();
+                var prj = projects.Find(p =>
+                    (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(poHead.WorkorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(poHead.Project_Name, StringComparison.OrdinalIgnoreCase)));
+
+                if (prj == null || string.IsNullOrEmpty(prj.PO_Link))
+                {
+                    MessageBox.Show(
+                        "⚠️ Không tìm thấy đường dẫn PO Link cho dự án này!\n\n" +
+                        "Vui lòng cập nhật 'PO Link' trong mục Quản lý Dự án trước khi lưu file Excel tự động.",
+                        "Thiếu PO Link", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string poLinkDir = prj.PO_Link.Trim();
+                if (!Directory.Exists(poLinkDir))
+                {
+                    var createDir = MessageBox.Show(
+                        $"⚠️ Thư mục PO Link không tồn tại:\n{poLinkDir}\n\nBạn có muốn tạo thư mục này không?",
+                        "Thư mục không tồn tại", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (createDir == DialogResult.Yes)
+                    {
+                        try { Directory.CreateDirectory(poLinkDir); }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"❌ Không thể tạo thư mục:\n{poLinkDir}\n\nLỗi: {ex.Message}",
+                                "Lỗi tạo thư mục", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
+                        }
+                    }
+                    else return;
+                }
+
+                // 2. Tìm template
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "po_template.xlsx");
+                if (!File.Exists(templatePath))
+                {
+                    MessageBox.Show(
+                        $"❌ Không tìm thấy file template Excel!\n\nĐường dẫn dự kiến:\n{templatePath}\n\n" +
+                        "Vui lòng đảm bảo file 'po_template.xlsx' tồn tại trong thư mục Templates của ứng dụng.",
+                        "Thiếu Template", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // 3. Đường dẫn file đích
+                string safePoNo = poHead.PONo?.Replace("/", "-").Replace("\\", "-").Replace(":", "-") ?? "PO";
+                string fileName = $"PO_{safePoNo}_{DateTime.Now:ddMMyyyy}.xlsx";
+                string destPath = Path.Combine(poLinkDir, fileName);
+
+                // 4. Hỏi xác nhận trước khi lưu
+                bool fileExists = File.Exists(destPath);
+                string confirmMsg = fileExists
+                    ? $"📁 File Excel đã tồn tại, bạn có muốn GHI ĐÈ không?\n\n" +
+                      $"📄 File: {fileName}\n📂 Thư mục: {poLinkDir}"
+                    : $"💾 Xác nhận lưu file Excel PO vào thư mục dự án?\n\n" +
+                      $"📄 File: {fileName}\n📂 Thư mục: {poLinkDir}";
+
+                var confirm = MessageBox.Show(confirmMsg,
+                    fileExists ? "Xác nhận ghi đè" : "Xác nhận lưu file",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (confirm != DialogResult.Yes) return;
+
+                // 5. Copy template và điền dữ liệu
+                File.Copy(templatePath, destPath, true);
+
+                var details = _service.GetDetails(poId);
+                var suppliers = new SupplierService().GetAll();
+                var supplier = suppliers.Find(s => s.Supplier_ID == poHead.Supplier_ID);
+
+                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                using (var package = new OfficeOpenXml.ExcelPackage(new FileInfo(destPath)))
+                {
+                    var ws = package.Workbook.Worksheets[0];
+
+                    // Header tags
+                    ReplaceCell(ws, "<<PROJECT_NAME>>", prj.ProjectName ?? poHead.Project_Name ?? "");
+                    ReplaceCell(ws, "<<WO-NO>>", poHead.WorkorderNo ?? "");
+                    ReplaceCell(ws, "<<REV.NUM>>", poHead.Revise.ToString());
+                    ReplaceCell(ws, "<<DATE>>", poHead.PO_Date.HasValue ? poHead.PO_Date.Value.ToString("dd/MM/yyyy") : DateTime.Today.ToString("dd/MM/yyyy"));
+                    ReplaceCell(ws, "<<MPR-NO>>", poHead.MPR_No ?? "");
+                    ReplaceCell(ws, "<<PO-NO>>", poHead.PONo ?? "");
+                    string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
+                    ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
+
+                    ws.Cells[5, 15].Value = !string.IsNullOrEmpty(poHead.Payment_Term)
+                        ? poHead.Payment_Term : "Within 7 days after delivery";
+                    ws.Cells[8, 11].Value = DateTime.Today.AddDays(7).ToString("dd/MM/yyyy");
+
+                    int startRow = 8;
+                    int detailCount = details.Count;
+
+                    if (detailCount > 1)
+                    {
+                        ws.InsertRow(startRow + 1, detailCount - 1);
+                        for (int i = 1; i < detailCount; i++)
+                            ws.Cells[startRow, 1, startRow, 16].Copy(ws.Cells[startRow + i, 1]);
+                    }
+
+                    decimal totalAfterVAT = 0;
+                    for (int i = 0; i < detailCount; i++)
+                    {
+                        var d = details[i];
+                        int row = startRow + i;
+                        decimal q = d.Qty_Per_Sheet;
+                        decimal wk = d.Weight_kg;
+                        decimal realPrice = d.Price;
+                        string rem = d.Remarks ?? "";
+
+                        if (rem.Contains("[CALC:KG]"))
+                        {
+                            rem = rem.Replace("[CALC:KG]", "").Trim();
+                            if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
+                        }
+
+                        ws.Cells[row, 1].Value = i + 1;
+                        ws.Cells[row, 2].Value = d.Item_Name ?? "";
+                        ws.Cells[row, 3].Value = d.Material ?? "";
+                        ws.Cells[row, 4].Value = d.Asize;
+                        ws.Cells[row, 5].Value = d.Bsize;
+                        ws.Cells[row, 6].Value = d.Csize;
+                        ws.Cells[row, 7].Value = d.Qty_Per_Sheet;
+                        ws.Cells[row, 8].Value = d.UNIT ?? "";
+                        ws.Cells[row, 9].Value = d.Weight_kg;
+                        ws.Cells[row, 10].Value = d.MPSNo ?? "";
+                        ws.Cells[row, 11].Value = d.RequestDay;
+                        ws.Cells[row, 12].Value = "Kho DLHI";
+                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
+                        ws.Cells[row, 14].Value = d.Amount;
+                        ws.Cells[row, 16].Value = rem;
+
+                        totalAfterVAT += d.Amount * (1 + d.VAT / 100);
+                    }
+
+                    int subTotalRow = startRow + detailCount;
+                    int vatRow = subTotalRow + 1;
+                    ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
+                    ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
+                    ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
+                    ws.Cells[vatRow, 14].Value = totalAfterVAT;
+                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.##";
+                    ws.Cells[vatRow, 14].Style.Font.Bold = true;
+
+                    package.Save();
+                }
+
+                // 6. Refresh danh sách file đính kèm
+                LoadFiles(poHead.WorkorderNo, poHead.Project_Name);
+
+                // 7. Thông báo thành công và tự động mở file
+                MessageBox.Show(
+                    $"✅ Đã lưu file Excel thành công!\n\n📄 File: {fileName}\n📂 Thư mục: {poLinkDir}",
+                    "Lưu file thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                Process.Start(new ProcessStartInfo { FileName = destPath, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"❌ Lỗi khi tự động lưu file Excel vào PO Link:\n\n{ex.Message}",
+                    "Lỗi lưu file", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
