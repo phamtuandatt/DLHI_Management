@@ -44,10 +44,9 @@ namespace MPR_Managerment.Forms
         private TextBox txtSearchPO;
         private ComboBox cboStatusFilter;
         private DataGridView dgvPO, dgvSchedule, dgvHistory;
-        private Panel panelDoc;        // Bảng Document (Invoice + Delivery)
-        private DataGridView dgvDoc;
         private Label lblPOName, lblPOAmount, lblPOPaid, lblPORemain, lblPOStatus, lblPOProgress;
         private Panel panelTop, panelInfo, panelSched, panelHist;
+        private DataGridView dgvDoc;
         private Panel panelPrintHistory;   // Danh sách PO đã in Request
         private DataGridView dgvPrintHistory;
         private DateTimePicker _phDateFrom, _phDateTo; // Bộ lọc thời gian
@@ -179,22 +178,25 @@ namespace MPR_Managerment.Forms
             bool canEdit = AppSession.CanEdit("PO") || AppSession.CanCreate("PO");
             if (canEdit)
             {
-                var bAdd = Btn("+ Thêm đợt", Color.FromArgb(40, 167, 69), 8, 28, 100, 26);
-                var bDel = Btn("Xóa", Color.FromArgb(220, 53, 69), 114, 28, 65, 26);
-                var bSave = Btn("💾 Lưu", Color.FromArgb(0, 120, 212), 185, 28, 80, 26);
-                var bReq = Btn("📄 Request to EC", Color.FromArgb(102, 51, 153), 271, 28, 150, 26);
-                var bPrint = Btn("🖨 In Request", Color.FromArgb(0, 150, 100), 427, 28, 120, 26);
+                var bAdd = Btn("+ Thêm", Color.FromArgb(40, 167, 69), 8, 28, 72, 24);
+                var bDel = Btn("Xóa", Color.FromArgb(220, 53, 69), 84, 28, 48, 24);
+                var bSave = Btn("💾 Lưu", Color.FromArgb(0, 120, 212), 136, 28, 65, 24);
+                var bReq = Btn("📄 Request", Color.FromArgb(102, 51, 153), 205, 28, 88, 24);
+                var bPrint = Btn("🖨 In Req", Color.FromArgb(0, 150, 100), 297, 28, 78, 24);
+                var bPrintDoc = Btn("🖨 In tài liệu", Color.FromArgb(102, 51, 153), 379, 28, 100, 24);
 
                 bAdd.Click += BtnAddSched_Click;
                 bDel.Click += BtnDelSched_Click;
                 bSave.Click += BtnSaveSched_Click;
                 bReq.Click += BtnPaymentRequest_Click;
                 bPrint.Click += BtnPrintRequest_Click;
+                bPrintDoc.Click += BtnPrintDocs_Click;
 
-                panelSched.Controls.AddRange(new Control[] { bAdd, bDel, bSave, bReq, bPrint });
+                panelSched.Controls.AddRange(new Control[] { bAdd, bDel, bSave, bReq, bPrint, bPrintDoc });
             }
 
-            dgvSchedule = Grid(panelSched, 60, 0);
+            dgvSchedule = Grid(panelSched, 57, 0);
+            dgvSchedule.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom;
             dgvSchedule.SelectionChanged += (s, e) =>
             {
                 if (dgvSchedule.SelectedRows.Count > 0)
@@ -203,6 +205,55 @@ namespace MPR_Managerment.Forms
             dgvSchedule.CellFormatting += DgvSched_CellFormatting;
             dgvSchedule.CellEndEdit += DgvSchedule_CellEndEdit;
             BuildSchedCols();
+
+            // ── Label + DataGridView Document — 200px bên phải trong panelSched ──
+            const int docPanelW = 200;
+            Lbl(panelSched, "📎 Document", panelSched.Width - docPanelW, 5, docPanelW - 5, 18, true, Color.FromArgb(0, 120, 212));
+
+            dgvDoc = new DataGridView
+            {
+                Location = new Point(panelSched.Width - docPanelW, 28),
+                Size = new Size(docPanelW - 5, panelSched.Height - 33),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 8),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom,
+                Name = "dgvDoc"
+            };
+            dgvDoc.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvDoc.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvDoc.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+            dgvDoc.EnableHeadersVisualStyles = false;
+            dgvDoc.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvDoc.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgvDoc.DefaultCellStyle.SelectionForeColor = Color.Black;
+
+            dgvDoc.Columns.Add(new DataGridViewTextBoxColumn { Name = "Doc_Path", Visible = false });
+            dgvDoc.Columns.Add(new DataGridViewTextBoxColumn { Name = "Doc_Name", HeaderText = "Tên file", FillWeight = 100, ReadOnly = true });
+
+            dgvDoc.CellFormatting += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                string docPath = dgvDoc.Rows[ev.RowIndex].Cells["Doc_Path"].Value?.ToString() ?? "";
+                bool isInvoice = System.IO.Path.GetFileName(docPath).StartsWith("INV_", StringComparison.OrdinalIgnoreCase);
+                ev.CellStyle.ForeColor = isInvoice ? Color.FromArgb(0, 120, 212) : Color.FromArgb(40, 167, 69);
+            };
+
+            // Double-click → mở file
+            dgvDoc.CellDoubleClick += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                string path = dgvDoc.Rows[ev.RowIndex].Cells["Doc_Path"].Value?.ToString() ?? "";
+                if (System.IO.File.Exists(path))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true });
+            };
+
+            panelSched.Controls.Add(dgvDoc);
 
             // ── Danh sách PO đã in Request ──
             panelPrintHistory = P(tabPO, 5, 317 + 200 + 5, 0, 0, Color.White);
@@ -310,49 +361,6 @@ namespace MPR_Managerment.Forms
                     _selectedHistID = Convert.ToInt32(dgvHistory.CurrentRow.Cells["H_ID"].Value ?? 0);
             };
             BuildHistCols();
-
-            // ── PANEL: Document (Invoice + Delivery Note) ──
-            panelDoc = P(tabPO, 0, 317 + 200 + 5, 0, 0, Color.White);
-            panelDoc.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
-            Lbl(panelDoc, "📎  DOCUMENT", 8, 5, 200, 20, true, Color.FromArgb(0, 120, 212));
-
-            var bPrintDoc = Btn("🖨 In tài liệu", Color.FromArgb(102, 51, 153), 220, 3, 130, 26);
-            bPrintDoc.Click += BtnPrintDocs_Click;
-            panelDoc.Controls.Add(bPrintDoc);
-
-            var bRefreshDoc = Btn("🔄 Tải lại", Color.FromArgb(0, 150, 150), 360, 3, 90, 26);
-            bRefreshDoc.Click += (s, e) => LoadDocuments();
-            panelDoc.Controls.Add(bRefreshDoc);
-
-            dgvDoc = Grid(panelDoc, 32, 0);
-            dgvDoc.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvDoc.MultiSelect = true;
-            dgvDoc.ReadOnly = true;
-            dgvDoc.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Doc_Chk", HeaderText = "", Width = 30 });
-            dgvDoc.Columns.Add(new DataGridViewTextBoxColumn { Name = "Doc_Type", HeaderText = "Loại", Width = 100, ReadOnly = true });
-            dgvDoc.Columns.Add(new DataGridViewTextBoxColumn { Name = "Doc_Name", HeaderText = "Tên file", Width = 280, ReadOnly = true });
-            dgvDoc.Columns.Add(new DataGridViewTextBoxColumn { Name = "Doc_Path", HeaderText = "Đường dẫn", FillWeight = 100, ReadOnly = true });
-            dgvDoc.Columns["Doc_Path"].Visible = false; // ẩn đường dẫn đầy đủ
-            dgvDoc.CellFormatting += (s, ev) =>
-            {
-                if (ev.RowIndex < 0) return;
-                string col = dgvDoc.Columns[ev.ColumnIndex].Name;
-                string type = dgvDoc.Rows[ev.RowIndex].Cells["Doc_Type"].Value?.ToString() ?? "";
-                if (col == "Doc_Type")
-                {
-                    ev.CellStyle.ForeColor = type == "Invoice"
-                        ? Color.FromArgb(0, 120, 212)
-                        : Color.FromArgb(40, 167, 69);
-                    ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-                }
-            };
-            // Tick checkbox khi click dòng
-            dgvDoc.CellClick += (s, ev) =>
-            {
-                if (ev.RowIndex < 0 || ev.ColumnIndex != dgvDoc.Columns["Doc_Chk"].Index) return;
-                var cell = dgvDoc.Rows[ev.RowIndex].Cells["Doc_Chk"] as DataGridViewCheckBoxCell;
-                if (cell != null) cell.Value = !(bool)(cell.Value ?? false);
-            };
         }
 
         private void BuildPOGridCols()
@@ -391,7 +399,6 @@ namespace MPR_Managerment.Forms
             dgvSchedule.Columns.Add(new DataGridViewTextBoxColumn { Name = "Percent_TT", HeaderText = "%", Width = 48 });
             dgvSchedule.Columns.Add(new DataGridViewTextBoxColumn { Name = "Amount_Plan", HeaderText = "Số tiền KH", Width = 105 });
             dgvSchedule.Columns.Add(new DataGridViewTextBoxColumn { Name = "Due_Date", HeaderText = "Đến hạn 📅", Width = 105 });
-            dgvSchedule.Columns.Add(new DataGridViewTextBoxColumn { Name = "Delivery_Ref", HeaderText = "Lô hàng", Width = 90 });
             dgvSchedule.Columns.Add(new DataGridViewTextBoxColumn { Name = "Description", HeaderText = "Điều kiện", FillWeight = 100 });
             var cboStatus = new DataGridViewComboBoxColumn { Name = "S_Status", HeaderText = "Trạng thái", Width = 100, FlatStyle = FlatStyle.Flat };
             cboStatus.Items.AddRange(new[] { "Chưa TT", "Một phần", "Đã TT đủ" });
@@ -727,7 +734,6 @@ namespace MPR_Managerment.Forms
                     r.Cells["Percent_TT"].Value = s.Percent_TT;
                     r.Cells["Amount_Plan"].Value = s.Amount_Plan.ToString("N0");
                     r.Cells["Due_Date"].Value = s.Due_Date.HasValue ? s.Due_Date.Value.ToString("dd/MM/yyyy") : "";
-                    r.Cells["Delivery_Ref"].Value = s.Delivery_Ref;
                     r.Cells["Description"].Value = s.Description;
                     r.Cells["S_Status"].Value = s.Status;
                 }
@@ -750,7 +756,6 @@ namespace MPR_Managerment.Forms
             catch (Exception ex) { Err(ex.Message); }
         }
 
-        // ── Load Invoice + Delivery Note cho PO đang chọn ──
         private void LoadDocuments()
         {
             if (dgvDoc == null) return;
@@ -760,7 +765,6 @@ namespace MPR_Managerment.Forms
             var po = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);
             if (po == null) return;
 
-            // Lấy ProjectInfo để có INV_Link và DeliveryNote_Link
             ProjectInfo proj = null;
             try
             {
@@ -772,19 +776,13 @@ namespace MPR_Managerment.Forms
             catch { }
 
             string poNo = po.PONo ?? "";
-            string invFolder = proj?.INV_Link ?? "";
-            string delFolder = proj?.DeliveryNote_Link ?? "";
-
-            // ── Tìm file Invoice: INV_<PONo>* trong INV_Link ──
-            ScanFolder(invFolder, $"INV_{poNo}", "Invoice");
-            // ── Tìm file Delivery Note: Delivery_<PONo>* trong DeliveryNote_Link ──
-            ScanFolder(delFolder, $"Delivery_{poNo}", "Delivery Note");
+            ScanFolderToGrid(proj?.INV_Link ?? "", $"INV_{poNo}", "Invoice");
+            ScanFolderToGrid(proj?.DeliveryNote_Link ?? "", $"Delivery_{poNo}", "Delivery Note");
         }
 
-        private void ScanFolder(string folder, string prefix, string docType)
+        private void ScanFolderToGrid(string folder, string prefix, string docType)
         {
-            if (string.IsNullOrWhiteSpace(folder)) return;
-            if (!System.IO.Directory.Exists(folder)) return;
+            if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder)) return;
             try
             {
                 var files = System.IO.Directory.GetFiles(folder, $"{prefix}*",
@@ -792,10 +790,8 @@ namespace MPR_Managerment.Forms
                 foreach (var f in files)
                 {
                     int i = dgvDoc.Rows.Add();
-                    dgvDoc.Rows[i].Cells["Doc_Chk"].Value = false;
-                    dgvDoc.Rows[i].Cells["Doc_Type"].Value = docType;
-                    dgvDoc.Rows[i].Cells["Doc_Name"].Value = System.IO.Path.GetFileName(f);
                     dgvDoc.Rows[i].Cells["Doc_Path"].Value = f;
+                    dgvDoc.Rows[i].Cells["Doc_Name"].Value = System.IO.Path.GetFileName(f);
                 }
             }
             catch { }
@@ -803,29 +799,24 @@ namespace MPR_Managerment.Forms
 
         private void BtnPrintDocs_Click(object sender, EventArgs e)
         {
+            if (_selectedPO_ID == 0) { Warn("Vui lòng chọn một PO trước!"); return; }
+
+            // Đảm bảo grid đã load mới nhất
+            LoadDocuments();
+
             if (dgvDoc == null || dgvDoc.Rows.Count == 0)
             {
-                Warn("Không có tài liệu nào trong bảng để in!");
+                Warn($"Không tìm thấy file Invoice hoặc Delivery Note nào cho PO này.\nVui lòng kiểm tra thư mục INV_Link và DeliveryNote_Link của dự án!");
                 return;
             }
 
-            // Thu thập các file được tick — nếu không có file nào được tick thì in tất cả
             var filesToPrint = new List<string>();
             foreach (DataGridViewRow row in dgvDoc.Rows)
             {
-                bool chk = row.Cells["Doc_Chk"].Value is bool b && b;
-                if (chk)
-                    filesToPrint.Add(row.Cells["Doc_Path"].Value?.ToString() ?? "");
+                string path = row.Cells["Doc_Path"].Value?.ToString() ?? "";
+                if (System.IO.File.Exists(path))
+                    filesToPrint.Add(path);
             }
-            if (filesToPrint.Count == 0)
-            {
-                // Mặc định: in tất cả
-                foreach (DataGridViewRow row in dgvDoc.Rows)
-                    filesToPrint.Add(row.Cells["Doc_Path"].Value?.ToString() ?? "");
-            }
-
-            filesToPrint = filesToPrint.Where(f => !string.IsNullOrEmpty(f)
-                && System.IO.File.Exists(f)).ToList();
 
             if (filesToPrint.Count == 0)
             {
@@ -849,7 +840,6 @@ namespace MPR_Managerment.Forms
                 }
                 catch
                 {
-                    // Fallback: mở file bình thường
                     try
                     {
                         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -864,6 +854,8 @@ namespace MPR_Managerment.Forms
             if (fail > 0) msg += $"\n⚠ {fail} file không thể in.";
             MessageBox.Show(msg, "Hoàn tất", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
+
+
 
         private void DgvPO_SelectionChanged(object sender, EventArgs e)
         {
@@ -888,7 +880,7 @@ namespace MPR_Managerment.Forms
             lblPOProgress.Text = $"{pct}%";
 
             LoadSchedHist();
-            LoadDocuments(); // Load Invoice + Delivery Note
+            LoadDocuments();
         }
 
         private void DgvPO_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
@@ -1076,7 +1068,7 @@ namespace MPR_Managerment.Forms
                                 row.Cells["Due_Date"].Value?.ToString() ?? "",
                                 out dd)
                         ) ? dd : (DateTime?)null,
-                        Delivery_Ref = row.Cells["Delivery_Ref"].Value?.ToString() ?? "",
+                        Delivery_Ref = "",
                         Description = row.Cells["Description"].Value?.ToString() ?? "",
                         Status = row.Cells["S_Status"].Value?.ToString() ?? "Chưa TT"
                     };
@@ -1360,13 +1352,26 @@ namespace MPR_Managerment.Forms
 
                 int leftW = w / 2 - 8;
 
-                // panelSched cố định chiều cao 200
+                // panelSched cố định chiều cao 200, full width bên trái
                 if (panelSched != null)
                 {
+                    const int docW = 200;
                     panelSched.Width = leftW;
                     panelSched.Height = 200;
-                    dgvSchedule.Width = panelSched.Width - 10;
-                    dgvSchedule.Height = panelSched.Height - 65;
+                    // dgvSchedule chiếm phần bên trái, nhường 200px cho dgvDoc
+                    dgvSchedule.Width = panelSched.Width - docW - 15;
+                    dgvSchedule.Height = panelSched.Height - 62;
+                    // dgvDoc: 200px cố định, sát mép phải panelSched
+                    if (dgvDoc != null)
+                    {
+                        dgvDoc.Left = panelSched.Width - docW - 5;
+                        dgvDoc.Width = docW - 2;
+                        dgvDoc.Height = panelSched.Height - 30;
+                        // Cập nhật label "Document" cùng vị trí
+                        foreach (Control c in panelSched.Controls)
+                            if (c is Label lbl && lbl.Text.Contains("Document"))
+                                lbl.Left = dgvDoc.Left;
+                    }
                 }
 
                 // panelPrintHistory chiếm phần còn lại bên dưới panelSched
@@ -1386,20 +1391,8 @@ namespace MPR_Managerment.Forms
                 {
                     panelHist.Left = w / 2 + 3;
                     panelHist.Width = w / 2 - 8;
-                    panelHist.Height = 200; // cố định
+                    panelHist.Height = 200;
                     dgvHistory.Width = panelHist.Width - 10;
-                }
-
-                // panelDoc bên dưới panelHist, co giãn
-                if (panelDoc != null)
-                {
-                    int docTop = panelHist.Bottom + 5;
-                    panelDoc.Left = w / 2 + 3;
-                    panelDoc.Top = docTop;
-                    panelDoc.Width = w / 2 - 8;
-                    panelDoc.Height = Math.Max(80, h - docTop - 10);
-                    dgvDoc.Width = panelDoc.Width - 10;
-                    dgvDoc.Height = panelDoc.Height - 37;
                 }
             }
             catch { }
