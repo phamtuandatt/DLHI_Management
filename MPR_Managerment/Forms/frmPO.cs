@@ -332,6 +332,21 @@ namespace MPR_Managerment.Forms
             btnDelivDel.FlatAppearance.BorderSize = 0;
             panelDelivery.Controls.Add(btnDelivDel);
 
+            var btnDelivSaveNote = new Button
+            {
+                Text = "📝 Cập nhật ghi chú",
+                Location = new Point(419, 1),
+                Size = new Size(125, 22),
+                BackColor = Color.FromArgb(255, 140, 0),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnDelivSaveNote.FlatAppearance.BorderSize = 0;
+            btnDelivSaveNote.Click += (s, e) => SaveDeliveryReceiverNote();
+            panelDelivery.Controls.Add(btnDelivSaveNote);
+
             // ── dgvDelivery — tọa độ tương đối với panelDelivery ──
             dgvDelivery = new DataGridView
             {
@@ -3527,9 +3542,20 @@ namespace MPR_Managerment.Forms
             int trackId = Convert.ToInt32(dgvDelivery.SelectedRows[0].Cells["TrackID"].Value ?? 0);
             if (trackId == 0) return;
 
-            // Lưu ReceiverNote trước khi Done
+            // Đọc ReceiverNote (kể cả khi ô đang ở chế độ edit) trước khi EndEdit
+            string receiverNote = "";
+            var currentCell = dgvDelivery.CurrentCell;
+            if (currentCell != null && currentCell.RowIndex == dgvDelivery.SelectedRows[0].Index
+                && currentCell.OwningColumn.Name == "ReceiverNote"
+                && dgvDelivery.IsCurrentCellInEditMode)
+            {
+                receiverNote = (dgvDelivery.EditingControl as TextBox)?.Text ?? currentCell.EditedFormattedValue?.ToString() ?? "";
+            }
+            else
+            {
+                receiverNote = dgvDelivery.SelectedRows[0].Cells["ReceiverNote"].Value?.ToString() ?? "";
+            }
             dgvDelivery.EndEdit();
-            string receiverNote = dgvDelivery.SelectedRows[0].Cells["ReceiverNote"].Value?.ToString() ?? "";
 
             try
             {
@@ -3542,6 +3568,51 @@ namespace MPR_Managerment.Forms
                     cmd.Parameters.AddWithValue("@id", trackId);
                     cmd.ExecuteNonQuery();
                 }
+                LoadDeliveries();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void SaveDeliveryReceiverNote()
+        {
+            if (dgvDelivery.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Vui lòng chọn một dòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            int trackId = Convert.ToInt32(dgvDelivery.SelectedRows[0].Cells["TrackID"].Value ?? 0);
+            if (trackId == 0) return;
+
+            // Đọc giá trị đang được edit (nếu có) TRƯỚC khi EndEdit làm mất nội dung
+            string receiverNote = "";
+            var currentCell = dgvDelivery.CurrentCell;
+            if (currentCell != null && currentCell.RowIndex == dgvDelivery.SelectedRows[0].Index
+                && currentCell.OwningColumn.Name == "ReceiverNote"
+                && dgvDelivery.IsCurrentCellInEditMode)
+            {
+                receiverNote = (dgvDelivery.EditingControl as TextBox)?.Text ?? currentCell.EditedFormattedValue?.ToString() ?? "";
+            }
+            else
+            {
+                receiverNote = dgvDelivery.SelectedRows[0].Cells["ReceiverNote"].Value?.ToString() ?? "";
+            }
+            dgvDelivery.EndEdit();
+
+            try
+            {
+                string sql = "UPDATE PO_DeliveryTracking SET ReceiverNote = @note WHERE TrackID = @id";
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@note", receiverNote);
+                    cmd.Parameters.AddWithValue("@id", trackId);
+                    cmd.ExecuteNonQuery();
+                }
+                MessageBox.Show("✅ Đã lưu ghi chú thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadDeliveries();
             }
             catch (Exception ex)
@@ -4037,6 +4108,7 @@ namespace MPR_Managerment.Forms
                 // Load TOÀN BỘ lịch sử từ PO_DeliveryTracking (kể cả đã Done và quá hạn)
                 string sql = @"
                     SELECT
+                        dt.TrackID                                              AS [TrackID],
                         dt.PONo                                                 AS [PO No],
                         ISNULL(pi.ProjectCode, N'')                             AS [Mã dự án],
                         CONVERT(NVARCHAR(10), dt.ExpDelivery, 103)              AS [Exp. Delivery],
@@ -4101,7 +4173,7 @@ namespace MPR_Managerment.Forms
                 {
                     Location = new Point(10, 64),
                     Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 110),
-                    ReadOnly = true,
+                    ReadOnly = false,
                     AllowUserToAddRows = false,
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                     BackgroundColor = Color.White,
@@ -4119,6 +4191,15 @@ namespace MPR_Managerment.Forms
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 255, 245);
                 dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
                 dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
+
+                // Ẩn TrackID, chỉ cho edit cột Receiver Note
+                dgv.DataBindingComplete += (s, ev) =>
+                {
+                    if (dgv.Columns.Contains("TrackID"))
+                        dgv.Columns["TrackID"].Visible = false;
+                    foreach (DataGridViewColumn col in dgv.Columns)
+                        col.ReadOnly = col.Name != "Receiver Note";
+                };
 
                 dgv.CellFormatting += (s, ev) =>
                 {
@@ -4144,6 +4225,52 @@ namespace MPR_Managerment.Forms
                 };
                 popup.Controls.Add(dgv);
 
+                // Nút lưu ghi chú
+                var btnSaveNote = new Button
+                {
+                    Text = "💾 Lưu ghi chú",
+                    Size = new Size(120, 30),
+                    BackColor = Color.FromArgb(255, 140, 0),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+                    Location = new Point(10, popup.ClientSize.Height - 40)
+                };
+                btnSaveNote.FlatAppearance.BorderSize = 0;
+                btnSaveNote.Click += (s, ev) =>
+                {
+                    if (dgv.SelectedRows.Count == 0)
+                    {
+                        MessageBox.Show("Vui lòng chọn một dòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    dgv.EndEdit();
+                    var row = dgv.SelectedRows[0];
+                    int trackId = Convert.ToInt32(row.Cells["TrackID"].Value ?? 0);
+                    if (trackId == 0) return;
+                    string note = row.Cells["Receiver Note"].Value?.ToString() ?? "";
+                    try
+                    {
+                        string updateSql = "UPDATE PO_DeliveryTracking SET ReceiverNote = @note WHERE TrackID = @id";
+                        using (var conn2 = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                        {
+                            conn2.Open();
+                            var cmd2 = new Microsoft.Data.SqlClient.SqlCommand(updateSql, conn2);
+                            cmd2.Parameters.AddWithValue("@note", note);
+                            cmd2.Parameters.AddWithValue("@id", trackId);
+                            cmd2.ExecuteNonQuery();
+                        }
+                        MessageBox.Show("✅ Đã lưu ghi chú thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        LoadDeliveries();
+                    }
+                    catch (Exception ex2)
+                    {
+                        MessageBox.Show("Lỗi lưu ghi chú: " + ex2.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+                popup.Controls.Add(btnSaveNote);
+
                 // Nút đóng
                 var btnClose = new Button
                 {
@@ -4164,6 +4291,7 @@ namespace MPR_Managerment.Forms
                 popup.Resize += (s, ev) =>
                 {
                     btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
+                    btnSaveNote.Location = new Point(10, popup.ClientSize.Height - 40);
                 };
 
                 popup.ShowDialog(this);
