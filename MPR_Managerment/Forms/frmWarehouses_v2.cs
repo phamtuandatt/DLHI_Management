@@ -48,6 +48,10 @@ namespace MPR_Managerment.Forms
         private ProductServices _productServices = new ProductServices();
         private List<WarehouseImport> _imports = new List<WarehouseImport>();
         private List<WarehouseImport> _importQueue = new List<WarehouseImport>();
+
+        private Dictionary<int, decimal> _importQueueActual = new Dictionary<int, decimal>();
+        private Dictionary<int, decimal> _importQueueBase = new Dictionary<int, decimal>();
+        
         private int _selectedImportID = 0;
         private int _pendingPO_ID = 0;
         private string _currentBatchNo = "";
@@ -64,6 +68,8 @@ namespace MPR_Managerment.Forms
         private Panel panelStockSummary;
 
         private string _targetPONo = "";
+
+        private List<POHead> _poList = new List<POHead>();
 
         public frmWarehouses_v2(string targetPONo = "")
         {
@@ -1072,6 +1078,9 @@ namespace MPR_Managerment.Forms
                 var key = $"{dgvImportQueue.SelectedRows[0].Cells[0].Value.ToString().Trim()}_{dgvImportQueue.SelectedRows[0].Cells[1].Value.ToString().Trim().ToLower()}";
                 _importList.Remove(key);
                 _importQueue.RemoveAt(idx);
+
+                _importQueueActual.Remove(int.Parse(dgvImportQueue.SelectedRows[0].Cells[11].Value.ToString().Trim()));
+
                 if (_importQueue.Count == 0) _currentBatchNo = "";
                 RefreshQueueGrid();
             }
@@ -1081,7 +1090,13 @@ namespace MPR_Managerment.Forms
         {
             if (_importQueue.Count > 0)
                 if (MessageBox.Show($"Bạn có {_importQueue.Count} items chưa lưu. Tạo phiếu mới sẽ xóa danh sách. Tiếp tục?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
+            _importQueue.Clear();
+
+            _importQueueActual.Clear();
+            _importQueueBase.Clear();
+
+            _currentBatchNo = "";
+            _pendingPO_ID = 0;
             ClearImportItemForm(); RefreshQueueGrid();
         }
 
@@ -1238,6 +1253,7 @@ namespace MPR_Managerment.Forms
             if (dgvImportQueue.Columns[e.ColumnIndex].Name == "Qty_Import")
             {
                 var cell = dgvImportQueue.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                var poDetailIdCell = dgvImportQueue.Rows[e.RowIndex].Cells[11].Value;
                 if (cell.Value != null)
                 {
                     decimal newValue;
@@ -1249,6 +1265,8 @@ namespace MPR_Managerment.Forms
                             MessageBox.Show($"Số lượng không được vượt quá số lượng của PO !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             cell.Value = oldValue;
                         }
+                        _importQueueActual[(int)poDetailIdCell] = newValue;
+                        _importQueue[e.RowIndex].Qty_Import = newValue;
                     }
                     else
                     {
@@ -1369,6 +1387,7 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ma_Phieu", HeaderText = "Mã phiếu", Width = 160, ReadOnly = true });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Id", HeaderText = "Material Detail Id", Width = 160, ReadOnly = true });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Number", HeaderText = "Material Detail Number", Width = 160, ReadOnly = true });
+            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_Detail_ID", Width = 160, ReadOnly = true, Visible = true });
         }
 
         public void TrackButtonClick()
@@ -1690,6 +1709,7 @@ namespace MPR_Managerment.Forms
                     return;
                 }
             }
+            var lstDif = Common.Common.GetDictionaryDifferences(_importQueueActual, _importQueueBase);
 
             if (_importQueue.Count == 0) { MessageBox.Show("Danh sách phiếu đang trống!\nHãy thêm vật tư trước.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             try
@@ -1702,16 +1722,29 @@ namespace MPR_Managerment.Forms
                     saved++;
                 }
 
-                POHead h = new POHead()
+                // Nếu nhập hết thì insert import and update status PO = 1
+                if (!lstDif.Any())
                 {
-                    PONo = cboPONo.SelectedItem.ToString().Trim(),
-                };
-                _poService.MakeImported(h, DateTime.UtcNow.ToString());
+                    var poModel = _poList.Find(p => p.PONo == cboPONo.SelectedItem.ToString().Trim());
+                    _poService.MakeImported(poModel, DateTime.UtcNow.ToString());
+                }
+                // Ngược lại: Cập nhập số lượng đã nhập và không cập nhật status PO = 1
+                else
+                {
+                    foreach (var item in lstDif)
+                    {
+                        PODetail pODetail = new PODetail() { PO_Detail_ID = item.Key, Received_Qty = item.Value };
+                        _poService.UpdateReceiveQtyPODetail(pODetail, DateTime.UtcNow.ToString());
+                    }
+                }
+
                 MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
                 RefreshQueueGrid();
                 LoadAll();
                 _importList.Clear();
+                _importQueueBase.Clear();
+                _importQueueActual.Clear();
             }
             catch (Exception ex) { MessageBox.Show("Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
@@ -1891,7 +1924,8 @@ namespace MPR_Managerment.Forms
 
 
                 string poNo = cboPONo.SelectedItem.ToString();
-                var po = _poService.GetAll().Find(p => p.PONo == poNo);
+                _poList = _poService.GetAll();
+                var po = _poList.Find(p => p.PONo == poNo);
                 if (po == null) return;
                 var details = _poService.GetDetails(po.PO_ID);
                 if (details.Count == 0) { MessageBox.Show("PO này chưa có chi tiết vật tư!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
@@ -1985,6 +2019,10 @@ namespace MPR_Managerment.Forms
                                 Project_Code = projectCode,
                                 WorkorderNo = po.WorkorderNo ?? "",
                             });
+
+                            _importQueueBase.Add(detail.PO_Detail_ID, qty);
+                            _importQueueActual.Add(detail.PO_Detail_ID, qty);
+
                             addedCount++;
                         }
                         RefreshQueueGrid();
@@ -2002,7 +2040,7 @@ namespace MPR_Managerment.Forms
             for (int i = 0; i < _importQueue.Count; i++)
             {
                 var item = _importQueue[i];
-                dgvImportQueue.Rows.Add(i + 1, item.Item_Name, item.Material, item.Size, item.UNIT, item.Qty_Import, item.Weight_kg, item.ID_Code, item.Import_No);
+                dgvImportQueue.Rows.Add(i + 1, item.Item_Name, item.Material, item.Size, item.UNIT, item.Qty_Import, item.Weight_kg, item.ID_Code, item.Import_No, "", "", item.PO_Detail_ID);
             }
         }
 

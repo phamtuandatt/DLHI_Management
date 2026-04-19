@@ -16,8 +16,23 @@ namespace MPR_Managerment.Services
                 conn.Open();
                 var cmd = new SqlCommand("[sp_UpdatePOHead_MakeImport]", conn);
                 cmd.CommandType = System.Data.CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@importDate", DateTime.UtcNow);
                 cmd.Parameters.AddWithValue("@poNo", h.PONo);
+                cmd.Parameters.AddWithValue("@importDate", DateTime.UtcNow);
+                cmd.Parameters.AddWithValue("@PO_ID", h.PO_ID);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public void UpdateReceiveQtyPODetail(PODetail detail, string importDate)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("[sp_UpdateReceivedQtyPODetail]", conn);
+                cmd.CommandType = System.Data.CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@PO_Detail_ID", detail.PO_Detail_ID);
+                cmd.Parameters.AddWithValue("@Status_Delivery", detail.Status_Delivery);
+                cmd.Parameters.AddWithValue("@Received_Qty", detail.Received_Qty);
                 cmd.ExecuteNonQuery();
             }
         }

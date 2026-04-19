@@ -10,6 +10,24 @@ namespace MPR_Managerment.Common
 {
     public static class Common
     {
+        public static Dictionary<int, decimal> GetDictionaryDifferences(Dictionary<int, decimal> dict1, Dictionary<int, decimal> dict2)
+        {
+            // Kiểm tra null để tránh lỗi Runtime
+            if (dict1 == null) return dict2 ?? new Dictionary<int, decimal>();
+            if (dict2 == null) return dict1;
+
+            // Cách 1: Sử dụng KeyValuePair tường minh để fix lỗi CS0103
+            var diff1 = dict1.Where((KeyValuePair<int, decimal> kvp) =>
+                !dict2.ContainsKey(kvp.Key) || dict2[kvp.Key] != kvp.Value);
+
+            var diff2 = dict2.Where((KeyValuePair<int, decimal> kvp) =>
+                !dict1.ContainsKey(kvp.Key));
+
+            // Kết hợp và chuyển về Dictionary
+            return diff1.Concat(diff2)
+                        .ToDictionary(x => x.Key, x => x.Value);
+        }
+
         public static DataView Search(string search, DataTable dtSource, List<string> lstProperty)
         {
             DataView dv = dtSource.DefaultView;

@@ -24,5 +24,8 @@ namespace MPR_Managerment.Models
         public decimal VAT { get; set; }
         public string Remarks { get; set; } = "";
         public int? MPR_Detail_ID { get; set; }
+
+        public bool Status_Delivery { get; set; }
+        public decimal Received_Qty { get; set; }
     }
 }
