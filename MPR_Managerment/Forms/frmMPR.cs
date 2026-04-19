@@ -1,14 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Drawing;
-using System.IO;
-using System.Diagnostics;
-using System.Windows.Forms;
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
+using MPR_Managerment.Forms.MPRGUI;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
-using MPR_Managerment.Helpers;
+using OfficeOpenXml;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
 
 namespace MPR_Managerment.Forms
 {
@@ -45,6 +47,10 @@ namespace MPR_Managerment.Forms
         private Panel panelTop, panelHeader, panelDetail;
         private ComboBox _cboFilterPO;    // Loc theo Da len PO
         private Button _btnExportDetail; // Xuat Excel chi tiet
+
+        // Khai báo phía trên cùng của Class Form
+        private System.Diagnostics.Process _excelProcess = null;
+
 
         public frmMPR(int mprId = 0)
         {
@@ -1099,14 +1105,89 @@ namespace MPR_Managerment.Forms
 
         private void BtnNewMPR_Click(object sender, EventArgs e)
         {
+            //if (!PermissionHelper.Check("MPR", "Tạo MPR", "Tạo MPR")) return;
+            //_selectedMPR_ID = 0;
+            //ClearHeader();
+            //dgvDetails.Rows.Clear();
+            //dgvPOProgress.DataSource = null;
+            //dgvFiles.Rows.Clear();
+            //_details.Clear();
+            //txtMPRNo.Focus();
+
+            //string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "SQLTesting-Template.xlsm");
+
+            //ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+            //FileInfo newFile = new FileInfo(templatePath);
+            //System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(templatePath) { UseShellExecute = true });
+
+            ////frmExcelPreview frm = new frmExcelPreview(templatePath, "Xem trước biểu mẫu");
+            ////frm.Owner = this; // Rất quan trọng: Khi tắt chương trình (Form chính), Form này tắt theo
+            ////frm.Show();
+
             if (!PermissionHelper.Check("MPR", "Tạo MPR", "Tạo MPR")) return;
-            _selectedMPR_ID = 0;
-            ClearHeader();
-            dgvDetails.Rows.Clear();
-            dgvPOProgress.DataSource = null;
-            dgvFiles.Rows.Clear();
-            _details.Clear();
-            txtMPRNo.Focus();
+
+            string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "SQLTesting-Template.xlsm");
+            if (!File.Exists(templatePath)) { MessageBox.Show("Không tìm thấy file!"); return; }
+
+            Form mainForm = this.ParentForm ?? this.FindForm();
+
+            try
+            {
+                if (mainForm != null) mainForm.Hide();
+
+                // 1. Khởi chạy file
+                ProcessStartInfo startInfo = new ProcessStartInfo(templatePath) { UseShellExecute = true };
+                Process p = Process.Start(startInfo);
+
+                // 2. Chờ một chút để Excel kịp load file
+                System.Threading.Thread.Sleep(2000);
+
+                // 3. Tìm tiến trình thực sự đang giữ file Excel đó
+                // (Vì Excel thường gom các file vào 1 tiến trình duy nhất "EXCEL")
+                Process actualProcess = null;
+                string fileName = Path.GetFileNameWithoutExtension(templatePath);
+
+                // Lặp lại việc tìm kiếm cho đến khi Excel thực sự đóng
+                bool isExcelRunning = true;
+                while (isExcelRunning)
+                {
+                    // Kiểm tra xem có tiến trình Excel nào đang mở file của mình không
+                    // Lưu ý: MainWindowTitle của Excel thường có dạng "Tên_File - Excel"
+                    var processes = Process.GetProcessesByName("EXCEL");
+                    isExcelRunning = false;
+
+                    foreach (var proc in processes)
+                    {
+                        if (proc.MainWindowTitle.Contains(fileName))
+                        {
+                            isExcelRunning = true;
+                            break;
+                        }
+                    }
+
+                    if (isExcelRunning)
+                    {
+                        System.Threading.Thread.Sleep(1000); // Đợi 1 giây rồi kiểm tra lại
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi: " + ex.Message);
+            }
+            finally
+            {
+                // 4. Luôn đảm bảo hiện lại Form khi kết thúc vòng lặp
+                if (mainForm != null)
+                {
+                    mainForm.Show();
+                    mainForm.BringToFront();
+                }
+
+                _selectedMPR_ID = 0;
+                ClearHeader();
+                txtMPRNo.Focus();
+            }
         }
 
         private void BtnSaveHeader_Click(object sender, EventArgs e)
