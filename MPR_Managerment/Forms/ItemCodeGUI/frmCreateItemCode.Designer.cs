@@ -31,6 +31,10 @@
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             panel1 = new Panel();
             groupBox1 = new GroupBox();
+            tableLayoutPanel6 = new TableLayoutPanel();
+            button1 = new Button();
+            label7 = new Label();
+            txtSearch = new TextBox();
             btnAddMAterial = new Button();
             dgvItemExist = new DataGridView();
             material_detail_id = new DataGridViewTextBoxColumn();
@@ -61,6 +65,7 @@
             label1 = new Label();
             panel1.SuspendLayout();
             groupBox1.SuspendLayout();
+            tableLayoutPanel6.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvItemExist).BeginInit();
             tableLayoutPanel9.SuspendLayout();
             tableLayoutPanel5.SuspendLayout();
@@ -84,22 +89,76 @@
             panel1.Location = new Point(0, 0);
             panel1.Margin = new Padding(3, 2, 3, 2);
             panel1.Name = "panel1";
-            panel1.Size = new Size(1240, 264);
+            panel1.Size = new Size(1240, 290);
             panel1.TabIndex = 0;
             panel1.Paint += panel1_Paint;
             // 
             // groupBox1
             // 
+            groupBox1.Controls.Add(tableLayoutPanel6);
             groupBox1.Controls.Add(btnAddMAterial);
             groupBox1.Controls.Add(dgvItemExist);
             groupBox1.Location = new Point(530, 51);
             groupBox1.Margin = new Padding(3, 2, 3, 2);
             groupBox1.Name = "groupBox1";
             groupBox1.Padding = new Padding(3, 2, 3, 2);
-            groupBox1.Size = new Size(699, 205);
+            groupBox1.Size = new Size(699, 229);
             groupBox1.TabIndex = 25;
             groupBox1.TabStop = false;
             groupBox1.Text = "Items";
+            // 
+            // tableLayoutPanel6
+            // 
+            tableLayoutPanel6.ColumnCount = 3;
+            tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 13.2743359F));
+            tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 86.72566F));
+            tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8F));
+            tableLayoutPanel6.Controls.Add(button1, 2, 0);
+            tableLayoutPanel6.Controls.Add(label7, 0, 0);
+            tableLayoutPanel6.Controls.Add(txtSearch, 1, 0);
+            tableLayoutPanel6.Location = new Point(6, 45);
+            tableLayoutPanel6.Margin = new Padding(3, 2, 3, 2);
+            tableLayoutPanel6.Name = "tableLayoutPanel6";
+            tableLayoutPanel6.RowCount = 1;
+            tableLayoutPanel6.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tableLayoutPanel6.Size = new Size(687, 29);
+            tableLayoutPanel6.TabIndex = 30;
+            // 
+            // button1
+            // 
+            button1.BackColor = Color.FromArgb(255, 128, 0);
+            button1.Dock = DockStyle.Fill;
+            button1.FlatStyle = FlatStyle.Flat;
+            button1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            button1.ForeColor = Color.White;
+            button1.Location = new Point(681, 2);
+            button1.Margin = new Padding(3, 2, 3, 2);
+            button1.Name = "button1";
+            button1.Size = new Size(3, 25);
+            button1.TabIndex = 4;
+            button1.Text = "➕ Generate";
+            button1.UseVisualStyleBackColor = false;
+            button1.Visible = false;
+            // 
+            // label7
+            // 
+            label7.Dock = DockStyle.Fill;
+            label7.Location = new Point(3, 0);
+            label7.Name = "label7";
+            label7.Size = new Size(84, 29);
+            label7.TabIndex = 2;
+            label7.Text = "Tên vật tư:";
+            label7.TextAlign = ContentAlignment.MiddleCenter;
+            // 
+            // txtSearch
+            // 
+            txtSearch.Dock = DockStyle.Fill;
+            txtSearch.Location = new Point(93, 4);
+            txtSearch.Margin = new Padding(3, 4, 3, 2);
+            txtSearch.Name = "txtSearch";
+            txtSearch.Size = new Size(582, 23);
+            txtSearch.TabIndex = 30;
+            txtSearch.TextChanged += txtSearch_TextChanged;
             // 
             // btnAddMAterial
             // 
@@ -133,12 +192,12 @@
             dgvItemExist.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgvItemExist.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvItemExist.Columns.AddRange(new DataGridViewColumn[] { material_detail_id, material_detail_number, material_detail_name, material_detail_code, item_code_existed });
-            dgvItemExist.Location = new Point(3, 47);
+            dgvItemExist.Location = new Point(3, 78);
             dgvItemExist.Margin = new Padding(3, 2, 3, 2);
             dgvItemExist.Name = "dgvItemExist";
             dgvItemExist.ReadOnly = true;
             dgvItemExist.RowHeadersWidth = 51;
-            dgvItemExist.Size = new Size(693, 155);
+            dgvItemExist.Size = new Size(693, 151);
             dgvItemExist.TabIndex = 0;
             dgvItemExist.CellClick += dgvItemExist_CellClick;
             dgvItemExist.RowPostPaint += dgvItemExist_RowPostPaint;
@@ -196,7 +255,7 @@
             tableLayoutPanel9.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50.08489F));
             tableLayoutPanel9.Controls.Add(btnSave, 1, 0);
             tableLayoutPanel9.Controls.Add(btnCancel, 0, 0);
-            tableLayoutPanel9.Location = new Point(5, 218);
+            tableLayoutPanel9.Location = new Point(7, 244);
             tableLayoutPanel9.Margin = new Padding(3, 2, 3, 2);
             tableLayoutPanel9.Name = "tableLayoutPanel9";
             tableLayoutPanel9.RowCount = 1;
@@ -279,6 +338,7 @@
             label6.TabIndex = 2;
             label6.Text = "Code:";
             label6.TextAlign = ContentAlignment.MiddleLeft;
+            label6.Click += label6_Click;
             // 
             // txtCode
             // 
@@ -480,16 +540,18 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             AutoSize = true;
-            ClientSize = new Size(1240, 264);
+            ClientSize = new Size(1240, 290);
             Controls.Add(panel1);
             Margin = new Padding(3, 2, 3, 2);
-            MaximumSize = new Size(1256, 303);
+            MaximumSize = new Size(1256, 500);
             MinimumSize = new Size(1256, 303);
             Name = "frmCreateItemCode";
             Text = "Thêm code cho vật thư";
             Load += frmCreateItemCode_Load;
             panel1.ResumeLayout(false);
             groupBox1.ResumeLayout(false);
+            tableLayoutPanel6.ResumeLayout(false);
+            tableLayoutPanel6.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvItemExist).EndInit();
             tableLayoutPanel9.ResumeLayout(false);
             tableLayoutPanel5.ResumeLayout(false);
@@ -533,5 +595,9 @@
         private DataGridViewTextBoxColumn item_code_existed;
         private Button btnShowExisted;
         private Button btnAddMAterial;
+        private TableLayoutPanel tableLayoutPanel6;
+        private Button button1;
+        private Label label7;
+        private TextBox txtSearch;
     }
 }

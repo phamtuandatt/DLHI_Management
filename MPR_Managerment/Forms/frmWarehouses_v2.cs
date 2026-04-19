@@ -156,12 +156,19 @@ namespace MPR_Managerment.Forms
             pageSaveDelivertNote.BackColor = Color.White;
 
             // 5. Thêm các Page vào TabControl
-            mainTabControl.TabPages.Add(pageWarehouse);
-            mainTabControl.TabPages.Add(pageImport);
-            mainTabControl.TabPages.Add(pageExport);
-            mainTabControl.TabPages.Add(pageFillInvoiceNo);
-            mainTabControl.TabPages.Add(pageFillInvoiceNo_v2);
-            mainTabControl.TabPages.Add(pageSaveDelivertNote);
+            if (AppSession.CurrentUser.Role_ID == 1)
+            {
+                mainTabControl.TabPages.Add(pageWarehouse);
+                mainTabControl.TabPages.Add(pageImport);
+                mainTabControl.TabPages.Add(pageExport);
+                mainTabControl.TabPages.Add(pageFillInvoiceNo);
+                mainTabControl.TabPages.Add(pageFillInvoiceNo_v2);
+                mainTabControl.TabPages.Add(pageSaveDelivertNote);
+            }
+            else
+            {
+                mainTabControl.TabPages.Add(pageWarehouse);
+            }
 
             this.Controls.Add(mainTabControl);
         }
@@ -1336,7 +1343,9 @@ namespace MPR_Managerment.Forms
                 SL_Ton = s.Qty_Stock,
                 KG_Nhap = s.Weight_Import,
                 KG_Xuat = s.Weight_Exported,
-                KG_Ton = s.Weight_Stock
+                KG_Ton = s.Weight_Stock,
+                QC_Code = s.QC_Code,
+                QC_Status = s.QC_Status
             });
             if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
             decimal tQ = 0, tW = 0;

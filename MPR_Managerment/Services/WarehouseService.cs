@@ -319,7 +319,7 @@ namespace MPR_Managerment.Services
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 if (!string.IsNullOrEmpty(keyword))
-                    sql += $" AND (Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%')";
+                    sql += $" AND (Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
                 sql += " ORDER BY Import_Date DESC";
                 var cmd = new SqlCommand(sql, conn);
                 var r = cmd.ExecuteReader();
@@ -464,7 +464,10 @@ namespace MPR_Managerment.Services
                 Qty_Exported = r["Qty_Exported"] != DBNull.Value ? Convert.ToDecimal(r["Qty_Exported"]) : 0,
                 Weight_Exported = r["Weight_Exported"] != DBNull.Value ? Convert.ToDecimal(r["Weight_Exported"]) : 0,
                 Qty_Stock = r["Qty_Stock"] != DBNull.Value ? Convert.ToDecimal(r["Qty_Stock"]) : 0,
-                Weight_Stock = r["Weight_Stock"] != DBNull.Value ? Convert.ToDecimal(r["Weight_Stock"]) : 0
+                Weight_Stock = r["Weight_Stock"] != DBNull.Value ? Convert.ToDecimal(r["Weight_Stock"]) : 0,
+
+                QC_Code = r["QC_Code"]?.ToString() ?? "",
+                QC_Status = r["QC_Status"]?.ToString() ?? "",
             };
         }
     }

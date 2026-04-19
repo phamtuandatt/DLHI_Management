@@ -407,7 +407,7 @@ namespace MPR_Managerment.Forms.DeliveryGUI
 
                     _pendingDropPath = "";
                     _pendingDropName = "";
-                    btnSaveDelivery.Enabled = false;
+                    //btnSaveDelivery.Enabled = false;
                     loadDeliveryList();
 
                     // WIN 11

@@ -1,4 +1,5 @@
-﻿using MPR_Managerment.Models;
+﻿using MPR_Managerment.Common;
+using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml.ConditionalFormatting.Contracts;
 using System;
@@ -21,6 +22,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         private bool _isStandardLoaded = false;
         private bool _isClickGrid = false;
         private DataTable dtOrgins = new DataTable();
+        private DataTable dtItemCode = new DataTable();
 
         public string itemCode { get; set; } = string.Empty;
         public string itemDetailId { get; set; } = string.Empty;
@@ -39,6 +41,9 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
+
+            txtSearch.Font = new Font("Segoe UI", 9);
+            txtSearch.PlaceholderText = "Nhập tên vật tư...";
         }
 
         private async void frmCreateItemCode_Load(object sender, EventArgs e)
@@ -334,6 +339,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         {
             var dtItemExistedList = await _productServices.GetitemExistedList(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
             dgvItemExist.DataSource = dtItemExistedList;
+            dtItemCode = dtItemExistedList.Copy();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -358,6 +364,24 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             frmAddMaterialDetail frm = new frmAddMaterialDetail(dtOrgins, materialAddViewModel);
             frm.ShowDialog();
             btnShowExisted.PerformClick();
+        }
+
+        private void label6_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void txtSearch_TextChanged(object sender, EventArgs e)
+        {
+            if (txtSearch.Text.Length == 0)
+            {
+                //dgvProds.DataSource = this.dtProds;
+                dgvItemExist.Refresh();
+            }
+            DataView dv = Common.Common.Search(txtSearch.Text, dtItemCode, ["material_detail_name"]);
+
+            dgvItemExist.DataSource = dv;
+            
         }
     }
 }

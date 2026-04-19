@@ -25,5 +25,9 @@ namespace MPR_Managerment.Models
         public decimal Weight_Exported { get; set; }
         public decimal Qty_Stock { get; set; }
         public decimal Weight_Stock { get; set; }
+
+
+        public string QC_Code { get; set; } = "";
+        public string QC_Status { get; set; } = "";
     }
 }

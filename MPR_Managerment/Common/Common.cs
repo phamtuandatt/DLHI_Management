@@ -10,6 +10,26 @@ namespace MPR_Managerment.Common
 {
     public static class Common
     {
+        public static DataView Search(string search, DataTable dtSource, List<string> lstProperty)
+        {
+            DataView dv = dtSource.DefaultView;
+            string filter = "";
+            foreach (var item in lstProperty)
+            {
+                if (string.IsNullOrEmpty(filter))
+                {
+                    filter = $"{item} LIKE '%{search}%' ";
+                }
+                else
+                {
+                    filter += $"OR {item} LIKE '%{search}%' ";
+                }
+            }
+            dv.RowFilter = filter;
+
+            return dv;
+        }
+
         public static bool IsDataGridViewValid(DataGridView dgv, string gridName = "Danh sách")
         {
             // 1. Kiểm tra Grid có bị null (chưa khởi tạo) không

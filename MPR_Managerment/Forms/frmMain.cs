@@ -154,7 +154,7 @@ namespace MPR_Managerment.Forms
             {
                 AddMenuBtn("📦  Kiểm tra (RIR)", Color.FromArgb(30, 30, 45), y); y += 42;
             }
-            if (AppSession.CanView("RIR for QC"))
+            if (AppSession.CanView("Material Inspector Request"))
             {
                 AddMenuBtn("📦  Material Inspector Request", Color.FromArgb(30, 30, 45), y); y += 42;
             }

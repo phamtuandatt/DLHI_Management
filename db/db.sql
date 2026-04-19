@@ -635,3 +635,36 @@ END
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 
 SELECT InvoiceNo, InvoiceNo, ID_Code, Item_Name, Size, Project_Code, Company_Name  FROM Warehouse_Import, Suppliers, PO_head WHERE Warehouse_Import.PO_ID = PO_head.PO_ID AND PO_head.Supplier_ID = Suppliers.Supplier_ID
+
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ --=========================XÓA MPR================================
+--SELECT *FROM MPR_Header WHERE MPR_No = 'DV-FT-2506 SAM-MPR-PD-102'
+--SELECT *FROM MPR_Details WHERE MPR_ID = 132
+
+--DELETE FROM MPR_Header WHERE MPR_ID = 132
+
+--DELETE FROM MPR_Details WHERE Detail_ID = 1161
+--DELETE FROM MPR_Details WHERE Detail_ID = 1162
+--DELETE FROM MPR_Details WHERE Detail_ID = 1163
+--DELETE FROM MPR_Details WHERE Detail_ID = 1164
+
+--SELECT *FROM PO_head WHERE PONo = 'DV-SAM-PC-018'
+--SELECT *FROM PO_Detail WHERE PO_ID = 356
+
+--DELETE FROM PO_head WHERE PO_ID = 356
+
+--DELETE FROM PO_Detail WHERE PO_Detail_ID = 2446
+--DELETE FROM PO_Detail WHERE PO_Detail_ID = 2447
+--DELETE FROM PO_Detail WHERE PO_Detail_ID = 2448
+--DELETE FROM PO_Detail WHERE PO_Detail_ID = 2449
+
+----SELECT *FROM PO_Revise_Transactions WHERE PO_ID = 356
+----DELETE FROM PO_Revise_Transactions WHERE PO_ID = 356
+
+----SELECT *FROM PO_Payment_Schedule WHERE PO_ID = 356
+----DELETE FROM PO_Payment_Schedule WHERE Schedule_ID = 71
+--=========================XÓA MPR================================
+
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------

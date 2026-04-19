@@ -55,6 +55,9 @@ namespace MPR_Managerment.Forms
 
             new ModuleDef("USER_MGT", "Quản lý User",
                 new[]{ "Xem","Tạo user","Lưu user","Vô hiệu hóa","Reset Password","Phân quyền" }),
+
+            new ModuleDef("Material Inspector Request", "Material Inspector Request",
+                new[]{ "Xem","Tạo user","Lưu user","Vô hiệu hóa","Reset Password","Phân quyền" }),
         };
 
         public frmUserManagement()
