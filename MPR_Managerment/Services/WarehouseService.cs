@@ -328,6 +328,24 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        public async Task<DataTable> GetStock_V2(string projectCode = "", string keyword = "")
+        {
+            string sqlQuery = string.Format($"SELECT W.ID_Code, W.Item_Name AS 'Name', M.material_detail_name AS 'Description', W.Material, W.Size, SUM(W.Qty_import) AS [Qty (SUM)] FROM Warehouse_Import AS W LEFT JOIN Material_Detail AS M  ON LEFT(W.ID_Code, 9) = M.item_code_existed WHERE Project_Code = N'{projectCode}' AND (W.Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%') GROUP BY  W.ID_Code, W.Item_Name, M.material_detail_name, W.Material, W.Size ORDER BY W.ID_Code", projectCode, keyword);
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         public List<WarehouseStock> GetStockWithRemaining(string projectCode)
         {
             var list = new List<WarehouseStock>();

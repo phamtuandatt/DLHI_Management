@@ -10,6 +10,48 @@ namespace MPR_Managerment.Common
 {
     public static class Common
     {
+        private static readonly System.Globalization.CultureInfo _numCulture = new System.Globalization.CultureInfo("vi-VN");
+
+        public static decimal ParseDecimalRaw(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return 0;
+            raw = raw.Trim();
+
+            // Co ca "." va ","
+            if (raw.Contains(".") && raw.Contains(","))
+            {
+                if (raw.IndexOf(".") < raw.IndexOf(","))
+                {
+                    // "1.234,56" -> vi-VN -> bo . -> "1234,56"
+                    raw = raw.Replace(".", "");
+                }
+                else
+                {
+                    // "1,234.56" -> InvariantCulture -> bo , -> "1234.56" -> doi . thanh ,
+                    raw = raw.Replace(",", "").Replace(".", ",");
+                }
+            }
+            else if (raw.Contains(".") && !raw.Contains(","))
+            {
+                // Chi co "."
+                var parts = raw.Split('.');
+                // Neu tat ca phan sau dau . deu co 3 chu so -> day la ngan separator
+                bool allThousand = parts.Length > 1 &&
+                    parts.Skip(1).All(p => p.Length == 3);
+                if (allThousand)
+                    raw = raw.Replace(".", "");        // bo ngan
+                else
+                    raw = raw.Replace(".", ",");        // doi . -> , (thap phan vi-VN)
+            }
+            // Chi co "," hoac so nguyen: vi-VN hieu "," la thap phan -> giu nguyen
+
+            decimal.TryParse(raw,
+                System.Globalization.NumberStyles.Number,
+                _numCulture, out decimal result);
+            return result;
+        }
+
+
         public static DataView SearchDate(DateTime FromDate, DateTime ToDate, DataTable dtSource, List<string> lstProperties)
         {
             DataView dv = dtSource.DefaultView;

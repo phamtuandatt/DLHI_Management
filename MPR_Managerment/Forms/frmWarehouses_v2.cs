@@ -1225,20 +1225,20 @@ namespace MPR_Managerment.Forms
             container.Controls.Add(new Label { Text = "Tìm kiếm:", Location = new Point(10, fy + 3), Size = new Size(70, 20), Font = new Font("Segoe UI", 9) });
             txtSearchStock = new TextBox { Location = new Point(83, fy), Size = new Size(200, 25), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm tên, ID Code, PO No..." };
             container.Controls.Add(txtSearchStock);
-            txtSearchStock.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) LoadStock(); };
+            txtSearchStock.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await LoadStock(); };
             container.Controls.Add(new Label { Text = "Dự án:", Location = new Point(295, fy + 3), Size = new Size(50, 20), Font = new Font("Segoe UI", 9) });
             cboProjectFilter = new ComboBox { Location = new Point(347, fy), Size = new Size(180, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
             cboProjectFilter.Items.Add("Tất cả dự án");
             cboProjectFilter.SelectedIndex = 0;
-            cboProjectFilter.SelectedIndexChanged += (s, e) => LoadStock();
+            cboProjectFilter.SelectedIndexChanged += async (s, e) => await LoadStock();
             container.Controls.Add(cboProjectFilter);
 
             var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(537, fy - 1), 80, 28);
             var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(627, fy - 1), 130, 28);
             var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(767, fy - 1), 100, 28);
-            b1.Click += (s, e) => LoadStock();
+            b1.Click += async (s, e) => await LoadStock();
             b2.Click += (s, e) => LoadStockOnly();
-            b3.Click += (s, e) => LoadStock();
+            b3.Click += async (s, e) => await LoadStock();
             container.Controls.Add(b1);
             container.Controls.Add(b2);
             container.Controls.Add(b3);
@@ -1385,7 +1385,7 @@ namespace MPR_Managerment.Forms
             return btn;
         }
 
-        private void LoadStock()
+        private async Task LoadStock()
         {
             try
             {
@@ -1394,7 +1394,17 @@ namespace MPR_Managerment.Forms
                 string project = (cboProjectFilter != null && cboProjectFilter.SelectedIndex > 0) ? cboProjectFilter.SelectedItem.ToString() : "";
                 if (!string.IsNullOrEmpty(project))
                 {
-                    BindStockGrid(_service.GetStock(project, kw));
+                    //BindStockGrid(_service.GetStock(project, kw));
+                    DataTable stocks = await _service.GetStock_V2(project, kw);
+                    dgvStock.DataSource = stocks;
+                    if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
+                    decimal tQ = 0, tW = 0;
+                    foreach (DataRow s in stocks.Rows) {
+                        var qt = Common.Common.ParseDecimalRaw(s["Qty (SUM)"].ToString());
+                        tQ += qt;
+                    }
+                    if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Rows.Count} mục";
+                    if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
                 }
             }
             catch (Exception ex) { MessageBox.Show("Lỗi tải tồn kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
