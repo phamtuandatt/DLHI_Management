@@ -375,6 +375,7 @@ namespace MPR_Managerment.Forms
             }
 
             dgvHistory = Grid(panelHist, 57, 138);
+            dgvHistory.MultiSelect = true;
             dgvHistory.SelectionChanged += (s, e) =>
             {
                 if (dgvHistory.SelectedRows.Count > 0)
@@ -1947,18 +1948,44 @@ namespace MPR_Managerment.Forms
 
         private void BtnDelPayment_Click(object sender, EventArgs e)
         {
-            if (_selectedHistID == 0) { Warn("Vui lòng chọn bản ghi!"); return; }
-            if (!Ask("Xóa dòng này khỏi Payment Request Progressing?\n(Lịch sử in Request gốc vẫn được giữ lại)")) return;
+            // Thu thập các dòng đang được chọn
+            var selectedRows = dgvHistory.SelectedRows.Count > 0
+                ? dgvHistory.SelectedRows.Cast<DataGridViewRow>().ToList()
+                : (dgvHistory.CurrentRow != null
+                    ? new List<DataGridViewRow> { dgvHistory.CurrentRow }
+                    : new List<DataGridViewRow>());
+
+            if (selectedRows.Count == 0) { Warn("Vui lòng chọn ít nhất một dòng!"); return; }
+
+            var printIds = selectedRows
+                .Select(r => Convert.ToInt32(r.Cells["H_ID"].Value ?? 0))
+                .Where(id => id > 0)
+                .ToList();
+
+            if (printIds.Count == 0) { Warn("Không tìm thấy dòng hợp lệ để xóa!"); return; }
+
+            string confirmMsg = printIds.Count == 1
+                ? "Xóa dòng này khỏi Payment Request Progressing?\n(Lịch sử in Request gốc vẫn được giữ lại)"
+                : $"Xóa {printIds.Count} dòng đã chọn khỏi Payment Request Progressing?\n(Lịch sử in Request gốc vẫn được giữ lại)";
+
+            if (!Ask(confirmMsg)) return;
             if (!VerifyAdminPassword()) return;
+
             try
             {
                 using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
                 conn.Open();
-                var cmd = new Microsoft.Data.SqlClient.SqlCommand(
-                    "DELETE FROM PO_PaymentProgress WHERE Print_ID = @id", conn);
-                cmd.Parameters.AddWithValue("@id", _selectedHistID);
-                cmd.ExecuteNonQuery();
+                int deleted = 0;
+                foreach (int pid in printIds)
+                {
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        "DELETE FROM PO_PaymentProgress WHERE Print_ID = @id", conn);
+                    cmd.Parameters.AddWithValue("@id", pid);
+                    deleted += cmd.ExecuteNonQuery();
+                }
                 LoadPaymentProgress();
+                MessageBox.Show($"✅ Đã xóa {deleted} dòng thành công!",
+                    "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex) { Err(ex.Message); }
         }
