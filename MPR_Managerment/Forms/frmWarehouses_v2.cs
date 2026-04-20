@@ -71,6 +71,7 @@ namespace MPR_Managerment.Forms
         private string _targetPONo = "";
 
         private List<POHead> _poList = new List<POHead>();
+        private Label lblStatus;
 
         public frmWarehouses_v2(string targetPONo = "")
         {
@@ -87,7 +88,7 @@ namespace MPR_Managerment.Forms
             LoadComboboxProject();
             HandleComboBoxIndexChange();
             BuildQueueColumns();
-            BuildStockTab_V2(pageWarehouse);
+            BuildStockTab_V3(pageWarehouse);
 
             this.Load += FrmWarehouses_v2_Load;
 
@@ -1271,7 +1272,7 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.CurrentRow.Cells["Material_Detail_Number"].Value = frmCreateItemCode.itemDetailNumber;
         }
 
-        private void BuildStockTab_V2(TabPage parent)
+        private async void BuildStockTab_V2(TabPage parent)
         {
             Panel mainScrollPanel = new Panel();
             mainScrollPanel.Dock = DockStyle.Fill;
@@ -1356,6 +1357,118 @@ namespace MPR_Managerment.Forms
             dgvStock.CellFormatting += DgvStock_CellFormatting;
             dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
             gbHeader.Controls.Add(dgvStock);
+        }
+
+        private void BuildStockTab_V3(TabPage parent)
+        {
+            // 1. Panel bao ngoài cùng: Luôn Fill và quản lý Scroll
+            Panel mainScrollPanel = new Panel();
+            mainScrollPanel.Dock = DockStyle.Fill;
+            mainScrollPanel.AutoScroll = true;
+            parent.Controls.Add(mainScrollPanel);
+
+            // 2. Panel container: Chứa nội dung chính, kích thước tối thiểu để hiện Scroll
+            Panel container = new Panel();
+            container.Location = new Point(0, 0);
+            container.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            int minW = 1280;
+            int minH = 1500; // Điều chỉnh độ cao phù hợp với nội dung của bạn
+            container.MinimumSize = new Size(minW, minH);
+            container.Size = new Size(Math.Max(parent.Width, minW), minH);
+
+            // Xử lý Resize để container luôn dãn rộng theo màn hình lớn
+            parent.Resize += (s, e) =>
+            {
+                container.Width = Math.Max(mainScrollPanel.ClientSize.Width, minW);
+            };
+            mainScrollPanel.Controls.Add(container);
+
+            GroupBox gbHeader = new GroupBox();
+            gbHeader.Text = "Lịch sử nhập hàng";
+            //gbHeader.Size = new Size(1280, 700);
+            gbHeader.Dock = DockStyle.Top;
+            gbHeader.Height = 700;
+            gbHeader.Location = new Point(10, 115);
+            container.Controls.Add(gbHeader);
+
+            dgvStock = new DataGridView
+            {
+                //Location = new Point(10, 115),
+                //Size = new Size(1200, 1200),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                Margin = new Padding(0, 100, 0, 0),
+            };
+            dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvStock.EnableHeadersVisualStyles = false;
+            dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvStock.Dock = DockStyle.Fill;
+
+            // Xanh nhạt cho selection
+            dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
+
+            dgvStock.CellFormatting += DgvStock_CellFormatting;
+            dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
+            gbHeader.Controls.Add(dgvStock);
+
+            GroupBox gbAction = new GroupBox();
+            gbAction.Text = "";
+            gbAction.Dock = DockStyle.Top;
+            gbAction.Height = 50;
+            gbAction.Location = new Point(10, 115);
+            container.Controls.Add(gbAction);
+
+            int fy = 20;
+            gbAction.Controls.Add(new Label { Text = "Tìm kiếm:", Location = new Point(10, fy + 3), Size = new Size(70, 20), Font = new Font("Segoe UI", 9) });
+            txtSearchStock = new TextBox { Location = new Point(83, fy), Size = new Size(200, 25), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm tên, ID Code, PO No..." };
+            gbAction.Controls.Add(txtSearchStock);
+            txtSearchStock.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await LoadStock(); };
+            gbAction.Controls.Add(new Label { Text = "Dự án:", Location = new Point(295, fy + 3), Size = new Size(50, 20), Font = new Font("Segoe UI", 9) });
+            cboProjectFilter = new ComboBox { Location = new Point(347, fy), Size = new Size(180, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
+            cboProjectFilter.Items.Add("Tất cả dự án");
+            cboProjectFilter.SelectedIndex = 0;
+            cboProjectFilter.SelectedIndexChanged += async (s, e) => await LoadStock();
+            gbAction.Controls.Add(cboProjectFilter);
+
+            var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(537, fy - 3), 80, 28);
+            var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(627, fy - 3), 130, 28);
+            var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(767, fy - 3), 100, 28);
+            b1.Click += async (s, e) => await LoadStock();
+            b2.Click += (s, e) => LoadStockOnly();
+            b3.Click += async (s, e) => await LoadStock(true);
+            gbAction.Controls.Add(b1);
+            gbAction.Controls.Add(b2);
+            gbAction.Controls.Add(b3);
+
+
+            panelStockSummary = new Panel
+            {
+                Location = new Point(10, 10),
+                //Size = new Size(1200, 60),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+            panelStockSummary.Dock = DockStyle.Top;
+            panelStockSummary.Height = 60;
+            panelStockSummary.BringToFront();
+            container.Controls.Add(panelStockSummary);
+
+            lblStockTotal = AddStatLbl(panelStockSummary, "Tổng mục:", "0 mục", Color.FromArgb(0, 120, 212), 10);
+            lblStockQty = AddStatLbl(panelStockSummary, "Tổng SL tồn:", "0", Color.FromArgb(40, 167, 69), 250);
+            lblStockWeight = AddStatLbl(panelStockSummary, "Tổng KG tồn:", "0 kg", Color.FromArgb(255, 140, 0), 490);
+            lblStatus = AddStatLbl(panelStockSummary, "Số lượng:", "0 kg", Color.FromArgb(254, 0, 51), 730);
         }
 
         private void DgvStock_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -1457,6 +1570,16 @@ namespace MPR_Managerment.Forms
             return lbl;
         }
 
+        private Label AddStatLbl_V3(GroupBox p, string title, string value, Color color, int x)
+        {
+            var card = new Panel { Location = new Point(x, 8), Size = new Size(220, 42), BackColor = color };
+            p.Controls.Add(card);
+            card.Controls.Add(new Label { Text = title, Font = new Font("Segoe UI", 8, FontStyle.Bold), ForeColor = Color.White, Location = new Point(6, 3), Size = new Size(208, 18) });
+            var lbl = new Label { Text = value, Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.White, Location = new Point(6, 22), Size = new Size(208, 18) };
+            card.Controls.Add(lbl);
+            return lbl;
+        }
+
         private Button CreateBtn(string text, Color color, Point loc, int w, int h)
         {
             var btn = new Button { Text = text, Location = loc, Size = new Size(w, h), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
@@ -1464,11 +1587,12 @@ namespace MPR_Managerment.Forms
             return btn;
         }
 
-        private async Task LoadStock()
+        private async Task LoadStock(bool isRefesh = false)
         {
             try
             {
                 if (dgvStock == null) return;
+                if ((isRefesh)) txtSearchStock.Text = "";
                 string kw = txtSearchStock?.Text.Trim() ?? "";
                 string project = (cboProjectFilter != null && cboProjectFilter.SelectedIndex > 0) ? cboProjectFilter.SelectedItem.ToString() : "";
                 if (!string.IsNullOrEmpty(project))
@@ -1512,7 +1636,7 @@ namespace MPR_Managerment.Forms
                 Vi_Tri = s.Location,
                 SL_Nhap = s.Qty_Import,
                 SL_Xuat = s.Qty_Exported,
-                SL_Ton = s.Qty_Stock,
+                //SL_Ton = s.Qty_Stock,
                 //KG_Nhap = s.Weight_Import,
                 //KG_Xuat = s.Weight_Exported,
                 //KG_Ton = s.Weight_Stock,

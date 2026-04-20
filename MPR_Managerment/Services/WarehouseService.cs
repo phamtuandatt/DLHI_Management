@@ -319,7 +319,7 @@ namespace MPR_Managerment.Services
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 if (!string.IsNullOrEmpty(keyword))
-                    sql += $" AND (Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
+                    sql += $"AND (Material LIKE N'%{keyword}%' OR Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
                 sql += " ORDER BY Import_Date DESC";
                 var cmd = new SqlCommand(sql, conn);
                 var r = cmd.ExecuteReader();
@@ -334,7 +334,7 @@ namespace MPR_Managerment.Services
             if (!string.IsNullOrEmpty(projectCode))
                 sql += $" AND Project_Code = N'{projectCode}'";
             if (!string.IsNullOrEmpty(keyword))
-                sql += $" AND (Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
+                sql += $"AND (Material LIKE N'%{keyword}%' OR Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
             sql += " ORDER BY Import_Date DESC";
 
             using (SqlConnection conn = DatabaseHelper.GetConnection())
