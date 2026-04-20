@@ -28,6 +28,9 @@ namespace MPR_Managerment.Forms
         // MPR Tab
         private DataGridView dgvMPR;
         private DataGridView dgvMPRPO;      // Bảng PO của MPR đang chọn
+        private DataGridView dgvMPRDetail;  // Bảng chi tiết vật tư của PO đang chọn
+        private Panel panelMPRDetail;        // Panel bao quanh bảng chi tiết
+        private Label lblMPRDetailTitle;     // Tiêu đề bảng chi tiết
         private Label lblMPRPOTitle; // Tiêu đề bảng PO
         private Label lblMPRTotal, lblMPRHasPO, lblMPRNoPO, lblMPRCompleted;
         private Panel panelMPRSummary;
@@ -368,17 +371,22 @@ namespace MPR_Managerment.Forms
                 { "Ngày cần",            90 },
                 { "Trạng thái",          95 },
                 { "Rev",                 40 },
-                { "Tổng items",          75 },
+
                 { "Tình trạng PO",      110 },
                 { "% Item đặt hàng",     95 },
-                { "Ngày đến PO",         85 },
-                { "Ngày tạo",            90 },
+
+                { "Ngày tạo",           125 },
                 { "Ghi chú",            160 },
             };
 
             foreach (DataGridViewColumn col in dgvMPR.Columns)
             {
                 if (!col.Visible) continue;
+                if (col.Name == "Ghi chú" || col.Name == "Ghi chu")
+                {
+                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                    continue;
+                }
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 if (colWidths.TryGetValue(col.Name, out int w))
                     col.Width = w;
@@ -559,7 +567,7 @@ namespace MPR_Managerment.Forms
             // ===== LAYOUT: dgvMPRPO (trái) | dgvMPR (phải) =====
             // Dùng hằng số, KHÔNG dùng tabMPR.Width/Height vì lúc init = 0
             const int topGrid = 150;
-            const int poW = 600;  // bảng PO bên trái cố định 520px
+            const int poW = 600;  // initial value — sẽ override trong ApplyMPRLayout
             const int gap = 6;
             const int poLeft = 10;
             const int mprLeft = poLeft + poW + gap;
@@ -598,6 +606,7 @@ namespace MPR_Managerment.Forms
             dgvMPRPO.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
             dgvMPRPO.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvMPRPO.CellDoubleClick += DgvMPRPO_CellDoubleClick;
+            dgvMPRPO.SelectionChanged += DgvMPRPO_SelectionChanged;
 
             // Tô màu tím cho cột RIR No
             dgvMPRPO.CellFormatting += (s, e) =>
@@ -615,6 +624,67 @@ namespace MPR_Managerment.Forms
             };
 
             tabMPR.Controls.Add(dgvMPRPO);
+
+            // ── Panel chi tiết vật tư PO (bên dưới dgvMPRPO) ──
+            lblMPRDetailTitle = new Label
+            {
+                Text = "📦  Chi tiết vật tư — click vào PO để xem",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212),
+                Location = new Point(poLeft, topGrid + 22 + 200 + 5),
+                Size = new Size(poW, 20),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+            tabMPR.Controls.Add(lblMPRDetailTitle);
+
+            panelMPRDetail = new Panel
+            {
+                Location = new Point(poLeft, topGrid + 22 + 200 + 27),
+                Size = new Size(poW, 180),
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.White,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
+            };
+            tabMPR.Controls.Add(panelMPRDetail);
+
+            dgvMPRDetail = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                ColumnHeadersHeight = 28
+            };
+            dgvMPRDetail.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvMPRDetail.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvMPRDetail.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvMPRDetail.EnableHeadersVisualStyles = false;
+            dgvMPRDetail.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(235, 245, 255);
+            dgvMPRDetail.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            dgvMPRDetail.DefaultCellStyle.SelectionForeColor = Color.Black;
+            dgvMPRDetail.CellFormatting += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                string col = dgvMPRDetail.Columns[ev.ColumnIndex].Name;
+                if (col == "SL PO" || col == "SL MPR" || col == "Còn lại")
+                    ev.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                if (col == "Còn lại")
+                {
+                    if (decimal.TryParse(ev.Value?.ToString(), out decimal rem))
+                    {
+                        ev.CellStyle.ForeColor = rem <= 0
+                            ? Color.FromArgb(40, 167, 69)   // đủ hàng
+                            : Color.FromArgb(220, 53, 69);  // còn thiếu
+                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                }
+            };
+            panelMPRDetail.Controls.Add(dgvMPRDetail);
 
             // ── Label + Bảng MPR (PHẢI) ──
             var lblMPRListTitle = new Label
@@ -670,16 +740,33 @@ namespace MPR_Managerment.Forms
                 int h = tabMPR.ClientSize.Height;
                 if (w < 100 || h < 100) return;
 
-                int gridHeight = h - topGrid - 32;
-                int mprW = w - mprLeft - 10;
+                int totalH = h - topGrid - 32;
+                int halfW = (int)((w - 26) * 0.4);  // 40% bên trái
+                int dynPoW = Math.Max(280, halfW);
+                int dynMprLeft = poLeft + dynPoW + gap;
+                int mprW = Math.Max(100, w - dynMprLeft - 10);
+                // Chia chiều cao: dgvMPRPO 55%, panelMPRDetail 45%
+                int poGridH = Math.Max(80, (int)(totalH * 0.55));
+                int detailH = Math.Max(80, totalH - poGridH - 27);
 
-                lblMPRPOTitle.Size = new Size(poW, 20);
-                dgvMPRPO.Size = new Size(poW, Math.Max(80, gridHeight));
+                lblMPRPOTitle.Size = new Size(dynPoW, 20);
+                dgvMPRPO.Size = new Size(dynPoW, poGridH);
 
-                lblMPRListTitle.Left = mprLeft;
+                if (lblMPRDetailTitle != null)
+                {
+                    lblMPRDetailTitle.Location = new Point(poLeft, dgvMPRPO.Bottom + 5);
+                    lblMPRDetailTitle.Size = new Size(dynPoW, 20);
+                }
+                if (panelMPRDetail != null)
+                {
+                    panelMPRDetail.Location = new Point(poLeft, dgvMPRPO.Bottom + 27);
+                    panelMPRDetail.Size = new Size(dynPoW, detailH);
+                }
+
+                lblMPRListTitle.Left = dynMprLeft;
                 lblMPRListTitle.Size = new Size(Math.Max(100, mprW), 20);
-                dgvMPR.Left = mprLeft;
-                dgvMPR.Size = new Size(Math.Max(100, mprW), Math.Max(80, gridHeight));
+                dgvMPR.Left = dynMprLeft;
+                dgvMPR.Size = new Size(Math.Max(100, mprW), Math.Max(80, totalH));
             }
 
             tabMPR.ClientSizeChanged += (s, e) => ApplyMPRLayout();
@@ -709,6 +796,9 @@ namespace MPR_Managerment.Forms
         // =====================================================================
         // LoadPOForMPR — dùng join qua MPR_Detail_ID (không phụ thuộc PO_head.MPR_No)
         // Hỗ trợ 1 MPR có nhiều PO: hiển thị từng PO riêng với đầy đủ thông tin
+        // =====================================================================
+        // =====================================================================
+        // LoadPOForMPR — load danh sách PO của MPR vào dgvMPRPO
         // =====================================================================
         private void LoadPOForMPR(string mprNo)
         {
@@ -761,9 +851,7 @@ namespace MPR_Managerment.Forms
 
                     AutoAdjustMPRPOColumns();
 
-                    // Format màu cột RIR
                     if (!dgvMPRPO.Columns.Contains("Số RIR")) return;
-                    int rirColIdx = dgvMPRPO.Columns["Số RIR"].Index;
                     foreach (DataGridViewRow row in dgvMPRPO.Rows)
                     {
                         string rirVal = row.Cells["Số RIR"].Value?.ToString() ?? "";
@@ -779,7 +867,6 @@ namespace MPR_Managerment.Forms
                         }
                     }
 
-                    // Cập nhật tiêu đề với số PO tìm được
                     if (lblMPRPOTitle != null)
                         lblMPRPOTitle.Text = $"📋  PO của MPR: {mprNo}  —  Tìm thấy {dt.Rows.Count} PO  —  double click để mở";
                 }
@@ -792,16 +879,95 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // Double click dgvMPRPO → mở frmPO và tìm PO đó
+        // Double click dgvMPRPO → mở frmPO
         private void DgvMPRPO_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
-            string poNo = dgvMPRPO.Rows[e.RowIndex].Cells["PO No"].Value?.ToString() ?? "";
+            string poNo = dgvMPRPO.Rows[e.RowIndex].Cells["PO No"]?.Value?.ToString() ?? "";
             if (!string.IsNullOrEmpty(poNo))
                 new frmPO(poNo).Show();
         }
 
-        // ===== RIR TAB =====
+        // Click vào dòng PO trong dgvMPRPO → load chi tiết vật tư
+        private void DgvMPRPO_SelectionChanged(object sender, EventArgs e)
+        {
+            if (dgvMPRPO == null || dgvMPRPO.SelectedRows.Count == 0) return;
+            string poNo = dgvMPRPO.SelectedRows[0].Cells["PO No"]?.Value?.ToString()?.Trim() ?? "";
+            if (string.IsNullOrEmpty(poNo)) return;
+            LoadPODetailForMPR(poNo);
+        }
+
+        // Load chi tiết vật tư của PO được chọn vào dgvMPRDetail
+        private void LoadPODetailForMPR(string poNo)
+        {
+            if (dgvMPRDetail == null || string.IsNullOrEmpty(poNo)) return;
+            if (lblMPRDetailTitle != null)
+                lblMPRDetailTitle.Text = $"📦  Chi tiết vật tư — PO: {poNo} (đang tải...)";
+            try
+            {
+                string sql = @"
+                    SELECT
+                        pod.Item_No                                                     AS [STT],
+                        ISNULL(pod.item_name,  ISNULL(md.item_name,  ''))              AS [Tên hàng],
+                        ISNULL(pod.Material,   ISNULL(md.Material,   ''))              AS [Vật liệu],
+                        CASE
+                            WHEN NULLIF(pod.Asize, '') IS NOT NULL
+                              AND NULLIF(pod.Bsize, '') IS NOT NULL
+                              AND NULLIF(pod.Csize, '') IS NOT NULL
+                                THEN CAST(pod.Asize AS NVARCHAR(50))
+                                   + ' x ' + CAST(pod.Bsize AS NVARCHAR(50))
+                                   + ' x ' + CAST(pod.Csize AS NVARCHAR(50))
+                            WHEN NULLIF(pod.Asize, '') IS NOT NULL
+                              AND NULLIF(pod.Bsize, '') IS NOT NULL
+                                THEN CAST(pod.Asize AS NVARCHAR(50))
+                                   + ' x ' + CAST(pod.Bsize AS NVARCHAR(50))
+                            WHEN NULLIF(pod.Asize, '') IS NOT NULL
+                                THEN CAST(pod.Asize AS NVARCHAR(50))
+                            ELSE ''
+                        END                                                             AS [Size (mm)],
+                        ISNULL(pod.Qty_Per_Sheet, 0)                                   AS [SL PO],
+                        ISNULL(NULLIF(pod.Unit,''), ISNULL(md.UNIT, ''))               AS [ĐVT],
+                        ISNULL(md.Qty_Per_Sheet,   0)                                  AS [SL MPR],
+                        ISNULL(md.Qty_Per_Sheet, 0) - ISNULL(pod.Qty_Per_Sheet, 0)    AS [Còn lại]
+                    FROM PO_head ph
+                    INNER JOIN PO_Detail   pod ON pod.PO_ID    = ph.PO_ID
+                    LEFT  JOIN MPR_Details md  ON md.Detail_ID = pod.MPR_Detail_ID
+                    WHERE ph.PONo = @poNo
+                    ORDER BY pod.Item_No";
+
+                using (var conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    var cmd = new SqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@poNo", poNo);
+                    var dt = new DataTable();
+                    dt.Load(cmd.ExecuteReader());
+                    dgvMPRDetail.DataSource = dt;
+
+                    dgvMPRDetail.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                    var widths = new Dictionary<string, int>
+                    {
+                        { "STT", 38 }, { "Tên hàng", 160 }, { "Vật liệu", 90 },
+                        { "Size (mm)", 120 }, { "SL PO", 60 }, { "ĐVT", 50 },
+                        { "SL MPR", 65 }, { "Còn lại", 65 }
+                    };
+                    foreach (DataGridViewColumn col in dgvMPRDetail.Columns)
+                    {
+                        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                        col.Width = widths.TryGetValue(col.Name, out int w) ? w : 80;
+                    }
+
+                    if (lblMPRDetailTitle != null)
+                        lblMPRDetailTitle.Text = $"📦  Chi tiết vật tư — PO: {poNo}  ({dt.Rows.Count} hạng mục)  |  double-click PO để mở frmPO";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("LoadPODetailForMPR: " + ex.Message);
+                if (lblMPRDetailTitle != null)
+                    lblMPRDetailTitle.Text = $"📦  Chi tiết vật tư — PO: {poNo}  (lỗi: {ex.Message})";
+            }
+        }
         private void BuildRIRTab()
         {
             tabRIR.BackColor = Color.FromArgb(245, 245, 245);
@@ -1193,7 +1359,7 @@ namespace MPR_Managerment.Forms
                         h.Required_Date                    AS [Ngày cần],
                         h.Status                           AS [Trạng thái],
                         h.Rev                              AS [Rev],
-                        COUNT(DISTINCT d.Detail_ID)        AS [Tổng items],
+
                         CASE
                             WHEN COUNT(DISTINCT po.PO_ID) > 0
                             THEN N'✅ ' + CAST(COUNT(DISTINCT po.PO_ID) AS NVARCHAR(10)) + N' PO'
@@ -1206,7 +1372,7 @@ namespace MPR_Managerment.Forms
                                 / COUNT(DISTINCT d.Detail_ID)
                                 AS DECIMAL(5,1))
                         END                                AS [% Item đặt hàng],
-                        DATEDIFF(DAY, h.Created_Date, MIN(po.Created_Date)) AS [Ngày đến PO],
+
                         h.Created_Date                     AS [Ngày tạo]
                     FROM MPR_Header h
                     LEFT JOIN MPR_Details d   ON d.MPR_ID = h.MPR_ID
@@ -1227,6 +1393,8 @@ namespace MPR_Managerment.Forms
 
                     if (dgvMPR.Columns.Contains("MPR_ID"))
                         dgvMPR.Columns["MPR_ID"].Visible = false;
+                    if (dgvMPR.Columns.Contains("Tổng items")) dgvMPR.Columns["Tổng items"].Visible = false;
+                    if (dgvMPR.Columns.Contains("Ngày đến PO")) dgvMPR.Columns["Ngày đến PO"].Visible = false;
 
                     // Tat ca cot bound: ReadOnly
                     foreach (DataGridViewColumn col in dgvMPR.Columns)
