@@ -78,7 +78,7 @@
             groupBox1.Margin = new Padding(3, 2, 3, 2);
             groupBox1.Name = "groupBox1";
             groupBox1.Padding = new Padding(3, 2, 3, 2);
-            groupBox1.Size = new Size(1226, 369);
+            groupBox1.Size = new Size(1600, 369);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             // 
@@ -97,7 +97,7 @@
             dgvKho.Name = "dgvKho";
             dgvKho.ReadOnly = true;
             dgvKho.RowHeadersWidth = 51;
-            dgvKho.Size = new Size(1196, 262);
+            dgvKho.Size = new Size(1570, 262);
             dgvKho.TabIndex = 5;
             dgvKho.CellClick += dgvKho_CellClick;
             dgvKho.CellDoubleClick += dgvKho_CellDoubleClick;
@@ -191,7 +191,7 @@
             groupBox2.Margin = new Padding(3, 2, 3, 2);
             groupBox2.Name = "groupBox2";
             groupBox2.Padding = new Padding(3, 2, 3, 2);
-            groupBox2.Size = new Size(1226, 493);
+            groupBox2.Size = new Size(1600, 493);
             groupBox2.TabIndex = 1;
             groupBox2.TabStop = false;
             // 
@@ -209,7 +209,7 @@
             dgvExportQue.Margin = new Padding(3, 2, 3, 2);
             dgvExportQue.Name = "dgvExportQue";
             dgvExportQue.RowHeadersWidth = 51;
-            dgvExportQue.Size = new Size(1196, 440);
+            dgvExportQue.Size = new Size(1570, 440);
             dgvExportQue.TabIndex = 5;
             dgvExportQue.CellFormatting += dgvExportQue_CellFormatting;
             // 
@@ -250,7 +250,7 @@
             btnXoaRow.FlatStyle = FlatStyle.Flat;
             btnXoaRow.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnXoaRow.ForeColor = Color.White;
-            btnXoaRow.Location = new Point(1101, 16);
+            btnXoaRow.Location = new Point(1475, 16);
             btnXoaRow.Margin = new Padding(3, 2, 3, 2);
             btnXoaRow.Name = "btnXoaRow";
             btnXoaRow.Size = new Size(109, 29);
@@ -302,7 +302,7 @@
             groupBox3.Margin = new Padding(3, 2, 3, 2);
             groupBox3.Name = "groupBox3";
             groupBox3.Padding = new Padding(3, 2, 3, 2);
-            groupBox3.Size = new Size(1226, 395);
+            groupBox3.Size = new Size(1600, 549);
             groupBox3.TabIndex = 1;
             groupBox3.TabStop = false;
             groupBox3.Enter += groupBox3_Enter;
@@ -348,7 +348,7 @@
             dgvHis.Name = "dgvHis";
             dgvHis.ReadOnly = true;
             dgvHis.RowHeadersWidth = 51;
-            dgvHis.Size = new Size(1196, 309);
+            dgvHis.Size = new Size(1570, 463);
             dgvHis.TabIndex = 5;
             dgvHis.CellFormatting += dgvHis_CellFormatting;
             // 
@@ -445,7 +445,7 @@
             Controls.Add(groupBox1);
             Margin = new Padding(3, 2, 3, 2);
             Name = "ucExportWarehouse";
-            Size = new Size(1226, 992);
+            Size = new Size(1600, 1429);
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvKho).EndInit();

@@ -12,6 +12,41 @@ namespace MPR_Managerment.Common
     {
         private static readonly System.Globalization.CultureInfo _numCulture = new System.Globalization.CultureInfo("vi-VN");
 
+        public static void UpdateSelectionSum(DataGridView dgv, Label lblStatus)
+        {
+            decimal totalSum = 0;
+            int count = 0;
+            bool hasNumber = false;
+
+            // Duyệt qua tất cả các ô đang được bôi đen (SelectedCells)
+            foreach (DataGridViewCell cell in dgv.SelectedCells)
+            {
+                if (cell.Value != null && cell.Value != DBNull.Value)
+                {
+                    // Sử dụng hàm SafeParse (đã xây dựng ở các bước trước) để đọc số an toàn
+                    string cellValue = cell.Value.ToString().Replace(",", "").Trim();
+
+                    if (decimal.TryParse(cellValue, System.Globalization.NumberStyles.Any,
+                                         System.Globalization.CultureInfo.InvariantCulture, out decimal val))
+                    {
+                        totalSum += val;
+                        count++;
+                        hasNumber = true;
+                    }
+                }
+            }
+
+            // Hiển thị kết quả lên Label hoặc StatusStrip
+            if (hasNumber && count > 1) // Chỉ hiện khi chọn từ 2 ô số trở lên
+            {
+                lblStatus.Text = $"Count: {count}  |  Sum: {totalSum:N0}"; // N0 để định dạng dấu phẩy hàng nghìn
+            }
+            else
+            {
+                lblStatus.Text = "Ready";
+            }
+        }
+
         public static decimal ParseDecimalRaw(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return 0;

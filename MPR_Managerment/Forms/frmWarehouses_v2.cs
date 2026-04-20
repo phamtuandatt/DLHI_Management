@@ -182,243 +182,54 @@ namespace MPR_Managerment.Forms
 
         public void SetupImportLayout(TabPage parent)
         {
+            //Panel mainScrollPanel = new Panel();
+            //mainScrollPanel.Dock = DockStyle.Fill;
+            //mainScrollPanel.AutoScroll = true;
+            //parent.Controls.Add(mainScrollPanel);
+
+            //Panel container = new Panel();
+            //container.Width = 1300;
+            //container.Height = 1200;
+            //container.Location = new Point(0, 0);
+            //mainScrollPanel.Controls.Add(container);
+
+            // 1. Panel bao ngoài cùng: Luôn Fill và quản lý Scroll
             Panel mainScrollPanel = new Panel();
             mainScrollPanel.Dock = DockStyle.Fill;
-            mainScrollPanel.AutoScroll = true;
+            mainScrollPanel.AutoScroll = true; // Kích hoạt Scroll
             parent.Controls.Add(mainScrollPanel);
 
+            // 2. Panel container: Chứa nội dung chính
             Panel container = new Panel();
-            container.Width = 1300;
-            container.Height = 1200;
             container.Location = new Point(0, 0);
+
+            // THIẾT LẬP QUAN TRỌNG:
+            // Chỉ neo phía trên và bên trái. KHÔNG neo bên phải để tránh bị bóp nghẹt chiều rộng.
+            container.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // Kích thước tối thiểu (Cột mốc để hiện thanh cuộn)
+            int minW = 1280;
+            int minH = 2000;
+            container.MinimumSize = new Size(minW, minH);
+
+            // Thiết lập size ban đầu
+            container.Size = new Size(Math.Max(parent.Width, minW), minH);
+
+            // 3. XỬ LÝ ĐỘNG: Đảm bảo khi mở to màn hình thì container vẫn dãn hết chiều ngang
+            parent.Resize += (s, e) =>
+            {
+                // Nếu màn hình lớn hơn 1280, dãn rộng container ra cho đẹp.
+                // Nếu nhỏ hơn 1280, giữ nguyên 1280 để hiện scroll ngang.
+                container.Width = Math.Max(mainScrollPanel.ClientSize.Width, minW);
+            };
+
             mainScrollPanel.Controls.Add(container);
 
-            GroupBox gbHeader = new GroupBox();
-            gbHeader.Text = "Bộ lọc tìm kiếm";
-            gbHeader.Size = new Size(1280, 70);
-            gbHeader.Location = new Point(10, 10);
-            container.Controls.Add(gbHeader);
-
-            Label lblProject = new Label()
-            {
-                Text = "Dự án:",
-                Location = new Point(15, 33),
-                AutoSize = true
-            };
-            cboProject = new ComboBox()
-            {
-                Name = "cbProject",
-                Location = new Point(70, 30),
-                Width = 200,
-                DropDownStyle = ComboBoxStyle.DropDown,
-                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
-                AutoCompleteSource = AutoCompleteSource.ListItems
-            };
-            //cboProject.Validating += CboProject_Validating;
-
-            Label lblPONo = new Label()
-            {
-                Text = "PO NO:",
-                Location = new Point(290, 33),
-                AutoSize = true
-            };
-            cboPONo = new ComboBox()
-            {
-                Name = "cbPONo",
-                Location = new Point(350, 30),
-                Width = 200,
-                DropDownStyle = ComboBoxStyle.DropDown,
-                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
-                AutoCompleteSource = AutoCompleteSource.ListItems
-            };
-            //cboPONo.Validating += CboPONo_Validating;
-
-            btnSearch = new Button()
-            {
-                Name = "btnSearch",
-                Text = "🔍 Tìm",
-                Location = new Point(570, 28),
-                Size = new Size(100, 30),
-                Cursor = Cursors.Hand,
-                BackColor = Color.FromArgb(0, 120, 212),
-                FlatStyle = FlatStyle.Flat,
-            };
-            btnCancelSearch = new Button()
-            {
-                Name = "btnCancelSearch",
-                Text = "✖ Xóa lọc",
-                Location = new Point(700, 28),
-                Size = new Size(100, 30),
-                Cursor = Cursors.Hand,
-                BackColor = Color.FromArgb(108, 117, 125),
-                FlatStyle = FlatStyle.Flat,
-            };
-            gbHeader.Controls.AddRange(new Control[] { lblProject, cboProject, lblPONo, cboPONo, btnSearch, btnCancelSearch });
-
-            GroupBox gbActions = new GroupBox();
-            gbActions.Text = "Thao tác nghiệp vụ";
-            gbActions.Size = new Size(1280, 80);
-            gbActions.Location = new Point(10, 90);
-            container.Controls.Add(gbActions);
-
-            btnAdd = new Button()
-            {
-                Text = "➕ Thêm vào phiếu",
-                Location = new Point(15, 30),
-                Size = new Size(120, 35),
-                BackColor = Color.FromArgb(255, 140, 0),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnSave = new Button()
-            {
-                Text = "💾 Lưu phiếu nhập",
-                Location = new Point(145, 30),
-                Size = new Size(120, 35),
-                BackColor = Color.FromArgb(0, 120, 212),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnCancel = new Button()
-            {
-                Text = "🆕 Phiếu mới",
-                Location = new Point(275, 30),
-                Size = new Size(120, 35),
-                BackColor = Color.FromArgb(108, 117, 125),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnCancel.Click += BtnCancel_Click;
-            gbActions.Controls.AddRange(new Control[] { btnAdd, btnSave, btnCancel });
-
-            GroupBox gbDetails = new GroupBox();
-            gbDetails.Text = "Chi tiết nhập kho";
-            gbDetails.Size = new Size(1280, 400);
-            gbDetails.Location = new Point(10, 180);
-            container.Controls.Add(gbDetails);
-
-            Label lblDetail = new Label()
-            {
-                Text = "Danh sách vật tư trong phiếu",
-                Location = new Point(15, 25),
-                AutoSize = true,
-                ForeColor = Color.Orange,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold)
-            };
-
-            btnDeleteRow = new Button()
-            {
-                Text = "🗑 Xóa dòng chọn",
-                Location = new Point(gbDetails.Width - 150, 20),
-                Size = new Size(130, 35),
-                BackColor = Color.FromArgb(220, 53, 69),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            };
-            btnDeleteRow.Click += BtnDeleteRow_Click;
-
-            Button btnPaste = new Button()
-            {
-                Text = " 📋 Dán từ Excel",
-                Size = new Size(130, 35),
-                Location = new Point(btnDeleteRow.Location.X - btnDeleteRow.Width + 35, btnDeleteRow.Location.Y), // Đặt bên cạnh nút "Thêm vào phiếu"
-                BackColor = Color.FromArgb(46, 204, 113), // Màu xanh lá nhẹ (Emerald)
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                Cursor = Cursors.Hand
-                //Location = new Point(gbDetails.Width - 500, 20),
-            };
-            btnPaste.Click += (s, e) => PasteToEditableCells();
-            btnPaste.Visible = false;
-
-            dgvImportQueue = new DataGridView()
-            {
-                Location = new Point(15, 60),
-                Size = new Size(gbDetails.Width - 40, 320),
-                BackgroundColor = Color.White,
-                AutoGenerateColumns = true,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                BorderStyle = BorderStyle.None,
-                RowHeadersVisible = false,
-                Font = new Font("Segoe UI", 9),
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-            };
-            dgvImportQueue.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(255, 140, 0);
-            dgvImportQueue.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-            dgvImportQueue.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-            dgvImportQueue.EnableHeadersVisualStyles = false;
-            dgvImportQueue.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
-
-            // Xanh nhạt cho selection
-            dgvImportQueue.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
-            dgvImportQueue.DefaultCellStyle.SelectionForeColor = Color.Black;
-
-            dgvImportQueue.CellBeginEdit += DgvImportQueue_CellBeginEdit;
-            dgvImportQueue.CellEndEdit += DgvImportQueue_CellEndEdit;
-            dgvImportQueue.EditingControlShowing += DgvImportQueue_EditingControlShowing;
-            dgvImportQueue.CellDoubleClick += DgvImportQueue_CellDoubleClick;
-            dgvImportQueue.KeyDown += DgvImportQueue_KeyDown;
-
-            gbDetails.Controls.AddRange(new Control[] { lblDetail, btnPaste, btnDeleteRow, dgvImportQueue });
-
-            //GroupBox gbHistory = new GroupBox();
-            //gbHistory.Text = "Truy xuất lịch sử";
-            //gbHistory.Size = new Size(1280, 450);
-            //gbHistory.Location = new Point(10, 590);
-            //container.Controls.Add(gbHistory);
-
-            //Label lblHistory = new Label()
-            //{
-            //    Text = "Lịch sử nhập kho",
-            //    Location = new Point(15, 25),
-            //    AutoSize = true,
-            //    ForeColor = Color.Blue,
-            //    Font = new Font("Segoe UI", 10, FontStyle.Bold)
-            //};
-            //btnPrintPNK = new Button()
-            //{
-            //    Text = "🖨 In phiếu nhập kho",
-            //    Location = new Point(15, 55),
-            //    Size = new Size(150, 35),
-            //    BackColor = Color.FromArgb(33, 115, 70),
-            //    ForeColor = Color.White,
-            //    FlatStyle = FlatStyle.Flat
-            //};
-
-            //dgvImport = new DataGridView()
-            //{
-            //    Location = new Point(15, 100),
-            //    Size = new Size(gbDetails.Width - 40, 320),
-            //    BackgroundColor = Color.White,
-            //    AutoGenerateColumns = true,
-            //    ReadOnly = true,
-            //    AllowUserToAddRows = false,
-            //    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            //    BorderStyle = BorderStyle.None,
-            //    RowHeadersVisible = false,
-            //    Font = new Font("Segoe UI", 9),
-            //    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            //    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-            //};
-            //dgvImport.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
-            //dgvImport.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-            //dgvImport.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-            //dgvImport.EnableHeadersVisualStyles = false;
-            //dgvImport.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
-
-            //// Xanh nhạt cho selection
-            //dgvImport.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
-            //dgvImport.DefaultCellStyle.SelectionForeColor = Color.Black;
-
-            //gbHistory.Controls.AddRange(new Control[] { lblHistory, btnPrintPNK, dgvImport });
             GroupBox gbHistory = new GroupBox();
             gbHistory.Text = "Truy xuất lịch sử";
-            gbHistory.Size = new Size(1280, 450);
-            gbHistory.Location = new Point(10, 590);
+            //gbHistory.Size = new Size(1280, 450);
+            gbHistory.Dock = DockStyle.Top;
+            gbHistory.Height = 450;
             container.Controls.Add(gbHistory);
 
             Label lblHistory = new Label()
@@ -596,6 +407,233 @@ namespace MPR_Managerment.Forms
             gbHistory.Controls.Add(dtpToDate);
             gbHistory.Controls.Add(btnSearchHistory);
             gbHistory.Controls.Add(dgvImport);
+
+            GroupBox gbDetails = new GroupBox();
+            gbDetails.Text = "Chi tiết nhập kho";
+            //gbDetails.Size = new Size(container.Width - 20, 400);
+            gbDetails.Dock = DockStyle.Top;
+            gbDetails.Height = 400;
+            container.Controls.Add(gbDetails);
+
+            Label lblDetail = new Label()
+            {
+                Text = "Danh sách vật tư trong phiếu",
+                Location = new Point(15, 25),
+                AutoSize = true,
+                ForeColor = Color.Orange,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+
+            btnDeleteRow = new Button()
+            {
+                Text = "🗑 Xóa dòng chọn",
+                Location = new Point(gbDetails.Width - 150, 20),
+                Size = new Size(130, 35),
+                BackColor = Color.FromArgb(220, 53, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            };
+            btnDeleteRow.Click += BtnDeleteRow_Click;
+
+            Button btnPaste = new Button()
+            {
+                Text = " 📋 Dán từ Excel",
+                Size = new Size(130, 35),
+                Location = new Point(btnDeleteRow.Location.X - btnDeleteRow.Width + 35, btnDeleteRow.Location.Y), // Đặt bên cạnh nút "Thêm vào phiếu"
+                BackColor = Color.FromArgb(46, 204, 113), // Màu xanh lá nhẹ (Emerald)
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand
+                //Location = new Point(gbDetails.Width - 500, 20),
+            };
+            btnPaste.Click += (s, e) => PasteToEditableCells();
+            btnPaste.Visible = false;
+
+            dgvImportQueue = new DataGridView()
+            {
+                Location = new Point(15, 60),
+                //Size = new Size(gbDetails.Width - 40, 320),
+                Size = new Size(container.Width - 20, 320),
+                BackgroundColor = Color.White,
+                AutoGenerateColumns = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+            };
+            dgvImportQueue.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(255, 140, 0);
+            dgvImportQueue.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvImportQueue.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvImportQueue.EnableHeadersVisualStyles = false;
+            dgvImportQueue.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
+
+            // Xanh nhạt cho selection
+            dgvImportQueue.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            dgvImportQueue.DefaultCellStyle.SelectionForeColor = Color.Black;
+
+            dgvImportQueue.CellBeginEdit += DgvImportQueue_CellBeginEdit;
+            dgvImportQueue.CellEndEdit += DgvImportQueue_CellEndEdit;
+            dgvImportQueue.EditingControlShowing += DgvImportQueue_EditingControlShowing;
+            dgvImportQueue.CellDoubleClick += DgvImportQueue_CellDoubleClick;
+            dgvImportQueue.KeyDown += DgvImportQueue_KeyDown;
+
+            gbDetails.Controls.AddRange(new Control[] { lblDetail, btnPaste, btnDeleteRow, dgvImportQueue });
+
+            //GroupBox gbHistory = new GroupBox();
+            //gbHistory.Text = "Truy xuất lịch sử";
+            //gbHistory.Size = new Size(1280, 450);
+            //gbHistory.Location = new Point(10, 590);
+            //container.Controls.Add(gbHistory);
+
+            //Label lblHistory = new Label()
+            //{
+            //    Text = "Lịch sử nhập kho",
+            //    Location = new Point(15, 25),
+            //    AutoSize = true,
+            //    ForeColor = Color.Blue,
+            //    Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            //};
+            //btnPrintPNK = new Button()
+            //{
+            //    Text = "🖨 In phiếu nhập kho",
+            //    Location = new Point(15, 55),
+            //    Size = new Size(150, 35),
+            //    BackColor = Color.FromArgb(33, 115, 70),
+            //    ForeColor = Color.White,
+            //    FlatStyle = FlatStyle.Flat
+            //};
+
+            //dgvImport = new DataGridView()
+            //{
+            //    Location = new Point(15, 100),
+            //    Size = new Size(gbDetails.Width - 40, 320),
+            //    BackgroundColor = Color.White,
+            //    AutoGenerateColumns = true,
+            //    ReadOnly = true,
+            //    AllowUserToAddRows = false,
+            //    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            //    BorderStyle = BorderStyle.None,
+            //    RowHeadersVisible = false,
+            //    Font = new Font("Segoe UI", 9),
+            //    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            //    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+            //};
+            //dgvImport.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            //dgvImport.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            //dgvImport.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            //dgvImport.EnableHeadersVisualStyles = false;
+            //dgvImport.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+
+            //// Xanh nhạt cho selection
+            //dgvImport.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            //dgvImport.DefaultCellStyle.SelectionForeColor = Color.Black;
+
+            //gbHistory.Controls.AddRange(new Control[] { lblHistory, btnPrintPNK, dgvImport });
+
+            GroupBox gbActions = new GroupBox();
+            gbActions.Text = "Thao tác nghiệp vụ";
+            //gbActions.Size = new Size(container.Width - 20, 80);
+            gbActions.Dock = DockStyle.Top;
+            gbActions.Height = 80;
+            container.Controls.Add(gbActions);
+
+            btnAdd = new Button()
+            {
+                Text = "➕ Thêm vào phiếu",
+                Location = new Point(15, 30),
+                Size = new Size(120, 35),
+                BackColor = Color.FromArgb(255, 140, 0),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnSave = new Button()
+            {
+                Text = "💾 Lưu phiếu nhập",
+                Location = new Point(145, 30),
+                Size = new Size(120, 35),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnCancel = new Button()
+            {
+                Text = "🆕 Phiếu mới",
+                Location = new Point(275, 30),
+                Size = new Size(120, 35),
+                BackColor = Color.FromArgb(108, 117, 125),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnCancel.Click += BtnCancel_Click;
+            gbActions.Controls.AddRange(new Control[] { btnAdd, btnSave, btnCancel });
+
+            GroupBox gbHeader = new GroupBox();
+            gbHeader.Text = "Bộ lọc tìm kiếm";
+            //gbHeader.Size = new Size(container.Width - 20, 70);
+            gbHeader.Dock = DockStyle.Top;
+            gbHeader.Height = 70;
+            container.Controls.Add(gbHeader);
+
+            Label lblProject = new Label()
+            {
+                Text = "Dự án:",
+                Location = new Point(15, 33),
+                AutoSize = true
+            };
+            cboProject = new ComboBox()
+            {
+                Name = "cbProject",
+                Location = new Point(70, 30),
+                Width = 200,
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems
+            };
+            //cboProject.Validating += CboProject_Validating;
+
+            Label lblPONo = new Label()
+            {
+                Text = "PO NO:",
+                Location = new Point(290, 33),
+                AutoSize = true
+            };
+            cboPONo = new ComboBox()
+            {
+                Name = "cbPONo",
+                Location = new Point(350, 30),
+                Width = 200,
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems
+            };
+            //cboPONo.Validating += CboPONo_Validating;
+
+            btnSearch = new Button()
+            {
+                Name = "btnSearch",
+                Text = "🔍 Tìm",
+                Location = new Point(570, 28),
+                Size = new Size(100, 30),
+                Cursor = Cursors.Hand,
+                BackColor = Color.FromArgb(0, 120, 212),
+                FlatStyle = FlatStyle.Flat,
+            };
+            btnCancelSearch = new Button()
+            {
+                Name = "btnCancelSearch",
+                Text = "✖ Xóa lọc",
+                Location = new Point(700, 28),
+                Size = new Size(100, 30),
+                Cursor = Cursors.Hand,
+                BackColor = Color.FromArgb(108, 117, 125),
+                FlatStyle = FlatStyle.Flat,
+            };
+            gbHeader.Controls.AddRange(new Control[] { lblProject, cboProject, lblPONo, cboPONo, btnSearch, btnCancelSearch });
         }
 
         private void CboPONo_Validating(object? sender, CancelEventArgs e)
@@ -650,25 +688,64 @@ namespace MPR_Managerment.Forms
             //}
         }
 
+        //public void SetupExportLayout(TabPage parent)
+        //{
+        //    // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
+        //    Panel mainScrollPanel = new Panel();
+        //    mainScrollPanel.Dock = DockStyle.Fill;
+        //    mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+        //    parent.Controls.Add(mainScrollPanel);
+
+        //    // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
+        //    Panel container = new Panel();
+        //    container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
+        //    container.Height = 2000; // Độ cao ước tính cho 4 phần
+        //    container.Location = new Point(0, 0);
+        //    mainScrollPanel.Controls.Add(container);
+
+        //    ucExportWarehouse ucExportWarehouse = new ucExportWarehouse();
+        //    ucExportWarehouse.Dock = DockStyle.Fill;
+        //    mainScrollPanel.Controls.Add(ucExportWarehouse);
+        //    ucExportWarehouse.BringToFront();
+        //}
         public void SetupExportLayout(TabPage parent)
         {
-            // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
+            // 1. Panel bao ngoài cùng: Luôn Fill và quản lý Scroll
             Panel mainScrollPanel = new Panel();
             mainScrollPanel.Dock = DockStyle.Fill;
-            mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+            mainScrollPanel.AutoScroll = true; // Kích hoạt Scroll
             parent.Controls.Add(mainScrollPanel);
 
-            // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
+            // 2. Panel container: Chứa nội dung chính
             Panel container = new Panel();
-            container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
-            container.Height = 2000; // Độ cao ước tính cho 4 phần
             container.Location = new Point(0, 0);
+
+            // THIẾT LẬP QUAN TRỌNG:
+            // Chỉ neo phía trên và bên trái. KHÔNG neo bên phải để tránh bị bóp nghẹt chiều rộng.
+            container.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // Kích thước tối thiểu (Cột mốc để hiện thanh cuộn)
+            int minW = 1280;
+            int minH = 2000;
+            container.MinimumSize = new Size(minW, minH);
+
+            // Thiết lập size ban đầu
+            container.Size = new Size(Math.Max(parent.Width, minW), minH);
+
+            // 3. XỬ LÝ ĐỘNG: Đảm bảo khi mở to màn hình thì container vẫn dãn hết chiều ngang
+            parent.Resize += (s, e) =>
+            {
+                // Nếu màn hình lớn hơn 1280, dãn rộng container ra cho đẹp.
+                // Nếu nhỏ hơn 1280, giữ nguyên 1280 để hiện scroll ngang.
+                container.Width = Math.Max(mainScrollPanel.ClientSize.Width, minW);
+            };
+
             mainScrollPanel.Controls.Add(container);
 
+            // 4. Đưa UserControl vào trong container
             ucExportWarehouse ucExportWarehouse = new ucExportWarehouse();
             ucExportWarehouse.Dock = DockStyle.Fill;
             container.Controls.Add(ucExportWarehouse);
-            ucExportWarehouse.BringToFront();
         }
 
         public void SetupFillInvoiceNoLayout_v2(TabPage parent)
@@ -1220,6 +1297,7 @@ namespace MPR_Managerment.Forms
             lblStockTotal = AddStatLbl(panelStockSummary, "Tổng mục:", "0 mục", Color.FromArgb(0, 120, 212), 10);
             lblStockQty = AddStatLbl(panelStockSummary, "Tổng SL tồn:", "0", Color.FromArgb(40, 167, 69), 250);
             lblStockWeight = AddStatLbl(panelStockSummary, "Tổng KG tồn:", "0 kg", Color.FromArgb(255, 140, 0), 490);
+            var lblStatus = AddStatLbl(panelStockSummary, "Số lượng:", "0 kg", Color.FromArgb(254, 0, 51), 730);
 
             int fy = 80;
             container.Controls.Add(new Label { Text = "Tìm kiếm:", Location = new Point(10, fy + 3), Size = new Size(70, 20), Font = new Font("Segoe UI", 9) });
@@ -1255,7 +1333,7 @@ namespace MPR_Managerment.Forms
                 Size = new Size(1200, 1200),
                 ReadOnly = true,
                 AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
                 RowHeadersVisible = false,
@@ -1276,6 +1354,7 @@ namespace MPR_Managerment.Forms
             dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
 
             dgvStock.CellFormatting += DgvStock_CellFormatting;
+            dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
             gbHeader.Controls.Add(dgvStock);
         }
 
@@ -1394,17 +1473,17 @@ namespace MPR_Managerment.Forms
                 string project = (cboProjectFilter != null && cboProjectFilter.SelectedIndex > 0) ? cboProjectFilter.SelectedItem.ToString() : "";
                 if (!string.IsNullOrEmpty(project))
                 {
-                    //BindStockGrid(_service.GetStock(project, kw));
-                    DataTable stocks = await _service.GetStock_V2(project, kw);
-                    dgvStock.DataSource = stocks;
-                    if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
-                    decimal tQ = 0, tW = 0;
-                    foreach (DataRow s in stocks.Rows) {
-                        var qt = Common.Common.ParseDecimalRaw(s["Qty (SUM)"].ToString());
-                        tQ += qt;
-                    }
-                    if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Rows.Count} mục";
-                    if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
+                    BindStockGrid(_service.GetStock(project, kw));
+                    //DataTable stocks = await _service.GetStock_V2(project, kw);
+                    //dgvStock.DataSource = stocks;
+                    //if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
+                    //decimal tQ = 0, tW = 0;
+                    //foreach (DataRow s in stocks.Rows) {
+                    //    var qt = Common.Common.ParseDecimalRaw(s["Qty (SUM)"].ToString());
+                    //    tQ += qt;
+                    //}
+                    //if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Rows.Count} mục";
+                    //if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
                 }
             }
             catch (Exception ex) { MessageBox.Show("Lỗi tải tồn kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }

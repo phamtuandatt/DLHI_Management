@@ -330,10 +330,16 @@ namespace MPR_Managerment.Services
 
         public async Task<DataTable> GetStock_V2(string projectCode = "", string keyword = "")
         {
-            string sqlQuery = string.Format($"SELECT W.ID_Code, W.Item_Name AS 'Name', M.material_detail_name AS 'Description', W.Material, W.Size, SUM(W.Qty_import) AS [Qty (SUM)] FROM Warehouse_Import AS W LEFT JOIN Material_Detail AS M  ON LEFT(W.ID_Code, 9) = M.item_code_existed WHERE Project_Code = N'{projectCode}' AND (W.Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%') GROUP BY  W.ID_Code, W.Item_Name, M.material_detail_name, W.Material, W.Size ORDER BY W.ID_Code", projectCode, keyword);
+            string sql = "SELECT * FROM vw_Warehouse_Stock WHERE 1=1";
+            if (!string.IsNullOrEmpty(projectCode))
+                sql += $" AND Project_Code = N'{projectCode}'";
+            if (!string.IsNullOrEmpty(keyword))
+                sql += $" AND (Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
+            sql += " ORDER BY Import_Date DESC";
+
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
-                SqlCommand cmd = new SqlCommand(sqlQuery, conn);
+                SqlCommand cmd = new SqlCommand(sql, conn);
 
                 DataTable dt = new DataTable();
                 await conn.OpenAsync(); // Mở kết nối ngầm
