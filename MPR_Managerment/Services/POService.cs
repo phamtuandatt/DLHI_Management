@@ -98,6 +98,19 @@ namespace MPR_Managerment.Services
             }
             return list;
         }
+        public List<POHead> GetAllPOForImportHistory()
+        {
+            var list = new List<POHead>();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("SELECT *FROM PO_head ORDER BY Created_Date DESC", conn);
+                var r = cmd.ExecuteReader();
+                while (r.Read()) list.Add(MapHead(r));
+            }
+            return list;
+        }
+
 
         public POHead GetPOByPONo(int poId)
         {

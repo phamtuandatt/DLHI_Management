@@ -10,6 +10,26 @@ namespace MPR_Managerment.Common
 {
     public static class Common
     {
+        public static DataView SearchDate(DateTime FromDate, DateTime ToDate, DataTable dtSource, List<string> lstProperties)
+        {
+            DataView dv = dtSource.DefaultView;
+            string filter = "";
+            foreach (var item in lstProperties)
+            {
+                if (string.IsNullOrEmpty(filter))
+                {
+                    filter = $"{item} >= '{FromDate:dd/MM/yyyy}' ";
+                }
+                else
+                {
+                    filter += $"AND {item} <= '{ToDate:dd/MM/yyyy}' ";
+                }
+            }
+
+            dv.RowFilter = filter;
+
+            return dv;
+        }
         public static Dictionary<int, decimal> GetDictionaryDifferences(Dictionary<int, decimal> dict1, Dictionary<int, decimal> dict2)
         {
             // Kiểm tra null để tránh lỗi Runtime

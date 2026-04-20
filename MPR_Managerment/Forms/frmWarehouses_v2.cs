@@ -31,6 +31,7 @@ namespace MPR_Managerment.Forms
         private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo, pageFillInvoiceNo_v2;
         private TabPage pageSaveDelivertNote;
         private List<ProjectInfo> _dtProject = new List<ProjectInfo>();
+        private DateTimePicker dtpFromDate, dtpToDate;
 
         private Button btnSearch, btnCancelSearch, btnSearchHistory;
 
@@ -154,7 +155,7 @@ namespace MPR_Managerment.Forms
             pageFillInvoiceNo.BackColor = Color.White;
 
             pageFillInvoiceNo_v2 = new TabPage();
-            pageFillInvoiceNo_v2.Text = "📝 Hóa đơn";
+            pageFillInvoiceNo_v2.Text = "📝 Kiểm tra hóa đơn";
             pageFillInvoiceNo_v2.BackColor = Color.White;
 
             pageSaveDelivertNote = new TabPage();
@@ -167,8 +168,8 @@ namespace MPR_Managerment.Forms
                 mainTabControl.TabPages.Add(pageWarehouse);
                 mainTabControl.TabPages.Add(pageImport);
                 mainTabControl.TabPages.Add(pageExport);
-                mainTabControl.TabPages.Add(pageFillInvoiceNo);
                 mainTabControl.TabPages.Add(pageFillInvoiceNo_v2);
+                mainTabControl.TabPages.Add(pageFillInvoiceNo);
                 mainTabControl.TabPages.Add(pageSaveDelivertNote);
             }
             else
@@ -330,7 +331,7 @@ namespace MPR_Managerment.Forms
                 //Location = new Point(gbDetails.Width - 500, 20),
             };
             btnPaste.Click += (s, e) => PasteToEditableCells();
-            //btnPaste.Visible = false;
+            btnPaste.Visible = false;
 
             dgvImportQueue = new DataGridView()
             {
@@ -482,19 +483,69 @@ namespace MPR_Managerment.Forms
                 AutoCompleteSource = AutoCompleteSource.ListItems
             };
 
-            // 4. Nút Search (Nằm cuối hàng)
+            // 4. Cặp 3: Từ ngày (Bổ sung mới)
+            Label lblFromDate = new Label()
+            {
+                Text = "Từ ngày:",
+                Location = new Point(700, 62), // Nối tiếp sau cboFilterPO
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            dtpFromDate = new DateTimePicker()
+            {
+                Name = "dtpFromDate",
+                Location = new Point(765, 57),
+                Width = 110,
+                Format = DateTimePickerFormat.Short
+            };
+
+            // 5. Cặp 4: Đến ngày (Bổ sung mới)
+            Label lblToDate = new Label()
+            {
+                Text = "Đến ngày:",
+                Location = new Point(890, 62),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            dtpToDate = new DateTimePicker()
+            {
+                Name = "dtpToDate",
+                Location = new Point(960, 57),
+                Width = 110,
+                Format = DateTimePickerFormat.Short
+            };
+
+            // 6. Nút Search (Đẩy ra sau cùng hàng)
             btnSearchHistory = new Button()
             {
                 Text = "🔍 Tìm kiếm",
-                Location = new Point(700, 55),
+                Location = new Point(1090, 55), // Dịch chuyển sang phải để nhường chỗ cho DatePicker
                 Size = new Size(120, 35),
-                BackColor = Color.FromArgb(0, 120, 212), // Màu xanh dương đồng bộ với Header Grid
+                BackColor = Color.FromArgb(0, 120, 212),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
             btnSearchHistory.Click += BtnSearchHistory_Click;
+
+
+
+            //// 4. Nút Search (Nằm cuối hàng)
+            //btnSearchHistory = new Button()
+            //{
+            //    Text = "🔍 Tìm kiếm",
+            //    Location = new Point(700, 55),
+            //    Size = new Size(120, 35),
+            //    BackColor = Color.FromArgb(0, 120, 212), // Màu xanh dương đồng bộ với Header Grid
+            //    ForeColor = Color.White,
+            //    FlatStyle = FlatStyle.Flat,
+            //    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            //    Cursor = Cursors.Hand
+            //};
+            //btnSearchHistory.Click += BtnSearchHistory_Click;
 
             // --- KẾT THÚC PHẦN UPDATE ---
 
@@ -523,15 +574,28 @@ namespace MPR_Managerment.Forms
             dgvImport.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
             dgvImport.DefaultCellStyle.SelectionForeColor = Color.Black;
 
-            // Thêm tất cả vào GroupBox
-            gbHistory.Controls.AddRange(new Control[] {
-                lblHistory,
-                btnPrintPNK,
-                lblFilterProject, cboFilterProject,
-                lblFilterPO, cboFilterPO,
-                btnSearchHistory,
-                dgvImport
-            });
+            //// Thêm tất cả vào GroupBox
+            //gbHistory.Controls.AddRange(new Control[] {
+            //    lblHistory,
+            //    btnPrintPNK,
+            //    lblFilterProject, cboFilterProject,
+            //    lblFilterPO, cboFilterPO,
+            //    btnSearchHistory,
+            //    dgvImport
+            //});
+            // Đừng quên thêm các Control mới vào gbHistory
+            gbHistory.Controls.Add(lblHistory);
+            gbHistory.Controls.Add(btnPrintPNK);
+            gbHistory.Controls.Add(lblFilterProject);
+            gbHistory.Controls.Add(cboFilterProject);
+            gbHistory.Controls.Add(lblFilterPO);
+            gbHistory.Controls.Add(cboFilterPO);
+            gbHistory.Controls.Add(lblFromDate);
+            gbHistory.Controls.Add(dtpFromDate);
+            gbHistory.Controls.Add(lblToDate);
+            gbHistory.Controls.Add(dtpToDate);
+            gbHistory.Controls.Add(btnSearchHistory);
+            gbHistory.Controls.Add(dgvImport);
         }
 
         private void CboPONo_Validating(object? sender, CancelEventArgs e)
@@ -549,7 +613,8 @@ namespace MPR_Managerment.Forms
             try
             {
                 string project = (cboFilterProject != null && cboFilterProject.SelectedIndex > 0) ? cboFilterProject.SelectedItem.ToString() : "";
-                LoadPOFilterByProject(project);
+                //LoadPOFilterByProject(project);
+                LoadPOFilterForHistoryByProject(project);
                 //LoadImports(); // Không thực hiện lấy dữ liệu từ combobox trên nữa
             }
             catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -1352,16 +1417,16 @@ namespace MPR_Managerment.Forms
                 Vat_Lieu = s.Material,
                 Kich_Thuoc = s.Size,
                 DVT = s.UNIT,
-                ID_Code = s.ID_Code,
+                //ID_Code = s.ID_Code, // Ẩn cột ID_Code tránh nhầm lẫn với QC Code
                 PO_No = s.PONo,
                 Ma_DA = s.Project_Code,
                 Vi_Tri = s.Location,
                 SL_Nhap = s.Qty_Import,
                 SL_Xuat = s.Qty_Exported,
                 SL_Ton = s.Qty_Stock,
-                KG_Nhap = s.Weight_Import,
-                KG_Xuat = s.Weight_Exported,
-                KG_Ton = s.Weight_Stock,
+                //KG_Nhap = s.Weight_Import,
+                //KG_Xuat = s.Weight_Exported,
+                //KG_Ton = s.Weight_Stock,
                 QC_Code = s.QC_Code,
                 QC_Status = s.QC_Status
             });
@@ -1811,7 +1876,8 @@ namespace MPR_Managerment.Forms
                     all = po != null ? all.FindAll(i => i.PO_ID == po.PO_ID) : new List<WarehouseImport>();
                 }
                 if (!string.IsNullOrEmpty(projectCode))
-                    all = all.FindAll(i => i.Project_Code == projectCode);
+                    //all = all.FindAll(i => i.Project_Code == projectCode);
+                    all = all.Where(i => i.Project_Code == projectCode && i.Import_Date >= dtpFromDate.Value && i.Import_Date <= dtpToDate.Value).ToList();
 
                 _imports = all;
                 dgvImport.DataSource = _imports.ConvertAll(i => new
@@ -1865,16 +1931,16 @@ namespace MPR_Managerment.Forms
                 if (string.IsNullOrEmpty(projectCode))
                 {
                     cboPONo.Items.Clear();
-                    cboFilterPO.Items.Clear();
                     cboPONo.Items.Add("-- Chọn PO --");
-                    cboFilterPO.Items.Add("-- Chọn PO --");
+                    //cboFilterPO.Items.Clear();
+                    //cboFilterPO.Items.Add("-- Chọn PO --");
                     foreach (var po in allPO)
                     {
                         cboPONo.Items.Add(po.PONo);
-                        cboFilterPO.Items.Add(po.PONo);
+                        //cboFilterPO.Items.Add(po.PONo);
                     }
                     cboPONo.SelectedIndex = 0;
-                    cboFilterPO.SelectedIndex = 0;
+                    //cboFilterPO.SelectedIndex = 0;
                     return;
                 }
                 var projects = _dtProject;
@@ -1892,13 +1958,13 @@ namespace MPR_Managerment.Forms
                         (p.MPR_No ?? "").Contains(projectCode, StringComparison.OrdinalIgnoreCase));
 
                 cboPONo.Items.Clear();
-                cboFilterPO.Items.Clear();
                 cboPONo.Items.Add("-- Chọn PO --");
-                cboFilterPO.Items.Add("-- Chọn PO --");
+                //cboFilterPO.Items.Clear();
+                //cboFilterPO.Items.Add("-- Chọn PO --");
                 if (filtered.Count == 0)
                 {
                     cboPONo.Items.Add("(Không có PO)");
-                    cboFilterPO.Items.Add("(Không có PO)");
+                    //cboFilterPO.Items.Add("(Không có PO)");
                     cboPONo.SelectedIndex = 0;
                     cboFilterPO.SelectedIndex = 0;
                     return;
@@ -1906,9 +1972,56 @@ namespace MPR_Managerment.Forms
                 foreach (var po in filtered)
                 {
                     cboPONo.Items.Add(po.PONo);
-                    cboFilterPO.Items.Add(po.PONo);
+                    //cboFilterPO.Items.Add(po.PONo);
                 }
                 cboPONo.SelectedIndex = 0;
+                //cboFilterPO.SelectedIndex = 0;
+            }
+            catch (Exception ex) { MessageBox.Show("Lỗi lọc PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        }
+
+        private void LoadPOFilterForHistoryByProject(string projectCode)
+        {
+            try
+            {
+                var allPO = _poService.GetAllPOForImportHistory();
+                if (string.IsNullOrEmpty(projectCode))
+                {
+                    cboFilterPO.Items.Clear();
+                    cboFilterPO.Items.Add("-- Chọn PO --");
+                    foreach (var po in allPO)
+                    {
+                        cboFilterPO.Items.Add(po.PONo);
+                    }
+                    cboFilterPO.SelectedIndex = 0;
+                    return;
+                }
+                var projects = _dtProject;
+                var proj = projects.Find(p => p.ProjectCode == projectCode);
+                List<POHead> filtered;
+
+                if (proj != null)
+                    filtered = allPO.FindAll(p =>
+                        (!string.IsNullOrEmpty(proj.WorkorderNo) && (p.WorkorderNo ?? "").Equals(proj.WorkorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(proj.MPRCode) && (p.MPR_No ?? "").Contains(proj.MPRCode, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(proj.ProjectCode) && (p.WorkorderNo ?? "").Contains(proj.ProjectCode, StringComparison.OrdinalIgnoreCase)));
+                else
+                    filtered = allPO.FindAll(p =>
+                        (p.WorkorderNo ?? "").Contains(projectCode, StringComparison.OrdinalIgnoreCase) ||
+                        (p.MPR_No ?? "").Contains(projectCode, StringComparison.OrdinalIgnoreCase));
+
+                cboFilterPO.Items.Clear();
+                cboFilterPO.Items.Add("-- Chọn PO --");
+                if (filtered.Count == 0)
+                {
+                    cboFilterPO.Items.Add("(Không có PO)");
+                    cboFilterPO.SelectedIndex = 0;
+                    return;
+                }
+                foreach (var po in filtered)
+                {
+                    cboFilterPO.Items.Add(po.PONo);
+                }
                 cboFilterPO.SelectedIndex = 0;
             }
             catch (Exception ex) { MessageBox.Show("Lỗi lọc PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }

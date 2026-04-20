@@ -94,11 +94,14 @@ namespace MPR_Managerment.Forms.ExportGUI
                 dgvKho.Columns["Item_ID"].Visible = false;
                 dgvKho.Columns["Warehouse_ID"].Visible = false;
                 dgvKho.Columns["Item_Code"].Visible = false;
+                dgvKho.Columns["ID_Code"].Visible = false;
 
                 dgvKho.Columns["Location"].Visible = false;
                 dgvKho.Columns["Notes"].Visible = false;
                 dgvKho.Columns["MTRno"].Visible = false;
                 dgvKho.Columns["Heatno"].Visible = false;
+                dgvKho.Columns["InvoiceNo"].Visible = false;
+                dgvKho.Columns["InvoiceDate"].Visible = false;
             }
         }
 
@@ -419,7 +422,9 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             if (cboProjectCheck.Items.Count == 0) return;
             var dtW = await _warehouseServies.GetHistoryExportByProject(cboProjectCheck.SelectedValue.ToString());
-            dgvHis.DataSource = dtW;
+
+            dgvHis.DataSource = Common.Common.SearchDate(dtpStart.Value, dtpTo.Value, dtW, new List<string> { "Export_Date" });
+
             dgvHis.Columns["Export_ID"].Visible = false;
             dgvHis.Columns["Import_ID"].Visible = false;
             dgvHis.Columns["Warehouse_ID"].Visible = false;
