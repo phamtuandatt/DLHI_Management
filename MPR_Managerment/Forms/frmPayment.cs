@@ -375,7 +375,6 @@ namespace MPR_Managerment.Forms
             }
 
             dgvHistory = Grid(panelHist, 57, 138);
-            dgvHistory.MultiSelect = true;
             dgvHistory.SelectionChanged += (s, e) =>
             {
                 if (dgvHistory.SelectedRows.Count > 0)
@@ -588,6 +587,21 @@ namespace MPR_Managerment.Forms
             dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_PONo", HeaderText = "PO No", Width = 130, ReadOnly = true });
             dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Total", HeaderText = "Tổng sau VAT", Width = 115, ReadOnly = true });
 
+            // Cột Đợt thanh toán
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Dot", HeaderText = "Đợt TT", Width = 70, ReadOnly = true });
+
+            // Cột EC Status — ComboBox 상신 / 종결
+            var cboEC = new DataGridViewComboBoxColumn
+            {
+                Name = "H_ECStatus",
+                HeaderText = "EC Status",
+                Width = 90,
+                FlatStyle = FlatStyle.Flat,
+                DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton
+            };
+            cboEC.Items.AddRange(new[] { "", "\uc0c1\uc2e0", "\uc885\uacb0" }); // "", 상신, 종결
+            dgvHistory.Columns.Add(cboEC);
+
             // Cột Status — ComboBox Pending / Approval
             var cboStatus = new DataGridViewComboBoxColumn
             {
@@ -642,6 +656,24 @@ namespace MPR_Managerment.Forms
                 }
                 if (colName == "H_Total")
                     ev.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+
+                // Màu nền EC Status: 상신 = cam, 종결 = xanh lá
+                if (colName == "H_ECStatus")
+                {
+                    string ecVal = ev.Value?.ToString() ?? "";
+                    if (ecVal == "\uc0c1\uc2e0") // 상신
+                    {
+                        ev.CellStyle.BackColor = Color.FromArgb(255, 165, 0);
+                        ev.CellStyle.ForeColor = Color.White;
+                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                    else if (ecVal == "\uc885\uacb0") // 종결
+                    {
+                        ev.CellStyle.BackColor = Color.FromArgb(40, 167, 69);
+                        ev.CellStyle.ForeColor = Color.White;
+                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                }
 
                 // Làm mờ ô H_Paid khi Status != Approval
                 if (colName == "H_Paid")
@@ -1013,7 +1045,11 @@ namespace MPR_Managerment.Forms
                     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='PO_PaymentProgress' AND COLUMN_NAME='PONo')
                         ALTER TABLE PO_PaymentProgress ADD PONo NVARCHAR(100) NULL;
                     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='PO_PaymentProgress' AND COLUMN_NAME='Amount_Total')
-                        ALTER TABLE PO_PaymentProgress ADD Amount_Total DECIMAL(18,2) NULL;", conn).ExecuteNonQuery();
+                        ALTER TABLE PO_PaymentProgress ADD Amount_Total DECIMAL(18,2) NULL;
+                    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='PO_PaymentProgress' AND COLUMN_NAME='Dot_TT')
+                        ALTER TABLE PO_PaymentProgress ADD Dot_TT NVARCHAR(50) NULL;
+                    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='PO_PaymentProgress' AND COLUMN_NAME='EC_Status')
+                        ALTER TABLE PO_PaymentProgress ADD EC_Status NVARCHAR(50) NULL;", conn).ExecuteNonQuery();
 
                 // Chỉ INSERT nếu chưa tồn tại — giữ nguyên Status/Note/Paid nếu đã có
                 var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
@@ -1051,7 +1087,9 @@ namespace MPR_Managerment.Forms
                            ISNULL(p.PR_Note,   '')        AS PR_Note,
                            ISNULL(p.PR_Paid,   0)         AS PR_Paid,
                            ISNULL(p.INV_Path,  '')        AS INV_Path,
-                           ISNULL(p.Del_Path,  '')        AS Del_Path
+                           ISNULL(p.Del_Path,  '')        AS Del_Path,
+                           ISNULL(p.Dot_TT,    '')        AS Dot_TT,
+                           ISNULL(p.EC_Status, '')        AS EC_Status
                     FROM PO_PaymentProgress p
                     ORDER BY p.Updated_At DESC", conn);
 
@@ -1076,6 +1114,8 @@ namespace MPR_Managerment.Forms
                     dgvHistory.Rows[i].Cells["H_INV"].Value = invFile;
                     dgvHistory.Rows[i].Cells["H_Del_Path"].Value = delPath;
                     dgvHistory.Rows[i].Cells["H_Delivery"].Value = delFile;
+                    dgvHistory.Rows[i].Cells["H_Dot"].Value = reader["Dot_TT"].ToString();
+                    dgvHistory.Rows[i].Cells["H_ECStatus"].Value = reader["EC_Status"].ToString();
                 }
             }
             catch { }
@@ -1163,6 +1203,7 @@ namespace MPR_Managerment.Forms
             string status = row.Cells["H_Status"].Value?.ToString() ?? "Pending";
             string note = row.Cells["H_Note"].Value?.ToString() ?? "";
             bool paid = row.Cells["H_Paid"].Value is bool b && b;
+            string ecStatus = row.Cells["H_ECStatus"].Value?.ToString() ?? "";
 
             // Chặn đánh dấu Đã TT khi Status != Approval
             if (paid && status != "Approval")
@@ -1194,14 +1235,16 @@ namespace MPR_Managerment.Forms
                     MERGE PO_PaymentProgress AS target
                     USING (SELECT @pid AS Print_ID) AS source ON target.Print_ID = source.Print_ID
                     WHEN MATCHED THEN
-                        UPDATE SET PR_Status = @status, PR_Note = @note, PR_Paid = @paid, Updated_At = GETDATE()
+                        UPDATE SET PR_Status = @status, PR_Note = @note, PR_Paid = @paid,
+                                   EC_Status = @ecStatus, Updated_At = GETDATE()
                     WHEN NOT MATCHED THEN
-                        INSERT (Print_ID, PR_Status, PR_Note, PR_Paid)
-                        VALUES (@pid, @status, @note, @paid);", conn);
+                        INSERT (Print_ID, PR_Status, PR_Note, PR_Paid, EC_Status)
+                        VALUES (@pid, @status, @note, @paid, @ecStatus);", conn);
                 cmd.Parameters.AddWithValue("@pid", printId);
                 cmd.Parameters.AddWithValue("@status", status);
                 cmd.Parameters.AddWithValue("@note", note);
                 cmd.Parameters.AddWithValue("@paid", paid);
+                cmd.Parameters.AddWithValue("@ecStatus", ecStatus);
                 cmd.ExecuteNonQuery();
 
                 MessageBox.Show("✅ Đã lưu trạng thái thành công!", "Thông báo",
@@ -1837,6 +1880,8 @@ namespace MPR_Managerment.Forms
                 dgvHistory.Rows[idx2].Cells["H_ID"].Value = printId;
                 dgvHistory.Rows[idx2].Cells["H_PONo"].Value = rowPoNo;
                 dgvHistory.Rows[idx2].Cells["H_Total"].Value = dRow.Cells["P_Total"].Value;
+                dgvHistory.Rows[idx2].Cells["H_Dot"].Value = dRow.Cells["P_Dot"].Value;
+                dgvHistory.Rows[idx2].Cells["H_ECStatus"].Value = "";
                 dgvHistory.Rows[idx2].Cells["H_Status"].Value = "Pending";
                 dgvHistory.Rows[idx2].Cells["H_Paid"].Value = false;
                 dgvHistory.Rows[idx2].Cells["H_Note"].Value = "";
@@ -1909,6 +1954,8 @@ namespace MPR_Managerment.Forms
                     dgvHistory.Rows[i].Cells["H_ID"].Value = printId;
                     dgvHistory.Rows[i].Cells["H_PONo"].Value = rowPoNo;
                     dgvHistory.Rows[i].Cells["H_Total"].Value = row.Cells["P_Total"].Value;
+                    dgvHistory.Rows[i].Cells["H_Dot"].Value = row.Cells["P_Dot"].Value;
+                    dgvHistory.Rows[i].Cells["H_ECStatus"].Value = "";
                     dgvHistory.Rows[i].Cells["H_Status"].Value = "Pending";
                     dgvHistory.Rows[i].Cells["H_Paid"].Value = false;
                     dgvHistory.Rows[i].Cells["H_Note"].Value = "";
@@ -1948,44 +1995,18 @@ namespace MPR_Managerment.Forms
 
         private void BtnDelPayment_Click(object sender, EventArgs e)
         {
-            // Thu thập các dòng đang được chọn
-            var selectedRows = dgvHistory.SelectedRows.Count > 0
-                ? dgvHistory.SelectedRows.Cast<DataGridViewRow>().ToList()
-                : (dgvHistory.CurrentRow != null
-                    ? new List<DataGridViewRow> { dgvHistory.CurrentRow }
-                    : new List<DataGridViewRow>());
-
-            if (selectedRows.Count == 0) { Warn("Vui lòng chọn ít nhất một dòng!"); return; }
-
-            var printIds = selectedRows
-                .Select(r => Convert.ToInt32(r.Cells["H_ID"].Value ?? 0))
-                .Where(id => id > 0)
-                .ToList();
-
-            if (printIds.Count == 0) { Warn("Không tìm thấy dòng hợp lệ để xóa!"); return; }
-
-            string confirmMsg = printIds.Count == 1
-                ? "Xóa dòng này khỏi Payment Request Progressing?\n(Lịch sử in Request gốc vẫn được giữ lại)"
-                : $"Xóa {printIds.Count} dòng đã chọn khỏi Payment Request Progressing?\n(Lịch sử in Request gốc vẫn được giữ lại)";
-
-            if (!Ask(confirmMsg)) return;
+            if (_selectedHistID == 0) { Warn("Vui lòng chọn bản ghi!"); return; }
+            if (!Ask("Xóa dòng này khỏi Payment Request Progressing?\n(Lịch sử in Request gốc vẫn được giữ lại)")) return;
             if (!VerifyAdminPassword()) return;
-
             try
             {
                 using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
                 conn.Open();
-                int deleted = 0;
-                foreach (int pid in printIds)
-                {
-                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
-                        "DELETE FROM PO_PaymentProgress WHERE Print_ID = @id", conn);
-                    cmd.Parameters.AddWithValue("@id", pid);
-                    deleted += cmd.ExecuteNonQuery();
-                }
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                    "DELETE FROM PO_PaymentProgress WHERE Print_ID = @id", conn);
+                cmd.Parameters.AddWithValue("@id", _selectedHistID);
+                cmd.ExecuteNonQuery();
                 LoadPaymentProgress();
-                MessageBox.Show($"✅ Đã xóa {deleted} dòng thành công!",
-                    "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex) { Err(ex.Message); }
         }
