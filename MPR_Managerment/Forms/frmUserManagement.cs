@@ -81,8 +81,8 @@ namespace MPR_Managerment.Forms
             new ModuleDef("USER_MGT", "Quản lý User",
                 new[]{ "Xem","Tạo user","Lưu user","Vô hiệu hóa","Reset Password","Phân quyền" }),
 
-            new ModuleDef("Material Inspector Request", "Material Inspector Request",
-                new[]{ "Xem","Tạo user","Lưu user","Vô hiệu hóa","Reset Password","Phân quyền" }),
+            new ModuleDef("Material Inspector Request", "Kiểm tra vật tư (QC)",
+                new[]{ "Xem","Tìm kiếm RIR","Lưu chi tiết" }),
         };
 
         public frmUserManagement()
@@ -512,6 +512,11 @@ namespace MPR_Managerment.Forms
             var perms = _svc.GetDetailedPermissions(userId);
             dgvPermissions.SuspendLayout();
             dgvPermissions.Rows.Clear();
+
+            // Lần đầu mở form: thu gọn tất cả module theo mặc định
+            if (_collapsedModules.Count == 0)
+                foreach (var m in ModuleDefs)
+                    _collapsedModules.Add(m.Code);
 
             foreach (var mod in ModuleDefs)
             {

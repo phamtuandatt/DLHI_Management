@@ -65,6 +65,7 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvDebtSupp, dgvDebtDetail;
         private Label lblSumValue, lblSumPaid, lblSumDebt, lblSumOverdue;
         private Button btnExportDebt;
+        private Panel _pNCC, _pDet;   // Panels tab Debt — dùng trong ResizeAll
 
         private Button btnRefreshPO;
 
@@ -74,7 +75,6 @@ namespace MPR_Managerment.Forms
             InitializeComponent();
             BuildUI();
             LoadData();
-            ApplyPermissions();
             this.Resize += (s, e) => ResizeAll();
         }
 
@@ -114,6 +114,8 @@ namespace MPR_Managerment.Forms
             tabPO = new TabPage("💳  Tiến độ thanh toán PO");
             tabDebt = new TabPage("📊  Báo cáo công nợ NCC");
             tabs.TabPages.AddRange(new[] { tabPO, tabDebt });
+            // Gọi ResizeAll khi chuyển tab để layout đúng kích thước
+            tabs.SelectedIndexChanged += (s, e) => ResizeAll();
 
             tabPO.BackColor = tabDebt.BackColor = Color.FromArgb(245, 245, 245);
 
@@ -806,7 +808,8 @@ namespace MPR_Managerment.Forms
             lblSumDebt = Card(pCards, 440, "Còn nợ", Color.FromArgb(255, 140, 0));
             lblSumOverdue = Card(pCards, 655, "Quá hạn (PO)", Color.FromArgb(220, 53, 69));
 
-            var pNCC = P(tabDebt, 5, 132, 380, 0, Color.White);
+            _pNCC = P(tabDebt, 5, 132, 380, 0, Color.White);
+            var pNCC = _pNCC;
             pNCC.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom;
             Lbl(pNCC, "TỔNG HỢP THEO NHÀ CUNG CẤP", 8, 5, 360, 20, true, Color.FromArgb(0, 120, 212));
             dgvDebtSupp = Grid(pNCC, 28, 0);
@@ -815,7 +818,8 @@ namespace MPR_Managerment.Forms
             dgvDebtSupp.CellFormatting += DgvDebtSupp_CellFormatting;
             BuildDebtSuppCols();
 
-            var pDet = P(tabDebt, 390, 132, 0, 0, Color.White);
+            _pDet = P(tabDebt, 390, 132, 0, 0, Color.White);
+            var pDet = _pDet;
             pDet.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             Lbl(pDet, "CHI TIẾT TỪNG ĐƠN PO", 8, 5, 400, 20, true, Color.FromArgb(0, 120, 212));
             dgvDebtDetail = Grid(pDet, 28, 0);
@@ -828,7 +832,7 @@ namespace MPR_Managerment.Forms
         {
             dgvDebtSupp.Columns.Clear();
             dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_SuppID", Visible = false });
-            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Name", HeaderText = "Nhà cung cấp", FillWeight = 100, ReadOnly = true });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Name", HeaderText = "Nhà cung cấp", Width = 400, ReadOnly = true });
             dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_TotalPO", HeaderText = "Số PO", Width = 55, ReadOnly = true });
             dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Value", HeaderText = "Tổng PO", Width = 105, ReadOnly = true });
             dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Debt", HeaderText = "Còn nợ", Width = 105, ReadOnly = true });
@@ -1341,16 +1345,134 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex) { Err("Lỗi lưu History Paid: " + ex.Message); return; }
 
+            // ── Tự động cập nhật trạng thái thanh toán ──────────────────────
+            // Luôn chạy kể cả khi saved=0 (record đã tồn tại / skipped)
+            // vì trạng thái có thể chưa được update từ lần trước
+            try
+            {
+                // Thu thập tất cả PONo từ toàn bộ dòng thỏa điều kiện (kể cả skipped)
+                var allPoNos = toSave
+                    .Select(r => r.Cells["H_PONo"].Value?.ToString() ?? "")
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .Distinct()
+                    .ToList();
+
+                foreach (var poNo in allPoNos)
+                    UpdatePaymentStatusByPONo(poNo);
+            }
+            catch (Exception exStatus)
+            {
+                MessageBox.Show("Lưu OK nhưng lỗi cập nhật trạng thái: " + exStatus.Message,
+                    "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
             string msg = $"✅ Đã lưu {saved} dòng vào History Paid!";
             if (skipped > 0) msg += $"\n⚠ {skipped} dòng đã tồn tại hoặc không hợp lệ — bỏ qua.";
             MessageBox.Show(msg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            // Reload cả hai bảng
+            // Reload cả hai bảng + reload grid PO để hiển thị status mới
             LoadPaymentProgress();
             LoadHistoryPaid(_paidFrom?.Value.Date ?? DateTime.Today.AddMonths(-3),
                             (_paidTo?.Value.Date ?? DateTime.Today).AddDays(1).AddSeconds(-1));
+
+            // Reload lại toàn bộ summary để TT_Status hiển thị đúng
+            LoadPOSummary();
         }
 
+        // =====================================================================
+        //  CẬP NHẬT TRẠNG THÁI THANH TOÁN TỰ ĐỘNG
+        //  Được gọi sau BtnSaveHistoryPaid_Click
+        //  Logic:
+        //    Tổng đã TT >= Tổng kế hoạch  → "Đã TT đủ"
+        //    Tổng đã TT > 0               → "Một phần"
+        //    Tổng đã TT = 0               → "Chưa TT"
+        //  Cập nhật vào:
+        //    - PO_Payment_Schedule.Status  (từng đợt liên quan)
+        //    - PO_head.Payment_Status      (tổng trạng thái PO)
+        // =====================================================================
+        private void UpdatePaymentStatusByPONo(string poNo)
+        {
+            if (string.IsNullOrEmpty(poNo)) return;
+
+            using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+            conn.Open();
+
+            // ── 1. Tổng đã TT từ PO_HistoryPaid theo PONo ────────────────────
+            // PO_HistoryPaid có cột PONo trực tiếp — không cần join phức tạp
+            var cmdPaid = new Microsoft.Data.SqlClient.SqlCommand(
+                "SELECT ISNULL(SUM(Amount_Total), 0) AS Total_Paid FROM PO_HistoryPaid WHERE PONo = @poNo",
+                conn);
+            cmdPaid.Parameters.AddWithValue("@poNo", poNo);
+            decimal totalPaid = Convert.ToDecimal(cmdPaid.ExecuteScalar() ?? 0);
+
+            // ── 2. Tổng kế hoạch từ PO_Payment_Schedule ──────────────────────
+            var cmdPlan = new Microsoft.Data.SqlClient.SqlCommand(@"
+                SELECT ISNULL(SUM(ps.Amount_Plan), 0) AS Total_Plan
+                FROM PO_Payment_Schedule ps
+                INNER JOIN PO_head ph ON ph.PO_ID = ps.PO_ID
+                WHERE ph.PONo = @poNo2", conn);
+            cmdPlan.Parameters.AddWithValue("@poNo2", poNo);
+            decimal totalPlan = Convert.ToDecimal(cmdPlan.ExecuteScalar() ?? 0);
+
+            // ── 3. Xác định trạng thái tổng ──────────────────────────────────
+            string newPoStatus = totalPaid <= 0 ? "Chưa TT"
+                               : totalPaid >= totalPlan ? "Đã TT đủ"
+                               : "Một phần";
+
+            // ── 4. Cập nhật từng đợt trong PO_Payment_Schedule ───────────────
+            // Tính paid theo từng Dot_TT qua PO_PrintRequestHistory.Dot_TT
+            var cmdDots = new Microsoft.Data.SqlClient.SqlCommand(@"
+                SELECT ps.Schedule_ID,
+                       ps.Amount_Plan,
+                       ISNULL(paid.Paid_Dot, 0) AS Paid_Dot
+                FROM PO_Payment_Schedule ps
+                INNER JOIN PO_head ph ON ph.PO_ID = ps.PO_ID
+                LEFT JOIN (
+                    SELECT prh.Dot_TT,
+                           SUM(hp.Amount_Total) AS Paid_Dot
+                    FROM PO_PrintRequestHistory prh
+                    INNER JOIN PO_HistoryPaid hp ON hp.Print_ID = prh.Print_ID
+                    WHERE prh.PONo = @poNo3
+                    GROUP BY prh.Dot_TT
+                ) paid ON paid.Dot_TT = ps.Dot_TT
+                WHERE ph.PONo = @poNo4", conn);
+            cmdDots.Parameters.AddWithValue("@poNo3", poNo);
+            cmdDots.Parameters.AddWithValue("@poNo4", poNo);
+
+            var dotUpdates = new List<(int schedId, string status)>();
+            using (var rdr = cmdDots.ExecuteReader())
+                while (rdr.Read())
+                {
+                    int sid = Convert.ToInt32(rdr["Schedule_ID"]);
+                    decimal plan = rdr["Amount_Plan"] != DBNull.Value ? Convert.ToDecimal(rdr["Amount_Plan"]) : 0;
+                    decimal paid = rdr["Paid_Dot"] != DBNull.Value ? Convert.ToDecimal(rdr["Paid_Dot"]) : 0;
+                    string dotSt = paid <= 0 ? "Chưa TT"
+                                    : paid >= plan ? "Đã TT đủ"
+                                    : "Một phần";
+                    dotUpdates.Add((sid, dotSt));
+                }
+
+            foreach (var (sid, st) in dotUpdates)
+            {
+                var c = new Microsoft.Data.SqlClient.SqlCommand(
+                    "UPDATE PO_Payment_Schedule SET Status = @st WHERE Schedule_ID = @sid", conn);
+                c.Parameters.AddWithValue("@st", st);
+                c.Parameters.AddWithValue("@sid", sid);
+                c.ExecuteNonQuery();
+            }
+
+            // ── 5. Cập nhật PO_head.Payment_Status ───────────────────────────
+            var cmdPO = new Microsoft.Data.SqlClient.SqlCommand(
+                "UPDATE PO_head SET Status = @st WHERE PONo = @poNo5", conn);
+            cmdPO.Parameters.AddWithValue("@st", newPoStatus);
+            cmdPO.Parameters.AddWithValue("@poNo5", poNo);
+            int rows = cmdPO.ExecuteNonQuery();
+
+            // Debug
+            System.Diagnostics.Debug.WriteLine(
+                $"[UpdatePaymentStatus] {poNo} → {newPoStatus} " +
+                $"(paid={totalPaid:N0} / plan={totalPlan:N0}, PO_head rows={rows})");
+        }
         private void LoadHistoryPaid(DateTime from, DateTime to)
         {
             if (dgvPaid == null) return;
@@ -1460,9 +1582,9 @@ namespace MPR_Managerment.Forms
             if (p == null) return;
 
             lblPOName.Text = $"PO: {p.PONo}  —  {p.Project_Name}  |  NCC: {p.Supplier_Name}";
-            if (lblPOAmount != null && lblPOAmount.Visible) lblPOAmount.Text = $"Tổng PO: {p.Total_PO_Amount:N0} VNĐ";
-            if (lblPOPaid != null && lblPOPaid.Visible) lblPOPaid.Text = $"Đã TT: {p.Total_Paid:N0} VNĐ";
-            if (lblPORemain != null && lblPORemain.Visible) lblPORemain.Text = $"Còn nợ: {p.Amount_Remaining:N0} VNĐ";
+            lblPOAmount.Text = $"Tổng PO: {p.Total_PO_Amount:N0} VNĐ";
+            lblPOPaid.Text = $"Đã TT: {p.Total_Paid:N0} VNĐ";
+            lblPORemain.Text = $"Còn nợ: {p.Amount_Remaining:N0} VNĐ";
             lblPOStatus.Text = p.Is_Overdue ? "⚠ QUÁ HẠN" : p.Payment_Status;
             lblPOStatus.ForeColor =
                 p.Is_Overdue ? Color.FromArgb(255, 100, 100) :
@@ -2055,16 +2177,21 @@ namespace MPR_Managerment.Forms
                 if (cboSuppFilter.SelectedIndex > 0)
                 {
                     var name = cboSuppFilter.SelectedItem.ToString();
-                    var s = _allSuppliers.Find(x => x.Company_Name == name);
+                    var s = _allSuppliers.Find(x => (x.Company_Name ?? x.Supplier_Name) == name);
                     if (s != null) suppId = s.Supplier_ID;
                 }
 
                 _debtReport = _svc.GetDebtReport(dtpFrom.Value, dtpTo.Value, suppId);
                 _suppDebt = _svc.GetSupplierDebt();
 
+                // Lọc danh sách NCC theo suppId đã chọn
+                var suppDebtFiltered = suppId.HasValue
+                    ? _suppDebt.FindAll(x => x.Supplier_ID == suppId.Value)
+                    : _suppDebt;
+
                 dgvDebtSupp.Rows.Clear();
                 decimal tVal = 0, tPaid = 0, tDebt = 0; int tOver = 0;
-                foreach (var s in _suppDebt)
+                foreach (var s in suppDebtFiltered)
                 {
                     int i = dgvDebtSupp.Rows.Add();
                     var r = dgvDebtSupp.Rows[i];
@@ -2081,12 +2208,17 @@ namespace MPR_Managerment.Forms
                     tOver += s.Overdue_PO_Count;
                 }
 
+                // Cập nhật cards tổng kê (kiểm tra Visible cho phân quyền)
                 if (lblSumValue != null && lblSumValue.Visible) lblSumValue.Text = $"{tVal:N0} VNĐ";
                 if (lblSumPaid != null && lblSumPaid.Visible) lblSumPaid.Text = $"{tPaid:N0} VNĐ";
                 if (lblSumDebt != null && lblSumDebt.Visible) lblSumDebt.Text = $"{tDebt:N0} VNĐ";
-                lblSumOverdue.Text = $"{tOver} PO";
+                if (lblSumOverdue != null) lblSumOverdue.Text = $"{tOver} PO";
 
-                BindDebtDetail(_debtReport);
+                // Chi tiết: nếu lọc theo NCC thì hiện detail NCC đó luôn
+                if (suppId.HasValue)
+                    BindDebtDetail(_debtReport.FindAll(d => d.Supplier_ID == suppId.Value));
+                else
+                    BindDebtDetail(_debtReport);
             }
             catch (Exception ex) { Err(ex.Message); }
         }
@@ -2219,8 +2351,9 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                int w = tabPO.ClientSize.Width;
-                int h = tabPO.ClientSize.Height;
+                // Dùng tabs.ClientSize để có kích thước chính xác cho cả 2 tab
+                int w = tabs.ClientSize.Width;
+                int h = tabs.ClientSize.Height;
 
                 if (panelTop != null) panelTop.Width = w - 10;
                 if (panelInfo != null) { panelInfo.Width = w - 10; lblPOStatus.Left = panelInfo.Width - 205; }
@@ -2280,6 +2413,29 @@ namespace MPR_Managerment.Forms
                     panelPaid.Height = Math.Max(100, h - paidTop - 10);
                     dgvPaid.Width = panelPaid.Width - 10;
                     dgvPaid.Height = panelPaid.Height - 63;
+                }
+
+                // ── Tab Debt: pNCC chiếm 50% width, pDet chiếm phần còn lại ──
+                if (_pNCC != null && _pDet != null)
+                {
+                    int nccW = (int)(w * 0.50);
+                    int detLeft = nccW + 10;
+                    int detW = w - detLeft - 5;
+                    int panelTop = 132;
+                    int panelH = Math.Max(100, h - panelTop - 5);
+
+                    _pNCC.Left = 5;
+                    _pNCC.Width = nccW;
+                    _pNCC.Height = panelH;
+
+                    _pDet.Left = detLeft;
+                    _pDet.Width = detW;
+                    _pDet.Height = panelH;
+
+                    dgvDebtSupp.Width = _pNCC.Width - 10;
+                    dgvDebtSupp.Height = _pNCC.Height - 33;
+                    dgvDebtDetail.Width = _pDet.Width - 10;
+                    dgvDebtDetail.Height = _pDet.Height - 33;
                 }
             }
             catch { }
@@ -2373,26 +2529,6 @@ namespace MPR_Managerment.Forms
             };
             b.FlatAppearance.BorderSize = 0;
             return b;
-        }
-
-        // =====================================================================
-        //  APPLY PERMISSIONS — ẩn/hiện thông tin tài chính theo quyền
-        // =====================================================================
-        private void ApplyPermissions()
-        {
-            bool canViewSubTotal = AppSession.HasPermission("PAYMENT", "Xem TT trước thuế");
-            bool canViewTotal = AppSession.HasPermission("PAYMENT", "Xem TT sau thuế");
-
-            // ── Label thông tin PO (Tổng PO / Đã TT / Còn nợ) ──────────────
-            // Ẩn số tiền nếu không có quyền xem tổng sau thuế
-            if (lblPOAmount != null) lblPOAmount.Visible = canViewTotal;
-            if (lblPOPaid != null) lblPOPaid.Visible = canViewTotal;
-            if (lblPORemain != null) lblPORemain.Visible = canViewTotal;
-
-            // ── Cards tổng kê (Tổng giá trị PO / Đã TT / Còn nợ) ───────────
-            if (lblSumValue != null) lblSumValue.Visible = canViewTotal;
-            if (lblSumPaid != null) lblSumPaid.Visible = canViewTotal;
-            if (lblSumDebt != null) lblSumDebt.Visible = canViewTotal;
         }
 
         private Label InfoLbl(Panel p, string text, int x, int y, int w, int h, float size, bool bold)

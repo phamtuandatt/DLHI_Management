@@ -32,6 +32,7 @@ namespace MPR_Managerment.Forms.RIRGUI
         {
             InitializeComponent();
             BuildDetailColumns();
+            ApplyPermissions();
 
             dgvRIR.BackgroundColor = Color.White;
             dgvRIR.BorderStyle = BorderStyle.None;
@@ -126,7 +127,7 @@ namespace MPR_Managerment.Forms.RIRGUI
 
         private async void btnSave_Click(object sender, EventArgs e)
         {
-            if (!PermissionHelper.Check("RIR", "Lưu chi tiết", "Lưu chi tiết")) return;
+            if (!PermissionHelper.Check("Material Inspector Request", "Lưu chi tiết", "Lưu chi tiết")) return;
             if (!Common.Common.IsDataGridViewValid(dgvRIR)) return;
 
             try
@@ -251,6 +252,16 @@ namespace MPR_Managerment.Forms.RIRGUI
                 MessageBox.Show("SL Thực nhận không được lớn hơn SL Yêu cầu!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 dgvRIR.CurrentCell.Value = qtyRequireCell;
             }
+        }
+
+        // =====================================================================
+        //  APPLY PERMISSIONS
+        // =====================================================================
+        private void ApplyPermissions()
+        {
+            // Nút Lưu chi tiết — quyền "Lưu chi tiết" trong module MIR
+            foreach (var c in this.Controls.Find("btnSave", true))
+                PermissionHelper.Apply(c, "Material Inspector Request", "Lưu chi tiết");
         }
 
         private void btnClear_Click(object sender, EventArgs e)
