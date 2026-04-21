@@ -107,6 +107,51 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void ModifyIDCodeOfWarehouse(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+
+                var sqlUpIdCode = $"UPDATE Warehouse_Import SET ID_Code = '{wi.ID_Code}' WHERE Import_ID = {wi.Import_ID}";
+                var cmd = new SqlCommand(sqlUpIdCode, conn);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public void ModifyQtyImportOfWarehouseImport(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var sqlUpQtyImport = $"UPDATE Warehouse_Import SET Qty_Import = {wi.Qty_Import} WHERE Import_ID = {wi.Import_ID}";
+                var cmd = new SqlCommand(sqlUpQtyImport, conn);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public void ModifyWeightOfWarehouseImport(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var sqlUpWeight = $"UPDATE Warehouse_Import SET Weight_kg = {wi.Weight_kg} WHERE Import_ID = {wi.Import_ID}";
+                var cmd = new SqlCommand(sqlUpWeight, conn);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public void ModifySizeOfWarehouseImport(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var sqlUpSize = $"UPDATE Warehouse_Import SET Size = '{wi.Size}' WHERE Import_ID = {wi.Import_ID}";
+                var cmd = new SqlCommand(sqlUpSize, conn);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public async Task<DataTable> GetWarehouseImportByPOId(int poID)
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())
