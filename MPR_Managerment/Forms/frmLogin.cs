@@ -278,7 +278,7 @@ namespace MPR_Managerment.Forms
 
                 // Lưu session
                 AppSession.CurrentUser = result.User;
-                AppSession.Permissions = result.Permissions;
+                AppSession.DetailedPermissions = result.DetailedPermissions;
 
                 // Nạp quyền vào PermissionHelper cache (admin sẽ bypass)
                 MPR_Managerment.Helpers.PermissionHelper.LoadPermissions(result.User!.User_ID);

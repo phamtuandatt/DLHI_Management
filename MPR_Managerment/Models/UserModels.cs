@@ -8,6 +8,7 @@ using MPR_Managerment.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
+
 namespace MPR_Managerment.Models
 {
     // ===== USER =====
@@ -27,6 +28,7 @@ namespace MPR_Managerment.Models
         public DateTime? Created_Date { get; set; }
         public string Created_By { get; set; } = "";
     }
+
     // ===== ROLE =====
     public class Role
     {
@@ -35,6 +37,7 @@ namespace MPR_Managerment.Models
         public string Description { get; set; } = "";
         public bool Is_Active { get; set; } = true;
     }
+
     // ===== MODULE =====
     public class AppModule
     {
@@ -43,6 +46,7 @@ namespace MPR_Managerment.Models
         public string Module_Name { get; set; } = "";
         public int Sort_Order { get; set; }
     }
+
     // ===== PERMISSION (quyền hiệu lực cuối) =====
     public class UserPermission
     {
@@ -56,6 +60,7 @@ namespace MPR_Managerment.Models
         public bool Can_Export { get; set; }
         public bool Is_Custom_Override { get; set; }
     }
+
     // ===== LOGIN RESULT =====
     public class LoginResult
     {
@@ -63,16 +68,42 @@ namespace MPR_Managerment.Models
         public string Message { get; set; } = "";
         public AppUser? User { get; set; }
         public List<UserPermission> Permissions { get; set; } = new();
+
+        // Quyền chi tiết dạng key-value: "MODULE:action" = true/false
+        // Được nạp từ UserService.Login() → dùng bởi PermissionHelper.Check/Apply
+        public Dictionary<string, bool> DetailedPermissions { get; set; }
+            = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
     }
+
     // ===== SESSION — lưu thông tin user đang đăng nhập =====
     public static class AppSession
     {
+        // ── User hiện tại ─────────────────────────────────────────────────────
         public static AppUser? CurrentUser { get; set; }
+
+        // ── Quyền dạng List<UserPermission> — dùng cho CanView/CanEdit/... ───
         public static List<UserPermission> Permissions { get; set; } = new();
+
+        // ── Quyền chi tiết dạng Dictionary — dùng cho HasPermission() ────────
+        // Key: "MODULE_CODE:action"  VD: "MPR:Tạo MPR", "PO:Xóa PO"
+        // Được gán từ frmLogin hoặc PermissionHelper.LoadPermissions(userId)
+        private static Dictionary<string, bool> _detailedPermissions
+            = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        public static Dictionary<string, bool> DetailedPermissions
+        {
+            get => _detailedPermissions;
+            set
+            {
+                _detailedPermissions = value != null
+                    ? new Dictionary<string, bool>(value, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
         public static bool IsLoggedIn => CurrentUser != null;
 
-        // ── Admin bypass: Role_ID=1, Role_Name="Admin"/"Administrator",
-        //    hoặc Username="admin" (không phân biệt hoa thường) ──────────────
+        // ── Admin bypass ──────────────────────────────────────────────────────
         public static bool IsAdmin =>
             CurrentUser != null
             && (CurrentUser.Role_ID == 1
@@ -80,25 +111,76 @@ namespace MPR_Managerment.Models
              || string.Equals(CurrentUser.Role_Name, "Administrator", StringComparison.OrdinalIgnoreCase)
              || string.Equals(CurrentUser.Username, "admin", StringComparison.OrdinalIgnoreCase));
 
-        /// <summary>Lấy quyền của module theo code (PROJECT, PO, MPR...)</summary>
+        // =====================================================================
+        //  LẤY QUYỀN MODULE (dùng List<UserPermission>)
+        // =====================================================================
         public static UserPermission? GetPermission(string moduleCode)
-            => Permissions.Find(p => string.Equals(p.Module_Code, moduleCode, StringComparison.OrdinalIgnoreCase));
+            => Permissions.Find(p => string.Equals(p.Module_Code, moduleCode,
+                                                    StringComparison.OrdinalIgnoreCase));
 
+        // =====================================================================
+        //  KIỂM TRA QUYỀN THEO List<UserPermission> — dùng cho menu frmMain
+        // =====================================================================
         public static bool CanView(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_View ?? false);
-        public static bool CanCreate(string moduleCode)
-            => IsAdmin || (GetPermission(moduleCode)?.Can_Create ?? false);
-        public static bool CanEdit(string moduleCode)
-            => IsAdmin || (GetPermission(moduleCode)?.Can_Edit ?? false);
+
         public static bool CanDelete(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_Delete ?? false);
+
         public static bool CanExport(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_Export ?? false);
 
+        // =====================================================================
+        //  KIỂM TRA QUYỀN CHI TIẾT — dùng cho PermissionHelper.Check/Apply
+        // =====================================================================
+
+        /// <summary>
+        /// Kiểm tra quyền theo "MODULE:action" trong DetailedPermissions.
+        /// Admin luôn trả về true.
+        /// Đây là method cốt lõi — PermissionHelper.Check và Apply đều gọi vào đây.
+        /// </summary>
+        public static bool HasPermission(string moduleCode, string action)
+        {
+            if (IsAdmin) return true;
+            string key = moduleCode + ":" + action;
+            return _detailedPermissions.TryGetValue(key, out bool val) && val;
+        }
+
+        /// <summary>
+        /// Kiểm tra bất kỳ quyền ghi nào của module — dùng trong frmPayment.
+        /// </summary>
+        public static bool CanEdit(string moduleCode)
+        {
+            if (IsAdmin) return true;
+            return HasPermission(moduleCode, "Lưu")
+                || HasPermission(moduleCode, "Lưu chi tiết")
+                || HasPermission(moduleCode, "Lưu PO")
+                || HasPermission(moduleCode, "Lưu Header")
+                || (GetPermission(moduleCode)?.Can_Edit ?? false);
+        }
+
+        /// <summary>
+        /// Kiểm tra bất kỳ quyền tạo mới nào của module — dùng trong frmPayment.
+        /// </summary>
+        public static bool CanCreate(string moduleCode)
+        {
+            if (IsAdmin) return true;
+            return HasPermission(moduleCode, "Tạo PO")
+                || HasPermission(moduleCode, "Tạo MPR")
+                || HasPermission(moduleCode, "Tạo RIR")
+                || HasPermission(moduleCode, "Thêm mới")
+                || HasPermission(moduleCode, "Tạo user")
+                || (GetPermission(moduleCode)?.Can_Create ?? false);
+        }
+
+        // =====================================================================
+        //  CLEAR — gọi khi logout
+        // =====================================================================
         public static void Clear()
         {
             CurrentUser = null;
             Permissions.Clear();
+            _detailedPermissions.Clear();
         }
     }
 }
