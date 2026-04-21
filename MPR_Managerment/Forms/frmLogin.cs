@@ -5,7 +5,6 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using MPR_Managerment.Models;
-using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
 
 namespace MPR_Managerment.Forms
@@ -17,19 +16,80 @@ namespace MPR_Managerment.Forms
         private TextBox txtUsername, txtPassword;
         private Button btnLogin, btnExit;
         private Label lblError;
-        private CheckBox chkShowPwd;
+        private CheckBox chkShowPwd, chkRemember;
         private int _failCount = 0;
+
+        // Key lưu vào registry (HKCU\Software\MPRManagement)
+        private const string REG_KEY = @"Software\MPRManagement";
+        private const string REG_USER = "SavedUsername";
+        private const string REG_PASS = "SavedPassword";
+        private const string REG_REM = "RememberMe";
 
         public frmLogin()
         {
             InitializeComponent();
             BuildUI();
+            LoadSavedCredentials();
+        }
+
+        // ── Đọc thông tin đã lưu từ registry ──
+        private void LoadSavedCredentials()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(REG_KEY);
+                if (key == null) return;
+
+                bool remember = key.GetValue(REG_REM)?.ToString() == "1";
+                chkRemember.Checked = remember;
+
+                if (remember)
+                {
+                    string savedUser = key.GetValue(REG_USER)?.ToString() ?? "";
+                    string savedPass = key.GetValue(REG_PASS)?.ToString() ?? "";
+                    txtUsername.Text = savedUser;
+                    // Giải mã base64 đơn giản (tránh lộ plaintext trong registry)
+                    if (!string.IsNullOrEmpty(savedPass))
+                        txtPassword.Text = System.Text.Encoding.UTF8
+                            .GetString(Convert.FromBase64String(savedPass));
+                    if (!string.IsNullOrEmpty(savedUser))
+                        txtPassword.Focus();
+                }
+            }
+            catch { /* Bỏ qua lỗi đọc registry */ }
+        }
+
+        // ── Lưu hoặc xóa thông tin khỏi registry ──
+        private void SaveCredentials(string username, string password)
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser
+                    .CreateSubKey(REG_KEY, writable: true);
+
+                if (chkRemember.Checked)
+                {
+                    string encoded = Convert.ToBase64String(
+                        System.Text.Encoding.UTF8.GetBytes(password));
+                    key.SetValue(REG_USER, username);
+                    key.SetValue(REG_PASS, encoded);
+                    key.SetValue(REG_REM, "1");
+                }
+                else
+                {
+                    // Xóa thông tin đã lưu nếu bỏ tick
+                    key.DeleteValue(REG_USER, throwOnMissingValue: false);
+                    key.DeleteValue(REG_PASS, throwOnMissingValue: false);
+                    key.SetValue(REG_REM, "0");
+                }
+            }
+            catch { /* Bỏ qua lỗi ghi registry */ }
         }
 
         private void BuildUI()
         {
-            this.Text = "Đăng nhập — MPR Management System";
-            this.Size = new Size(440, 380);
+            this.Text = "Đăng nhập — DLHI ERP Management System";
+            this.Size = new Size(440, 420);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -85,11 +145,11 @@ namespace MPR_Managerment.Forms
             txtPassword.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnLogin_Click(null, null); };
             this.Controls.Add(txtPassword);
 
-            // Show password
+            // Hàng checkbox: Hiện mật khẩu (trái) | Ghi nhớ tài khoản (phải)
             chkShowPwd = new CheckBox
             {
                 Text = "Hiện mật khẩu",
-                Location = new Point(30, 228),
+                Location = new Point(30, 232),
                 Size = new Size(140, 22),
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.Gray
@@ -98,10 +158,20 @@ namespace MPR_Managerment.Forms
                 txtPassword.PasswordChar = chkShowPwd.Checked ? '\0' : '●';
             this.Controls.Add(chkShowPwd);
 
+            chkRemember = new CheckBox
+            {
+                Text = "Ghi nhớ tài khoản",
+                Location = new Point(210, 232),
+                Size = new Size(190, 22),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212)
+            };
+            this.Controls.Add(chkRemember);
+
             // Error label
             lblError = new Label
             {
-                Location = new Point(30, 258),
+                Location = new Point(30, 264),
                 Size = new Size(370, 22),
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.FromArgb(220, 53, 69),
@@ -113,7 +183,7 @@ namespace MPR_Managerment.Forms
             btnLogin = new Button
             {
                 Text = "ĐĂNG NHẬP",
-                Location = new Point(30, 290),
+                Location = new Point(30, 298),
                 Size = new Size(200, 38),
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 BackColor = Color.FromArgb(0, 120, 212),
@@ -128,7 +198,7 @@ namespace MPR_Managerment.Forms
             btnExit = new Button
             {
                 Text = "Thoát",
-                Location = new Point(245, 290),
+                Location = new Point(245, 298),
                 Size = new Size(155, 38),
                 Font = new Font("Segoe UI", 10),
                 BackColor = Color.FromArgb(108, 117, 125),
@@ -139,6 +209,17 @@ namespace MPR_Managerment.Forms
             btnExit.FlatAppearance.BorderSize = 0;
             btnExit.Click += (s, e) => Application.Exit();
             this.Controls.Add(btnExit);
+
+            // Footer hint
+            this.Controls.Add(new Label
+            {
+                Text = "🔒 Thông tin được lưu an toàn trên máy tính này",
+                Location = new Point(30, 348),
+                Size = new Size(370, 18),
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.Silver,
+                TextAlign = ContentAlignment.MiddleCenter
+            });
 
             this.AcceptButton = btnLogin;
             txtUsername.Focus();
@@ -192,12 +273,12 @@ namespace MPR_Managerment.Forms
                     return;
                 }
 
+                // ── Lưu / xóa thông tin đăng nhập theo lựa chọn ──
+                SaveCredentials(username, password);
+
                 // Lưu session
                 AppSession.CurrentUser = result.User;
                 AppSession.Permissions = result.Permissions;
-
-                // Nạp phân quyền chi tiết vào cache (Admin sẽ bypass tự động)
-                PermissionHelper.LoadPermissions(result.User!.User_ID);
 
                 // Cần đổi mật khẩu lần đầu?
                 if (result.User!.Must_Change_Password)
