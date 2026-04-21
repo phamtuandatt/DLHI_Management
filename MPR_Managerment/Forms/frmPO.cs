@@ -2162,13 +2162,6 @@ namespace MPR_Managerment.Forms
             panelDetail.Top = panelHeader.Bottom + 10;
             panelDetail.Width = w - mprW - 10;
 
-            // ── Đồng bộ chiều cao dgvFiles theo panelHeader ──
-            if (dgvFiles != null)
-            {
-                dgvFiles.Height = panelHeader.Height - 20;
-                dgvFiles.Location = new Point(panelHeader.Width - dgvFiles.Width - 10, 10);
-            }
-
             // dgvDetails.Top: ngay dưới flowDetailBtns
             var flowDetailBtns = panelDetail.Controls.OfType<FlowLayoutPanel>().FirstOrDefault();
             int dgvTop = flowDetailBtns != null ? flowDetailBtns.Bottom + 4 : 75;
