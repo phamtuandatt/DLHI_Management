@@ -1,7 +1,7 @@
 ﻿// ============================================================
 //  FILE: Helpers/PermissionHelper.cs
-//  Helper kiểm tra quyền từ AppSession — dùng chung mọi form
-//  Admin (Role_ID=1) được bypass toàn bộ phân quyền
+//  Helper kiểm tra quyền — dùng chung mọi form
+//  Admin bypass hoàn toàn mọi giới hạn phân quyền
 // ============================================================
 using System;
 using System.Collections.Generic;
@@ -12,40 +12,56 @@ namespace MPR_Managerment.Helpers
 {
     public static class PermissionHelper
     {
-        // Cache quyền cho session hiện tại (load 1 lần khi login)
+        // Cache DetailedPermissions (Dictionary) cho các form dùng Check() trực tiếp
         private static Dictionary<string, bool> _cache = new Dictionary<string, bool>();
         private static int _cachedUserId = -1;
-        private static bool _isAdmin = false; // Admin bypass toàn bộ phân quyền
 
-        // Gọi hàm này sau khi login thành công để nạp quyền vào cache
+        // ── Gọi sau login để nạp cache ───────────────────────────────────────
         public static void LoadPermissions(int userId)
         {
             _cachedUserId = userId;
 
-            // Kiểm tra Admin qua AppSession (Role_Name hoặc Role_ID)
-            var currentUser = AppSession.CurrentUser;
-            _isAdmin = currentUser != null &&
-                       (currentUser.Role_Name?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true
-                        || currentUser.Role_ID == 1);
-
-            // Admin không cần load cache — bypass hết
-            if (_isAdmin) return;
+            // Admin không cần cache — bypass hết
+            if (AppSession.IsAdmin) return;
 
             var svc = new UserService();
             _cache = svc.GetDetailedPermissions(userId);
         }
 
-        // Kiểm tra quyền: HasPermission("PO", "Tạo PO")
+        // ── Kiểm tra quyền (dùng cả AppSession.List lẫn cache Dictionary) ──
         public static bool HasPermission(string moduleCode, string action)
         {
-            // Admin luôn có quyền
-            if (_isAdmin) return true;
+            // Admin luôn có mọi quyền
+            if (AppSession.IsAdmin) return true;
 
+            // Kiểm tra qua List<UserPermission> trong AppSession (nguồn chính)
+            var perm = AppSession.GetPermission(moduleCode);
+            if (perm != null)
+            {
+                return action switch
+                {
+                    "Xem" => perm.Can_View,
+                    "Xuất Excel" => perm.Can_Export,
+                    "Xóa" => perm.Can_Delete,
+                    "Xóa PO" => perm.Can_Delete,
+                    "Xóa MPR" => perm.Can_Delete,
+                    "Xóa RIR" => perm.Can_Delete,
+                    "Xóa dòng" => perm.Can_Delete,
+                    "Xóa user" => perm.Can_Delete,
+                    _ when action.StartsWith("Tạo") || action.StartsWith("Thêm")
+                                 => perm.Can_Create,
+                    _ when action.StartsWith("Lưu") || action.StartsWith("Cập nhật")
+                                 => perm.Can_Edit,
+                    _ => perm.Can_View  // fallback: nếu có quyền xem thì cho phép
+                };
+            }
+
+            // Fallback: dùng cache Dictionary (GetDetailedPermissions)
             string key = moduleCode + ":" + action;
             return _cache.ContainsKey(key) && _cache[key];
         }
 
-        // Ẩn/disable button nếu không có quyền
+        // ── Ẩn/disable control nếu không có quyền ───────────────────────────
         public static void Apply(System.Windows.Forms.Control control, string moduleCode, string action)
         {
             bool allowed = HasPermission(moduleCode, action);
@@ -53,33 +69,33 @@ namespace MPR_Managerment.Helpers
             control.Visible = allowed;
         }
 
-        // Chỉ disable (vẫn hiện nhưng không bấm được)
+        // ── Chỉ disable (vẫn hiện) ───────────────────────────────────────────
         public static void ApplyDisableOnly(System.Windows.Forms.Control control, string moduleCode, string action)
         {
             control.Enabled = HasPermission(moduleCode, action);
         }
 
-        // Kiểm tra và hiện MessageBox nếu không có quyền — dùng trong Click handler
+        // ── Kiểm tra và hiện MessageBox nếu không có quyền ──────────────────
         public static bool Check(string moduleCode, string action, string actionLabel = "")
         {
             if (HasPermission(moduleCode, action)) return true;
             System.Windows.Forms.MessageBox.Show(
-                $"Bạn không có quyền thực hiện chức năng này{(string.IsNullOrEmpty(actionLabel) ? "" : $": {actionLabel}")}!",
+                $"Bạn không có quyền thực hiện chức năng này" +
+                (string.IsNullOrEmpty(actionLabel) ? "" : $": {actionLabel}") + "!",
                 "Không có quyền",
                 System.Windows.Forms.MessageBoxButtons.OK,
                 System.Windows.Forms.MessageBoxIcon.Warning);
             return false;
         }
 
-        // Trả về true nếu user hiện tại là Admin
-        public static bool IsAdmin => _isAdmin;
+        // ── Property IsAdmin công khai ───────────────────────────────────────
+        public static bool IsAdmin => AppSession.IsAdmin;
 
-        // Xóa cache khi logout
+        // ── Xóa cache khi logout ─────────────────────────────────────────────
         public static void Clear()
         {
             _cache.Clear();
             _cachedUserId = -1;
-            _isAdmin = false;
         }
     }
 }

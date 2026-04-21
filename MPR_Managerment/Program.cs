@@ -1,14 +1,16 @@
 ﻿// ============================================================
-//  BƯỚC 1: Sửa Program.cs — thêm màn hình đăng nhập
+//  FILE: Program.cs  — Entry point WinForms
+//  Namespace: khớp với project của bạn
+//  ⚠ Sửa "YourNamespace" thành namespace thực tế của project
 // ============================================================
-// Mở Program.cs → thay toàn bộ bằng:
-
 using System;
 using System.Windows.Forms;
-using MPR_Managerment.Forms;
-using MPR_Managerment.Forms.ItemCodeGUI;
 
-namespace MPR_Managerment
+// ── Thêm đúng using cho project của bạn ──
+// Ví dụ: using MPR_Managerment.Forms;
+// Ví dụ: using ERP_Management.Forms;
+
+namespace MPR_Managerment   // ← ĐỔI thành namespace đúng của project
 {
     internal static class Program
     {
@@ -17,17 +19,16 @@ namespace MPR_Managerment
         {
             ApplicationConfiguration.Initialize();
 
-            // Hiển thị form đăng nhập trước
-            var login = new frmLogin();
-            if (login.ShowDialog() != DialogResult.OK)
-            {
-                Application.Exit();
+            var loginForm = new Forms.frmLogin();
+            if (loginForm.ShowDialog() != DialogResult.OK)
                 return;
-            }
 
-            // Đăng nhập thành công → mở Main
-            Application.Run(new frmMain());
-            //Application.Run(new frmCreateItemCode());
+            // Nạp quyền sau login
+            var user = Models.AppSession.CurrentUser;
+            if (user != null)
+                Helpers.PermissionHelper.LoadPermissions(user.User_ID);
+
+            Application.Run(new Forms.frmMain());
         }
     }
 }

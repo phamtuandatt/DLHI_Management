@@ -2,14 +2,12 @@
 //  FILE: Models/UserModels.cs
 //  Chứa toàn bộ Models liên quan đến User & Permission
 // ============================================================
-
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
-
 namespace MPR_Managerment.Models
 {
     // ===== USER =====
@@ -29,7 +27,6 @@ namespace MPR_Managerment.Models
         public DateTime? Created_Date { get; set; }
         public string Created_By { get; set; } = "";
     }
-
     // ===== ROLE =====
     public class Role
     {
@@ -38,7 +35,6 @@ namespace MPR_Managerment.Models
         public string Description { get; set; } = "";
         public bool Is_Active { get; set; } = true;
     }
-
     // ===== MODULE =====
     public class AppModule
     {
@@ -47,7 +43,6 @@ namespace MPR_Managerment.Models
         public string Module_Name { get; set; } = "";
         public int Sort_Order { get; set; }
     }
-
     // ===== PERMISSION (quyền hiệu lực cuối) =====
     public class UserPermission
     {
@@ -61,7 +56,6 @@ namespace MPR_Managerment.Models
         public bool Can_Export { get; set; }
         public bool Is_Custom_Override { get; set; }
     }
-
     // ===== LOGIN RESULT =====
     public class LoginResult
     {
@@ -70,32 +64,34 @@ namespace MPR_Managerment.Models
         public AppUser? User { get; set; }
         public List<UserPermission> Permissions { get; set; } = new();
     }
-
     // ===== SESSION — lưu thông tin user đang đăng nhập =====
     public static class AppSession
     {
         public static AppUser? CurrentUser { get; set; }
         public static List<UserPermission> Permissions { get; set; } = new();
-
         public static bool IsLoggedIn => CurrentUser != null;
-        public static bool IsAdmin => CurrentUser?.Role_Name == "Admin";
+
+        // ── Admin bypass: Role_ID=1, Role_Name="Admin"/"Administrator",
+        //    hoặc Username="admin" (không phân biệt hoa thường) ──────────────
+        public static bool IsAdmin =>
+            CurrentUser != null
+            && (CurrentUser.Role_ID == 1
+             || string.Equals(CurrentUser.Role_Name, "Admin", StringComparison.OrdinalIgnoreCase)
+             || string.Equals(CurrentUser.Role_Name, "Administrator", StringComparison.OrdinalIgnoreCase)
+             || string.Equals(CurrentUser.Username, "admin", StringComparison.OrdinalIgnoreCase));
 
         /// <summary>Lấy quyền của module theo code (PROJECT, PO, MPR...)</summary>
         public static UserPermission? GetPermission(string moduleCode)
-            => Permissions.Find(p => p.Module_Code == moduleCode);
+            => Permissions.Find(p => string.Equals(p.Module_Code, moduleCode, StringComparison.OrdinalIgnoreCase));
 
         public static bool CanView(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_View ?? false);
-
         public static bool CanCreate(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_Create ?? false);
-
         public static bool CanEdit(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_Edit ?? false);
-
         public static bool CanDelete(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_Delete ?? false);
-
         public static bool CanExport(string moduleCode)
             => IsAdmin || (GetPermission(moduleCode)?.Can_Export ?? false);
 
@@ -106,4 +102,3 @@ namespace MPR_Managerment.Models
         }
     }
 }
-
