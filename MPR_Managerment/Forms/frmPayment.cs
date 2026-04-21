@@ -74,6 +74,7 @@ namespace MPR_Managerment.Forms
             InitializeComponent();
             BuildUI();
             LoadData();
+            ApplyPermissions();
             this.Resize += (s, e) => ResizeAll();
         }
 
@@ -1459,9 +1460,9 @@ namespace MPR_Managerment.Forms
             if (p == null) return;
 
             lblPOName.Text = $"PO: {p.PONo}  —  {p.Project_Name}  |  NCC: {p.Supplier_Name}";
-            lblPOAmount.Text = $"Tổng PO: {p.Total_PO_Amount:N0} VNĐ";
-            lblPOPaid.Text = $"Đã TT: {p.Total_Paid:N0} VNĐ";
-            lblPORemain.Text = $"Còn nợ: {p.Amount_Remaining:N0} VNĐ";
+            if (lblPOAmount != null && lblPOAmount.Visible) lblPOAmount.Text = $"Tổng PO: {p.Total_PO_Amount:N0} VNĐ";
+            if (lblPOPaid != null && lblPOPaid.Visible) lblPOPaid.Text = $"Đã TT: {p.Total_Paid:N0} VNĐ";
+            if (lblPORemain != null && lblPORemain.Visible) lblPORemain.Text = $"Còn nợ: {p.Amount_Remaining:N0} VNĐ";
             lblPOStatus.Text = p.Is_Overdue ? "⚠ QUÁ HẠN" : p.Payment_Status;
             lblPOStatus.ForeColor =
                 p.Is_Overdue ? Color.FromArgb(255, 100, 100) :
@@ -2080,9 +2081,9 @@ namespace MPR_Managerment.Forms
                     tOver += s.Overdue_PO_Count;
                 }
 
-                lblSumValue.Text = $"{tVal:N0} VNĐ";
-                lblSumPaid.Text = $"{tPaid:N0} VNĐ";
-                lblSumDebt.Text = $"{tDebt:N0} VNĐ";
+                if (lblSumValue != null && lblSumValue.Visible) lblSumValue.Text = $"{tVal:N0} VNĐ";
+                if (lblSumPaid != null && lblSumPaid.Visible) lblSumPaid.Text = $"{tPaid:N0} VNĐ";
+                if (lblSumDebt != null && lblSumDebt.Visible) lblSumDebt.Text = $"{tDebt:N0} VNĐ";
                 lblSumOverdue.Text = $"{tOver} PO";
 
                 BindDebtDetail(_debtReport);
@@ -2372,6 +2373,26 @@ namespace MPR_Managerment.Forms
             };
             b.FlatAppearance.BorderSize = 0;
             return b;
+        }
+
+        // =====================================================================
+        //  APPLY PERMISSIONS — ẩn/hiện thông tin tài chính theo quyền
+        // =====================================================================
+        private void ApplyPermissions()
+        {
+            bool canViewSubTotal = AppSession.HasPermission("PAYMENT", "Xem TT trước thuế");
+            bool canViewTotal = AppSession.HasPermission("PAYMENT", "Xem TT sau thuế");
+
+            // ── Label thông tin PO (Tổng PO / Đã TT / Còn nợ) ──────────────
+            // Ẩn số tiền nếu không có quyền xem tổng sau thuế
+            if (lblPOAmount != null) lblPOAmount.Visible = canViewTotal;
+            if (lblPOPaid != null) lblPOPaid.Visible = canViewTotal;
+            if (lblPORemain != null) lblPORemain.Visible = canViewTotal;
+
+            // ── Cards tổng kê (Tổng giá trị PO / Đã TT / Còn nợ) ───────────
+            if (lblSumValue != null) lblSumValue.Visible = canViewTotal;
+            if (lblSumPaid != null) lblSumPaid.Visible = canViewTotal;
+            if (lblSumDebt != null) lblSumDebt.Visible = canViewTotal;
         }
 
         private Label InfoLbl(Panel p, string text, int x, int y, int w, int h, float size, bool bold)

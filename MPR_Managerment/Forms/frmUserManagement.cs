@@ -67,10 +67,10 @@ namespace MPR_Managerment.Forms
                 new[]{ "Xem","Tạo MPR","Lưu Header","Xóa MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Tạo PO","Check All Items","Xuất Excel" }),
 
             new ModuleDef("PO",       "Đơn đặt hàng (PO)",
-                new[]{ "Xem","Tạo PO","Lưu PO","Xóa PO","Import MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Payment","Revise History","Tìm theo NCC","Check by size","Xuất Excel" }),
+                new[]{ "Xem","Tạo PO","Lưu PO","Xóa PO","Import MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Payment","Revise History","Tìm theo NCC","Check by size","Xuất Excel","Xem đơn giá","Xem TT trước thuế","Xem TT sau thuế" }),
 
             new ModuleDef("PAYMENT",  "Thanh toán (Payment)",
-                new[]{ "Xem","Thêm đợt","Lưu","Xóa","Request to EC","In Request","Ghi nhận TT","Xuất Excel","Xem báo cáo" }),
+                new[]{ "Xem","Thêm đợt","Lưu","Xóa","Request to EC","In Request","Ghi nhận TT","Xuất Excel","Xem báo cáo","Xem TT trước thuế","Xem TT sau thuế" }),
 
             new ModuleDef("RIR",      "Nhận hàng (RIR)",
                 new[]{ "Xem","Tạo RIR","Lưu Header","Xóa RIR","In RIR","Import Phiếu Nhập","Thêm dòng","Lưu chi tiết","Xóa dòng" }),
@@ -132,6 +132,12 @@ namespace MPR_Managerment.Forms
             btnNew = Btn("➕ Tạo user", Color.FromArgb(40, 167, 69), new Point(270, 47), 110, 30);
             btnNew.Click += BtnNew_Click;
             panelTop.Controls.Add(btnNew);
+
+            // ── Nút Reset Admin khẩn cấp (chỉ hiện với Admin) ──────────────
+            var btnResetAdmin = Btn("🛡 Reset Admin", Color.FromArgb(155, 0, 0), new Point(390, 47), 135, 30);
+            btnResetAdmin.Click += BtnResetAdmin_Click;
+            btnResetAdmin.Visible = AppSession.IsAdmin;
+            panelTop.Controls.Add(btnResetAdmin);
 
             lblStatus = new Label { Location = new Point(395, 52), Size = new Size(400, 22), Font = new Font("Segoe UI", 9), ForeColor = Color.Gray };
             panelTop.Controls.Add(lblStatus);
@@ -339,7 +345,7 @@ namespace MPR_Managerment.Forms
                 Location = new Point(10, 88),
                 Size = new Size(panelPerm.Width - 20, panelPerm.Height - 130),
                 AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
                 MultiSelect = false,
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.None,
@@ -349,7 +355,8 @@ namespace MPR_Managerment.Forms
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
                 ScrollBars = ScrollBars.Vertical,
                 CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
-                GridColor = Color.FromArgb(220, 220, 220)
+                GridColor = Color.FromArgb(220, 220, 220),
+                EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2
             };
             dgvPermissions.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvPermissions.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
@@ -383,6 +390,17 @@ namespace MPR_Managerment.Forms
 
             // Bắt DataError để tránh dialog lỗi Boolean pop-up
             dgvPermissions.DataError += (s, e) => { e.Cancel = true; };
+
+            // Toggle checkbox ngay khi click 1 lần (không cần click 2 lần)
+            dgvPermissions.CellContentClick += (s, e) =>
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+                if (dgvPermissions.Columns[e.ColumnIndex].Name != "Allowed") return;
+                var row = dgvPermissions.Rows[e.RowIndex];
+                if (row.Cells["Row_Type"].Value?.ToString() != "ACTION") return;
+                if (row.Cells["Allowed"].ReadOnly) return;
+                dgvPermissions.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            };
 
             // Click vào dòng HEADER → toggle collapse/expand
             dgvPermissions.CellClick += (s, e) =>
@@ -1017,11 +1035,75 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        //  RESET ADMIN — khôi phục toàn bộ quyền cho tài khoản admin
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnResetAdmin_Click(object sender, EventArgs e)
+        {
+            if (!AppSession.IsAdmin)
+            {
+                MessageBox.Show("Chỉ tài khoản Admin mới được dùng chức năng này!",
+                    "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (MessageBox.Show(
+                "Thao tác này sẽ:\n\n" +
+                "  1. Xóa toàn bộ quyền tùy chỉnh của tất cả tài khoản Admin\n" +
+                "  2. Admin sẽ có MỌI quyền (bypass toàn bộ phân quyền)\n\n" +
+                "Xác nhận thực hiện?",
+                "Reset Admin Permissions",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+            try
+            {
+                // Xóa DetailedPermissions trong DB cho tất cả user có Role admin
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+
+                // Xóa quyền tùy chỉnh của admin trong DB
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    DELETE FROM User_Detailed_Permissions
+                    WHERE User_ID IN (
+                        SELECT User_ID FROM Users
+                        WHERE Role_ID = 1
+                           OR LOWER(Username) = 'admin'
+                    )", conn);
+                int affected = cmd.ExecuteNonQuery();
+
+                // Reset session hiện tại ngay lập tức
+                AppSession.EnsureAdminBypass();
+
+                MessageBox.Show(
+                    $"✅ Đã reset thành công!\n\n" +
+                    $"  • Xóa {affected} bản ghi quyền tùy chỉnh của Admin\n" +
+                    $"  • Admin hiện có toàn quyền truy cập\n\n" +
+                    $"Các tài khoản Admin khác sẽ có đầy đủ quyền khi đăng nhập lại.",
+                    "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Reload để cập nhật hiển thị
+                LoadUsers();
+                if (_selectedUserId > 0) LoadPermissions(_selectedUserId);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Lỗi khi reset: " + ex.Message + "\n\n" +
+                    "Bạn có thể tự chạy SQL sau trong DB:\n" +
+                    "DELETE FROM User_Detailed_Permissions WHERE User_ID IN\n" +
+                    "(SELECT User_ID FROM Users WHERE Role_ID=1 OR LOWER(Username)='admin')",
+                    "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         // =====================================================================
         //  APPLY PERMISSIONS — ẩn/disable button theo quyền USER_MGT
         // =====================================================================
         private void ApplyPermissions()
         {
+            // ⚡ Admin bypass hoàn toàn — không disable bất kỳ thứ gì
+            if (AppSession.IsAdmin) return;
+
             // Nút Tạo user
             if (btnNew != null) PermissionHelper.Apply(btnNew, "USER_MGT", "Tạo user");
             // Nút Lưu user
@@ -1030,7 +1112,7 @@ namespace MPR_Managerment.Forms
             if (btnDeactivate != null) PermissionHelper.Apply(btnDeactivate, "USER_MGT", "Vô hiệu hóa");
             // Nút Reset Password
             if (btnResetPwd != null) PermissionHelper.Apply(btnResetPwd, "USER_MGT", "Reset Password");
-            // Nút Xóa user — dùng quyền Lưu user (cùng nhóm ghi)
+            // Nút Xóa user
             if (btnDelete != null) PermissionHelper.Apply(btnDelete, "USER_MGT", "Lưu user");
             // Nút Lưu phân quyền & Reset phân quyền
             if (btnSavePerms != null) PermissionHelper.Apply(btnSavePerms, "USER_MGT", "Phân quyền");
@@ -1039,27 +1121,20 @@ namespace MPR_Managerment.Forms
             // Panel phân quyền — disable nếu không có quyền "Phân quyền"
             bool canManagePerm = HasPermissionSilent("USER_MGT", "Phân quyền");
             if (panelPerm != null) panelPerm.Enabled = canManagePerm;
-
-            // dgvPermissions — readonly nếu không có quyền
             if (dgvPermissions != null)
                 dgvPermissions.ReadOnly = !canManagePerm;
         }
 
         // ─────────────────────────────────────────────────────────────────────
         //  Kiểm tra quyền không hiện MessageBox (dùng nội bộ để ẩn/hiện UI)
-        //  Dựa vào UserService để lấy permissions của user hiện tại
         // ─────────────────────────────────────────────────────────────────────
         private bool HasPermissionSilent(string moduleCode, string action)
         {
-            try
-            {
-                int uid = AppSession.CurrentUser?.User_ID ?? 0;
-                if (uid == 0) return false;
-                var perms = _svc.GetDetailedPermissions(uid);
-                string key = moduleCode + ":" + action;
-                return perms.TryGetValue(key, out bool val) && val;
-            }
-            catch { return false; }
+            // Admin luôn có mọi quyền
+            if (AppSession.IsAdmin) return true;
+            // User thường: kiểm tra từ AppSession.DetailedPermissions (cache)
+            // Không query DB lại để tránh overhead và sai lệch
+            return AppSession.HasPermission(moduleCode, action);
         }
 
         // =====================================================================

@@ -17,6 +17,14 @@ namespace MPR_Managerment.Helpers
         // =====================================================================
         public static void LoadPermissions(int userId)
         {
+            // ⚡ Admin không cần load quyền từ DB — bypass hoàn toàn
+            // Điều này đảm bảo admin KHÔNG BAO GIỜ bị khóa dù DB có data sai
+            if (AppSession.IsAdmin)
+            {
+                AppSession.EnsureAdminBypass();
+                return;
+            }
+
             try
             {
                 var svc = new Services.UserService();

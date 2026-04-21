@@ -2398,8 +2398,10 @@ namespace MPR_Managerment.Forms
                 totalAmount += amount > 0 ? amount : rowTotalAmount;
             }
 
-            if (lblSubTotal != null) lblSubTotal.Text = "Truoc VAT: " + subTotal.ToString("N2", _numCulture) + " VND";
-            if (lblTotal != null) lblTotal.Text = "Sau VAT: " + total.ToString("N2", _numCulture) + " VND";
+            if (lblSubTotal != null && lblSubTotal.Visible)
+                lblSubTotal.Text = "Trước VAT: " + subTotal.ToString("N2", _numCulture) + " VND";
+            if (lblTotal != null && lblTotal.Visible)
+                lblTotal.Text = "Sau VAT: " + total.ToString("N2", _numCulture) + " VND";
 
             // ── Cập nhật dòng Total ở cuối dgvDetails ──
             // Xóa dòng total cũ nếu có
@@ -4800,6 +4802,45 @@ namespace MPR_Managerment.Forms
                 PermissionHelper.Apply(c, "PO", "Lưu chi tiết");
             foreach (var c in this.Controls.Find("btnCheckBySize", true))
                 PermissionHelper.Apply(c, "PO", "Check by size");
+
+            // ── Ẩn/hiện cột giá & tổng tiền theo phân quyền ──────────────
+            ApplyPriceVisibility();
+        }
+
+        /// <summary>
+        /// Ẩn/hiện cột Đơn giá, TT trước thuế, Thành tiền và label tổng
+        /// dựa theo quyền "Xem đơn giá", "Xem TT trước thuế", "Xem TT sau thuế"
+        /// </summary>
+        private void ApplyPriceVisibility()
+        {
+            bool canViewPrice = AppSession.HasPermission("PO", "Xem đơn giá");
+            bool canViewSubTotal = AppSession.HasPermission("PO", "Xem TT trước thuế");
+            bool canViewTotal = AppSession.HasPermission("PO", "Xem TT sau thuế");
+
+            // ── Cột trong dgvDetails ──────────────────────────────────────
+            if (dgvDetails != null)
+            {
+                if (dgvDetails.Columns.Contains("Price"))
+                    dgvDetails.Columns["Price"].Visible = canViewPrice;
+                if (dgvDetails.Columns.Contains("VAT"))
+                    dgvDetails.Columns["VAT"].Visible = canViewPrice || canViewSubTotal || canViewTotal;
+                if (dgvDetails.Columns.Contains("SubAmount"))
+                    dgvDetails.Columns["SubAmount"].Visible = canViewSubTotal;
+                if (dgvDetails.Columns.Contains("Amount"))
+                    dgvDetails.Columns["Amount"].Visible = canViewTotal;
+            }
+
+            // ── Label tổng tiền phía dưới lưới ───────────────────────────
+            if (lblSubTotal != null)
+            {
+                lblSubTotal.Visible = canViewSubTotal;
+                if (!canViewSubTotal) lblSubTotal.Text = "";
+            }
+            if (lblTotal != null)
+            {
+                lblTotal.Visible = canViewTotal;
+                if (!canViewTotal) lblTotal.Text = "";
+            }
         }
 
     }

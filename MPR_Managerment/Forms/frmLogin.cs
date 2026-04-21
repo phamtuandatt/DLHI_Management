@@ -276,12 +276,23 @@ namespace MPR_Managerment.Forms
                 // ── Lưu / xóa thông tin đăng nhập theo lựa chọn ──
                 SaveCredentials(username, password);
 
-                // Lưu session
+                // ── Lưu session ──────────────────────────────────────────
                 AppSession.CurrentUser = result.User;
-                AppSession.DetailedPermissions = result.DetailedPermissions;
 
-                // Nạp quyền vào PermissionHelper cache (admin sẽ bypass)
-                MPR_Managerment.Helpers.PermissionHelper.LoadPermissions(result.User!.User_ID);
+                if (AppSession.IsAdmin)
+                {
+                    // Admin bypass hoàn toàn — xóa mọi quyền cũ, không load từ DB
+                    // Đảm bảo admin KHÔNG BAO GIỜ bị khóa dù DB có data sai
+                    AppSession.EnsureAdminBypass();
+                }
+                else
+                {
+                    // User thường: nạp quyền từ LoginResult hoặc fallback từ DB
+                    if (result.DetailedPermissions != null && result.DetailedPermissions.Count > 0)
+                        AppSession.DetailedPermissions = result.DetailedPermissions;
+                    else
+                        MPR_Managerment.Helpers.PermissionHelper.LoadPermissions(result.User!.User_ID);
+                }
 
                 // Cần đổi mật khẩu lần đầu?
                 if (result.User!.Must_Change_Password)

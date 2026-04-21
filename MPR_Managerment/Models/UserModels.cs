@@ -95,6 +95,9 @@ namespace MPR_Managerment.Models
             get => _detailedPermissions;
             set
             {
+                // ⚡ Admin bypass: không lưu DetailedPermissions cho admin
+                // Admin luôn có mọi quyền qua IsAdmin — không cần kiểm tra từng action
+                if (IsAdmin) return;
                 _detailedPermissions = value != null
                     ? new Dictionary<string, bool>(value, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -104,12 +107,26 @@ namespace MPR_Managerment.Models
         public static bool IsLoggedIn => CurrentUser != null;
 
         // ── Admin bypass ──────────────────────────────────────────────────────
+        // Admin được xác định HOÀN TOÀN từ thông tin User — không phụ thuộc DB quyền
         public static bool IsAdmin =>
             CurrentUser != null
             && (CurrentUser.Role_ID == 1
              || string.Equals(CurrentUser.Role_Name, "Admin", StringComparison.OrdinalIgnoreCase)
              || string.Equals(CurrentUser.Role_Name, "Administrator", StringComparison.OrdinalIgnoreCase)
              || string.Equals(CurrentUser.Username, "admin", StringComparison.OrdinalIgnoreCase));
+
+        // ── Reset toàn bộ phân quyền về trạng thái "Admin có tất cả" ─────────
+        /// <summary>
+        /// Gọi khi phát hiện admin bị mất quyền.
+        /// Xóa hết DetailedPermissions để IsAdmin bypass hoàn toàn.
+        /// </summary>
+        public static void EnsureAdminBypass()
+        {
+            if (!IsAdmin) return;
+            // Admin không cần DetailedPermissions — xóa đi để tránh conflict
+            _detailedPermissions.Clear();
+            Permissions.Clear();
+        }
 
         // =====================================================================
         //  LẤY QUYỀN MODULE (dùng List<UserPermission>)
@@ -119,16 +136,41 @@ namespace MPR_Managerment.Models
                                                     StringComparison.OrdinalIgnoreCase));
 
         // =====================================================================
-        //  KIỂM TRA QUYỀN THEO List<UserPermission> — dùng cho menu frmMain
+        //  KIỂM TRA QUYỀN — dùng cho menu frmMain và các form
+        //  Ưu tiên DetailedPermissions (key "MODULE:Xem") vì đây là nguồn
+        //  dữ liệu thực tế được lưu từ frmUserManagement.
+        //  Fallback về List<UserPermission>.Can_View nếu hệ thống cũ populate nó.
         // =====================================================================
         public static bool CanView(string moduleCode)
-            => IsAdmin || (GetPermission(moduleCode)?.Can_View ?? false);
+        {
+            if (IsAdmin) return true;
+            // Ưu tiên DetailedPermissions — đây là data thực tế được lưu
+            if (_detailedPermissions.Count > 0)
+                return HasPermission(moduleCode, "Xem");
+            // Fallback: List<UserPermission> (nếu UserService.Login populate)
+            return GetPermission(moduleCode)?.Can_View ?? false;
+        }
 
         public static bool CanDelete(string moduleCode)
-            => IsAdmin || (GetPermission(moduleCode)?.Can_Delete ?? false);
+        {
+            if (IsAdmin) return true;
+            if (_detailedPermissions.Count > 0)
+                return HasPermission(moduleCode, "Xóa")
+                    || HasPermission(moduleCode, "Xóa PO")
+                    || HasPermission(moduleCode, "Xóa MPR")
+                    || HasPermission(moduleCode, "Xóa RIR")
+                    || HasPermission(moduleCode, "Xóa dòng");
+            return GetPermission(moduleCode)?.Can_Delete ?? false;
+        }
 
         public static bool CanExport(string moduleCode)
-            => IsAdmin || (GetPermission(moduleCode)?.Can_Export ?? false);
+        {
+            if (IsAdmin) return true;
+            if (_detailedPermissions.Count > 0)
+                return HasPermission(moduleCode, "Xuất Excel")
+                    || HasPermission(moduleCode, "Xuất tồn kho");
+            return GetPermission(moduleCode)?.Can_Export ?? false;
+        }
 
         // =====================================================================
         //  KIỂM TRA QUYỀN CHI TIẾT — dùng cho PermissionHelper.Check/Apply
