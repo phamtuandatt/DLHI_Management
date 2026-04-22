@@ -1108,11 +1108,41 @@ namespace MPR_Managerment.Forms
                     clbDA.Focus();
                 };
 
-                // Đóng dropdown khi click ra ngoài
+                // ── Đóng dropdown khi click ra ngoài hoặc focus rời khỏi panel ──
+                // 1. Leave của clbDA (khi focus chuyển sang control khác)
+                clbDA.Leave += (s, ev) =>
+                {
+                    // Chỉ đóng nếu focus KHÔNG đến btnDropDA (để toggle vẫn hoạt động)
+                    var focused = popup.ActiveControl;
+                    if (focused != btnDropDA)
+                        panelDropDA.Visible = false;
+                };
+
+                // 2. MouseDown trên popup (click vào vùng trống)
                 popup.MouseDown += (s, ev) =>
                 {
                     if (panelDropDA.Visible && !panelDropDA.Bounds.Contains(ev.Location))
                         panelDropDA.Visible = false;
+                };
+
+                // 3. Hook MouseDown vào tất cả control con để bắt click ở mọi vị trí
+                Action<Control> hookClose = null!;
+                hookClose = (ctrl) =>
+                {
+                    if (ctrl == panelDropDA || ctrl == btnDropDA) return;
+                    ctrl.MouseDown += (s, ev) =>
+                    {
+                        if (panelDropDA.Visible)
+                            panelDropDA.Visible = false;
+                    };
+                    foreach (Control child in ctrl.Controls)
+                        hookClose(child);
+                };
+                // Gọi hook sau khi tất cả controls đã được thêm vào popup
+                popup.Shown += (s, ev) =>
+                {
+                    foreach (Control ctrl in popup.Controls)
+                        hookClose(ctrl);
                 };
 
                 var lblCount = new Label { Text = "", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 38 + PF_H + 4), Size = new Size(700, 20), Anchor = AnchorStyles.Top | AnchorStyles.Left };
@@ -4055,7 +4085,7 @@ namespace MPR_Managerment.Forms
                         string sqlIns = @"
                             IF NOT EXISTS (SELECT 1 FROM PO_DeliveryTracking WHERE PONo = @poNo AND ExpDelivery = @exp)
                             INSERT INTO PO_DeliveryTracking (PONo, ExpDelivery, GhiChu, Status, ReceiverNote, Created_Date)
-                            VALUES (@poNo, @exp, @note, 'Pending', '', GETDATE())";
+                            VALUES (@poNo, @exp, @note, 'Done', '', GETDATE())";
                         using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
                         {
                             conn.Open();
@@ -4190,9 +4220,9 @@ namespace MPR_Managerment.Forms
                     RowHeadersVisible = false,
                     Font = new Font("Segoe UI", 9),
                     AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-                    DataSource = dt
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
                 };
+
                 dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 150, 100);
                 dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
                 dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
@@ -4201,14 +4231,35 @@ namespace MPR_Managerment.Forms
                 dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
                 dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
 
-                // Ẩn TrackID, chỉ cho edit cột Receiver Note
-                dgv.DataBindingComplete += (s, ev) =>
+                // ── Thêm cột unbound để tránh InvalidOperationException ──
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "TrackID", HeaderText = "TrackID", Visible = false });
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO No", HeaderText = "PO No", ReadOnly = true, FillWeight = 12 });
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Mã dự án", HeaderText = "Mã dự án", ReadOnly = true, FillWeight = 12 });
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Exp. Delivery", HeaderText = "Exp. Delivery", ReadOnly = true, FillWeight = 12 });
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ghi chú", HeaderText = "Ghi chú", ReadOnly = true, FillWeight = 16 });
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Trạng thái", HeaderText = "Trạng thái", ReadOnly = true, FillWeight = 10 });
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Receiver Note", HeaderText = "Receiver Note", ReadOnly = false, FillWeight = 20 });
+                dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ngày tạo", HeaderText = "Ngày tạo", ReadOnly = true, FillWeight = 14 });
+
+                foreach (System.Data.DataRow dr in dt.Rows)
                 {
-                    if (dgv.Columns.Contains("TrackID"))
-                        dgv.Columns["TrackID"].Visible = false;
-                    foreach (DataGridViewColumn col in dgv.Columns)
-                        col.ReadOnly = col.Name != "Receiver Note";
-                };
+                    int ri = dgv.Rows.Add();
+                    dgv.Rows[ri].Cells["TrackID"].Value = dr["TrackID"];
+                    dgv.Rows[ri].Cells["PO No"].Value = dr["PO No"];
+                    dgv.Rows[ri].Cells["Mã dự án"].Value = dr["Mã dự án"];
+                    dgv.Rows[ri].Cells["Exp. Delivery"].Value = dr["Exp. Delivery"];
+                    dgv.Rows[ri].Cells["Ghi chú"].Value = dr["Ghi chú"];
+                    dgv.Rows[ri].Cells["Trạng thái"].Value = dr["Trạng thái"];
+                    dgv.Rows[ri].Cells["Receiver Note"].Value = dr["Receiver Note"];
+                    dgv.Rows[ri].Cells["Ngày tạo"].Value = dr["Ngày tạo"];
+                }
+
+
+
+
+
+
+
 
                 dgv.CellFormatting += (s, ev) =>
                 {
