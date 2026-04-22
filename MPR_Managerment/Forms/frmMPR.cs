@@ -845,161 +845,56 @@ namespace MPR_Managerment.Forms
         //           (revise) khớp theo Item_No + Item_Name + Material để lấy PO đã đặt
         //           từ phiên bản cũ — rồi điền vào dòng tương ứng của phiên bản mới
         // =====================================================================
+        // Trả về dict: Detail_ID → danh sách PONo đã đặt cho từng vật tư
+        // Chỉ lấy PO qua PO_Detail.MPR_Detail_ID = MPR_Details.Detail_ID
+        // (đúng 1 vật tư MPR → 1 hoặc nhiều dòng PO_Detail → 1 hoặc nhiều PO)
         private Dictionary<int, string> GetPoMappingForMpr(int mprId)
         {
             var dict = new Dictionary<int, string>();
             if (mprId <= 0) return dict;
-
             try
             {
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
 
-                    // ── Bước 1: PO liên kết trực tiếp qua Detail_ID ──
-                    string sqlDirect = @"
-                        SELECT pod.MPR_Detail_ID, poh.PONo
-                        FROM PO_Detail pod
-                        INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID
-                        WHERE pod.MPR_Detail_ID IS NOT NULL
-                          AND pod.MPR_Detail_ID IN (
-                              SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId
-                          )";
+                    // Join chính xác: 1 dòng MPR_Details → nhiều dòng PO_Detail → nhiều PO_head
+                    // GROUP BY Detail_ID để gộp nhiều PO của cùng 1 vật tư
+                    string sql = @"
+                        SELECT   pod.MPR_Detail_ID  AS Detail_ID,
+                                 poh.PONo
+                        FROM     PO_Detail pod
+                        INNER JOIN PO_head poh ON poh.PO_ID = pod.PO_ID
+                        WHERE    pod.MPR_Detail_ID IN (
+                                     SELECT Detail_ID
+                                     FROM   MPR_Details
+                                     WHERE  MPR_ID = @mprId
+                                 )
+                        ORDER BY pod.MPR_Detail_ID, poh.PONo";
 
-                    using (var cmd = new SqlCommand(sqlDirect, conn))
+                    using (var cmd = new SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@mprId", mprId);
                         using (var reader = cmd.ExecuteReader())
                         {
                             while (reader.Read())
                             {
-                                if (reader["MPR_Detail_ID"] != DBNull.Value)
+                                if (reader["Detail_ID"] == DBNull.Value) continue;
+                                int detailId = Convert.ToInt32(reader["Detail_ID"]);
+                                string poNo = reader["PONo"]?.ToString()?.Trim() ?? "";
+                                if (string.IsNullOrEmpty(poNo)) continue;
+
+                                if (dict.ContainsKey(detailId))
                                 {
-                                    int detailId = Convert.ToInt32(reader["MPR_Detail_ID"]);
-                                    string poNo = reader["PONo"]?.ToString() ?? "";
-                                    if (dict.ContainsKey(detailId))
-                                    {
-                                        if (!dict[detailId].Contains(poNo))
-                                            dict[detailId] += ", " + poNo;
-                                    }
-                                    else
-                                    {
-                                        dict[detailId] = poNo;
-                                    }
+                                    // Tránh trùng PO (1 PO có nhiều dòng cùng vật tư)
+                                    var existing = dict[detailId].Split(new[] { ", " },
+                                        StringSplitOptions.RemoveEmptyEntries);
+                                    if (!Array.Exists(existing, p => p == poNo))
+                                        dict[detailId] += ", " + poNo;
                                 }
-                            }
-                        }
-                    }
-
-                    // ── Bước 2: Tìm PO từ các phiên bản revise khác cùng MPR_No ──
-                    // Lấy thông tin các dòng của MPR hiện tại chưa có PO
-                    string sqlCurrentDetails = @"
-                        SELECT d.Detail_ID, d.Item_No, d.item_name, d.Material,
-                               d.Thickness_mm, d.Depth_mm, d.C_Width_mm,
-                               d.D_Web_mm, d.E_Flange_mm, d.F_Length_mm,
-                               h.MPR_No
-                        FROM MPR_Details d
-                        INNER JOIN MPR_Header h ON h.MPR_ID = d.MPR_ID
-                        WHERE d.MPR_ID = @mprId";
-
-                    var currentDetails = new List<(int DetailId, int ItemNo, string ItemName, string Material,
-                        decimal A, decimal B, decimal C, decimal D, decimal E, decimal F, string MprNo)>();
-
-                    using (var cmd = new SqlCommand(sqlCurrentDetails, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@mprId", mprId);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                int detId = Convert.ToInt32(reader["Detail_ID"]);
-                                // Chỉ xử lý các dòng chưa có PO từ bước 1
-                                if (!dict.ContainsKey(detId))
+                                else
                                 {
-                                    currentDetails.Add((
-                                        detId,
-                                        Convert.ToInt32(reader["Item_No"]),
-                                        reader["item_name"]?.ToString() ?? "",
-                                        reader["Material"]?.ToString() ?? "",
-                                        reader["Thickness_mm"] != DBNull.Value ? Convert.ToDecimal(reader["Thickness_mm"]) : 0,
-                                        reader["Depth_mm"] != DBNull.Value ? Convert.ToDecimal(reader["Depth_mm"]) : 0,
-                                        reader["C_Width_mm"] != DBNull.Value ? Convert.ToDecimal(reader["C_Width_mm"]) : 0,
-                                        reader["D_Web_mm"] != DBNull.Value ? Convert.ToDecimal(reader["D_Web_mm"]) : 0,
-                                        reader["E_Flange_mm"] != DBNull.Value ? Convert.ToDecimal(reader["E_Flange_mm"]) : 0,
-                                        reader["F_Length_mm"] != DBNull.Value ? Convert.ToDecimal(reader["F_Length_mm"]) : 0,
-                                        reader["MPR_No"]?.ToString() ?? ""
-                                    ));
-                                }
-                            }
-                        }
-                    }
-
-                    if (currentDetails.Count > 0)
-                    {
-                        // Lấy MPR_No gốc (không có hậu tố Rev) để tìm các phiên bản liên quan
-                        // Quy ước: MPR-001, MPR-001-R1, MPR-001-R2 → cùng gốc MPR-001
-                        string mprNoBase = currentDetails[0].MprNo;
-
-                        // Tìm PO từ tất cả các phiên bản MPR khác có MPR_No bắt đầu giống gốc
-                        // Khớp theo Item_No + Item_Name + Material (+ kích thước nếu có)
-                        string sqlRevise = @"
-                            SELECT
-                                d.Item_No,
-                                d.item_name,
-                                d.Material,
-                                d.Thickness_mm, d.Depth_mm, d.C_Width_mm,
-                                d.D_Web_mm, d.E_Flange_mm, d.F_Length_mm,
-                                poh.PONo
-                            FROM MPR_Details d
-                            INNER JOIN MPR_Header h ON h.MPR_ID = d.MPR_ID
-                            INNER JOIN PO_Detail pod ON pod.MPR_Detail_ID = d.Detail_ID
-                            INNER JOIN PO_head poh ON poh.PO_ID = pod.PO_ID
-                            WHERE h.MPR_ID <> @mprId
-                              AND (
-                                  h.MPR_No = @mprNoBase
-                                  OR h.MPR_No LIKE @mprNoPattern
-                              )";
-
-                        using (var cmd = new SqlCommand(sqlRevise, conn))
-                        {
-                            cmd.Parameters.AddWithValue("@mprId", mprId);
-                            cmd.Parameters.AddWithValue("@mprNoBase", mprNoBase);
-                            cmd.Parameters.AddWithValue("@mprNoPattern", mprNoBase + "%");
-
-                            // Build lookup từ các phiên bản revise: key = (ItemNo, ItemName, Material)
-                            var revisePOLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                            using (var reader = cmd.ExecuteReader())
-                            {
-                                while (reader.Read())
-                                {
-                                    int itemNo = Convert.ToInt32(reader["Item_No"]);
-                                    string itemName = reader["item_name"]?.ToString() ?? "";
-                                    string material = reader["Material"]?.ToString() ?? "";
-                                    string poNo = reader["PONo"]?.ToString() ?? "";
-
-                                    // Key khớp chặt: ItemNo + ItemName + Material
-                                    string key = $"{itemNo}|{itemName.Trim().ToLower()}|{material.Trim().ToLower()}";
-
-                                    if (revisePOLookup.ContainsKey(key))
-                                    {
-                                        if (!revisePOLookup[key].Contains(poNo))
-                                            revisePOLookup[key] += ", " + poNo;
-                                    }
-                                    else
-                                    {
-                                        revisePOLookup[key] = poNo;
-                                    }
-                                }
-                            }
-
-                            // Gán PO vào các dòng của MPR hiện tại theo key khớp
-                            foreach (var detail in currentDetails)
-                            {
-                                string key = $"{detail.ItemNo}|{detail.ItemName.Trim().ToLower()}|{detail.Material.Trim().ToLower()}";
-                                if (revisePOLookup.TryGetValue(key, out string poNos))
-                                {
-                                    dict[detail.DetailId] = poNos;
+                                    dict[detailId] = poNo;
                                 }
                             }
                         }
