@@ -9,6 +9,8 @@ using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml;
 using OfficeOpenXml.Packaging.Ionic.Zlib;
+using Syncfusion.XlsIO;
+using Syncfusion.XlsIO.Implementation.XmlSerialization;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -22,6 +24,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using static OfficeOpenXml.ExcelErrorValue;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ListView;
 
 namespace MPR_Managerment.Forms
 {
@@ -72,6 +75,7 @@ namespace MPR_Managerment.Forms
 
         private List<POHead> _poList = new List<POHead>();
         private Label lblStatus;
+        private List<object> _makeRequestExport = new List<object>();
 
         public frmWarehouses_v2(string targetPONo = "")
         {
@@ -1328,11 +1332,36 @@ namespace MPR_Managerment.Forms
             gbHeader.Location = new Point(10, 115);
             container.Controls.Add(gbHeader);
 
+            //dgvStock = new DataGridView
+            //{
+            //    //Location = new Point(10, 115),
+            //    Size = new Size(1200, 1200),
+            //    ReadOnly = true,
+            //    AllowUserToAddRows = false,
+            //    SelectionMode = DataGridViewSelectionMode.CellSelect,
+            //    BackgroundColor = Color.White,
+            //    BorderStyle = BorderStyle.FixedSingle,
+            //    RowHeadersVisible = false,
+            //    Font = new Font("Segoe UI", 9),
+            //    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            //    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+            //    Margin = new Padding(0, 100, 0, 0),
+            //};
+            //dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            //dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            //dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            //dgvStock.EnableHeadersVisualStyles = false;
+            //dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            //dgvStock.Dock = DockStyle.Fill;
+
+            //// Xanh nhạt cho selection
+            //dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            //dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
+            // 1. Cập nhật lại phần khởi tạo DataGridView
             dgvStock = new DataGridView
             {
-                //Location = new Point(10, 115),
                 Size = new Size(1200, 1200),
-                ReadOnly = true,
+                ReadOnly = false, // Phải để false để có thể click vào CheckBox
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.CellSelect,
                 BackgroundColor = Color.White,
@@ -1343,14 +1372,13 @@ namespace MPR_Managerment.Forms
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
                 Margin = new Padding(0, 100, 0, 0),
             };
+
             dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvStock.EnableHeadersVisualStyles = false;
             dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
             dgvStock.Dock = DockStyle.Fill;
-
-            // Xanh nhạt cho selection
             dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
             dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
 
@@ -1392,11 +1420,37 @@ namespace MPR_Managerment.Forms
             gbHeader.Location = new Point(10, 115);
             container.Controls.Add(gbHeader);
 
+            //dgvStock = new DataGridView
+            //{
+            //    //Location = new Point(10, 115),
+            //    //Size = new Size(1200, 1200),
+            //    ReadOnly = true,
+            //    AllowUserToAddRows = false,
+            //    SelectionMode = DataGridViewSelectionMode.CellSelect,
+            //    BackgroundColor = Color.White,
+            //    BorderStyle = BorderStyle.FixedSingle,
+            //    RowHeadersVisible = false,
+            //    Font = new Font("Segoe UI", 9),
+            //    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            //    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+            //    Margin = new Padding(0, 100, 0, 0),
+            //};
+            //dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            //dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            //dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            //dgvStock.EnableHeadersVisualStyles = false;
+            //dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            //dgvStock.Dock = DockStyle.Fill;
+            //dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick1;
+
+            //// Xanh nhạt cho selection
+            //dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            //dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
+            // 1. Cập nhật lại phần khởi tạo DataGridView
             dgvStock = new DataGridView
             {
-                //Location = new Point(10, 115),
-                //Size = new Size(1200, 1200),
-                ReadOnly = true,
+                Size = new Size(1200, 1200),
+                ReadOnly = false, // Phải để false để có thể click vào CheckBox
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.CellSelect,
                 BackgroundColor = Color.White,
@@ -1407,19 +1461,18 @@ namespace MPR_Managerment.Forms
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
                 Margin = new Padding(0, 100, 0, 0),
             };
+
             dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvStock.EnableHeadersVisualStyles = false;
             dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
             dgvStock.Dock = DockStyle.Fill;
-            dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick1;
-
-            // Xanh nhạt cho selection
             dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
             dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
 
             dgvStock.CellFormatting += DgvStock_CellFormatting;
+            dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick;
             dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
             gbHeader.Controls.Add(dgvStock);
 
@@ -1445,13 +1498,15 @@ namespace MPR_Managerment.Forms
             var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(537, fy - 3), 80, 28);
             var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(627, fy - 3), 130, 28);
             var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(767, fy - 3), 100, 28);
+            var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(108, 117, 125), new Point(915, fy - 1), 200, 28);
             b1.Click += async (s, e) => await LoadStock();
             b2.Click += (s, e) => LoadStockOnly();
             b3.Click += async (s, e) => await LoadStock(true);
+            b4.Click += (s, e) => btnLayDuLieu_Click();
             gbAction.Controls.Add(b1);
             gbAction.Controls.Add(b2);
             gbAction.Controls.Add(b3);
-
+            gbAction.Controls.Add(b4);
 
             panelStockSummary = new Panel
             {
@@ -1472,7 +1527,181 @@ namespace MPR_Managerment.Forms
             lblStatus = AddStatLbl(panelStockSummary, "Số lượng:", "0 kg", Color.FromArgb(254, 0, 51), 730);
         }
 
-        private void DgvStock_CellContentDoubleClick1(object? sender, DataGridViewCellEventArgs e)
+        private void btnLayDuLieu_Click()
+        {
+            // 1. Kết thúc việc biên tập ô hiện tại trên lưới gốc
+            dgvStock.EndEdit();
+
+            // 2. Lấy danh sách các dòng được check
+            List<SelectedItemModel> selectedItems = new List<SelectedItemModel>();
+            foreach (DataGridViewRow row in dgvStock.Rows)
+            {
+                if (row.IsNewRow) continue;
+                bool isChecked = Convert.ToBoolean(row.Cells["Chon"].Value);
+                if (isChecked)
+                {
+                    selectedItems.Add(new SelectedItemModel
+                    {
+                        Import_ID = row.Cells["Import_ID"].Value,
+                        Ma_Phieu = row.Cells["Ma_Phieu"].Value?.ToString(),
+                        Ten_Vat_Tu = row.Cells["Ten_Vat_Tu"].Value?.ToString(),
+                        Vat_Lieu = row.Cells["Vat_Lieu"].Value?.ToString(),
+                        Kich_Thuoc = row.Cells["Kich_Thuoc"].Value?.ToString(),
+                        DVT = row.Cells["DVT"].Value?.ToString(),
+                        Item_Code = row.Cells["Item_Code"].Value?.ToString(),
+                        SL_Ton = Convert.ToDecimal(row.Cells["SL_Ton"].Value),
+                        SL_Xuat = 0
+                    });
+                }
+            }
+
+            if (selectedItems.Count > 0)
+            {
+                using (Form dlg = new Form())
+                {
+                    dlg.Text = "Chi Tiết Phiếu Xuất Kho";
+                    dlg.StartPosition = FormStartPosition.CenterParent;
+                    dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                    dlg.Size = new Size(1100, 510);
+                    dlg.BackColor = Color.White;
+
+                    Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Color.FromArgb(240, 240, 240) };
+                    Button btnSave = new Button { Text = "Lưu Phiếu", Width = 100, Height = 35, Location = new Point(10, 7), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                    Button btnDelete = new Button { Text = "Xóa dòng", Width = 100, Height = 35, Location = new Point(120, 7), BackColor = Color.FromArgb(232, 17, 35), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                    Button btnClose = new Button { Text = "Thoát", Width = 100, Height = 35, Location = new Point(230, 7), BackColor = Color.Gray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+
+                    pnlHeader.Controls.AddRange(new Control[] { btnSave, btnDelete, btnClose });
+
+                    DataGridView dgvSelected = new DataGridView
+                    {
+                        Dock = DockStyle.Fill,
+                        AllowUserToAddRows = false,
+                        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                        BackgroundColor = Color.White,
+                        RowHeadersVisible = true, // Bật lên để người dùng dễ click chọn dòng để xóa
+                        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                        Font = new Font("Segoe UI", 9),
+                        ReadOnly = false
+                    };
+                    dgvSelected.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+                    dgvSelected.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+                    dgvSelected.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    dgvSelected.EnableHeadersVisualStyles = false;
+                    dgvSelected.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+
+                    // Định nghĩa cột
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Import_ID", HeaderText = "Import_ID", Visible = false });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ma_Phieu", HeaderText = "Mã phiếu", ReadOnly = true });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ten_Vat_Tu", HeaderText = "Tên vật tư", ReadOnly = true });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Vat_Lieu", HeaderText = "Vật liệu", ReadOnly = true });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Kich_Thuoc", HeaderText = "Kích thước", ReadOnly = true });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "DVT", HeaderText = "ĐVT", ReadOnly = true });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Code", HeaderText = "Item Code", ReadOnly = true });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "SL_Ton", HeaderText = "Số lượng tồn", ReadOnly = true });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "SL_Xuat", HeaderText = "Số Lượng Xuất (*)", ReadOnly = false });
+                    //dgvSelected.EditingControlShowing += DgvSelectedMakeExport_EditingControlShowing;
+
+                    dgvSelected.CellEndEdit += (s, e) =>
+                    {
+                        // Chỉ kiểm tra nếu cột đang sửa là "SL_Xuat"
+                        if (dgvSelected.Columns[e.ColumnIndex].Name == "SL_Xuat")
+                        {
+                            var row = dgvSelected.Rows[e.RowIndex];
+
+                            // Lấy giá trị nhập vào và giá trị tồn
+                            decimal slXuat = 0;
+                            decimal slTon = 0;
+
+                            // Ép kiểu an toàn (sử dụng decimal.TryParse để tránh lỗi nhập chữ)
+                            decimal.TryParse(row.Cells["SL_Xuat"].Value?.ToString(), out slXuat);
+                            decimal.TryParse(row.Cells["SL_Ton"].Value?.ToString(), out slTon);
+
+                            if (slXuat > slTon)
+                            {
+                                MessageBox.Show($"Số lượng xuất ({slXuat}) không được lớn hơn số lượng tồn ({slTon})!",
+                                                "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                                // Gán lại giá trị Xuất bằng giá trị Tồn
+                                row.Cells["SL_Xuat"].Value = slTon;
+                            }
+                            else if (slXuat < 0)
+                            {
+                                // Tiện thể kiểm tra luôn trường hợp nhập số âm
+                                MessageBox.Show("Số lượng xuất không được nhỏ hơn 0!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                row.Cells["SL_Xuat"].Value = 0;
+                            }
+                        }
+                    };
+
+                    // Nạp dữ liệu vào Grid
+                    foreach (var d in selectedItems)
+                        dgvSelected.Rows.Add(d.Import_ID, d.Ma_Phieu, d.Ten_Vat_Tu, d.Vat_Lieu, d.Kich_Thuoc, d.DVT, d.Item_Code, d.SL_Ton, d.SL_Xuat);
+
+                    // Định dạng cột SL_Xuat
+                    if (dgvSelected.Columns.Contains("SL_Xuat"))
+                    {
+                        dgvSelected.Columns["SL_Xuat"].DefaultCellStyle.BackColor = Color.LightYellow;
+                        dgvSelected.Columns["SL_Xuat"].DefaultCellStyle.ForeColor = Color.Blue;
+                    }
+
+                    // --- CẬP NHẬT: XỬ LÝ SỰ KIỆN XÓA ---
+                    btnDelete.Click += (s, ev) => {
+                        // Kiểm tra xem có dòng nào đang được chọn không
+                        if (dgvSelected.CurrentRow != null && dgvSelected.CurrentRow.Index >= 0)
+                        {
+                            int rowIndex = dgvSelected.CurrentRow.Index;
+                            string itemName = dgvSelected.CurrentRow.Cells["Ten_Vat_Tu"].Value?.ToString();
+
+                            if (MessageBox.Show($"Bạn có chắc chắn muốn xóa dòng: {itemName}?", "Xác nhận xóa",
+                                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                            {
+                                // Xóa dòng trực tiếp trên giao diện DataGridView
+                                dgvSelected.Rows.RemoveAt(rowIndex);
+                            }
+                        }
+                        else
+                        {
+                            // Trường hợp không có dòng nào được chọn
+                            MessageBox.Show("Vui lòng chọn một dòng để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    };
+
+                    // Xử lý sự kiện Lưu
+                    btnSave.Click += (s, ev) => {
+                        dgvSelected.EndEdit();
+
+                        // Gom dữ liệu ngược lại từ Grid vào List để xử lý tiếp (nếu cần)
+                        List<SelectedItemModel> finalData = new List<SelectedItemModel>();
+                        foreach (DataGridViewRow row in dgvSelected.Rows)
+                        {
+                            finalData.Add(new SelectedItemModel
+                            {
+                                Import_ID = row.Cells["Import_ID"].Value,
+                                SL_Xuat = Convert.ToDecimal(row.Cells["SL_Xuat"].Value)
+                                // ... các trường khác tương tự
+                            });
+
+                            // HÃY THAY THỂ ĐOẠN CODE XUẤT FILE EXCEL Ở ĐÂY
+                        }
+
+                        MessageBox.Show("Đã xác nhận dữ liệu. Sẵn sàng lưu " + dgvSelected.Rows.Count + " dòng.", "Thông báo");
+                        dlg.DialogResult = DialogResult.OK;
+                    };
+
+                    btnClose.Click += (s, ev) => { dlg.Close(); };
+
+                    dlg.Controls.Add(dgvSelected);
+                    dlg.Controls.Add(pnlHeader);
+                    dlg.ShowDialog();
+                }
+            }
+            else
+            {
+                MessageBox.Show("Vui lòng chọn ít nhất một dòng!");
+            }
+        }
+
+        private void DgvStock_CellContentDoubleClick(object? sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
             int importId = (int)dgvStock.Rows[e.RowIndex].Cells["Import_ID"].Value;
@@ -1627,9 +1856,58 @@ namespace MPR_Managerment.Forms
             catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
+        //private void BindStockGrid(List<WarehouseStock> stocks)
+        //{
+        //    dgvStock.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Chon", HeaderText = "Chọn", Width = 50 });
+        //    dgvStock.DataSource = stocks.ConvertAll(s => new
+        //    {
+        //        Import_ID = s.Import_ID,
+        //        Ma_Phieu = s.Import_No,
+        //        Ngay_Nhap = s.Import_Date.HasValue ? s.Import_Date.Value.ToString("dd/MM/yyyy") : "",
+        //        Ten_Vat_Tu = s.Item_Name,
+        //        Vat_Lieu = s.Material,
+        //        Kich_Thuoc = s.Size,
+        //        DVT = s.UNIT,
+        //        Item_Code = s.ID_Code, // Ẩn cột ID_Code tránh nhầm lẫn với QC Code
+        //        PO_No = s.PONo,
+        //        Ma_DA = s.Project_Code,
+        //        Vi_Tri = s.Location,
+        //        SL_Nhap = s.Qty_Import,
+        //        SL_Xuat = s.Qty_Exported,
+        //        SL_Ton = s.Qty_Stock,
+        //        //KG_Nhap = s.Weight_Import,
+        //        //KG_Xuat = s.Weight_Exported,
+        //        //KG_Ton = s.Weight_Stock,
+        //        QC_Code = s.QC_Code,
+        //        QC_Status = s.QC_Status
+        //    });
+        //    if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
+        //    decimal tQ = 0, tW = 0;
+        //    foreach (var s in stocks) { tQ += s.Qty_Stock; tW += s.Weight_Stock; }
+        //    if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Count} mục";
+        //    if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
+        //    if (lblStockWeight != null) lblStockWeight.Text = tW.ToString("N2") + " kg";
+        //    if (dgvStock.Columns.Contains("Chon"))
+        //    {
+        //        dgvStock.Columns["Chon"].ReadOnly = false;
+        //    }
+        //}
         private void BindStockGrid(List<WarehouseStock> stocks)
         {
-            dgvStock.DataSource = stocks.ConvertAll(s => new
+            // Xóa cột cũ và dữ liệu cũ trước khi nạp lại (tránh trùng lặp cột khi gọi hàm nhiều lần)
+            dgvStock.Columns.Clear();
+            dgvStock.DataSource = null;
+
+            // Thêm cột Checkbox trước
+            DataGridViewCheckBoxColumn checkColumn = new DataGridViewCheckBoxColumn();
+            checkColumn.Name = "Chon";
+            checkColumn.HeaderText = "Chọn";
+            checkColumn.Width = 50;
+            checkColumn.ReadOnly = false; // Cho phép tương tác
+            dgvStock.Columns.Add(checkColumn);
+
+            // Gán DataSource
+            dgvStock.DataSource = stocks.Select(s => new
             {
                 Import_ID = s.Import_ID,
                 Ma_Phieu = s.Import_No,
@@ -1638,25 +1916,45 @@ namespace MPR_Managerment.Forms
                 Vat_Lieu = s.Material,
                 Kich_Thuoc = s.Size,
                 DVT = s.UNIT,
-                Item_Code = s.ID_Code, // Ẩn cột ID_Code tránh nhầm lẫn với QC Code
+                Item_Code = s.ID_Code,
                 PO_No = s.PONo,
                 Ma_DA = s.Project_Code,
                 Vi_Tri = s.Location,
                 SL_Nhap = s.Qty_Import,
                 SL_Xuat = s.Qty_Exported,
                 SL_Ton = s.Qty_Stock,
-                //KG_Nhap = s.Weight_Import,
-                //KG_Xuat = s.Weight_Exported,
-                //KG_Ton = s.Weight_Stock,
                 QC_Code = s.QC_Code,
                 QC_Status = s.QC_Status
-            });
+            }).ToList();
+
+            // Thiết lập ReadOnly cho tất cả các cột ngoại trừ cột "Chon"
+            foreach (DataGridViewColumn col in dgvStock.Columns)
+            {
+                if (col.Name != "Chon")
+                {
+                    col.ReadOnly = true;
+                }
+            }
+
+            // Ẩn cột ID
             if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
+
+            // Tính toán tổng số lượng
             decimal tQ = 0, tW = 0;
-            foreach (var s in stocks) { tQ += s.Qty_Stock; tW += s.Weight_Stock; }
-            if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Count} mục";
-            if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
-            if (lblStockWeight != null) lblStockWeight.Text = tW.ToString("N2") + " kg";
+            if (stocks != null)
+            {
+                foreach (var s in stocks)
+                {
+                    tQ += s.Qty_Stock;
+                    tW += s.Weight_Stock;
+                }
+                if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Count} mục";
+                if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
+                if (lblStockWeight != null) lblStockWeight.Text = tW.ToString("N2") + " kg";
+            }
+
+            // Thủ thuật nhỏ: Để CheckBox phản hồi click chuột ngay lập tức (không cần click 2 lần)
+            dgvStock.EditMode = DataGridViewEditMode.EditOnEnter;
         }
 
         private void BuildQueueColumns()
@@ -2576,6 +2874,19 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        private void DgvSelectedMakeExport_EditingControlShowing(object? sender, DataGridViewEditingControlShowingEventArgs e)
+        {
+            e.Control.KeyPress -= new KeyPressEventHandler(Column_KeyPress);
+            if (dgvStock.CurrentCell.ColumnIndex == dgvImportQueue.Columns["SL_Nhap"].Index)
+            {
+                TextBox tb = e.Control as TextBox;
+                if (tb != null)
+                {
+                    tb.KeyPress += new KeyPressEventHandler(Column_KeyPress);
+                }
+            }
+        }
+
         // =====================================================
         //  ÁP DỤNG PHÂN QUYỀN
         // =====================================================
@@ -2585,5 +2896,18 @@ namespace MPR_Managerment.Forms
             if (btnDeleteRow != null) PermissionHelper.Apply(btnDeleteRow, "WAREHOUSE", "Lưu hóa đơn");
         }
 
+    }
+
+    public class SelectedItemModel
+    {
+        public object Import_ID { get; set; }
+        public string Ma_Phieu { get; set; }
+        public string Ten_Vat_Tu { get; set; }
+        public string Vat_Lieu { get; set; }
+        public string Kich_Thuoc { get; set; }
+        public string DVT { get; set; }
+        public string Item_Code { get; set; }
+        public decimal SL_Ton { get; set; }
+        public decimal SL_Xuat { get; set; } // Thuộc tính này sẽ cho phép chỉnh sửa
     }
 }
