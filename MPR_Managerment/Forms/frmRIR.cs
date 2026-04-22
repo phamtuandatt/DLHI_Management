@@ -578,7 +578,9 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Heatno", HeaderText = "Heat No", Width = 90 });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100 });
 
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO Detail No", Width = 100, Visible = false }); // Add column PO_Detail_ID
+            bool isAdmin = false;
+            if (AppSession.CurrentUser.Role_ID == 1) isAdmin = true;
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO Detail No", Width = 100, Visible = isAdmin }); // Add column PO_Detail_ID
 
             var cboResult = new DataGridViewComboBoxColumn
             {
