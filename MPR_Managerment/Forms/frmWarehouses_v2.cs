@@ -1566,9 +1566,9 @@ namespace MPR_Managerment.Forms
                     dlg.BackColor = Color.White;
 
                     Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Color.FromArgb(240, 240, 240) };
-                    Button btnSave = new Button { Text = "Lưu Phiếu", Width = 100, Height = 35, Location = new Point(10, 7), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                    Button btnDelete = new Button { Text = "Xóa dòng", Width = 100, Height = 35, Location = new Point(120, 7), BackColor = Color.FromArgb(232, 17, 35), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                    Button btnClose = new Button { Text = "Thoát", Width = 100, Height = 35, Location = new Point(230, 7), BackColor = Color.Gray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                    Button btnSave = new Button { Text = "💾 Lưu phiếu", Font = new Font("Segoe UI", 9, FontStyle.Bold), Width = 100, Height = 35, Location = new Point(10, 7), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                    Button btnDelete = new Button { Text = "🗑 Xóa dòng", Font = new Font("Segoe UI", 9, FontStyle.Bold), Width = 100, Height = 35, Location = new Point(120, 7), BackColor = Color.FromArgb(232, 17, 35), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                    Button btnClose = new Button { Text = "✖ Thoát", Font = new Font("Segoe UI", 9, FontStyle.Bold), Width = 100, Height = 35, Location = new Point(230, 7), BackColor = Color.Gray, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
 
                     pnlHeader.Controls.AddRange(new Control[] { btnSave, btnDelete, btnClose });
 
@@ -1762,8 +1762,19 @@ namespace MPR_Managerment.Forms
                                 package.Save();
                             }
 
-                            MessageBox.Show("Xuất phiếu xuất kho thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            dlg.DialogResult = DialogResult.OK;
+                            //MessageBox.Show("Xuất phiếu xuất kho thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            //dlg.DialogResult = DialogResult.OK;
+                            var result = MessageBox.Show(
+                            $"✅ Xuất phiếu nhập kho thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file ngay không?",
+                            "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                            if (result == DialogResult.Yes)
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = saveDialog.FileName,
+                                    UseShellExecute = true
+                                });
+                            }
                         }
                         catch (Exception ex)
                         {
