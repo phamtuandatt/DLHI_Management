@@ -1498,7 +1498,7 @@ namespace MPR_Managerment.Forms
             var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(537, fy - 3), 80, 28);
             var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(627, fy - 3), 130, 28);
             var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(767, fy - 3), 100, 28);
-            var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(108, 117, 125), new Point(915, fy - 1), 200, 28);
+            var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(86, 56, 103), new Point(915, fy - 3), 200, 28);
             b1.Click += async (s, e) => await LoadStock();
             b2.Click += (s, e) => LoadStockOnly();
             b3.Click += async (s, e) => await LoadStock(true);
@@ -1670,22 +1670,105 @@ namespace MPR_Managerment.Forms
                     btnSave.Click += (s, ev) => {
                         dgvSelected.EndEdit();
 
-                        // Gom dữ liệu ngược lại từ Grid vào List để xử lý tiếp (nếu cần)
-                        List<SelectedItemModel> finalData = new List<SelectedItemModel>();
-                        foreach (DataGridViewRow row in dgvSelected.Rows)
+                        if (dgvSelected.Rows.Count == 0)
                         {
-                            finalData.Add(new SelectedItemModel
-                            {
-                                Import_ID = row.Cells["Import_ID"].Value,
-                                SL_Xuat = Convert.ToDecimal(row.Cells["SL_Xuat"].Value)
-                                // ... các trường khác tương tự
-                            });
-
-                            // HÃY THAY THỂ ĐOẠN CODE XUẤT FILE EXCEL Ở ĐÂY
+                            MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
                         }
 
-                        MessageBox.Show("Đã xác nhận dữ liệu. Sẵn sàng lưu " + dgvSelected.Rows.Count + " dòng.", "Thông báo");
-                        dlg.DialogResult = DialogResult.OK;
+                        try
+                        {
+                            string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pxk_template.xlsx");
+                            if (!File.Exists(templatePath))
+                            {
+                                MessageBox.Show("Không tìm thấy file template!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                return;
+                            }
+
+                            var saveDialog = new SaveFileDialog
+                            {
+                                Title = "Lưu Phiếu Xuất Kho",
+                                Filter = "Excel Files|*.xlsx",
+                                FileName = $"PXK_{DateTime.Now:ddMMyyyy_HHmm}"
+                            };
+
+                            if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+                            File.Copy(templatePath, saveDialog.FileName, true);
+                            OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
+                            using (var package = new OfficeOpenXml.ExcelPackage(new FileInfo(saveDialog.FileName)))
+                            {
+                                var ws = package.Workbook.Worksheets[0]; // Lấy sheet "PXK"
+
+                                // 1. Thay thế <<DATE>> (Giả định nằm ở ô H8 dựa trên cấu trúc template của bạn)
+                                // Tìm kiếm text <<DATE>> trong vùng Header để thay thế
+                                for (int r = 1; r <= 10; r++)
+                                {
+                                    for (int c = 1; c <= 10; c++)
+                                    {
+                                        if (ws.Cells[r, c].Text.Contains("<<DATE>>"))
+                                        {
+                                            ws.Cells[r, c].Value = ws.Cells[r, c].Text.Replace("<<DATE>>", DateTime.Now.ToString("dd/MM/yyyy"));
+                                        }
+                                    }
+                                }
+
+                                int startRow = 11; // Dòng bắt đầu điền dữ liệu (Dòng có STT 1)
+                                int detailCount = dgvSelected.Rows.Count;
+                                decimal totalQty = 0;
+
+                                // 2. Chèn dòng nếu nhiều hơn 1 item để không đè lên phần chữ ký
+                                if (detailCount > 1)
+                                {
+                                    ws.InsertRow(startRow + 1, detailCount - 1, startRow);
+                                }
+
+                                // 3. Vòng lặp điền dữ liệu
+                                for (int i = 0; i < detailCount; i++)
+                                {
+                                    var row = dgvSelected.Rows[i];
+                                    int currentRow = startRow + i;
+
+                                    decimal slXuat = Convert.ToDecimal(row.Cells["SL_Xuat"].Value ?? 0);
+                                    totalQty += slXuat;
+
+                                    ws.Cells[currentRow, 1].Value = i + 1; // Cột No (A)
+                                    ws.Cells[currentRow, 2].Value = row.Cells["Item_Code"].Value; // Cột Code (B)
+                                    ws.Cells[currentRow, 3].Value = row.Cells["Ten_Vat_Tu"].Value; // Cột Name (C)
+                                    ws.Cells[currentRow, 4].Value = /*row.Cells["Ma_Phieu"].Value*/ ""; // Cột DWG No (D)
+                                    ws.Cells[currentRow, 5].Value = row.Cells["Kich_Thuoc"].Value; // Cột Size (E)
+                                    ws.Cells[currentRow, 6].Value = row.Cells["Vat_Lieu"].Value; // Cột Grade (F)
+                                    ws.Cells[currentRow, 7].Value = slXuat; // Cột Q'ty (G)
+                                    ws.Cells[currentRow, 8].Value = row.Cells["DVT"].Value; // Cột Unit (H)
+                                }
+
+                                // 4. Tìm và thay thế <<SUM>> bằng tổng thực tế
+                                // Duyệt tìm ô chứa <<SUM>> bên dưới vùng dữ liệu vừa điền
+                                int searchEndRow = startRow + detailCount + 5;
+                                for (int r = startRow + detailCount; r <= searchEndRow; r++)
+                                {
+                                    for (int c = 1; c <= 10; c++)
+                                    {
+                                        if (ws.Cells[r, c].Text.Contains("<<SUM>>"))
+                                        {
+                                            ws.Cells[r, c].Value = totalQty;
+                                            ws.Cells[r, c].Style.Font.Bold = true;
+                                            ws.Cells[r, c].Style.Numberformat.Format = "#,##0";
+                                        }
+                                    }
+                                }
+
+                                package.Save();
+                            }
+
+                            MessageBox.Show("Xuất phiếu xuất kho thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            dlg.DialogResult = DialogResult.OK;
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
                     };
 
                     btnClose.Click += (s, ev) => { dlg.Close(); };
@@ -1697,7 +1780,7 @@ namespace MPR_Managerment.Forms
             }
             else
             {
-                MessageBox.Show("Vui lòng chọn ít nhất một dòng!");
+                MessageBox.Show("Vui lòng chọn ít nhất một dòng!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
