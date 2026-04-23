@@ -251,7 +251,7 @@ namespace MPR_Managerment.Forms
             panelHeader.Controls.Add(dgvFiles);
 
             // BẢNG THEO DÕI GIAO HÀNG — bọc trong Panel con để tọa độ nội bộ luôn chính xác
-            const int delivW = 550;
+            const int delivW = 600;
             const int delivGap = 6;
             int delivLeft = (panelHeader.Width - gridFilesWidth - 10) - delivW - delivGap;
 
@@ -4207,14 +4207,49 @@ namespace MPR_Managerment.Forms
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
                 });
 
+                // ── Thanh lọc PO ──────────────────────────────────────────────
+                var pFilter = new Panel
+                {
+                    Location = new Point(10, 62),
+                    Size = new Size(popup.ClientSize.Width - 20, 30),
+                    BackColor = Color.FromArgb(245, 245, 245),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                popup.Controls.Add(pFilter);
+
+                pFilter.Controls.Add(new Label { Text = "🔍 Lọc PO:", Location = new Point(0, 6), Size = new Size(65, 20), Font = new Font("Segoe UI", 9) });
+                var txtFilterPO = new TextBox
+                {
+                    Location = new Point(67, 3),
+                    Size = new Size(200, 24),
+                    Font = new Font("Segoe UI", 9),
+                    PlaceholderText = "Nhập PO No..."
+                };
+                pFilter.Controls.Add(txtFilterPO);
+
+                var btnClearFilter = new Button
+                {
+                    Text = "✖ Xóa lọc",
+                    Location = new Point(275, 2),
+                    Size = new Size(80, 26),
+                    BackColor = Color.FromArgb(108, 117, 125),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+                btnClearFilter.FlatAppearance.BorderSize = 0;
+                pFilter.Controls.Add(btnClearFilter);
+
                 // DataGridView
                 var dgv = new DataGridView
                 {
-                    Location = new Point(10, 64),
-                    Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 110),
+                    Location = new Point(10, 98),
+                    Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 144),
                     ReadOnly = false,
                     AllowUserToAddRows = false,
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    MultiSelect = true,
                     BackgroundColor = Color.White,
                     BorderStyle = BorderStyle.FixedSingle,
                     RowHeadersVisible = false,
@@ -4254,12 +4289,19 @@ namespace MPR_Managerment.Forms
                     dgv.Rows[ri].Cells["Ngày tạo"].Value = dr["Ngày tạo"];
                 }
 
-
-
-
-
-
-
+                // ── Logic lọc theo PO No ──
+                Action applyFilter = () =>
+                {
+                    string kw = txtFilterPO.Text.Trim().ToLower();
+                    foreach (DataGridViewRow r in dgv.Rows)
+                    {
+                        string poVal = r.Cells["PO No"].Value?.ToString()?.ToLower() ?? "";
+                        r.Visible = string.IsNullOrEmpty(kw) || poVal.Contains(kw);
+                    }
+                };
+                txtFilterPO.TextChanged += (s, ev) => applyFilter();
+                txtFilterPO.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) applyFilter(); };
+                btnClearFilter.Click += (s, ev) => { txtFilterPO.Clear(); applyFilter(); };
 
                 dgv.CellFormatting += (s, ev) =>
                 {
@@ -4331,6 +4373,69 @@ namespace MPR_Managerment.Forms
                 };
                 popup.Controls.Add(btnSaveNote);
 
+                // ── Nút Xóa dòng (yêu cầu mật khẩu Admin) ──
+                var btnDel = new Button
+                {
+                    Text = "🗑 Xóa dòng",
+                    Size = new Size(115, 30),
+                    BackColor = Color.FromArgb(220, 53, 69),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+                    Cursor = Cursors.Hand,
+                    Location = new Point(140, popup.ClientSize.Height - 40)
+                };
+                btnDel.FlatAppearance.BorderSize = 0;
+                btnDel.Click += (s, ev) =>
+                {
+                    var selected = dgv.SelectedRows.Cast<DataGridViewRow>()
+                        .Where(r => !r.IsNewRow)
+                        .ToList();
+                    if (selected.Count == 0)
+                    {
+                        MessageBox.Show("Vui lòng chọn ít nhất một dòng cần xóa!", "Thông báo",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    string confirmMsg = selected.Count == 1
+                        ? "Xóa dòng này khỏi Delivery Tracking History?"
+                        : $"Xóa {selected.Count} dòng đã chọn khỏi Delivery Tracking History?";
+                    if (MessageBox.Show(confirmMsg, "Xác nhận", MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+                    // Yêu cầu mật khẩu Admin
+                    if (!VerifyAdminPassword()) return;
+
+                    try
+                    {
+                        using var conn3 = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                        conn3.Open();
+                        int deleted = 0;
+                        foreach (var row in selected)
+                        {
+                            int tid = Convert.ToInt32(row.Cells["TrackID"].Value ?? 0);
+                            if (tid <= 0) continue;
+                            var cmdDel = new Microsoft.Data.SqlClient.SqlCommand(
+                                "DELETE FROM PO_DeliveryTracking WHERE TrackID = @id", conn3);
+                            cmdDel.Parameters.AddWithValue("@id", tid);
+                            deleted += cmdDel.ExecuteNonQuery();
+                        }
+                        // Xóa dòng khỏi grid
+                        foreach (var row in selected)
+                            if (dgv.Rows.Contains(row)) dgv.Rows.Remove(row);
+                        LoadDeliveries();
+                        MessageBox.Show($"✅ Đã xóa {deleted} dòng thành công!", "Thành công",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex3)
+                    {
+                        MessageBox.Show("Lỗi xóa: " + ex3.Message, "Lỗi",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+                popup.Controls.Add(btnDel);
+
                 // Nút đóng
                 var btnClose = new Button
                 {
@@ -4350,7 +4455,10 @@ namespace MPR_Managerment.Forms
                 popup.CancelButton = btnClose;
                 popup.Resize += (s, ev) =>
                 {
+                    pFilter.Width = popup.ClientSize.Width - 20;
+                    dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 144);
                     btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
+                    btnDel.Location = new Point(140, popup.ClientSize.Height - 40);
                     btnSaveNote.Location = new Point(10, popup.ClientSize.Height - 40);
                 };
 
