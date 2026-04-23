@@ -144,10 +144,13 @@ namespace MPR_Managerment.Models
         public static bool CanView(string moduleCode)
         {
             if (IsAdmin) return true;
-            // Ưu tiên DetailedPermissions — đây là data thực tế được lưu
             if (_detailedPermissions.Count > 0)
-                return HasPermission(moduleCode, "Xem");
-            // Fallback: List<UserPermission> (nếu UserService.Login populate)
+            {
+                // Kiểm tra key "MODULE:Xem" trước
+                if (_detailedPermissions.TryGetValue(moduleCode + ":Xem", out bool v))
+                    return v;
+                // Key không có → fallback về Can_View từ UserPermission
+            }
             return GetPermission(moduleCode)?.Can_View ?? false;
         }
 

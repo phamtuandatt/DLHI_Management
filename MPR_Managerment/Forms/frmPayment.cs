@@ -695,6 +695,14 @@ namespace MPR_Managerment.Forms
             {
                 if (ev.RowIndex < 0) return;
                 if (dgvHistory.Columns[ev.ColumnIndex].Name != "H_Paid") return;
+                // Kiểm tra quyền tick Đã TT
+                if (!PermissionHelper.HasPermission("PAYMENT", "Tick Đã TT"))
+                {
+                    dgvHistory.EndEdit();
+                    dgvHistory.Rows[ev.RowIndex].Cells["H_Paid"].Value = false;
+                    Warn("Bạn không có quyền đánh dấu 'Đã TT'!");
+                    return;
+                }
                 string status = dgvHistory.Rows[ev.RowIndex].Cells["H_Status"].Value?.ToString() ?? "";
                 if (status != "Approval")
                 {
@@ -1195,6 +1203,7 @@ namespace MPR_Managerment.Forms
 
         private void BtnSavePaymentStatus_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Lưu trạng thái", "Lưu trạng thái thanh toán")) return;
             if (dgvHistory.SelectedRows.Count == 0 && dgvHistory.CurrentRow == null)
             { Warn("Vui lòng chọn một dòng!"); return; }
 
@@ -1274,6 +1283,7 @@ namespace MPR_Managerment.Forms
         // Lưu các dòng Approval + đã tick Đã TT vào bảng PO_HistoryPaid
         private void BtnSaveHistoryPaid_Click(object sender, EventArgs e)
         {
+            if (!PermissionHelper.Check("PAYMENT", "Lưu thông tin thanh toán", "Lưu thông tin thanh toán")) return;
             dgvHistory.EndEdit();
 
             var toSave = dgvHistory.Rows.Cast<DataGridViewRow>()

@@ -70,7 +70,8 @@ namespace MPR_Managerment.Forms
                 new[]{ "Xem","Tạo PO","Lưu PO","Xóa PO","Import MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Payment","Revise History","Tìm theo NCC","Check by size","Xuất Excel","Xem đơn giá","Xem TT trước thuế","Xem TT sau thuế" }),
 
             new ModuleDef("PAYMENT",  "Thanh toán (Payment)",
-                new[]{ "Xem","Thêm đợt","Lưu","Xóa","Request to EC","In Request","Ghi nhận TT","Xuất Excel","Xem báo cáo","Xem TT trước thuế","Xem TT sau thuế" }),
+                new[]{ "Xem","Thêm đợt","Lưu","Xóa","Request to EC","In Request","Ghi nhận TT","Xuất Excel","Xem báo cáo","Xem TT trước thuế","Xem TT sau thuế",
+                       "Lưu trạng thái","Lưu thông tin thanh toán","Tick Đã TT" }),
 
             new ModuleDef("RIR",      "Nhận hàng (RIR)",
                 new[]{ "Xem","Tạo RIR","Lưu Header","Xóa RIR","In RIR","Import Phiếu Nhập","Thêm dòng","Lưu chi tiết","Xóa dòng" }),
