@@ -12,6 +12,111 @@ namespace MPR_Managerment.Common
     {
         private static readonly System.Globalization.CultureInfo _numCulture = new System.Globalization.CultureInfo("vi-VN");
 
+        public static void CreateDataGridView(DataGridView dgv)
+        {
+            //dgv.ReadOnly = false; // Phải để false để có thể click vào CheckBox
+            //dgv.RowHeadersVisible = false;
+            dgv.AllowUserToAddRows = false;
+            dgv.SelectionMode = DataGridViewSelectionMode.CellSelect;
+            dgv.BackgroundColor = Color.White;
+            dgv.BorderStyle = BorderStyle.FixedSingle;
+            dgv.Font = new Font("Segoe UI", 9);
+            dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgv.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            dgv.Margin = new Padding(0, 100, 0, 0);
+
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgv.EnableHeadersVisualStyles = false;
+            dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgv.Dock = DockStyle.Fill;
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
+
+            dgv.RowPostPaint += (s, e) =>
+            {
+                RenderNumbering(s, e);
+            };
+        }
+
+        public static void CreateButtonSave(Button btn)
+        {
+            btn.Text = "💾 Lưu phiếu";
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btn.Cursor = Cursors.Hand;
+            btn.BackColor = Color.FromArgb(0, 120, 212);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+        }
+
+        public static void CreateButtonAdd(Button btn)
+        {
+            btn.Text = "✔ Thêm vào phiếu";
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btn.Cursor = Cursors.Hand;
+            btn.BackColor = Color.FromArgb(40, 167, 69);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+        }
+
+        public static void CreateButtonCancel(Button btn, string text)
+        {
+            btn.Text = "🆕 Phiếu mới";
+            btn.BackColor = Color.FromArgb(108, 117, 125);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btn.Cursor = Cursors.Hand;
+        }
+
+        public static void CreateButtonSearch(Button btn, string text)
+        {
+            btn.Text = "🔍 Tìm";
+            btn.Cursor = Cursors.Hand;
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btn.BackColor = Color.FromArgb(0, 120, 212);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+        }
+
+        public static void CreateButtonDelete(Button btn, string text)
+        {
+            btn.Text = "🗑 Xóa dòng";
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btn.BackColor = Color.FromArgb(232, 17, 35);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.Cursor = Cursors.Hand;
+        }
+
+        public static void CreateButtonPrint(Button btn)
+        {
+            btn.Text = "🖨 In MPR";
+            btn.BackColor = Color.FromArgb(33, 115, 70);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        }
+
+        public static void Column_KeyPress_Digital(object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar) && (e.KeyChar != '.'))
+            {
+                e.Handled = true;
+            }
+        }
+
+        public static Label AddCard(Panel p, string title, string value, Color color, int x)
+        {
+            var card = new Panel { BackColor = color };
+            p.Controls.Add(card);
+            card.Controls.Add(new Label { Text = title, Font = new Font("Segoe UI", 8, FontStyle.Bold), ForeColor = Color.White });
+            var lbl = new Label { Text = value, Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.White };
+            card.Controls.Add(lbl);
+            return lbl;
+        }
+
         public static void UpdateSelectionSum(DataGridView dgv, Label lblStatus)
         {
             decimal totalSum = 0;
@@ -267,7 +372,7 @@ namespace MPR_Managerment.Common
             };
 
             var headerBounds = new Rectangle(e.RowBounds.Left, e.RowBounds.Top, grid.RowHeadersWidth, e.RowBounds.Height);
-            e.Graphics.DrawString(rowIdx, new Font("Arial", 12.0f), SystemBrushes.ControlText, headerBounds, centerFormat);
+            e.Graphics.DrawString(rowIdx, new Font("Segoe UI", 9.0f), SystemBrushes.ControlText, headerBounds, centerFormat);
         }
 
         public static void ApplyCustomFormatting(DataGridViewCellFormattingEventArgs e, DataGridView dgv, string targetColumn, List<StringRule> strRules = null, List<NumericRule> numRules = null)
