@@ -805,7 +805,9 @@ namespace MPR_Managerment.Forms
         {
             try
             {
+                // _mprList luôn là TOÀN BỘ — dùng để tính maxRev trong IsOldRevision
                 _mprList = _service.GetAll();
+                // Hiển thị toàn bộ, style được áp dụng ngay trong BindMPRGrid
                 BindMPRGrid(_mprList);
                 lblStatus.Text = $"Tổng: {_mprList.Count} phiếu MPR";
             }
@@ -813,6 +815,29 @@ namespace MPR_Managerment.Forms
             {
                 MessageBox.Show("Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        // Helper: xác định MPR_No có phải bản Revise cũ không
+        // Luôn so sánh với _mprList (toàn bộ) để maxRev chính xác kể cả khi đang filter
+        private bool IsOldRevision(string mprNo, List<MPRHeader> allList = null)
+        {
+            if (string.IsNullOrEmpty(mprNo)) return false;
+            var refList = allList ?? _mprList; // ưu tiên allList, fallback về _mprList
+            string baseNo = mprNo.Contains("_Rev.")
+                ? mprNo.Substring(0, mprNo.IndexOf("_Rev."))
+                : mprNo;
+            // Tìm Rev cao nhất trong nhóm cùng baseMprNo trong toàn bộ _mprList
+            int maxRev = -1;
+            foreach (var m in _mprList)
+            {
+                string b = m.MPR_No.Contains("_Rev.")
+                    ? m.MPR_No.Substring(0, m.MPR_No.IndexOf("_Rev."))
+                    : m.MPR_No;
+                if (b == baseNo && m.Rev > maxRev) maxRev = m.Rev;
+            }
+            // Lấy Rev của MPR_No đang xét từ refList
+            var cur = refList.Find(m => m.MPR_No == mprNo);
+            return cur != null && cur.Rev < maxRev;
         }
 
         private void BindMPRGrid(List<MPRHeader> list)
@@ -832,6 +857,27 @@ namespace MPR_Managerment.Forms
             });
             if (dgvMPR.Columns.Contains("ID"))
                 dgvMPR.Columns["ID"].Visible = false;
+
+            // Style dòng MPR cũ (bị supersede bởi bản Revise mới hơn)
+            // Luôn dùng _mprList (toàn bộ) để tính maxRev đúng kể cả khi đang filter
+            foreach (DataGridViewRow row in dgvMPR.Rows)
+            {
+                if (row.IsNewRow) continue;
+                string mno = row.Cells["MPR_No"]?.Value?.ToString() ?? "";
+                if (IsOldRevision(mno))
+                {
+                    row.DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
+                    row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
+                    row.DefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
+                }
+                else
+                {
+                    // Reset về style mặc định (tránh giữ style cũ khi rebind)
+                    row.DefaultCellStyle.ForeColor = dgvMPR.DefaultCellStyle.ForeColor;
+                    row.DefaultCellStyle.Font = dgvMPR.DefaultCellStyle.Font;
+                    row.DefaultCellStyle.BackColor = dgvMPR.DefaultCellStyle.BackColor;
+                }
+            }
         }
 
         // ===== LOAD TỔNG HỢP TIẾN ĐỘ PO =====
@@ -1044,15 +1090,17 @@ namespace MPR_Managerment.Forms
             try
             {
                 string kw = txtSearch.Text.Trim();
-                _mprList = string.IsNullOrEmpty(kw)
-                    ? _service.GetAll()
-                    : _service.GetAll().FindAll(m =>
+                // _mprList luôn được reload đầy đủ để IsOldRevision tính maxRev đúng
+                _mprList = _service.GetAll();
+                var filteredList = string.IsNullOrEmpty(kw)
+                    ? _mprList
+                    : _mprList.FindAll(m =>
                         (m.MPR_No ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                         (m.Project_Name ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                         (m.Project_Code ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase));
 
-                BindMPRGrid(_mprList);
-                lblStatus.Text = $"Tìm thấy: {_mprList.Count} phiếu";
+                BindMPRGrid(filteredList);
+                lblStatus.Text = $"Tìm thấy: {filteredList.Count} phiếu";
             }
             catch (Exception ex)
             {
@@ -1667,18 +1715,47 @@ namespace MPR_Managerment.Forms
             {
                 using var conn = DatabaseHelper.GetConnection();
                 conn.Open();
-                var cmd = new SqlCommand("SELECT MPR_ID, MPR_No, Rev FROM MPR_Header WHERE Project_Code=@code ORDER BY MPR_No", conn);
+                var cmd = new SqlCommand(
+                    "SELECT MPR_ID, MPR_No, Rev FROM MPR_Header " +
+                    "WHERE Project_Code=@code ORDER BY MPR_No", conn);
                 cmd.Parameters.AddWithValue("@code", projCode);
                 using var rdr = cmd.ExecuteReader();
                 while (rdr.Read())
                 {
                     int r = dgvMPRList.Rows.Add();
-                    dgvMPRList.Rows[r].Cells["RMprId"].Value = rdr["MPR_ID"];
-                    dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"];
-                    dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"];
+                    dgvMPRList.Rows[r].Cells["RMprId"].Value = rdr["MPR_ID"]?.ToString();
+                    dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"]?.ToString();
+                    dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"]?.ToString();
                 }
             }
             catch { }
+
+            // Style dòng MPR cũ (bị supersede bởi bản Revise mới hơn)
+            // Tính maxRev theo từng baseMprNo trong danh sách vừa load
+            var mprRevMap = new Dictionary<string, int>(); // baseMprNo → maxRev
+            foreach (DataGridViewRow rowM in dgvMPRList.Rows)
+            {
+                if (rowM.IsNewRow) continue;
+                string mno = rowM.Cells["RMprNo"]?.Value?.ToString() ?? "";
+                string bno = mno.Contains("_Rev.") ? mno.Substring(0, mno.IndexOf("_Rev.")) : mno;
+                int rev = int.TryParse(rowM.Cells["RMprRev"]?.Value?.ToString(), out int rv) ? rv : 0;
+                if (!mprRevMap.ContainsKey(bno) || rev > mprRevMap[bno])
+                    mprRevMap[bno] = rev;
+            }
+            foreach (DataGridViewRow rowM in dgvMPRList.Rows)
+            {
+                if (rowM.IsNewRow) continue;
+                string mno = rowM.Cells["RMprNo"]?.Value?.ToString() ?? "";
+                string bno = mno.Contains("_Rev.") ? mno.Substring(0, mno.IndexOf("_Rev.")) : mno;
+                int rev = int.TryParse(rowM.Cells["RMprRev"]?.Value?.ToString(), out int rv2) ? rv2 : 0;
+                bool isOld = mprRevMap.ContainsKey(bno) && rev < mprRevMap[bno];
+                if (isOld)
+                {
+                    rowM.DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
+                    rowM.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
+                    rowM.DefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
+                }
+            }
 
             // Bảng chi tiết
             dlg.Controls.Add(new Label { Text = "CHI TIẾT VẬT TƯ", Location = new Point(278, 8), Size = new Size(400, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) });
