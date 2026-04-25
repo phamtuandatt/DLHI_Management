@@ -130,11 +130,17 @@ namespace MPR_Managerment.Forms
             btnSearch.Click += BtnSearch_Click;
             panelTop.Controls.Add(btnSearch);
 
-            btnNewMPR = CreateButton("➕ Tạo MPR", Color.FromArgb(40, 167, 69), new Point(415, 47), 110, 30);
+            // ── "➕ Tạo MPR" mới: mở popup tạo MPR ──
+            var btnCreateMPR = CreateButton("➕ Tạo MPR", Color.FromArgb(40, 167, 69), new Point(415, 47), 110, 30);
+            btnCreateMPR.Click += BtnCreateMPR_Click;
+            panelTop.Controls.Add(btnCreateMPR);
+
+            // ── "Update from Excel": chức năng cũ của btnNewMPR ──
+            btnNewMPR = CreateButton("📥 Update from Excel", Color.FromArgb(0, 140, 120), new Point(533, 47), 155, 30);
             btnNewMPR.Click += BtnNewMPR_Click;
             panelTop.Controls.Add(btnNewMPR);
 
-            btnDeleteMPR = CreateButton("🗑 Xóa MPR", Color.FromArgb(220, 53, 69), new Point(535, 47), 110, 30);
+            btnDeleteMPR = CreateButton("🗑 Xóa MPR", Color.FromArgb(220, 53, 69), new Point(696, 47), 110, 30);
             btnDeleteMPR.Click += BtnDeleteMPR_Click;
             panelTop.Controls.Add(btnDeleteMPR);
 
@@ -169,6 +175,7 @@ namespace MPR_Managerment.Forms
             dgvMPR.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
             dgvMPR.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvMPR.SelectionChanged += DgvMPR_SelectionChanged;
+            dgvMPR.DataError += (s, ev) => { ev.Cancel = true; };
             panelTop.Controls.Add(dgvMPR);
 
             // ===== PANEL HEADER =====
@@ -372,6 +379,7 @@ namespace MPR_Managerment.Forms
             dgvDetails.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvDetails.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgvDetails.CellFormatting += DgvDetails_CellFormatting;
+            dgvDetails.DataError += (s, ev) => { ev.Cancel = true; }; // chặn popup lỗi format
             dgvDetails.KeyDown += DgvDetails_GridKeyDown;
             // Cho phep copy nhieu o
             dgvDetails.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
@@ -412,6 +420,7 @@ namespace MPR_Managerment.Forms
             dgvPOProgress.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
             dgvPOProgress.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvPOProgress.CellFormatting += DgvPOProgress_CellFormatting;
+            dgvPOProgress.DataError += (s, ev) => { ev.Cancel = true; };
             dgvPOProgress.CellDoubleClick += DgvPOProgress_CellDoubleClick;
             panelDetail.Controls.Add(dgvPOProgress);
 
@@ -637,6 +646,18 @@ namespace MPR_Managerment.Forms
         private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
+
+            // Dòng bị xóa mềm: giữ nguyên style gạch ngang, không override bởi format khác
+            var rowDel = dgvDetails.Rows[e.RowIndex];
+            if (rowDel.DefaultCellStyle.Font?.Strikeout == true)
+            {
+                e.CellStyle.ForeColor = Color.FromArgb(160, 160, 160);
+                e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
+                e.CellStyle.BackColor = Color.FromArgb(245, 245, 245);
+                e.FormattingApplied = true;
+                return;
+            }
+
             string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
             if (colName == "Thickness_mm" || colName == "Depth_mm" ||
@@ -869,8 +890,8 @@ namespace MPR_Managerment.Forms
                                      SELECT Detail_ID
                                      FROM   MPR_Details
                                      WHERE  MPR_ID = @mprId
+                                       AND  Is_Deleted = 0  -- chỉ lấy PO của dòng active
                                  )
-                AND ISNULL(poh.Status,'') <> 'Cancelled'
                         ORDER BY pod.MPR_Detail_ID, poh.PONo";
 
                     using (var cmd = new SqlCommand(sql, conn))
@@ -923,25 +944,35 @@ namespace MPR_Managerment.Forms
                     int idx = dgvDetails.Rows.Add();
                     var row = dgvDetails.Rows[idx];
 
-                    row.Cells["Detail_ID"].Value = d.Detail_ID;
-                    row.Cells["Item_No"].Value = d.Item_No;
+                    row.Cells["Detail_ID"].Value = d.Detail_ID.ToString();
+                    row.Cells["Item_No"].Value = d.Item_No.ToString();
                     row.Cells["Item_Name"].Value = d.Item_Name;
                     row.Cells["Description"].Value = d.Description;
                     row.Cells["Material"].Value = d.Material;
-                    row.Cells["Thickness_mm"].Value = d.Thickness_mm;
-                    row.Cells["Depth_mm"].Value = d.Depth_mm;
-                    row.Cells["C_Width_mm"].Value = d.C_Width_mm;
-                    row.Cells["D_Web_mm"].Value = d.D_Web_mm;
-                    row.Cells["E_Flange_mm"].Value = d.E_Flange_mm;
-                    row.Cells["F_Length_mm"].Value = d.F_Length_mm;
+                    row.Cells["Thickness_mm"].Value = d.Thickness_mm == 0 ? "" : d.Thickness_mm.ToString("G29");
+                    row.Cells["Depth_mm"].Value = d.Depth_mm == 0 ? "" : d.Depth_mm.ToString("G29");
+                    row.Cells["C_Width_mm"].Value = d.C_Width_mm == 0 ? "" : d.C_Width_mm.ToString("G29");
+                    row.Cells["D_Web_mm"].Value = d.D_Web_mm == 0 ? "" : d.D_Web_mm.ToString("G29");
+                    row.Cells["E_Flange_mm"].Value = d.E_Flange_mm == 0 ? "" : d.E_Flange_mm.ToString("G29");
+                    row.Cells["F_Length_mm"].Value = d.F_Length_mm == 0 ? "" : d.F_Length_mm.ToString("G29");
                     row.Cells["UNIT"].Value = d.UNIT;
-                    row.Cells["Qty"].Value = d.Qty_Per_Sheet;
-                    row.Cells["Weight"].Value = d.Weight_kg;
+                    row.Cells["Qty"].Value = d.Qty_Per_Sheet == 0 ? "" : d.Qty_Per_Sheet.ToString("G29");
+                    row.Cells["Weight"].Value = d.Weight_kg == 0 ? "" : d.Weight_kg.ToString("G29");
                     row.Cells["MPS_Info"].Value = d.MPS_Info;
                     row.Cells["Usage_Location"].Value = d.Usage_Location;
                     row.Cells["REV"].Value = d.REV;
                     row.Cells["Remarks"].Value = d.Remarks;
                     row.Cells["PO_No"].Value = poMapping.ContainsKey(d.Detail_ID) ? poMapping[d.Detail_ID] : "";
+
+                    // Nếu dòng bị xóa mềm → gạch ngang xám, không cho chỉnh sửa
+                    if (d.Is_Deleted)
+                    {
+                        row.DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
+                        row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
+                        row.DefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
+                        foreach (DataGridViewCell cell in row.Cells)
+                            cell.ReadOnly = true;
+                    }
                 }
                 // Populate combobox filter voi cac gia tri thuc te tu cot PO_No
                 RefreshPOFilterCombo();
@@ -1084,6 +1115,956 @@ namespace MPR_Managerment.Forms
                 ClearHeader();
                 txtMPRNo.Focus();
             }
+        }
+
+        // ── Popup Tạo MPR mới ─────────────────────────────────────────────────
+        private void BtnCreateMPR_Click(object sender, EventArgs e)
+        {
+            if (!PermissionHelper.Check("MPR", "Tạo MPR", "Tạo MPR")) return;
+            ShowCreateMPRPopup();
+        }
+
+        private void ShowCreateMPRPopup()
+        {
+            var dlg = new Form
+            {
+                Text = "➕ Tạo MPR mới",
+                Size = new Size(1100, 680),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.Sizable,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(245, 245, 245)
+            };
+
+            // ── Bảng tìm dự án (trái) ──────────────────────────────────────────
+            dlg.Controls.Add(new Label { Text = "🔍 Tìm dự án:", Location = new Point(10, 10), Size = new Size(90, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            var txtSearch = new TextBox { Location = new Point(102, 8), Size = new Size(180, 24), Font = new Font("Segoe UI", 9), PlaceholderText = "Mã/tên dự án..." };
+            dlg.Controls.Add(txtSearch);
+
+            var dgvProj = new DataGridView
+            {
+                Location = new Point(10, 38),
+                Size = new Size(272, 200),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            };
+            dgvProj.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvProj.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvProj.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvProj.EnableHeadersVisualStyles = false;
+            dgvProj.Columns.Add(new DataGridViewTextBoxColumn { Name = "ProjCode", HeaderText = "Mã DA", Width = 100 });
+            dgvProj.Columns.Add(new DataGridViewTextBoxColumn { Name = "ProjName", HeaderText = "Tên DA", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+            dlg.Controls.Add(dgvProj);
+
+            // Load và lọc projects
+            var allProjects = new List<MPR_Managerment.Models.ProjectInfo>();
+            try { allProjects = new ProjectService().GetAll(); } catch { }
+
+            void FilterProjects()
+            {
+                string kw = txtSearch.Text.Trim().ToLower();
+                dgvProj.Rows.Clear();
+                foreach (var p in allProjects)
+                {
+                    if (string.IsNullOrEmpty(kw)
+                        || (p.ProjectCode ?? "").ToLower().Contains(kw)
+                        || (p.ProjectName ?? "").ToLower().Contains(kw))
+                    {
+                        int r = dgvProj.Rows.Add();
+                        dgvProj.Rows[r].Cells["ProjCode"].Value = p.ProjectCode;
+                        dgvProj.Rows[r].Cells["ProjName"].Value = p.ProjectName;
+                        dgvProj.Rows[r].Tag = p;
+                    }
+                }
+            }
+            FilterProjects();
+            txtSearch.TextChanged += (s, ev) => FilterProjects();
+
+            // ── Thông tin dự án (chỉ đọc) ──────────────────────────────────────
+            int xInfo = 292;
+            dlg.Controls.Add(new Label { Text = "THÔNG TIN DỰ ÁN", Location = new Point(xInfo, 10), Size = new Size(300, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) });
+
+            Label LblF(string t2, int y) => new Label { Text = t2, Location = new Point(xInfo, y), Size = new Size(105, 20), Font = new Font("Segoe UI", 9) };
+            TextBox TxtR(int y) => new TextBox { Location = new Point(xInfo + 108, y), Size = new Size(280, 24), Font = new Font("Segoe UI", 9), ReadOnly = true, BackColor = Color.FromArgb(240, 240, 240) };
+
+            var tProjCode = TxtR(34); var tProjName = TxtR(62); var tDept = TxtR(90); var tReq = TxtR(118);
+            dlg.Controls.Add(LblF("Mã dự án:", 34)); dlg.Controls.Add(tProjCode);
+            dlg.Controls.Add(LblF("Tên dự án:", 62)); dlg.Controls.Add(tProjName);
+            dlg.Controls.Add(LblF("Department:", 90)); dlg.Controls.Add(tDept);
+            dlg.Controls.Add(LblF("Requestor:", 118)); dlg.Controls.Add(tReq);
+
+            // MPR No (có thể chỉnh sửa)
+            dlg.Controls.Add(new Label { Text = "MPR No (*):", Location = new Point(xInfo, 148), Size = new Size(105, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            var tMPRNo = new TextBox { Location = new Point(xInfo + 108, 146), Size = new Size(280, 24), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+            dlg.Controls.Add(tMPRNo);
+
+            dlg.Controls.Add(new Label { Text = "Required Date:", Location = new Point(xInfo, 176), Size = new Size(105, 20), Font = new Font("Segoe UI", 9) });
+            var dtp = new DateTimePicker { Location = new Point(xInfo + 108, 174), Size = new Size(180, 24), Font = new Font("Segoe UI", 9), Value = DateTime.Today.AddDays(30) };
+            dlg.Controls.Add(dtp);
+
+            dlg.Controls.Add(new Label { Text = "Notes:", Location = new Point(xInfo, 204), Size = new Size(105, 20), Font = new Font("Segoe UI", 9) });
+            var tNotes = new TextBox { Location = new Point(xInfo + 108, 202), Size = new Size(280, 24), Font = new Font("Segoe UI", 9) };
+            dlg.Controls.Add(tNotes);
+
+            // Khi chọn dự án → tự điền thông tin + tính MPR No tiếp theo
+            dgvProj.SelectionChanged += (s, ev) =>
+            {
+                if (dgvProj.SelectedRows.Count == 0) return;
+                var prj = dgvProj.SelectedRows[0].Tag as MPR_Managerment.Models.ProjectInfo;
+                if (prj == null) return;
+                tProjCode.Text = prj.ProjectCode ?? "";
+                tProjName.Text = prj.ProjectName ?? "";
+                tDept.Text = "";
+                tReq.Text = "";
+                // Tính MPR No tiếp theo: MPRCode-001, MPRCode-002, ...
+                try
+                {
+                    string mprPrefix = (prj.MPRCode ?? prj.ProjectCode ?? "").TrimEnd('-');
+                    int nextSeq = 1;
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+                    var cmd = new SqlCommand(
+                        "SELECT MAX(CAST(SUBSTRING(MPR_No, LEN(@prefix)+2, 10) AS INT)) FROM MPR_Header WHERE MPR_No LIKE @like",
+                        conn);
+                    cmd.Parameters.AddWithValue("@prefix", mprPrefix);
+                    cmd.Parameters.AddWithValue("@like", mprPrefix + "-%");
+                    var res = cmd.ExecuteScalar();
+                    if (res != DBNull.Value && res != null) nextSeq = Convert.ToInt32(res) + 1;
+                    tMPRNo.Text = $"{mprPrefix}-{nextSeq:D3}";
+                }
+                catch { tMPRNo.Text = (prj.MPRCode ?? prj.ProjectCode ?? "").TrimEnd('-') + "-001"; }
+            };
+
+            // ── Bảng MPR Details ────────────────────────────────────────────────
+            dlg.Controls.Add(new Label { Text = "CHI TIẾT VẬT TƯ (MPR_Details)", Location = new Point(10, 248), Size = new Size(400, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) });
+            dlg.Controls.Add(new Label
+            {
+                Text = "💡 Paste từ Excel: Copy nhiều cột trong Excel → click vào ô bắt đầu trong bảng → Ctrl+V  |  Thứ tự cột paste: Tên hàng | Mô tả | Vật liệu | T | D | W | Web | Flange | L | Vị trí | MPS | REV | DWG Date | ISSUE DATE | Đơn vị | SL | KG | Ghi chú",
+                Location = new Point(10, 226),
+                Size = new Size(dlg.ClientSize.Width - 20, 20),
+                Font = new Font("Segoe UI", 7.5f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(100, 100, 100),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            });
+
+            var dgvDet = new DataGridView
+            {
+                Location = new Point(10, 282),
+                Size = new Size(dlg.ClientSize.Width - 20, 288),
+                AllowUserToAddRows = true,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 8),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText
+            };
+            dgvDet.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvDet.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvDet.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+            dgvDet.EnableHeadersVisualStyles = false;
+            dgvDet.DataError += (s, ev) => { ev.Cancel = true; };
+            // Các cột theo MPR_Details
+            void AddCol(string name, string hdr, int w, bool ro = false)
+            {
+                dgvDet.Columns.Add(new DataGridViewTextBoxColumn
+                {
+                    Name = name,
+                    HeaderText = hdr,
+                    Width = w,
+                    ReadOnly = ro,
+                    DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleLeft }
+                });
+            }
+            AddCol("Item_No", "STT", 40, true);
+            dgvDet.Columns["Item_No"].Visible = false;
+            dgvDet.Columns["Item_No"].Visible = false; // STT tự tạo, ẩn để tránh copy nhầm
+            AddCol("item_name", "Tên hàng", 140);
+            AddCol("Description", "Mô tả", 120);
+            AddCol("Material", "Vật liệu", 80);
+            AddCol("Thickness_mm", "T(mm)", 55);
+            AddCol("Depth_mm", "D(mm)", 55);
+            AddCol("C_Width_mm", "W(mm)", 55);
+            AddCol("D_Web_mm", "Web(mm)", 60);
+            AddCol("E_Flange_mm", "Flange(mm)", 70);
+            AddCol("F_Length_mm", "L(mm)", 60);
+            AddCol("Usage_Location", "Vị trí", 90);
+            AddCol("MPS_Info", "MPS", 70);
+            AddCol("REV", "REV", 45);
+            AddCol("DWG_BOQ_Receive_Date", "DWG Date", 80);
+            AddCol("Issue_Date", "ISSUE DATE", 85);
+            AddCol("UNIT", "Đơn vị", 55);
+            AddCol("Qty_Per_Sheet", "SL", 45);
+            AddCol("Weight_kg", "KG", 55);
+            AddCol("Remarks", "Ghi chú", 100);
+            dlg.Controls.Add(dgvDet);
+
+            // ── Paste từ Excel — hỗ trợ nhiều cột, nhiều dòng cùng lúc ──────────
+            // Thứ tự cột trong grid (bỏ Item_No readonly):
+            // [0]=Item_No(ro) [1]=item_name [2]=Description [3]=Material
+            // [4]=T [5]=D [6]=W [7]=Web [8]=Flange [9]=L
+            // [10]=Usage_Location [11]=MPS_Info [12]=REV
+            // [13]=DWG_BOQ_Receive_Date [14]=Issue_Date
+            // [15]=UNIT [16]=Qty_Per_Sheet [17]=Weight_kg [18]=Remarks
+
+            // Danh sách tên cột theo đúng thứ tự hiển thị để map khi paste
+            var pasteColNames = new[]
+            {
+                "item_name", "Description", "Material",
+                "Thickness_mm", "Depth_mm", "C_Width_mm", "D_Web_mm", "E_Flange_mm", "F_Length_mm",
+                "Usage_Location", "MPS_Info", "REV",
+                "DWG_BOQ_Receive_Date", "Issue_Date",
+                "UNIT", "Qty_Per_Sheet", "Weight_kg", "Remarks"
+            };
+
+            dgvDet.KeyDown += (s, ev) =>
+            {
+                if (!ev.Control || ev.KeyCode != Keys.V) return;
+                ev.Handled = true;
+                ev.SuppressKeyPress = true;
+
+                string clip = Clipboard.GetText();
+                if (string.IsNullOrEmpty(clip)) return;
+
+                // Tách dòng — loại bỏ dòng trắng cuối file Excel thường thêm vào
+                string[] clipRows = clip.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                // Cắt dòng trắng ở cuối
+                int lastNonEmpty = clipRows.Length - 1;
+                while (lastNonEmpty >= 0 && string.IsNullOrWhiteSpace(clipRows[lastNonEmpty]))
+                    lastNonEmpty--;
+                if (lastNonEmpty < 0) return;
+
+                // Xác định ô bắt đầu paste
+                int startRow = dgvDet.CurrentCell?.RowIndex ?? 0;
+                int startColIndex = dgvDet.CurrentCell?.ColumnIndex ?? 1;
+
+                // Nếu đang đứng ở cột STT (readonly) thì bắt đầu từ cột tiếp theo
+                if (dgvDet.Columns[startColIndex].ReadOnly)
+                    startColIndex = 1; // index 1 = item_name
+
+                // Tìm vị trí cột đang chọn trong pasteColNames để biết offset
+                string startColName = dgvDet.Columns[startColIndex].Name;
+                int pasteOffset = 0;
+                for (int i = 0; i < pasteColNames.Length; i++)
+                {
+                    if (pasteColNames[i] == startColName) { pasteOffset = i; break; }
+                }
+
+                // Tạm dừng repaint để paste nhanh hơn
+                dgvDet.SuspendLayout();
+                try
+                {
+                    for (int ri = 0; ri <= lastNonEmpty; ri++)
+                    {
+                        string[] cells = clipRows[ri].Split('\t');
+                        int gridRow = startRow + ri;
+
+                        // Tự động thêm dòng mới nếu cần
+                        while (gridRow >= dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0))
+                            dgvDet.Rows.Add();
+
+                        for (int ci = 0; ci < cells.Length; ci++)
+                        {
+                            int colNameIdx = pasteOffset + ci;
+                            if (colNameIdx >= pasteColNames.Length) break;
+
+                            string colName = pasteColNames[colNameIdx];
+                            if (!dgvDet.Columns.Contains(colName)) continue;
+                            var col = dgvDet.Columns[colName];
+                            if (col.ReadOnly) continue;
+
+                            string rawVal = cells[ci].Trim();
+
+                            // Tự động parse số cho cột số thực
+                            var numericCols = new HashSet<string>
+                            {
+                                "Thickness_mm","Depth_mm","C_Width_mm","D_Web_mm",
+                                "E_Flange_mm","F_Length_mm","Qty_Per_Sheet","Weight_kg"
+                            };
+                            if (numericCols.Contains(colName))
+                            {
+                                // Chấp nhận cả dấu phẩy lẫn dấu chấm thập phân
+                                string normalized = rawVal.Replace(",", ".");
+                                dgvDet.Rows[gridRow].Cells[col.Index].Value =
+                                    decimal.TryParse(normalized,
+                                        System.Globalization.NumberStyles.Any,
+                                        System.Globalization.CultureInfo.InvariantCulture,
+                                        out decimal num) ? (object)num : (object)rawVal;
+                            }
+                            else
+                            {
+                                dgvDet.Rows[gridRow].Cells[col.Index].Value = rawVal;
+                            }
+                        }
+
+                        // Tự động đánh lại STT
+                        dgvDet.Rows[gridRow].Cells["Item_No"].Value = gridRow + 1;
+                    }
+
+                    // Refresh để hiển thị dữ liệu mới
+                    dgvDet.Refresh();
+                }
+                catch (Exception exPaste)
+                {
+                    MessageBox.Show("Lỗi khi paste: " + exPaste.Message, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                finally
+                {
+                    dgvDet.ResumeLayout();
+                }
+            };
+
+            // ── Buttons ─────────────────────────────────────────────────────────
+            var lblErr2 = new Label { Location = new Point(10, dlg.ClientSize.Height - 78), Size = new Size(500, 20), ForeColor = Color.Red, Font = new Font("Segoe UI", 8), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            dlg.Controls.Add(lblErr2);
+
+            var btnCreate = new Button
+            {
+                Text = "✅ Tạo MPR",
+                Location = new Point(dlg.ClientSize.Width - 460, dlg.ClientSize.Height - 50),
+                Size = new Size(110, 34),
+                BackColor = Color.FromArgb(40, 167, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            btnCreate.FlatAppearance.BorderSize = 0;
+
+            var btnRevise = new Button
+            {
+                Text = "🔄 Revise MPR",
+                Location = new Point(dlg.ClientSize.Width - 342, dlg.ClientSize.Height - 50),
+                Size = new Size(125, 34),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            btnRevise.FlatAppearance.BorderSize = 0;
+
+            var btnAdmin = new Button
+            {
+                Text = "🔑 For Admin",
+                Location = new Point(dlg.ClientSize.Width - 210, dlg.ClientSize.Height - 50),
+                Size = new Size(110, 34),
+                BackColor = Color.FromArgb(128, 0, 128),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                Visible = AppSession.IsAdmin
+            };
+            btnAdmin.FlatAppearance.BorderSize = 0;
+
+            var btnClose2 = new Button
+            {
+                Text = "Đóng",
+                Location = new Point(dlg.ClientSize.Width - 92, dlg.ClientSize.Height - 50),
+                Size = new Size(80, 34),
+                BackColor = Color.FromArgb(108, 117, 125),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                DialogResult = DialogResult.Cancel
+            };
+            btnClose2.FlatAppearance.BorderSize = 0;
+            dlg.Controls.AddRange(new Control[] { btnCreate, btnRevise, btnAdmin, btnClose2 });
+            dlg.CancelButton = btnClose2;
+
+            // Resize handler
+            dlg.Resize += (s, ev) =>
+            {
+                dgvDet.Width = dlg.ClientSize.Width - 20;
+                dgvDet.Height = dlg.ClientSize.Height - 282 - 62;
+                lblErr2.Top = dlg.ClientSize.Height - 78;
+            };
+
+            // ── Tạo MPR ─────────────────────────────────────────────────────────
+            btnCreate.Click += (s, ev) =>
+            {
+                if (string.IsNullOrWhiteSpace(tMPRNo.Text)) { lblErr2.Text = "⚠ Nhập MPR No!"; return; }
+                if (string.IsNullOrWhiteSpace(tProjCode.Text)) { lblErr2.Text = "⚠ Chọn dự án!"; return; }
+
+                // Kiểm tra danh sách vật tư không được trống
+                bool hasItem = false;
+                foreach (DataGridViewRow r2 in dgvDet.Rows)
+                {
+                    if (r2.IsNewRow) continue;
+                    if (!string.IsNullOrWhiteSpace(r2.Cells["item_name"].Value?.ToString())) { hasItem = true; break; }
+                }
+                if (!hasItem) { lblErr2.Text = "⚠ Danh sách vật tư trống! Vui lòng nhập ít nhất 1 vật tư."; return; }
+                // Kiểm tra MPR_No đã tồn tại chưa
+                try
+                {
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+                    var chk = new SqlCommand("SELECT COUNT(1) FROM MPR_Header WHERE MPR_No=@no", conn);
+                    chk.Parameters.AddWithValue("@no", tMPRNo.Text.Trim());
+                    if (Convert.ToInt32(chk.ExecuteScalar()) > 0)
+                    { lblErr2.Text = "❌ MPR No đã tồn tại! Vui lòng đổi số MPR."; return; }
+                }
+                catch (Exception ex) { lblErr2.Text = "❌ " + ex.Message; return; }
+
+                try
+                {
+                    var header = new MPRHeader
+                    {
+                        MPR_ID = 0,
+                        MPR_No = tMPRNo.Text.Trim(),
+                        Project_Name = tProjName.Text.Trim(),
+                        Project_Code = tProjCode.Text.Trim(),
+                        Department = tDept.Text.Trim(),
+                        Requestor = tReq.Text.Trim(),
+                        Required_Date = dtp.Value,
+                        Rev = 0,
+                        Status = "Mới",
+                        Notes = tNotes.Text.Trim()
+                    };
+                    int newId = _service.InsertHeader(header, _currentUser);
+
+                    // Lưu details
+                    // Insert details dùng MPRService.InsertDetail
+                    int stt = 1;
+                    foreach (DataGridViewRow row2 in dgvDet.Rows)
+                    {
+                        if (row2.IsNewRow) continue;
+                        string nm = row2.Cells["item_name"].Value?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(nm)) continue;
+                        _service.InsertDetail(new MPRDetail
+                        {
+                            MPR_ID = newId,
+                            Item_No = stt++,
+                            Item_Name = nm,
+                            Description = row2.Cells["Description"].Value?.ToString() ?? "",
+                            Material = row2.Cells["Material"].Value?.ToString() ?? "",
+                            Thickness_mm = decimal.TryParse(row2.Cells["Thickness_mm"].Value?.ToString(), out decimal th) ? th : 0,
+                            Depth_mm = decimal.TryParse(row2.Cells["Depth_mm"].Value?.ToString(), out decimal dp) ? dp : 0,
+                            C_Width_mm = decimal.TryParse(row2.Cells["C_Width_mm"].Value?.ToString(), out decimal cw) ? cw : 0,
+                            D_Web_mm = decimal.TryParse(row2.Cells["D_Web_mm"].Value?.ToString(), out decimal dw) ? dw : 0,
+                            E_Flange_mm = decimal.TryParse(row2.Cells["E_Flange_mm"].Value?.ToString(), out decimal ef) ? ef : 0,
+                            F_Length_mm = decimal.TryParse(row2.Cells["F_Length_mm"].Value?.ToString(), out decimal fl) ? fl : 0,
+                            UNIT = row2.Cells["UNIT"].Value?.ToString() ?? "",
+                            Qty_Per_Sheet = decimal.TryParse(row2.Cells["Qty_Per_Sheet"].Value?.ToString(), out decimal qs) ? qs : 0,
+                            Weight_kg = decimal.TryParse(row2.Cells["Weight_kg"].Value?.ToString(), out decimal wk) ? wk : 0,
+                            MPS_Info = row2.Cells["MPS_Info"].Value?.ToString() ?? "",
+                            Usage_Location = row2.Cells["Usage_Location"].Value?.ToString() ?? "",
+                            REV = row2.Cells["REV"].Value?.ToString() ?? "0",
+                            Remarks = row2.Cells["Remarks"].Value?.ToString() ?? ""
+                        }, _currentUser);
+                    }
+
+                    MessageBox.Show($"✅ Tạo MPR '{header.MPR_No}' thành công ({stt - 1} vật tư)!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    dlg.DialogResult = DialogResult.OK;
+                    dlg.Close();
+                    LoadMPR();
+                    _selectedMPR_ID = newId;
+                    foreach (DataGridViewRow row2 in dgvMPR.Rows)
+                        if (Convert.ToInt32(row2.Cells["MPR_ID"]?.Value ?? 0) == newId)
+                        { row2.Selected = true; dgvMPR.CurrentCell = row2.Cells[1]; break; }
+                }
+                catch (Exception ex) { lblErr2.Text = "❌ " + ex.Message; }
+            };
+
+            // ── Revise MPR ───────────────────────────────────────────────────────
+            btnRevise.Click += (s, ev) =>
+            {
+                if (string.IsNullOrWhiteSpace(tProjCode.Text)) { lblErr2.Text = "⚠ Chọn dự án trước!"; return; }
+                ShowReviseMPRPopup(tProjCode.Text, tProjName.Text, false);
+            };
+
+            // ── For Admin ────────────────────────────────────────────────────────
+            btnAdmin.Click += (s, ev) =>
+            {
+                if (string.IsNullOrWhiteSpace(tProjCode.Text)) { lblErr2.Text = "⚠ Chọn dự án trước!"; return; }
+                ShowReviseMPRPopup(tProjCode.Text, tProjName.Text, true);
+            };
+
+            dlg.Owner = this.FindForm();
+            dlg.ShowDialog();
+        }
+
+        // ── Revise MPR Popup ─────────────────────────────────────────────────────
+        private void ShowReviseMPRPopup(string projCode, string projName, bool isAdmin)
+        {
+            var dlg = new Form
+            {
+                Text = isAdmin ? "🔑 Admin Edit MPR" : "🔄 Revise MPR",
+                Size = new Size(1100, 700),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.Sizable,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(245, 245, 245)
+            };
+
+            // Danh sách MPR của dự án
+            dlg.Controls.Add(new Label { Text = $"MPR của dự án: {projCode}", Location = new Point(10, 8), Size = new Size(400, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) });
+            var dgvMPRList = new DataGridView
+            {
+                Location = new Point(10, 32),
+                Size = new Size(260, 560),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 9),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
+            };
+            dgvMPRList.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvMPRList.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvMPRList.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvMPRList.EnableHeadersVisualStyles = false;
+            dgvMPRList.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMprId", Visible = false });
+            dgvMPRList.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMprNo", HeaderText = "MPR No", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+            dgvMPRList.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMprRev", HeaderText = "Rev", Width = 45 });
+            dlg.Controls.Add(dgvMPRList);
+
+            // Load MPR theo project
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                var cmd = new SqlCommand("SELECT MPR_ID, MPR_No, Rev FROM MPR_Header WHERE Project_Code=@code ORDER BY MPR_No", conn);
+                cmd.Parameters.AddWithValue("@code", projCode);
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                {
+                    int r = dgvMPRList.Rows.Add();
+                    dgvMPRList.Rows[r].Cells["RMprId"].Value = rdr["MPR_ID"];
+                    dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"];
+                    dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"];
+                }
+            }
+            catch { }
+
+            // Bảng chi tiết
+            dlg.Controls.Add(new Label { Text = "CHI TIẾT VẬT TƯ", Location = new Point(278, 8), Size = new Size(400, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) });
+            var dgvRevDet = new DataGridView
+            {
+                Location = new Point(278, 32),
+                Size = new Size(dlg.ClientSize.Width - 288, 560),
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 8),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2
+            };
+            dgvRevDet.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvRevDet.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvRevDet.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+            dgvRevDet.EnableHeadersVisualStyles = false;
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RDetId", Visible = false });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RDeleted", Visible = false }); // "1"=xóa mềm
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RItem_No", HeaderText = "STT", Width = 40, ReadOnly = true });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ritem_name", HeaderText = "Tên hàng", Width = 140 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RDesc", HeaderText = "Mô tả", Width = 110 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMaterial", HeaderText = "Vật liệu", Width = 80 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RT_mm", HeaderText = "T(mm)", Width = 50 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RD_mm", HeaderText = "D(mm)", Width = 50 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RW_mm", HeaderText = "W(mm)", Width = 50 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RWeb_mm", HeaderText = "Web", Width = 50 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RFlange_mm", HeaderText = "Flange", Width = 55 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RL_mm", HeaderText = "L(mm)", Width = 55 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RUNIT", HeaderText = "ĐVT", Width = 50 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RQty", HeaderText = "SL", Width = 45 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RKG", HeaderText = "KG", Width = 55 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RRemarks", HeaderText = "Ghi chú", Width = 100 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RREV", HeaderText = "REV", Width = 40, ReadOnly = true });
+            dlg.Controls.Add(dgvRevDet);
+
+            // Hiệu ứng: dòng xóa mềm = xám gạch ngang
+            // Chặn popup lỗi mặc định của DataGridView khi có format exception
+            dgvRevDet.DataError += (s2, ev2) =>
+            {
+                // Bỏ qua lỗi format — cell sẽ hiển thị rỗng thay vì crash
+                ev2.Cancel = true;
+            };
+
+            dgvRevDet.CellFormatting += (s2, ev2) =>
+            {
+                if (ev2.RowIndex < 0) return;
+                string del = dgvRevDet.Rows[ev2.RowIndex].Cells["RDeleted"].Value?.ToString() ?? "";
+                if (del == "1") { ev2.CellStyle.ForeColor = Color.FromArgb(180, 180, 180); ev2.CellStyle.Font = new Font("Segoe UI", 8, FontStyle.Strikeout); }
+            };
+
+            int selMprId = 0;
+            // Khi chọn MPR → load details
+            dgvMPRList.SelectionChanged += (s2, ev2) =>
+            {
+                if (dgvMPRList.SelectedRows.Count == 0) return;
+                selMprId = Convert.ToInt32(dgvMPRList.SelectedRows[0].Cells["RMprId"].Value ?? 0);
+                dgvRevDet.Rows.Clear();
+                try
+                {
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+                    var cmd = new SqlCommand("SELECT * FROM MPR_Details WHERE MPR_ID=@id ORDER BY Item_No", conn);
+                    cmd.Parameters.AddWithValue("@id", selMprId);
+                    using var rdr = cmd.ExecuteReader();
+                    // Helper: convert decimal từ DB sang string gọn (tránh FormatException)
+                    string NumStr(object val)
+                    {
+                        if (val == null || val == DBNull.Value) return "";
+                        if (!decimal.TryParse(val.ToString(), out decimal d)) return val.ToString();
+                        if (d == 0) return "";
+                        // Bỏ số 0 thừa ở cuối: 6.0000 → "6", 125.50 → "125.5"
+                        return d.ToString("G29");
+                    }
+
+                    while (rdr.Read())
+                    {
+                        int r = dgvRevDet.Rows.Add();
+                        // Lưu cả Is_Deleted để biết dòng nào đã bị xóa mềm trước đó
+                        bool wasDeleted = rdr["Is_Deleted"] != DBNull.Value && Convert.ToBoolean(rdr["Is_Deleted"]);
+                        dgvRevDet.Rows[r].Cells["RDetId"].Value = rdr["Detail_ID"]?.ToString();
+                        dgvRevDet.Rows[r].Cells["RDeleted"].Value = wasDeleted ? "1" : "";
+                        dgvRevDet.Rows[r].Cells["RItem_No"].Value = rdr["Item_No"]?.ToString();
+                        dgvRevDet.Rows[r].Cells["Ritem_name"].Value = rdr["item_name"]?.ToString() ?? "";
+                        dgvRevDet.Rows[r].Cells["RDesc"].Value = rdr["Description"]?.ToString() ?? "";
+                        dgvRevDet.Rows[r].Cells["RMaterial"].Value = rdr["Material"]?.ToString() ?? "";
+                        dgvRevDet.Rows[r].Cells["RT_mm"].Value = NumStr(rdr["Thickness_mm"]);
+                        dgvRevDet.Rows[r].Cells["RD_mm"].Value = NumStr(rdr["Depth_mm"]);
+                        dgvRevDet.Rows[r].Cells["RW_mm"].Value = NumStr(rdr["C_Width_mm"]);
+                        dgvRevDet.Rows[r].Cells["RWeb_mm"].Value = NumStr(rdr["D_Web_mm"]);
+                        dgvRevDet.Rows[r].Cells["RFlange_mm"].Value = NumStr(rdr["E_Flange_mm"]);
+                        dgvRevDet.Rows[r].Cells["RL_mm"].Value = NumStr(rdr["F_Length_mm"]);
+                        dgvRevDet.Rows[r].Cells["RUNIT"].Value = rdr["UNIT"]?.ToString() ?? "";
+                        dgvRevDet.Rows[r].Cells["RQty"].Value = NumStr(rdr["Qty_Per_Sheet"]);
+                        dgvRevDet.Rows[r].Cells["RKG"].Value = NumStr(rdr["Weight_kg"]);
+                        dgvRevDet.Rows[r].Cells["RRemarks"].Value = rdr["Remarks"]?.ToString() ?? "";
+                        dgvRevDet.Rows[r].Cells["RREV"].Value = rdr["REV"]?.ToString() ?? "0";
+                    }
+                }
+                catch (Exception exLoad)
+                {
+                    // lblSave chưa được khai báo tại đây — log lỗi ra Debug output
+                    System.Diagnostics.Debug.WriteLine("Lỗi tải dgvRevDet: " + exLoad.Message);
+                    MessageBox.Show("Lỗi tải dữ liệu vật tư: " + exLoad.Message, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            };
+
+            // Buttons Thêm / Xóa vật tư
+            var btnAddRow = new Button
+            {
+                Text = "+ Thêm vật tư",
+                Location = new Point(278, dlg.ClientSize.Height - 58),
+                Size = new Size(120, 30),
+                BackColor = Color.FromArgb(40, 167, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+            };
+            btnAddRow.FlatAppearance.BorderSize = 0;
+            btnAddRow.Click += (s2, ev2) => { dgvRevDet.AllowUserToAddRows = true; dgvRevDet.Rows.Add(); dgvRevDet.AllowUserToAddRows = false; };
+
+            var btnDelRow = new Button
+            {
+                Text = "🗑 Xóa vật tư",
+                Location = new Point(406, dlg.ClientSize.Height - 58),
+                Size = new Size(120, 30),
+                BackColor = Color.FromArgb(220, 53, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+            };
+            btnDelRow.FlatAppearance.BorderSize = 0;
+            // Xóa mềm: đánh dấu "1" vào cột RDeleted
+            btnDelRow.Click += (s2, ev2) =>
+            {
+                foreach (DataGridViewRow row2 in dgvRevDet.SelectedRows)
+                {
+                    if (row2.IsNewRow) continue;
+                    string cur = row2.Cells["RDeleted"].Value?.ToString() ?? "";
+                    row2.Cells["RDeleted"].Value = cur == "1" ? "" : "1"; // toggle
+                }
+                dgvRevDet.Refresh();
+            };
+
+            var lblSave = new Label { Location = new Point(10, dlg.ClientSize.Height - 30), Size = new Size(500, 22), ForeColor = Color.Red, Font = new Font("Segoe UI", 8), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            dlg.Controls.Add(lblSave);
+
+            var btnSaveMPR = new Button
+            {
+                Text = "💾 Lưu MPR",
+                Location = new Point(dlg.ClientSize.Width - 312, dlg.ClientSize.Height - 58),
+                Size = new Size(120, 30),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            btnSaveMPR.FlatAppearance.BorderSize = 0;
+
+            var btnCloseRev = new Button
+            {
+                Text = "Đóng",
+                Location = new Point(dlg.ClientSize.Width - 184, dlg.ClientSize.Height - 58),
+                Size = new Size(80, 30),
+                BackColor = Color.FromArgb(108, 117, 125),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                DialogResult = DialogResult.Cancel
+            };
+            btnCloseRev.FlatAppearance.BorderSize = 0;
+            dlg.Controls.AddRange(new Control[] { btnAddRow, btnDelRow, btnSaveMPR, btnCloseRev });
+            dlg.CancelButton = btnCloseRev;
+
+            dlg.Resize += (s2, ev2) =>
+            {
+                dgvMPRList.Height = dlg.ClientSize.Height - 100;
+                dgvRevDet.Width = dlg.ClientSize.Width - 288;
+                dgvRevDet.Height = dlg.ClientSize.Height - 100;
+                btnAddRow.Top = btnDelRow.Top = btnSaveMPR.Top = btnCloseRev.Top = dlg.ClientSize.Height - 58;
+                btnSaveMPR.Left = dlg.ClientSize.Width - 312;
+                btnCloseRev.Left = dlg.ClientSize.Width - 184;
+                lblSave.Top = dlg.ClientSize.Height - 30;
+            };
+
+            // Lưu MPR Revise
+            btnSaveMPR.Click += (s2, ev2) =>
+            {
+                if (selMprId == 0) { lblSave.Text = "⚠ Chọn MPR cần Revise!"; return; }
+                try
+                {
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+                    // ── Tính REV tiếp theo ──────────────────────────────────────────────
+                    // Lấy REV max hiện tại từ MPR_Header (không dùng MAX(MPR_Details.REV)
+                    // vì REV header mới là nguồn chính xác)
+                    var cmdMaxRev = new SqlCommand(
+                        "SELECT ISNULL(Rev,0) FROM MPR_Header WHERE MPR_ID=@id", conn);
+                    cmdMaxRev.Parameters.AddWithValue("@id", selMprId);
+                    int maxRev = Convert.ToInt32(cmdMaxRev.ExecuteScalar());
+                    int nextRev = isAdmin ? maxRev : maxRev + 1;
+
+                    // ── Tải dữ liệu gốc của MPR để so sánh thay đổi từng dòng ──────────
+                    // Key = Detail_ID (dòng cũ) hoặc 0 (dòng mới thêm vào)
+                    var originalRows = new Dictionary<int, DataRow>();
+                    if (!isAdmin)
+                    {
+                        var cmdOrig = new SqlCommand(
+                            "SELECT Detail_ID, item_name, Description, Material, " +
+                            "Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm, " +
+                            "UNIT, Qty_Per_Sheet, Weight_kg, Remarks " +
+                            "FROM MPR_Details WHERE MPR_ID=@id", conn);
+                        cmdOrig.Parameters.AddWithValue("@id", selMprId);
+                        var dtOrig = new DataTable();
+                        dtOrig.Load(cmdOrig.ExecuteReader());
+                        foreach (DataRow dr in dtOrig.Rows)
+                            originalRows[Convert.ToInt32(dr["Detail_ID"])] = dr;
+                    }
+
+                    // Đảm bảo originalRows load thành công
+                    if (!isAdmin && originalRows.Count == 0)
+                    {
+                        lblSave.Text = "❌ Không tải được dữ liệu gốc để so sánh REV. Vui lòng thử lại.";
+                        return;
+                    }
+
+                    // Helper: so sánh 2 giá trị decimal từ grid (string) và DB (decimal)
+                    // Chấp nhận cả dấu phẩy lẫn dấu chấm thập phân, "" = 0
+                    bool DecChanged(string gridVal, object dbVal)
+                    {
+                        string normalized = (gridVal ?? "").Trim().Replace(",", ".");
+                        decimal gv = decimal.TryParse(normalized,
+                            System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out decimal gd) ? gd : 0;
+                        decimal dv = (dbVal == null || dbVal == DBNull.Value) ? 0 : Convert.ToDecimal(dbVal);
+                        return gv != dv;
+                    }
+
+                    // Helper: so sánh 2 giá trị string, bỏ qua khoảng trắng đầu/cuối
+                    bool StrChanged(string gridVal, object dbVal)
+                        => (gridVal ?? "").Trim() != (dbVal?.ToString() ?? "").Trim();
+
+                    // MPR_No mới
+                    string oldMprNo = dgvMPRList.SelectedRows[0].Cells["RMprNo"].Value?.ToString() ?? "";
+                    string baseMprNo = oldMprNo.Contains("_Rev.")
+                        ? oldMprNo.Substring(0, oldMprNo.IndexOf("_Rev."))
+                        : oldMprNo;
+                    string newMprNo = isAdmin ? oldMprNo : $"{baseMprNo}_Rev.{nextRev}";
+
+                    // Nếu không phải Admin → tạo bản Revise mới
+                    int targetId = selMprId;
+                    if (!isAdmin)
+                    {
+                        // Lấy header cũ
+                        var cmdH = new SqlCommand("SELECT * FROM MPR_Header WHERE MPR_ID=@id", conn);
+                        cmdH.Parameters.AddWithValue("@id", selMprId);
+                        using var rdrH = cmdH.ExecuteReader();
+                        rdrH.Read();
+                        var newHeader = new MPRHeader
+                        {
+                            MPR_ID = 0,
+                            MPR_No = newMprNo,
+                            Project_Name = rdrH["Project_Name"]?.ToString() ?? "",
+                            Project_Code = rdrH["Project_Code"]?.ToString() ?? "",
+                            Department = rdrH["Department"]?.ToString() ?? "",
+                            Requestor = rdrH["Requestor"]?.ToString() ?? "",
+                            Required_Date = rdrH["Required_Date"] is DateTime dt ? dt : DateTime.Today,
+                            Rev = nextRev,  // REV header luôn tăng khi Revise
+                            Status = rdrH["Status"]?.ToString() ?? "Mới",
+                            Notes = rdrH["Notes"]?.ToString() ?? ""
+                        };
+                        rdrH.Close();
+                        targetId = _service.InsertHeader(newHeader, _currentUser);
+                    }
+                    else
+                    {
+                        // Admin: xóa toàn bộ details cũ (hard delete) rồi insert mới
+                        var cmdDel = new SqlCommand("DELETE FROM MPR_Details WHERE MPR_ID=@id", conn);
+                        cmdDel.Parameters.AddWithValue("@id", targetId);
+                        cmdDel.ExecuteNonQuery();
+                    }
+
+                    // ── Insert details với REV thông minh ────────────────────────────────
+                    // - Dòng CŨ không thay đổi → giữ nguyên REV cũ
+                    // - Dòng CŨ có thay đổi   → REV = nextRev
+                    // - Dòng MỚI thêm vào     → REV = nextRev
+                    // - Dòng bị xóa mềm       → giữ REV cũ (chỉ đánh dấu Is_Deleted)
+
+                    // Xây dựng preview REV cho từng dòng trước khi lưu
+                    var revPreview = new System.Text.StringBuilder();
+                    revPreview.AppendLine($"nextRev={nextRev}, originalRows.Count={originalRows.Count}");
+                    revPreview.AppendLine("STT | DetID | OldREV | Changed | NewREV");
+                    foreach (DataGridViewRow rowP in dgvRevDet.Rows)
+                    {
+                        if (rowP.IsNewRow) continue;
+                        string nmP = rowP.Cells["Ritem_name"].Value?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(nmP)) continue;
+                        int didP = int.TryParse(rowP.Cells["RDetId"].Value?.ToString(), out int dpv) ? dpv : 0;
+                        int rvP = int.TryParse(rowP.Cells["RREV"].Value?.ToString(), out int rpv) ? rpv : 0;
+                        bool hasOrig = originalRows.ContainsKey(didP);
+                        bool chgP = false;
+                        if (hasOrig)
+                        {
+                            var origP = originalRows[didP];
+                            chgP = StrChanged(rowP.Cells["Ritem_name"].Value?.ToString(), origP["item_name"])
+                                || StrChanged(rowP.Cells["RDesc"].Value?.ToString(), origP["Description"])
+                                || StrChanged(rowP.Cells["RMaterial"].Value?.ToString(), origP["Material"])
+                                || StrChanged(rowP.Cells["RUNIT"].Value?.ToString(), origP["UNIT"])
+                                || DecChanged(rowP.Cells["RT_mm"].Value?.ToString(), origP["Thickness_mm"])
+                                || DecChanged(rowP.Cells["RD_mm"].Value?.ToString(), origP["Depth_mm"])
+                                || DecChanged(rowP.Cells["RQty"].Value?.ToString(), origP["Qty_Per_Sheet"])
+                                || DecChanged(rowP.Cells["RKG"].Value?.ToString(), origP["Weight_kg"]);
+                        }
+                        int newRevP = (!hasOrig || didP == 0) ? nextRev : (chgP ? nextRev : rvP);
+                        revPreview.AppendLine($"{rowP.Cells["RItem_No"].Value} | {didP} | {rvP} | {(hasOrig ? (chgP ? "CHANGED" : "same") : "NEW")} | {newRevP}");
+                    }
+                    if (MessageBox.Show(revPreview.ToString() + "\n\nTiếp tục lưu?", "Debug REV Preview",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+                    int stt = 1;
+                    foreach (DataGridViewRow row2 in dgvRevDet.Rows)
+                    {
+                        if (row2.IsNewRow) continue;
+                        string nm = row2.Cells["Ritem_name"].Value?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(nm)) continue;
+                        bool isDeleted2 = row2.Cells["RDeleted"].Value?.ToString() == "1";
+
+                        int detRev;
+                        if (isAdmin)
+                        {
+                            // Admin: giữ nguyên REV đang hiển thị trong grid
+                            detRev = int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rvA) ? rvA : 0;
+                        }
+                        else
+                        {
+                            // Lấy REV hiện tại của dòng này
+                            int oldDetRev = int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rvO) ? rvO : 0;
+                            int detailId = int.TryParse(row2.Cells["RDetId"].Value?.ToString(), out int did) ? did : 0;
+
+                            if (isDeleted2)
+                            {
+                                // Dòng bị xóa → giữ REV cũ
+                                detRev = oldDetRev;
+                            }
+                            else if (detailId == 0 || !originalRows.ContainsKey(detailId))
+                            {
+                                // Dòng mới thêm vào → REV = nextRev
+                                detRev = nextRev;
+                            }
+                            else
+                            {
+                                // Dòng cũ: so sánh từng trường với bản gốc
+                                var orig = originalRows[detailId];
+                                bool changed =
+                                    StrChanged(row2.Cells["Ritem_name"].Value?.ToString(), orig["item_name"]) ||
+                                    StrChanged(row2.Cells["RDesc"].Value?.ToString(), orig["Description"]) ||
+                                    StrChanged(row2.Cells["RMaterial"].Value?.ToString(), orig["Material"]) ||
+                                    StrChanged(row2.Cells["RUNIT"].Value?.ToString(), orig["UNIT"]) ||
+                                    StrChanged(row2.Cells["RRemarks"].Value?.ToString(), orig["Remarks"]) ||
+                                    DecChanged(row2.Cells["RT_mm"].Value?.ToString(), orig["Thickness_mm"]) ||
+                                    DecChanged(row2.Cells["RD_mm"].Value?.ToString(), orig["Depth_mm"]) ||
+                                    DecChanged(row2.Cells["RW_mm"].Value?.ToString(), orig["C_Width_mm"]) ||
+                                    DecChanged(row2.Cells["RWeb_mm"].Value?.ToString(), orig["D_Web_mm"]) ||
+                                    DecChanged(row2.Cells["RFlange_mm"].Value?.ToString(), orig["E_Flange_mm"]) ||
+                                    DecChanged(row2.Cells["RL_mm"].Value?.ToString(), orig["F_Length_mm"]) ||
+                                    DecChanged(row2.Cells["RQty"].Value?.ToString(), orig["Qty_Per_Sheet"]) ||
+                                    DecChanged(row2.Cells["RKG"].Value?.ToString(), orig["Weight_kg"]);
+
+                                detRev = changed ? nextRev : oldDetRev;
+                            }
+                        }
+
+                        _service.InsertDetail(new MPRDetail
+                        {
+                            MPR_ID = targetId,
+                            Item_No = stt++,
+                            Item_Name = nm,
+                            Description = row2.Cells["RDesc"].Value?.ToString() ?? "",
+                            Material = row2.Cells["RMaterial"].Value?.ToString() ?? "",
+                            Thickness_mm = decimal.TryParse(row2.Cells["RT_mm"].Value?.ToString(), out decimal rTh) ? rTh : 0,
+                            Depth_mm = decimal.TryParse(row2.Cells["RD_mm"].Value?.ToString(), out decimal rDp) ? rDp : 0,
+                            C_Width_mm = decimal.TryParse(row2.Cells["RW_mm"].Value?.ToString(), out decimal rCw) ? rCw : 0,
+                            D_Web_mm = decimal.TryParse(row2.Cells["RWeb_mm"].Value?.ToString(), out decimal rDw) ? rDw : 0,
+                            E_Flange_mm = decimal.TryParse(row2.Cells["RFlange_mm"].Value?.ToString(), out decimal rEf) ? rEf : 0,
+                            F_Length_mm = decimal.TryParse(row2.Cells["RL_mm"].Value?.ToString(), out decimal rFl) ? rFl : 0,
+                            UNIT = row2.Cells["RUNIT"].Value?.ToString() ?? "",
+                            Qty_Per_Sheet = decimal.TryParse(row2.Cells["RQty"].Value?.ToString(), out decimal rQs) ? rQs : 0,
+                            Weight_kg = decimal.TryParse(row2.Cells["RKG"].Value?.ToString(), out decimal rWk) ? rWk : 0,
+                            Remarks = row2.Cells["RRemarks"].Value?.ToString() ?? "",
+                            REV = detRev.ToString(),
+                            Is_Deleted = isDeleted2
+                        }, _currentUser);
+                    }
+
+                    string msg = isAdmin
+                        ? $"✅ Admin đã cập nhật MPR '{oldMprNo}' (giữ nguyên REV)!"
+                        : $"✅ Đã tạo Revise '{newMprNo}' (MPR REV={nextRev}, các dòng thay đổi đã được cập nhật REV tương ứng)!";
+                    MessageBox.Show(msg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadMPR();
+                    dlg.Close();
+                }
+                catch (Exception ex) { lblSave.Text = "❌ " + ex.Message; }
+            };
+
+            dlg.Owner = this.FindForm();
+            dlg.ShowDialog();
         }
 
         private void BtnSaveHeader_Click(object sender, EventArgs e)
@@ -1241,6 +2222,7 @@ namespace MPR_Managerment.Forms
             if (mpr == null) return;
 
             string mprNo = mpr.MPR_No;
+            // Chỉ tạo PO từ các dòng active (Is_Deleted = false)
             var frm = new frmPO(mprNo, true);
             frm.Show();
         }
@@ -1356,6 +2338,12 @@ namespace MPR_Managerment.Forms
                         if (row.IsNewRow) continue;
                         string itemName = row.Cells["Item_Name"].Value?.ToString() ?? "";
                         if (string.IsNullOrWhiteSpace(itemName)) continue;
+
+                        // Không lưu/cập nhật dòng bị xóa mềm — chỉ đọc, giữ nguyên trong DB
+                        var detIdVal = row.Cells["Detail_ID"].Value;
+                        int detIdCheck = detIdVal != null ? Convert.ToInt32(detIdVal) : 0;
+                        var deletedItem = _details.Find(x => x.Detail_ID == detIdCheck);
+                        if (deletedItem != null && deletedItem.Is_Deleted) continue;
 
                         int detailId = Convert.ToInt32(row.Cells["Detail_ID"].Value ?? 0);
                         int itemNo = Convert.ToInt32(row.Cells["Item_No"].Value ?? 0);
@@ -1656,7 +2644,6 @@ namespace MPR_Managerment.Forms
                             FROM PO_Detail pod2
                             INNER JOIN PO_head ph2 ON ph2.PO_ID = pod2.PO_ID
                             WHERE pod2.MPR_Detail_ID = d.Detail_ID
-                    AND ISNULL(ph2.Status,'') <> 'Cancelled'
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [PO No],
                         ISNULL(STUFF((
@@ -1666,7 +2653,6 @@ namespace MPR_Managerment.Forms
                             INNER JOIN RIR_head  rh2 ON rh2.PONo   = ph3.PONo
                             INNER JOIN RIR_detail rd2 ON rd2.RIR_ID = rh2.RIR_ID
                             WHERE pod3.MPR_Detail_ID = d.Detail_ID
-                    AND ISNULL(ph3.Status,'') <> 'Cancelled'
                               AND ISNULL(rd2.Heatno, N'') != N''
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [Heat No],
@@ -1683,7 +2669,6 @@ namespace MPR_Managerment.Forms
                             INNER JOIN RIR_head   rh3 ON rh3.PONo   = ph4.PONo
                             INNER JOIN RIR_detail rd3 ON rd3.RIR_ID = rh3.RIR_ID
                             WHERE pod4.MPR_Detail_ID = d.Detail_ID
-                    AND ISNULL(ph4.Status,'') <> 'Cancelled'
                             ORDER BY
                                 CASE rd3.Inspect_Result
                                     WHEN N'Fail' THEN 1
@@ -1698,7 +2683,6 @@ namespace MPR_Managerment.Forms
                             INNER JOIN PO_head  ph5 ON ph5.PO_ID = pod5.PO_ID
                             INNER JOIN RIR_head rh4 ON rh4.PONo  = ph5.PONo
                             WHERE pod5.MPR_Detail_ID = d.Detail_ID
-                    AND ISNULL(ph5.Status,'') <> 'Cancelled'
                               AND ISNULL(rh4.RIR_No, N'') != N''
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [RIR No],
@@ -1712,7 +2696,7 @@ namespace MPR_Managerment.Forms
                             ORDER BY rh5.Issue_Date DESC
                         ), N'')                                             AS [Trạng thái RIR]
                     FROM MPR_Header  h
-                    INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID
+                    INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID AND d.Is_Deleted = 0
                     LEFT  JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
 
@@ -2348,6 +3332,7 @@ namespace MPR_Managerment.Forms
         private void ApplyPermissions()
         {
             if (btnNewMPR != null) PermissionHelper.Apply(btnNewMPR, "MPR", "Tạo MPR");
+            // btnCreateMPR dùng cùng quyền "Tạo MPR"
             if (btnDeleteMPR != null) PermissionHelper.Apply(btnDeleteMPR, "MPR", "Xóa MPR");
             if (btnSaveHeader != null) PermissionHelper.Apply(btnSaveHeader, "MPR", "Lưu Header");
             if (btnAddDetail != null) PermissionHelper.Apply(btnAddDetail, "MPR", "Thêm dòng");
@@ -2376,6 +3361,8 @@ namespace MPR_Managerment.Forms
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
                 if (row.IsNewRow) continue;
+                // Bỏ qua dòng Is_Deleted khi xây danh sách filter PO
+                if (row.DefaultCellStyle.Font?.Strikeout == true) continue;
                 string val = row.Cells["PO_No"]?.Value?.ToString() ?? "";
                 if (string.IsNullOrWhiteSpace(val)) hasEmpty = true;
                 else if (seen.Add(val)) _cboFilterPO.Items.Add(val);
@@ -2395,13 +3382,14 @@ namespace MPR_Managerment.Forms
             {
                 if (row.IsNewRow) continue;
                 string poVal = row.Cells["PO_No"]?.Value?.ToString() ?? "";
+                bool rowIsDeleted = row.DefaultCellStyle.Font?.Strikeout == true;
 
                 if (sel == "(Tat ca)")
-                    row.Visible = true;
+                    row.Visible = true;  // dòng Is_Deleted vẫn hiện để xem lịch sử
                 else if (sel == "(Chua len PO)")
-                    row.Visible = string.IsNullOrWhiteSpace(poVal);
+                    row.Visible = !rowIsDeleted && string.IsNullOrWhiteSpace(poVal);
                 else
-                    row.Visible = string.Equals(poVal, sel, StringComparison.OrdinalIgnoreCase);
+                    row.Visible = !rowIsDeleted && string.Equals(poVal, sel, StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -2454,11 +3442,13 @@ namespace MPR_Managerment.Forms
                 // Lay gia tri truc tiep tu _details (so nguyen/decimal thuc)
                 // de tranh bi format string boi CellFormatting
                 var poMap2 = GetPoMappingForMpr(_selectedMPR_ID);
-                // Build map Detail_ID -> row.Visible de biet dong nao dang hien
+                // Build map Detail_ID -> row.Visible, loại bỏ dòng Is_Deleted khỏi xuất Excel
                 var visibleIds = new System.Collections.Generic.HashSet<int>();
                 foreach (DataGridViewRow dgvRow in dgvDetails.Rows)
                 {
                     if (dgvRow.IsNewRow || !dgvRow.Visible) continue;
+                    // Bỏ qua dòng bị xóa mềm
+                    if (dgvRow.DefaultCellStyle.Font?.Strikeout == true) continue;
                     if (dgvRow.Cells["Detail_ID"]?.Value is int rid) visibleIds.Add(rid);
                     else if (int.TryParse(dgvRow.Cells["Detail_ID"]?.Value?.ToString(), out int rid2))
                         visibleIds.Add(rid2);
@@ -2592,7 +3582,7 @@ namespace MPR_Managerment.Forms
                 // Chi copy cac dong DANG DUOC CHON (selected rows)
                 var selectedRows = dgvDetails.SelectedRows
                     .Cast<DataGridViewRow>()
-                    .Where(r => !r.IsNewRow)
+                    .Where(r => !r.IsNewRow && r.DefaultCellStyle.Font?.Strikeout != true)
                     .OrderBy(r => r.Index)
                     .ToList();
 

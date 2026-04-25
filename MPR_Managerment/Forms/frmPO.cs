@@ -783,16 +783,16 @@ namespace MPR_Managerment.Forms
                 flowDetailBtns.MaximumSize = new Size(maxFlowW, 0);
             };
 
-            btnAddDetail = CreateButton("+ Thêm dòng", Color.FromArgb(40, 167, 69), Point.Empty, 120, 30);
-            btnDeleteDetail = CreateButton("Xóa dòng", Color.FromArgb(220, 53, 69), Point.Empty, 100, 30);
-            var btnSaveDetail = CreateButton("💾 Lưu chi tiết", Color.FromArgb(0, 120, 212), Point.Empty, 130, 30); btnSaveDetail.Tag = "130,30";
-            btnExport = CreateButton("📄 Xuất Excel", Color.FromArgb(0, 150, 100), Point.Empty, 130, 30);
-            var btnCheckBySize = CreateButton("🔍 Check by size", Color.FromArgb(102, 51, 153), Point.Empty, 145, 30); btnCheckBySize.Tag = "145,30";
+            btnAddDetail = CreateButton("+ Thêm", Color.FromArgb(40, 167, 69), Point.Empty, 80, 28);
+            btnDeleteDetail = CreateButton("Xóa dòng", Color.FromArgb(220, 53, 69), Point.Empty, 85, 28);
+            var btnSaveDetail = CreateButton("💾 Lưu chi tiết", Color.FromArgb(0, 120, 212), Point.Empty, 115, 28); btnSaveDetail.Tag = "115,28";
+            btnExport = CreateButton("📄 Xuất Excel", Color.FromArgb(0, 150, 100), Point.Empty, 110, 28);
+            var btnCheckBySize = CreateButton("🔍 Check size", Color.FromArgb(102, 51, 153), Point.Empty, 110, 28); btnCheckBySize.Tag = "110,28";
 
-            btnAddDetail.Margin = new Padding(0, 0, 4, 0); btnAddDetail.Tag = "120,30";
-            btnDeleteDetail.Margin = new Padding(0, 0, 4, 0); btnDeleteDetail.Tag = "100,30";
+            btnAddDetail.Margin = new Padding(0, 0, 3, 0); btnAddDetail.Tag = "80,28";
+            btnDeleteDetail.Margin = new Padding(0, 0, 3, 0); btnDeleteDetail.Tag = "85,28";
             btnSaveDetail.Margin = new Padding(0, 0, 4, 0);
-            btnExport.Margin = new Padding(0, 0, 4, 0); btnExport.Tag = "130,30";
+            btnExport.Margin = new Padding(0, 0, 3, 0); btnExport.Tag = "110,28";
             btnCheckBySize.Margin = new Padding(0, 0, 4, 0);
 
             btnAddDetail.Click += BtnAddDetail_Click;
@@ -807,21 +807,23 @@ namespace MPR_Managerment.Forms
             flowDetailBtns.Controls.Add(btnExport);        // Xuất Excel
             flowDetailBtns.Controls.Add(btnCheckBySize);   // Check by size — cạnh Xuất Excel
 
-            // ── Bộ lọc "Đã lên PO" ─────────────────────────────────────
+            // ── Bộ lọc "Đã lên PO" — nằm trong flowDetailBtns ──────────
             flowDetailBtns.Controls.Add(new Label
             {
-                Text = "  Đã lên PO:",
+                Text = "Đã lên PO:",
                 AutoSize = false,
-                Size = new Size(72, 28),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Segoe UI", 8, FontStyle.Bold)
+                Size = new Size(62, 28),
+                TextAlign = ContentAlignment.MiddleRight,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Margin = new Padding(8, 0, 2, 0)
             });
             var cboFilterPO = new ComboBox
             {
-                Size = new Size(120, 28),
+                Size = new Size(110, 28),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Name = "cboFilterPO"
+                Name = "cboFilterPO",
+                Margin = new Padding(0, 0, 4, 0)
             };
             cboFilterPO.Items.AddRange(new object[] { "Tất cả", "Đã lên PO", "Chưa lên PO" });
             cboFilterPO.SelectedIndex = 0;
@@ -842,12 +844,13 @@ namespace MPR_Managerment.Forms
             };
             flowDetailBtns.Controls.Add(cboFilterPO);
 
-            // Đẩy dgvDetails xuống dưới toolbar khi toolbar wrap
+            // Đẩy dgvDetails xuống dưới toolbar
             flowDetailBtns.SizeChanged += (s, e) =>
             {
                 int dgvTop = flowDetailBtns.Bottom + 4;
                 if (dgvDetails != null) dgvDetails.Top = dgvTop;
             };
+
 
             // ── Panel phai: chua labels TruocVAT/SauVAT + apply VAT + apply Calc ──
             // Anchor Right de tu can le phai khi resize

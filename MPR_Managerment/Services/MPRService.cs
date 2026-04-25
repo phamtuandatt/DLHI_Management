@@ -126,6 +126,7 @@ namespace MPR_Managerment.Services
         }
 
         // ===== GET DETAILS =====
+        // Trả về TẤT CẢ dòng bao gồm cả Is_Deleted=1 để hiển thị lịch sử
         public List<MPRDetail> GetDetails(int mprId)
         {
             var list = new List<MPRDetail>();
@@ -137,9 +138,33 @@ namespace MPR_Managerment.Services
                            Material, Thickness_mm, Depth_mm, C_Width_mm,
                            D_Web_mm, E_Flange_mm, F_Length_mm,
                            UNIT, Qty_Per_Sheet, Weight_kg,
-                           MPS_Info, Usage_Location, REV, Remarks
+                           MPS_Info, Usage_Location, REV, Remarks, Is_Deleted
                     FROM MPR_Details
                     WHERE MPR_ID = @mprId
+                    ORDER BY Item_No", conn);
+                cmd.Parameters.AddWithValue("@mprId", mprId);
+                using (var r = cmd.ExecuteReader())
+                    while (r.Read()) list.Add(MapDetail(r));
+            }
+            return list;
+        }
+
+        // ===== GET DETAILS — CHỈ DÒNG ACTIVE (dùng cho PO, báo cáo, tính toán) =====
+        public List<MPRDetail> GetActiveDetails(int mprId)
+        {
+            var list = new List<MPRDetail>();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    SELECT Detail_ID, MPR_ID, Item_No, Item_Name, Description,
+                           Material, Thickness_mm, Depth_mm, C_Width_mm,
+                           D_Web_mm, E_Flange_mm, F_Length_mm,
+                           UNIT, Qty_Per_Sheet, Weight_kg,
+                           MPS_Info, Usage_Location, REV, Remarks, Is_Deleted
+                    FROM MPR_Details
+                    WHERE MPR_ID = @mprId
+                      AND Is_Deleted = 0
                     ORDER BY Item_No", conn);
                 cmd.Parameters.AddWithValue("@mprId", mprId);
                 using (var r = cmd.ExecuteReader())
@@ -159,12 +184,12 @@ namespace MPR_Managerment.Services
                         (MPR_ID, Item_No, Item_Name, Description, Material,
                          Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm,
                          UNIT, Qty_Per_Sheet, Weight_kg, MPS_Info, Usage_Location, REV, Remarks,
-                         Created_By, Created_Date)
+                         Is_Deleted, Created_By, Created_Date)
                     VALUES
                         (@MPR_ID, @Item_No, @Item_Name, @Description, @Material,
                          @Thickness_mm, @Depth_mm, @C_Width_mm, @D_Web_mm, @E_Flange_mm, @F_Length_mm,
                          @UNIT, @Qty_Per_Sheet, @Weight_kg, @MPS_Info, @Usage_Location, @REV, @Remarks,
-                         @Created_By, GETDATE())", conn);
+                         @Is_Deleted, @Created_By, GETDATE())", conn);
 
                 AddDetailParams(cmd, d);
                 cmd.Parameters.AddWithValue("@Created_By", createdBy);
@@ -180,23 +205,24 @@ namespace MPR_Managerment.Services
                 conn.Open();
                 var cmd = new SqlCommand(@"
                     UPDATE MPR_Details SET
-                        Item_No       = @Item_No,
-                        Item_Name     = @Item_Name,
-                        Description   = @Description,
-                        Material      = @Material,
-                        Thickness_mm  = @Thickness_mm,
-                        Depth_mm      = @Depth_mm,
-                        C_Width_mm    = @C_Width_mm,
-                        D_Web_mm      = @D_Web_mm,
-                        E_Flange_mm   = @E_Flange_mm,
-                        F_Length_mm   = @F_Length_mm,
-                        UNIT          = @UNIT,
-                        Qty_Per_Sheet = @Qty_Per_Sheet,
-                        Weight_kg     = @Weight_kg,
-                        MPS_Info      = @MPS_Info,
-                        Usage_Location= @Usage_Location,
-                        REV           = @REV,
-                        Remarks       = @Remarks
+                        Item_No        = @Item_No,
+                        Item_Name      = @Item_Name,
+                        Description    = @Description,
+                        Material       = @Material,
+                        Thickness_mm   = @Thickness_mm,
+                        Depth_mm       = @Depth_mm,
+                        C_Width_mm     = @C_Width_mm,
+                        D_Web_mm       = @D_Web_mm,
+                        E_Flange_mm    = @E_Flange_mm,
+                        F_Length_mm    = @F_Length_mm,
+                        UNIT           = @UNIT,
+                        Qty_Per_Sheet  = @Qty_Per_Sheet,
+                        Weight_kg      = @Weight_kg,
+                        MPS_Info       = @MPS_Info,
+                        Usage_Location = @Usage_Location,
+                        REV            = @REV,
+                        Remarks        = @Remarks,
+                        Is_Deleted     = @Is_Deleted
                     WHERE Detail_ID = @MPR_ID", conn);
 
                 AddDetailParams(cmd, d);
@@ -235,6 +261,7 @@ namespace MPR_Managerment.Services
             cmd.Parameters.AddWithValue("@Usage_Location", d.Usage_Location ?? "");
             cmd.Parameters.AddWithValue("@REV", d.REV ?? "0");
             cmd.Parameters.AddWithValue("@Remarks", d.Remarks ?? "");
+            cmd.Parameters.AddWithValue("@Is_Deleted", d.Is_Deleted ? 1 : 0); // BIT
         }
 
         private MPRHeader MapHeader(SqlDataReader r)
@@ -279,7 +306,8 @@ namespace MPR_Managerment.Services
                 MPS_Info = r["MPS_Info"]?.ToString() ?? "",
                 Usage_Location = r["Usage_Location"]?.ToString() ?? "",
                 REV = r["REV"]?.ToString() ?? "0",
-                Remarks = r["Remarks"]?.ToString() ?? ""
+                Remarks = r["Remarks"]?.ToString() ?? "",
+                Is_Deleted = r["Is_Deleted"] != DBNull.Value && Convert.ToBoolean(r["Is_Deleted"])
             };
         }
     }
