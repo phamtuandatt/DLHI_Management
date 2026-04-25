@@ -870,6 +870,7 @@ namespace MPR_Managerment.Forms
                                      FROM   MPR_Details
                                      WHERE  MPR_ID = @mprId
                                  )
+                AND ISNULL(poh.Status,'') <> 'Cancelled'
                         ORDER BY pod.MPR_Detail_ID, poh.PONo";
 
                     using (var cmd = new SqlCommand(sql, conn))
@@ -1655,6 +1656,7 @@ namespace MPR_Managerment.Forms
                             FROM PO_Detail pod2
                             INNER JOIN PO_head ph2 ON ph2.PO_ID = pod2.PO_ID
                             WHERE pod2.MPR_Detail_ID = d.Detail_ID
+                    AND ISNULL(ph2.Status,'') <> 'Cancelled'
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [PO No],
                         ISNULL(STUFF((
@@ -1664,6 +1666,7 @@ namespace MPR_Managerment.Forms
                             INNER JOIN RIR_head  rh2 ON rh2.PONo   = ph3.PONo
                             INNER JOIN RIR_detail rd2 ON rd2.RIR_ID = rh2.RIR_ID
                             WHERE pod3.MPR_Detail_ID = d.Detail_ID
+                    AND ISNULL(ph3.Status,'') <> 'Cancelled'
                               AND ISNULL(rd2.Heatno, N'') != N''
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [Heat No],
@@ -1680,6 +1683,7 @@ namespace MPR_Managerment.Forms
                             INNER JOIN RIR_head   rh3 ON rh3.PONo   = ph4.PONo
                             INNER JOIN RIR_detail rd3 ON rd3.RIR_ID = rh3.RIR_ID
                             WHERE pod4.MPR_Detail_ID = d.Detail_ID
+                    AND ISNULL(ph4.Status,'') <> 'Cancelled'
                             ORDER BY
                                 CASE rd3.Inspect_Result
                                     WHEN N'Fail' THEN 1
@@ -1694,6 +1698,7 @@ namespace MPR_Managerment.Forms
                             INNER JOIN PO_head  ph5 ON ph5.PO_ID = pod5.PO_ID
                             INNER JOIN RIR_head rh4 ON rh4.PONo  = ph5.PONo
                             WHERE pod5.MPR_Detail_ID = d.Detail_ID
+                    AND ISNULL(ph5.Status,'') <> 'Cancelled'
                               AND ISNULL(rh4.RIR_No, N'') != N''
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [RIR No],

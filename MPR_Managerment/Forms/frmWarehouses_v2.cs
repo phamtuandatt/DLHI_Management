@@ -55,7 +55,7 @@ namespace MPR_Managerment.Forms
 
         private Dictionary<int, decimal> _importQueueActual = new Dictionary<int, decimal>();
         private Dictionary<int, decimal> _importQueueBase = new Dictionary<int, decimal>();
-        
+
         private int _selectedImportID = 0;
         private int _pendingPO_ID = 0;
         private string _currentBatchNo = "";
@@ -863,6 +863,7 @@ namespace MPR_Managerment.Forms
                                     p.Project_Name?.Contains(code) == true)
                         .OrderBy(p => p.PONo)
                         .ToList();
+                    allPO = allPO.FindAll(p => !string.Equals(p.Status, "Cancelled", StringComparison.OrdinalIgnoreCase));
                     foreach (var po in allPO)
                         cboPONoInv.Items.Add(po.PONo);
                 }
@@ -1005,7 +1006,7 @@ namespace MPR_Managerment.Forms
             // ── Chọn dự án → load INV path ──
             try
             {
-                foreach (var p in _dtProject)    
+                foreach (var p in _dtProject)
                     cboInvProject.Items.Add(p.ProjectCode);
                 if (cboInvProject.Items.Count > 0) cboInvProject.SelectedIndex = 0;
             }
@@ -2541,6 +2542,8 @@ namespace MPR_Managerment.Forms
             try
             {
                 var allPO = _poService.GetAllPOForImport();
+                // Loại bỏ PO bị Cancelled
+                allPO = allPO.FindAll(p => !string.Equals(p.Status, "Cancelled", StringComparison.OrdinalIgnoreCase));
                 if (string.IsNullOrEmpty(projectCode))
                 {
                     cboPONo.Items.Clear();
@@ -2598,6 +2601,8 @@ namespace MPR_Managerment.Forms
             try
             {
                 var allPO = _poService.GetAllPOForImportHistory();
+                // Loại bỏ PO bị Cancelled
+                allPO = allPO.FindAll(p => !string.Equals(p.Status, "Cancelled", StringComparison.OrdinalIgnoreCase));
                 if (string.IsNullOrEmpty(projectCode))
                 {
                     cboFilterPO.Items.Clear();
@@ -2651,6 +2656,7 @@ namespace MPR_Managerment.Forms
 
                 string poNo = cboPONo.SelectedItem.ToString();
                 _poList = _poService.GetAll();
+                _poList = _poList.FindAll(p => !string.Equals(p.Status, "Cancelled", StringComparison.OrdinalIgnoreCase));
                 var po = _poList.Find(p => p.PONo == poNo);
                 if (po == null) return;
                 var details = _poService.GetDetails(po.PO_ID);

@@ -7,6 +7,12 @@ using MPR_Managerment.Services;
 
 namespace MPR_Managerment.Forms
 {
+    // Interface để các form con implement refresh thủ công
+    public interface IRefreshable
+    {
+        void RefreshData();
+    }
+
     public partial class frmMain : Form
     {
         private Panel panelMenu;
@@ -14,6 +20,10 @@ namespace MPR_Managerment.Forms
         private Panel panelHeader;
         private Label lblUser;
         private Form _activeForm = null;
+        // Cache form — Hide thay vì Close khi chuyển, tránh reload data
+        private readonly Dictionary<string, Form> _formCache = new Dictionary<string, Form>();
+        private string _activeFormKey = "";
+        private Button _btnRefresh;
         // Notification
         private Panel _panelNotify;
         private ListBox _lstNotify;
@@ -30,14 +40,8 @@ namespace MPR_Managerment.Forms
         private System.Collections.Generic.List<string> _starredMsgs
             = new System.Collections.Generic.List<string>(); // quan trong
         private Button _btnTabStar;  // de cap nhat so luong Q Trong
-        // ── Menu collapse/expand ──
-        private bool _menuExpanded = true;
+        // ── Menu cố định 190px ──
         private const int MENU_FULL = 190;
-        private const int MENU_SLIM = 0;    // thu gọn hoàn toàn
-        private System.Windows.Forms.Timer _menuAnimTimer;  // animation (không dùng nữa)
-        private System.Windows.Forms.Timer _menuLeaveTimer; // delay nhỏ trước khi thu
-        private Button _btnArrow;            // nút mũi tên cố định
-        private Panel _hoverZone;            // vùng hover bên trái
 
         public frmMain()
         {
@@ -62,7 +66,6 @@ namespace MPR_Managerment.Forms
             UpdateContentBounds();
             BuildNotifyPanel();
             StartNotifyTimer();
-            InitMenuBehavior();   // auto-hide + hover zone + arrow btn
             ShowDashboard();
         }
 
@@ -105,10 +108,30 @@ namespace MPR_Managerment.Forms
             lblUser.Location = new Point(panelHeader.Width - 300, 15);
             panelHeader.Controls.Add(lblUser);
 
+            // Nút Làm mới — nằm bên trái lblUser
+            _btnRefresh = new Button
+            {
+                Text = "🔄 Làm mới",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(0, 90, 180),
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(100, 30),
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            _btnRefresh.FlatAppearance.BorderSize = 0;
+            _btnRefresh.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 60, 140);
+            new ToolTip().SetToolTip(_btnRefresh, "Làm mới dữ liệu form hiện tại");
+            _btnRefresh.Location = new Point(panelHeader.Width - 415, 12);
+            _btnRefresh.Click += (s, e) => RefreshActiveForm();
+            panelHeader.Controls.Add(_btnRefresh);
+
             panelHeader.Resize += (s, ev) =>
             {
                 panelHeader.Width = this.ClientSize.Width;
                 lblUser.Left = panelHeader.Width - 300;
+                _btnRefresh.Left = panelHeader.Width - 415;
             };
 
             this.Controls.Add(panelHeader);
@@ -284,167 +307,74 @@ namespace MPR_Managerment.Forms
         private void UpdateContentBounds()
         {
             int headerH = 55;
-            int menuW = panelMenu?.Width ?? MENU_FULL;
-            int arrowW = 18; // chiều rộng nút mũi tên luôn hiển thị
             panelHeader.Width = this.ClientSize.Width;
+            panelMenu.Width = MENU_FULL;
             panelMenu.Height = this.ClientSize.Height - headerH;
-            panelContent.Location = new Point(menuW + arrowW, headerH);
-            panelContent.Size = new Size(this.ClientSize.Width - menuW - arrowW,
-                                                this.ClientSize.Height - headerH);
-            // Cập nhật vị trí arrow + hoverZone
-            if (_btnArrow != null) { _btnArrow.Left = menuW; _btnArrow.Height = panelMenu.Height; }
-            if (_hoverZone != null) { _hoverZone.Height = this.ClientSize.Height - headerH; }
+            panelContent.Location = new Point(MENU_FULL, headerH);
+            panelContent.Size = new Size(this.ClientSize.Width - MENU_FULL,
+                                             this.ClientSize.Height - headerH);
             panelMenu.BringToFront();
-            if (_btnArrow != null) _btnArrow.BringToFront();
-            if (_hoverZone != null) _hoverZone.BringToFront();
             panelHeader.BringToFront();
         }
 
-        // ── Khởi tạo toàn bộ behavior: auto-hide, hover, arrow ───────────
-        private void InitMenuBehavior()
-        {
-            int headerH = 55;
-
-            // Nút mũi tên cố định bên phải menu — luôn hiển thị
-            _btnArrow = new Button
-            {
-                Location = new Point(MENU_FULL, headerH),
-                Size = new Size(18, this.ClientSize.Height - headerH),
-                BackColor = Color.FromArgb(50, 50, 70),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Text = "◀",
-                Font = new Font("Segoe UI", 7, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
-            };
-            _btnArrow.FlatAppearance.BorderSize = 0;
-            _btnArrow.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 180);
-            _btnArrow.Click += (s, e) =>
-            {
-                if (_menuExpanded) CollapseMenu();
-                else ExpandMenu();
-            };
-            this.Controls.Add(_btnArrow);
-
-            // Vùng hover trong suốt (10px) sát mép trái — kích hoạt khi menu đã ẩn
-            _hoverZone = new Panel
-            {
-                Location = new Point(0, headerH),
-                Size = new Size(10, this.ClientSize.Height - headerH),
-                BackColor = Color.Transparent,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
-            };
-            _hoverZone.MouseEnter += (s, e) => { if (!_menuExpanded) ExpandMenu(); };
-            this.Controls.Add(_hoverZone);
-
-            // Timer delay nhỏ 300ms — tránh collapse khi chuột lướt nhanh qua
-            _menuLeaveTimer = new System.Windows.Forms.Timer { Interval = 300 };
-            _menuLeaveTimer.Tick += (s, e) => { _menuLeaveTimer.Stop(); CollapseMenu(); };
-
-            // Chuột vào menu / arrow → hủy collapse
-            EventHandler onEnter = (s, e) => _menuLeaveTimer.Stop();
-            // Chuột rời menu / arrow → bắt đầu collapse sau 300ms
-            EventHandler onLeave = (s, e) =>
-            {
-                if (!_menuExpanded) return;
-                // Kiểm tra chuột có thực sự rời khỏi cả menu lẫn arrow không
-                var pt = this.PointToClient(Cursor.Position);
-                bool overMenu = panelMenu.Bounds.Contains(pt);
-                bool overArrow = _btnArrow.Bounds.Contains(pt);
-                if (!overMenu && !overArrow)
-                    _menuLeaveTimer.Start();
-            };
-
-            panelMenu.MouseEnter += onEnter;
-            panelMenu.MouseLeave += onLeave;
-            _btnArrow.MouseEnter += onEnter;
-            _btnArrow.MouseLeave += onLeave;
-
-            // Hook toàn bộ control con trong menu
-            foreach (Control c in panelMenu.Controls)
-            {
-                c.MouseEnter += onEnter;
-                c.MouseLeave += onLeave;
-            }
-
-            UpdateContentBounds();
-        }
-
-        // ── Mở menu với animation ─────────────────────────────────────────
-        private void ExpandMenu()
-        {
-            if (_menuExpanded) return;
-            _menuLeaveTimer?.Stop();
-            _menuExpanded = true;
-            _btnArrow.Text = "◀";
-            ApplyMenuMode(true);
-            // Mở nhanh không animation để tránh lag
-            this.SuspendLayout();
-            panelMenu.Width = MENU_FULL;
-            UpdateContentBounds();
-            this.ResumeLayout(false);
-            _hoverZone.BringToFront();
-        }
-
-        // ── Thu menu với animation ────────────────────────────────────────
-        private void CollapseMenu()
-        {
-            if (!_menuExpanded) return;
-            _menuLeaveTimer?.Stop();
-            _menuExpanded = false;
-            _btnArrow.Text = "▶";
-            ApplyMenuMode(false);
-            // Thu nhanh không animation để tránh lag khi form chứa nhiều dữ liệu
-            this.SuspendLayout();
-            panelMenu.Width = MENU_SLIM;
-            UpdateContentBounds();
-            this.ResumeLayout(false);
-            _hoverZone.BringToFront();
-        }
-
-        // ── Cập nhật text button theo mode ───────────────────────────────
-        private void ApplyMenuMode(bool expanded)
-        {
-            foreach (Control c in panelMenu.Controls)
-            {
-                if (c is Button btn && btn.Tag is string fullText)
-                {
-                    if (expanded)
-                    {
-                        btn.Text = fullText;
-                        btn.Width = MENU_FULL;
-                        btn.Padding = new Padding(12, 0, 0, 0);
-                        btn.TextAlign = ContentAlignment.MiddleLeft;
-                        btn.Font = new Font("Segoe UI", 9);
-                        btn.Visible = true;
-                    }
-                    else
-                    {
-                        btn.Visible = false; // ẩn hoàn toàn khi thu
-                    }
-                }
-                else if (c is Label lbl && lbl.Text == "MENU CHÍNH")
-                {
-                    lbl.Visible = expanded;
-                }
-            }
-        }
 
         private void OpenForm(Form form)
         {
-            if (_activeForm != null)
+            // Lấy key từ tên type của form
+            string key = form.GetType().Name;
+
+            // Nếu đang hiển thị đúng form này rồi → không làm gì
+            if (_activeFormKey == key && _activeForm != null && !_activeForm.IsDisposed)
             {
-                _activeForm.Close();
-                _activeForm = null;
+                form.Dispose(); // dispose instance mới vì đã có cache
+                return;
             }
-            _activeForm = form;
-            _activeForm.TopLevel = false;
-            _activeForm.FormBorderStyle = FormBorderStyle.None;
-            _activeForm.Dock = DockStyle.Fill;
-            panelContent.Controls.Clear();
-            panelContent.Controls.Add(_activeForm);
+
+            // Ẩn form hiện tại (không Close → giữ nguyên data)
+            if (_activeForm != null && !_activeForm.IsDisposed)
+                _activeForm.Hide();
+
+            // Dùng cache nếu đã có, không tạo mới
+            if (_formCache.TryGetValue(key, out Form cached) && !cached.IsDisposed)
+            {
+                form.Dispose(); // dispose instance mới, dùng cached
+                _activeForm = cached;
+            }
+            else
+            {
+                _formCache[key] = form;
+                _activeForm = form;
+                _activeForm.TopLevel = false;
+                _activeForm.FormBorderStyle = FormBorderStyle.None;
+                _activeForm.Dock = DockStyle.Fill;
+                panelContent.Controls.Add(_activeForm);
+            }
+
+            _activeFormKey = key;
             _activeForm.Show();
+            _activeForm.BringToFront();
+        }
+
+        // Làm mới dữ liệu form đang hiển thị
+        private void RefreshActiveForm()
+        {
+            if (_activeForm == null || _activeForm.IsDisposed) return;
+            // Gọi interface IRefreshable nếu form hỗ trợ
+            if (_activeForm is IRefreshable r)
+            {
+                r.RefreshData();
+                return;
+            }
+            // Fallback: tạo lại form (xóa khỏi cache)
+            string key = _activeFormKey;
+            _activeForm.Close();
+            _activeForm = null;
+            if (_formCache.ContainsKey(key))
+                _formCache.Remove(key);
+            // Mở lại form mới qua menu handler
+            foreach (Control c in panelMenu.Controls)
+                if (c is Button btn && btn.Tag is string tag && tag.Contains(key.Replace("frm", "")))
+                { btn.PerformClick(); return; }
         }
 
         // =====================================================================
@@ -452,11 +382,11 @@ namespace MPR_Managerment.Forms
         // =====================================================================
         private void ShowDashboard()
         {
-            if (_activeForm != null)
-            {
-                _activeForm.Close();
-                _activeForm = null;
-            }
+            if (_activeForm != null && !_activeForm.IsDisposed)
+                _activeForm.Hide();
+            _activeForm = null;
+            _activeFormKey = "";
+
             panelContent.Controls.Clear();
 
             panelContent.Controls.Add(new Label

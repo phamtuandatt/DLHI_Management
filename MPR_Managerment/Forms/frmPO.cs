@@ -199,6 +199,18 @@ namespace MPR_Managerment.Forms
             dgvPO.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
             dgvPO.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvPO.SelectionChanged += DgvPO_SelectionChanged;
+            // Cancelled PO: toàn bộ row màu xám + gạch ngang
+            dgvPO.CellFormatting += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                var statusCell = dgvPO.Rows[ev.RowIndex].Cells["Trang_Thai"];
+                if (statusCell?.Value?.ToString() == "Cancelled")
+                {
+                    ev.CellStyle.ForeColor = Color.FromArgb(160, 160, 160);
+                    ev.CellStyle.BackColor = Color.FromArgb(245, 245, 245);
+                    ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
+                }
+            };
             dgvPO.DataBindingComplete += (s, ev) => dgvPO.ClearSelection();
 
             // Click chuột trái vào bất kỳ ô nào → copy số PO vào clipboard
@@ -819,7 +831,7 @@ namespace MPR_Managerment.Forms
                 foreach (DataGridViewRow row in dgvDetails.Rows)
                 {
                     if (row.IsNewRow) continue;
-                    string poVal = row.Cells["PO_No"]?.Value?.ToString() ?? "";
+                    string poVal = row.Cells["Ordered_PO"]?.Value?.ToString() ?? "";
                     row.Visible = sel switch
                     {
                         "Đã lên PO" => !string.IsNullOrWhiteSpace(poVal),
@@ -3337,7 +3349,7 @@ namespace MPR_Managerment.Forms
 
                 // Lấy MPR_No của PO này
                 var cmdMPR = new Microsoft.Data.SqlClient.SqlCommand(
-                    "SELECT MPR_No FROM PO_head WHERE PO_ID = @poId", conn);
+                    "SELECT MPR_No FROM PO_head WHERE PO_ID = @poId AND ISNULL(Status,'') <> 'Cancelled'", conn);
                 cmdMPR.Parameters.AddWithValue("@poId", poId);
                 string mprNo = cmdMPR.ExecuteScalar()?.ToString() ?? "";
                 if (string.IsNullOrEmpty(mprNo)) return;
@@ -3525,7 +3537,7 @@ namespace MPR_Managerment.Forms
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    string sql = @"SELECT pod.MPR_Detail_ID, poh.PONo FROM PO_Detail pod INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID WHERE pod.MPR_Detail_ID IS NOT NULL AND pod.MPR_Detail_ID IN (SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId)";
+                    string sql = @"SELECT pod.MPR_Detail_ID, poh.PONo FROM PO_Detail pod INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID WHERE pod.MPR_Detail_ID IS NOT NULL AND pod.MPR_Detail_ID IN (SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId) AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@mprId", mprId);
@@ -3737,6 +3749,7 @@ namespace MPR_Managerment.Forms
                     LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
                     LEFT JOIN Suppliers   s  ON s.Supplier_ID  = ph.Supplier_ID
                     WHERE ISNULL(dt.Status,'Pending') != 'Done'
+                       AND dt.PONo NOT IN (SELECT PONo FROM PO_head WHERE ISNULL(Status,'') = 'Cancelled')
                     ORDER BY dt.ExpDelivery ASC";
 
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
@@ -3998,7 +4011,7 @@ namespace MPR_Managerment.Forms
                     dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 140);
                     btnClose.Location = new Point(popup.ClientSize.Width - 110, popup.ClientSize.Height - 42);
                 };
-                popup.ShowDialog(this);
+                popup.Owner = this; popup.Show();
             }
             catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
@@ -4327,7 +4340,7 @@ namespace MPR_Managerment.Forms
                     btnOK.PerformClick();
                     ev.Handled = true;
                 };
-                dlg.ShowDialog(this);
+                dlg.Owner = this; dlg.Show();
             }
             catch (Exception ex)
             {
@@ -4694,7 +4707,7 @@ namespace MPR_Managerment.Forms
                     btnSaveNote.Location = new Point(10, popup.ClientSize.Height - 40);
                 };
 
-                popup.ShowDialog(this);
+                popup.Owner = this; popup.Show();
             }
             catch (Exception ex)
             {
@@ -4754,6 +4767,7 @@ namespace MPR_Managerment.Forms
                             ISNULL(rd.Size, N'') LIKE N'%' + ISNULL(pod.Asize, N'') + N'%'
                             OR pod.Asize IS NULL OR pod.Asize = N''
                         )
+                    WHERE ISNULL(ph.Status,'') <> 'Cancelled'
                     ORDER BY ph.PONo, pod.Item_No, rh.RIR_No";
 
                 DataTable dtFull;
@@ -5169,7 +5183,7 @@ namespace MPR_Managerment.Forms
                     dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 180);
                 };
 
-                popup.ShowDialog(this);
+                popup.Owner = this; popup.Show();
             }
             catch (Exception ex)
             {
