@@ -68,6 +68,28 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        // Chọn MPR theo MPR_No — dùng sau khi tạo Revise mới
+        private void SelectMPRByNo(string mprNo)
+        {
+            if (string.IsNullOrEmpty(mprNo)) return;
+            // Reload để đảm bảo _mprList có bản mới nhất
+            var target = _mprList.Find(m => m.MPR_No == mprNo);
+            if (target == null) return;
+            txtSearch.Text = mprNo;
+            BtnSearch_Click(null, null);
+            foreach (DataGridViewRow row in dgvMPR.Rows)
+            {
+                if (row.Cells["MPR_No"]?.Value?.ToString() == mprNo)
+                {
+                    dgvMPR.ClearSelection();
+                    row.Selected = true;
+                    if (row.Index >= 0)
+                        dgvMPR.FirstDisplayedScrollingRowIndex = row.Index;
+                    break;
+                }
+            }
+        }
+
         private void SelectMPRById(int id)
         {
             var targetMPR = _mprList.Find(m => m.MPR_ID == id);
@@ -823,6 +845,11 @@ namespace MPR_Managerment.Forms
 
             try
             {
+                // Lấy baseMprNo (phần trước _Rev.) để tổng hợp PO mọi phiên bản
+                string baseMprNo = mprNo.Contains("_Rev.")
+                    ? mprNo.Substring(0, mprNo.IndexOf("_Rev."))
+                    : mprNo;
+
                 string sql = @"
                     SELECT
                         h.PONo AS [PO No],
@@ -832,21 +859,24 @@ namespace MPR_Managerment.Forms
                             WHEN ISNULL(SUM(d.Qty_Per_Sheet), 0) = 0 THEN 0
                             ELSE CAST(
                                 ISNULL(
-                                    (SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID), 
+                                    (SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID),
                                     ISNULL(SUM(d.Received), 0)
-                                ) * 100.0 / SUM(d.Qty_Per_Sheet) 
+                                ) * 100.0 / SUM(d.Qty_Per_Sheet)
                             AS DECIMAL(5,1))
                         END AS [% Giao]
                     FROM PO_head h
                     LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
+                    -- Lấy PO của tất cả phiên bản cùng gốc (baseMprNo)
                     WHERE h.MPR_No = @mprNo
+                       OR h.MPR_No LIKE @baseLike
                     GROUP BY h.PO_ID, h.PONo, h.PO_Date, h.Status
                     ORDER BY h.PO_Date DESC";
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
                     var cmd = new SqlCommand(sql, conn);
-                    cmd.Parameters.AddWithValue("@mprNo", mprNo);
+                    cmd.Parameters.AddWithValue("@mprNo", baseMprNo);
+                    cmd.Parameters.AddWithValue("@baseLike", baseMprNo + "_Rev.%");
                     var dt = new DataTable();
                     dt.Load(cmd.ExecuteReader());
                     dgvPOProgress.DataSource = dt;
@@ -1947,37 +1977,6 @@ namespace MPR_Managerment.Forms
                     // - Dòng MỚI thêm vào     → REV = nextRev
                     // - Dòng bị xóa mềm       → giữ REV cũ (chỉ đánh dấu Is_Deleted)
 
-                    // Xây dựng preview REV cho từng dòng trước khi lưu
-                    var revPreview = new System.Text.StringBuilder();
-                    revPreview.AppendLine($"nextRev={nextRev}, originalRows.Count={originalRows.Count}");
-                    revPreview.AppendLine("STT | DetID | OldREV | Changed | NewREV");
-                    foreach (DataGridViewRow rowP in dgvRevDet.Rows)
-                    {
-                        if (rowP.IsNewRow) continue;
-                        string nmP = rowP.Cells["Ritem_name"].Value?.ToString() ?? "";
-                        if (string.IsNullOrWhiteSpace(nmP)) continue;
-                        int didP = int.TryParse(rowP.Cells["RDetId"].Value?.ToString(), out int dpv) ? dpv : 0;
-                        int rvP = int.TryParse(rowP.Cells["RREV"].Value?.ToString(), out int rpv) ? rpv : 0;
-                        bool hasOrig = originalRows.ContainsKey(didP);
-                        bool chgP = false;
-                        if (hasOrig)
-                        {
-                            var origP = originalRows[didP];
-                            chgP = StrChanged(rowP.Cells["Ritem_name"].Value?.ToString(), origP["item_name"])
-                                || StrChanged(rowP.Cells["RDesc"].Value?.ToString(), origP["Description"])
-                                || StrChanged(rowP.Cells["RMaterial"].Value?.ToString(), origP["Material"])
-                                || StrChanged(rowP.Cells["RUNIT"].Value?.ToString(), origP["UNIT"])
-                                || DecChanged(rowP.Cells["RT_mm"].Value?.ToString(), origP["Thickness_mm"])
-                                || DecChanged(rowP.Cells["RD_mm"].Value?.ToString(), origP["Depth_mm"])
-                                || DecChanged(rowP.Cells["RQty"].Value?.ToString(), origP["Qty_Per_Sheet"])
-                                || DecChanged(rowP.Cells["RKG"].Value?.ToString(), origP["Weight_kg"]);
-                        }
-                        int newRevP = (!hasOrig || didP == 0) ? nextRev : (chgP ? nextRev : rvP);
-                        revPreview.AppendLine($"{rowP.Cells["RItem_No"].Value} | {didP} | {rvP} | {(hasOrig ? (chgP ? "CHANGED" : "same") : "NEW")} | {newRevP}");
-                    }
-                    if (MessageBox.Show(revPreview.ToString() + "\n\nTiếp tục lưu?", "Debug REV Preview",
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-
                     int stt = 1;
                     foreach (DataGridViewRow row2 in dgvRevDet.Rows)
                     {
@@ -2053,12 +2052,73 @@ namespace MPR_Managerment.Forms
                         }, _currentUser);
                     }
 
+                    // ── Transfer tham chiếu PO_Detail → Detail_ID mới ──────────────────
+                    // Sau khi Revise, PO_Detail.MPR_Detail_ID vẫn trỏ về Detail_ID CŨ
+                    // Cần cập nhật sang Detail_ID MỚI để giữ liên kết PO/RIR/phiếu nhập kho
+                    if (!isAdmin)
+                    {
+                        try
+                        {
+                            // Lấy mapping: Item_No → Detail_ID mới (vừa insert)
+                            var cmdNewIds = new SqlCommand(
+                                "SELECT Item_No, Detail_ID FROM MPR_Details " +
+                                "WHERE MPR_ID=@newId AND Is_Deleted=0 ORDER BY Item_No", conn);
+                            cmdNewIds.Parameters.AddWithValue("@newId", targetId);
+                            var newIdMap = new Dictionary<int, int>(); // Item_No → new Detail_ID
+                            using (var rdrNew = cmdNewIds.ExecuteReader())
+                                while (rdrNew.Read())
+                                    newIdMap[Convert.ToInt32(rdrNew["Item_No"])] = Convert.ToInt32(rdrNew["Detail_ID"]);
+
+                            // Lấy mapping: Item_No → Detail_ID cũ (từ selMprId)
+                            var cmdOldIds = new SqlCommand(
+                                "SELECT Item_No, Detail_ID FROM MPR_Details " +
+                                "WHERE MPR_ID=@oldId AND Is_Deleted=0 ORDER BY Item_No", conn);
+                            cmdOldIds.Parameters.AddWithValue("@oldId", selMprId);
+                            var oldIdMap = new Dictionary<int, int>(); // Item_No → old Detail_ID
+                            using (var rdrOld = cmdOldIds.ExecuteReader())
+                                while (rdrOld.Read())
+                                    oldIdMap[Convert.ToInt32(rdrOld["Item_No"])] = Convert.ToInt32(rdrOld["Detail_ID"]);
+
+                            // Với mỗi Item_No có trong cả 2 bản: update PO_Detail.MPR_Detail_ID
+                            int transferCount = 0;
+                            foreach (var kvp in oldIdMap)
+                            {
+                                int itemNo = kvp.Key;
+                                int oldDetId = kvp.Value;
+                                if (!newIdMap.ContainsKey(itemNo)) continue;
+                                int newDetId = newIdMap[itemNo];
+                                if (oldDetId == newDetId) continue;
+
+                                // Cập nhật PO_Detail: trỏ sang Detail_ID mới
+                                var cmdTransfer = new SqlCommand(
+                                    "UPDATE dbo.PO_Detail SET MPR_Detail_ID=@newId " +
+                                    "WHERE MPR_Detail_ID=@oldId", conn);
+                                cmdTransfer.Parameters.AddWithValue("@newId", newDetId);
+                                cmdTransfer.Parameters.AddWithValue("@oldId", oldDetId);
+                                transferCount += cmdTransfer.ExecuteNonQuery();
+                            }
+
+                            System.Diagnostics.Debug.WriteLine(
+                                $"[Transfer] {transferCount} PO_Detail rows re-linked to new Revision.");
+                        }
+                        catch (Exception exTrans)
+                        {
+                            // Transfer thất bại không chặn việc lưu — chỉ cảnh báo
+                            MessageBox.Show(
+                                "⚠ Lưu Revise thành công nhưng không thể transfer liên kết PO/RIR:\n" + exTrans.Message +
+                                "\n\nVui lòng liên hệ Admin để cập nhật thủ công.",
+                                "Cảnh báo Transfer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    }
+
                     string msg = isAdmin
                         ? $"✅ Admin đã cập nhật MPR '{oldMprNo}' (giữ nguyên REV)!"
-                        : $"✅ Đã tạo Revise '{newMprNo}' (MPR REV={nextRev}, các dòng thay đổi đã được cập nhật REV tương ứng)!";
+                        : $"✅ Đã tạo Revise '{newMprNo}' (MPR REV={nextRev}, đã transfer liên kết PO/RIR sang bản mới)!";
                     MessageBox.Show(msg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadMPR();
                     dlg.Close();
+                    // Tự động chọn bản Revise mới vừa tạo trong danh sách
+                    SelectMPRByNo(isAdmin ? oldMprNo : newMprNo);
                 }
                 catch (Exception ex) { lblSave.Text = "❌ " + ex.Message; }
             };
@@ -2698,6 +2758,28 @@ namespace MPR_Managerment.Forms
                     FROM MPR_Header  h
                     INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID AND d.Is_Deleted = 0
                     LEFT  JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
+                    -- Chỉ lấy bản Revise mới nhất: MPR_ID phải có Rev = Max(Rev) cùng baseMprNo
+                    INNER JOIN (
+                        SELECT
+                            -- BaseMprNo = phần trước '_Rev.' nếu có, không thì chính MPR_No
+                            CASE WHEN CHARINDEX('_Rev.', MPR_No) > 0
+                                 THEN LEFT(MPR_No, CHARINDEX('_Rev.', MPR_No) - 1)
+                                 ELSE MPR_No
+                            END AS BaseMprNo,
+                            MAX(Rev) AS MaxRev
+                        FROM MPR_Header
+                        GROUP BY
+                            CASE WHEN CHARINDEX('_Rev.', MPR_No) > 0
+                                 THEN LEFT(MPR_No, CHARINDEX('_Rev.', MPR_No) - 1)
+                                 ELSE MPR_No
+                            END
+                    ) latest ON (
+                        CASE WHEN CHARINDEX('_Rev.', h.MPR_No) > 0
+                             THEN LEFT(h.MPR_No, CHARINDEX('_Rev.', h.MPR_No) - 1)
+                             ELSE h.MPR_No
+                        END = latest.BaseMprNo
+                        AND h.Rev = latest.MaxRev
+                    )
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
 
                 DataTable dtFull;
