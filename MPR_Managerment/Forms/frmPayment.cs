@@ -944,7 +944,7 @@ namespace MPR_Managerment.Forms
                 string d1a = "", d1s = "", d2a = "", d2s = "", d3a = "", d3s = "", d4a = "", d4s = "", d5a = "", d5s = "";
                 for (int idx = 0; idx < scheds.Count && idx < 5; idx++)
                 {
-                    string a = scheds[idx].Amount_Plan.ToString("N2");
+                    string a = FormatAmt(scheds[idx].Amount_Plan);
                     string t = scheds[idx].Status ?? "Chưa TT";
                     switch (idx)
                     {
@@ -963,9 +963,9 @@ namespace MPR_Managerment.Forms
                     Ngay_PO = p.PO_Date.HasValue ? p.PO_Date.Value.ToString("dd/MM/yyyy") : "",
                     Ten_DA = p.Project_Name,
                     NCC = p.Supplier_Name,
-                    Tong_PO = totalPO.ToString("N2"),
-                    Da_TT = totalPaid.ToString("N2"),
-                    Con_No = remain.ToString("N2"),
+                    Tong_PO = FormatAmt(totalPO),
+                    Da_TT = FormatAmt(totalPaid),
+                    Con_No = FormatAmt(remain),
                     Pct = pct.ToString("N1") + "%",
                     TT_Status = realStatus,
                     Den_Han = p.Next_Due_Date.HasValue ? p.Next_Due_Date.Value.ToString("dd/MM/yyyy") : "—",
@@ -1012,7 +1012,7 @@ namespace MPR_Managerment.Forms
                     r.Cells["Pay_Method"].Value = s.Pay_Method;
                     r.Cells["Payment_Type"].Value = s.Payment_Type;
                     r.Cells["Percent_TT"].Value = s.Percent_TT;
-                    r.Cells["Amount_Plan"].Value = s.Amount_Plan.ToString("N2");
+                    r.Cells["Amount_Plan"].Value = FormatAmt(s.Amount_Plan);
                     r.Cells["Due_Date"].Value = s.Due_Date.HasValue ? s.Due_Date.Value.ToString("dd/MM/yyyy") : "";
                     r.Cells["Description"].Value = s.Description;
                     r.Cells["S_Status"].Value = s.Status;
@@ -1119,7 +1119,7 @@ namespace MPR_Managerment.Forms
                     dgvHistory.Rows[i].Cells["H_PONo"].Value = reader["PONo"]?.ToString() ?? "";
                     dgvHistory.Rows[i].Cells["H_Total"].Value =
                         reader["Amount_Total"] != DBNull.Value
-                        ? Convert.ToDecimal(reader["Amount_Total"]).ToString("N2") : "";
+                        ? FormatAmt(Convert.ToDecimal(reader["Amount_Total"])) : "";
                     dgvHistory.Rows[i].Cells["H_Status"].Value = reader["PR_Status"].ToString();
                     dgvHistory.Rows[i].Cells["H_Paid"].Value = Convert.ToBoolean(reader["PR_Paid"]);
                     dgvHistory.Rows[i].Cells["H_Note"].Value = reader["PR_Note"].ToString();
@@ -1514,7 +1514,7 @@ namespace MPR_Managerment.Forms
                     dgvPaid.Rows[i].Cells["HP_PONo"].Value = reader["PONo"]?.ToString() ?? "";
                     dgvPaid.Rows[i].Cells["HP_Total"].Value =
                         reader["Amount_Total"] != DBNull.Value
-                        ? Convert.ToDecimal(reader["Amount_Total"]).ToString("N2") : "";
+                        ? FormatAmt(Convert.ToDecimal(reader["Amount_Total"])) : "";
                     dgvPaid.Rows[i].Cells["HP_Note"].Value = reader["PR_Note"]?.ToString() ?? "";
                     dgvPaid.Rows[i].Cells["HP_INV"].Value = reader["INV_File"]?.ToString() ?? "";
                     dgvPaid.Rows[i].Cells["HP_Delivery"].Value = reader["Delivery_File"]?.ToString() ?? "";
@@ -1592,9 +1592,9 @@ namespace MPR_Managerment.Forms
             if (p == null) return;
 
             lblPOName.Text = $"PO: {p.PONo}  —  {p.Project_Name}  |  NCC: {p.Supplier_Name}";
-            lblPOAmount.Text = $"Tổng PO: {p.Total_PO_Amount:N2} VNĐ";
-            lblPOPaid.Text = $"Đã TT: {p.Total_Paid:N2} VNĐ";
-            lblPORemain.Text = $"Còn nợ: {p.Amount_Remaining:N2} VNĐ";
+            lblPOAmount.Text = $"Tổng PO: {FormatAmt(p.Total_PO_Amount)} VNĐ";
+            lblPOPaid.Text = $"Đã TT: {FormatAmt(p.Total_Paid)} VNĐ";
+            lblPORemain.Text = $"Còn nợ: {FormatAmt(p.Amount_Remaining)} VNĐ";
             lblPOStatus.Text = p.Is_Overdue ? "⚠ QUÁ HẠN" : p.Payment_Status;
             lblPOStatus.ForeColor =
                 p.Is_Overdue ? Color.FromArgb(255, 100, 100) :
@@ -1677,7 +1677,7 @@ namespace MPR_Managerment.Forms
             foreach (DataGridViewRow row in dgvSchedule.Rows)
                 if (decimal.TryParse(row.Cells["Percent_TT"].Value?.ToString(), out decimal rp)) usedPct += rp;
             decimal defaultPct = Math.Max(0, 100 - usedPct);
-            decimal defaultAmt = poTotalAfterVat > 0 ? Math.Round(poTotalAfterVat * defaultPct / 100, 0) : 0;
+            decimal defaultAmt = poTotalAfterVat > 0 ? Math.Round(poTotalAfterVat * defaultPct / 100, 2) : 0;
 
             int i = dgvSchedule.Rows.Add();
             var r = dgvSchedule.Rows[i];
@@ -1686,7 +1686,7 @@ namespace MPR_Managerment.Forms
             r.Cells["Pay_Method"].Value = "Full";
             r.Cells["Payment_Type"].Value = "Chuyển khoản";
             r.Cells["Percent_TT"].Value = defaultPct;
-            r.Cells["Amount_Plan"].Value = defaultAmt.ToString("N2");
+            r.Cells["Amount_Plan"].Value = FormatAmt(defaultAmt);
             r.Cells["S_Status"].Value = "Chưa TT";
             dgvSchedule.CurrentCell = dgvSchedule.Rows[i].Cells["Percent_TT"];
             dgvSchedule.BeginEdit(true);
@@ -1705,8 +1705,8 @@ namespace MPR_Managerment.Forms
             var row = dgvSchedule.Rows[e.RowIndex];
             if (decimal.TryParse(row.Cells["Percent_TT"].Value?.ToString(), out decimal pct))
             {
-                decimal amt = Math.Round(poTotal * pct / 100, 0);
-                row.Cells["Amount_Plan"].Value = amt.ToString("N2");
+                decimal amt = Math.Round(poTotal * pct / 100, 2);
+                row.Cells["Amount_Plan"].Value = FormatAmt(amt);
             }
         }
 
@@ -2208,8 +2208,8 @@ namespace MPR_Managerment.Forms
                     r.Cells["D_SuppID"].Value = s.Supplier_ID;
                     r.Cells["D_Name"].Value = s.Supplier_Name;
                     r.Cells["D_TotalPO"].Value = s.Total_PO;
-                    r.Cells["D_Value"].Value = s.Total_PO_Value.ToString("N2");
-                    r.Cells["D_Debt"].Value = s.Total_Debt.ToString("N2");
+                    r.Cells["D_Value"].Value = FormatAmt(s.Total_PO_Value);
+                    r.Cells["D_Debt"].Value = FormatAmt(s.Total_Debt);
                     r.Cells["D_Overdue"].Value = s.Overdue_PO_Count > 0 ? $"⚠ {s.Overdue_PO_Count}" : "—";
 
                     tVal += s.Total_PO_Value;
@@ -2219,9 +2219,9 @@ namespace MPR_Managerment.Forms
                 }
 
                 // Cập nhật cards tổng kê (kiểm tra Visible cho phân quyền)
-                if (lblSumValue != null && lblSumValue.Visible) lblSumValue.Text = $"{tVal:N2} VNĐ";
-                if (lblSumPaid != null && lblSumPaid.Visible) lblSumPaid.Text = $"{tPaid:N2} VNĐ";
-                if (lblSumDebt != null && lblSumDebt.Visible) lblSumDebt.Text = $"{tDebt:N2} VNĐ";
+                if (lblSumValue != null && lblSumValue.Visible) lblSumValue.Text = $"{FormatAmt(tVal)} VNĐ";
+                if (lblSumPaid != null && lblSumPaid.Visible) lblSumPaid.Text = $"{FormatAmt(tPaid)} VNĐ";
+                if (lblSumDebt != null && lblSumDebt.Visible) lblSumDebt.Text = $"{FormatAmt(tDebt)} VNĐ";
                 if (lblSumOverdue != null) lblSumOverdue.Text = $"{tOver} PO";
 
                 // Chi tiết: nếu lọc theo NCC thì hiện detail NCC đó luôn
@@ -2259,10 +2259,10 @@ namespace MPR_Managerment.Forms
                 r.Cells["DD_PONo"].Value = d.PONo;
                 r.Cells["DD_Project"].Value = d.Project_Name;
                 r.Cells["DD_PODate"].Value = d.PO_Date?.ToString("dd/MM/yyyy") ?? "";
-                r.Cells["DD_Total"].Value = d.Total_Amount.ToString("N2");
-                r.Cells["DD_Before"].Value = d.Paid_Before_Range.ToString("N2");
-                r.Cells["DD_InRange"].Value = d.Paid_In_Range.ToString("N2");
-                r.Cells["DD_Remain"].Value = d.Remaining_Debt.ToString("N2");
+                r.Cells["DD_Total"].Value = FormatAmt(d.Total_Amount);
+                r.Cells["DD_Before"].Value = FormatAmt(d.Paid_Before_Range);
+                r.Cells["DD_InRange"].Value = FormatAmt(d.Paid_In_Range);
+                r.Cells["DD_Remain"].Value = FormatAmt(d.Remaining_Debt);
                 r.Cells["DD_Status"].Value = d.Is_Overdue ? "⚠ Quá hạn" : d.Payment_Status;
                 r.Cells["DD_Due"].Value = d.Next_Due_Date?.ToString("dd/MM/yyyy") ?? "—";
             }
@@ -2597,7 +2597,7 @@ namespace MPR_Managerment.Forms
             foreach (var s in scheds)
             {
                 decimal net = s.Amount_Plan;
-                decimal vat = Math.Round(net * 0.1m, 0);
+                decimal vat = Math.Round(net * 0.1m, 2);
                 decimal total = net + vat;
                 string dot = s.Dot_TT == 1 ? "1st" : s.Dot_TT == 2 ? "2nd" :
                                 s.Dot_TT == 3 ? "3rd" : $"{s.Dot_TT}th";
@@ -2652,9 +2652,9 @@ namespace MPR_Managerment.Forms
                 dgvPrintHistory.Rows[0].Cells["PH_Supp"].Value = suppShortDb;
                 dgvPrintHistory.Rows[0].Cells["PH_Project"].Value = project;
                 dgvPrintHistory.Rows[0].Cells["PH_Dot"].Value = dot;
-                dgvPrintHistory.Rows[0].Cells["PH_Net"].Value = net.ToString("N2");
-                dgvPrintHistory.Rows[0].Cells["PH_Vat"].Value = vat.ToString("N2");
-                dgvPrintHistory.Rows[0].Cells["PH_Total"].Value = total.ToString("N2");
+                dgvPrintHistory.Rows[0].Cells["PH_Net"].Value = FormatAmt(net);
+                dgvPrintHistory.Rows[0].Cells["PH_Vat"].Value = FormatAmt(vat);
+                dgvPrintHistory.Rows[0].Cells["PH_Total"].Value = FormatAmt(total);
                 dgvPrintHistory.Rows[0].Cells["PH_Date"].Value = dateStr;
             }
 
@@ -2716,9 +2716,9 @@ namespace MPR_Managerment.Forms
                     dgvPrintHistory.Rows[i].Cells["PH_Supp"].Value = suppShort;
                     dgvPrintHistory.Rows[i].Cells["PH_Project"].Value = reader["Project_Name"]?.ToString() ?? "";
                     dgvPrintHistory.Rows[i].Cells["PH_Dot"].Value = reader["Dot_Label"]?.ToString() ?? "";
-                    dgvPrintHistory.Rows[i].Cells["PH_Net"].Value = net.ToString("N2");
-                    dgvPrintHistory.Rows[i].Cells["PH_Vat"].Value = vat.ToString("N2");
-                    dgvPrintHistory.Rows[i].Cells["PH_Total"].Value = total.ToString("N2");
+                    dgvPrintHistory.Rows[i].Cells["PH_Net"].Value = FormatAmt(net);
+                    dgvPrintHistory.Rows[i].Cells["PH_Vat"].Value = FormatAmt(vat);
+                    dgvPrintHistory.Rows[i].Cells["PH_Total"].Value = FormatAmt(total);
                     dgvPrintHistory.Rows[i].Cells["PH_Date"].Value = reader["Printed_Date"]?.ToString() ?? "";
                 }
             }
@@ -2888,11 +2888,11 @@ namespace MPR_Managerment.Forms
                     FillRightCell(ws, "I6", "Payment date", paymentDate);
 
                     // C7 — Contract amount (tổng trước VAT)
-                    ReplaceCell(ws, "<<Tổng số tiền trước thuế>>", totalBeforeVat.ToString("N2"));
+                    ReplaceCell(ws, "<<Tổng số tiền trước thuế>>", FormatAmt(totalBeforeVat));
 
                     // C8 — Requested amount (tổng đợt chưa TT)
                     decimal reqAmt = scheds.Where(s => s.Status != "Đã TT đủ").Sum(s => s.Amount_Plan);
-                    ReplaceCell(ws, "<<Số tiền theo đợt>>", reqAmt.ToString("N2"));
+                    ReplaceCell(ws, "<<Số tiền theo đợt>>", FormatAmt(reqAmt));
 
                     // ── Lấy ngày thanh toán thực tế của các đợt đã TT ──
                     // Key = Dot_TT (số đợt), Value = ngày thanh toán thực tế
@@ -2929,7 +2929,7 @@ namespace MPR_Managerment.Forms
                         {
                             var s = scheds[i];
                             decimal net = s.Amount_Plan;
-                            decimal vat = Math.Round(net * 0.1m, 0);
+                            decimal vat = Math.Round(net * 0.1m, 2);
                             decimal tot = net + vat;
                             sumNet += net;
                             sumVat += vat;
@@ -2961,9 +2961,9 @@ namespace MPR_Managerment.Forms
                                 dateValue = "";
                             }
 
-                            ReplaceCell(ws, $"<<Số tiền đợt {i + 1}>>", net.ToString("N2"));
-                            ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", vat.ToString("N2"));
-                            ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", tot.ToString("N2"));
+                            ReplaceCell(ws, $"<<Số tiền đợt {i + 1}>>", FormatAmt(net));
+                            ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", FormatAmt(vat));
+                            ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", FormatAmt(tot));
                             ReplaceCell(ws, $"<<Ngày yêu cầu lần {i + 1}>>", dateValue);
                         }
                         else
@@ -2978,16 +2978,16 @@ namespace MPR_Managerment.Forms
                     // Row 18 — Sum (3 ô đều có placeholder <<Sum>>)
                     ReplaceCellAll(ws, "<<Sum>>", new[]
                     {
-                        sumNet.ToString("N2"),
-                        sumVat.ToString("N2"),
-                        sumTotal.ToString("N2")
+                        FormatAmt(sumNet),
+                        FormatAmt(sumVat),
+                        FormatAmt(sumTotal)
                     });
 
                     // Row 19 — Balance
                     decimal balNet = Math.Max(totalBeforeVat - sumNet, 0);
                     decimal balTotal = Math.Max(totalBeforeVat * 1.1m - sumTotal - totalPaid, 0);
-                    ReplaceCell(ws, "<<Tổng số tiền trước thuế còn lại>>", balNet.ToString("N2"));
-                    ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", balTotal.ToString("N2"));
+                    ReplaceCell(ws, "<<Tổng số tiền trước thuế còn lại>>", FormatAmt(balNet));
+                    ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", FormatAmt(balTotal));
 
                     // A26 — Ngày yêu cầu (ngày ký)
                     ReplaceCell(ws, "<<Ngày yêu cầu>>", DateTime.Today.ToString("dd/MM/yyyy"));
@@ -3196,6 +3196,19 @@ namespace MPR_Managerment.Forms
             txtPwd.Focus();
             dlg.ShowDialog(this);
             return verified;
+        }
+
+        // =====================================================================
+        // HELPER: Format số tiền — hiện 2 thập phân chỉ khi cần, bỏ ",00"
+        // Ví dụ: 1234567      → "1,234,567"
+        //         1234567.5    → "1,234,567.50"
+        //         1234567.12   → "1,234,567.12"
+        // =====================================================================
+        private static string FormatAmt(decimal value)
+        {
+            return value == Math.Floor(value)
+                ? value.ToString("N0")
+                : value.ToString("N2");
         }
 
     }
@@ -3532,7 +3545,7 @@ public class frmAddPayment : Form
         };
         cboSched.Items.Add("— Không liên kết —");
         foreach (var s in _scheds)
-            cboSched.Items.Add($"Đợt {s.Dot_TT}: {s.Amount_Plan:N2} VNĐ  [{s.Status}]");
+            cboSched.Items.Add($"Đợt {s.Dot_TT}: {FormatAmt(s.Amount_Plan)} VNĐ  [{s.Status}]");
         cboSched.SelectedIndex = 0;
         this.Controls.Add(cboSched);
 
@@ -3658,7 +3671,7 @@ public class frmAddPayment : Form
                 Notes = txtNotes.Text.Trim()
             }, _user);
 
-            MessageBox.Show($"✅ Đã ghi nhận {amt:N2} VNĐ!", "Thành công",
+            MessageBox.Show($"✅ Đã ghi nhận {FormatAmt(amt)} VNĐ!", "Thành công",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             this.DialogResult = DialogResult.OK;
             this.Close();
@@ -3667,6 +3680,13 @@ public class frmAddPayment : Form
         {
             lblErr.Text = "Lỗi: " + ex.Message;
         }
+    }
+
+    private static string FormatAmt(decimal value)
+    {
+        return value == Math.Floor(value)
+            ? value.ToString("N0")
+            : value.ToString("N2");
     }
 }
 
@@ -3736,7 +3756,7 @@ public class frmPaymentRequestPreview : Form
         cboDot = new ComboBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
         cboDot.Items.Add("— Tính từ chi tiết PO (tổng VAT) —");
         foreach (var s in _schedules)
-            cboDot.Items.Add($"Đợt {s.Dot_TT}: {s.Amount_Plan:N2} VNĐ  [{s.Status}]");
+            cboDot.Items.Add($"Đợt {s.Dot_TT}: {FormatAmt(s.Amount_Plan)} VNĐ  [{s.Status}]");
         cboDot.SelectedIndex = _schedules.Count > 0 ? 1 : 0;
         cboDot.SelectedIndexChanged += (s, ev) => GeneratePreview();
         pLeft.Controls.Add(cboDot);
@@ -3818,8 +3838,8 @@ public class frmPaymentRequestPreview : Form
             decimal baseVal = calcMethod == "Theo KG" ? wk : q;
             decimal realPrice = p;
             if (calcMethod == "Theo KG" && wk > 0 && q > 0) realPrice = (p * q) / wk;
-            decimal amtBeforeVat = Math.Round(baseVal * realPrice, 0);
-            decimal amtAfterVat = Math.Round(amtBeforeVat * (1 + v / 100), 0);
+            decimal amtBeforeVat = Math.Round(baseVal * realPrice, 2);
+            decimal amtAfterVat = Math.Round(amtBeforeVat * (1 + v / 100), 2);
             subTotal += amtBeforeVat;
             finalTotal += amtAfterVat;
 
@@ -3827,15 +3847,15 @@ public class frmPaymentRequestPreview : Form
             string itemName = (d.Item_Name ?? "").Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim();
             string material = (d.Material ?? "").Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim();
 
-            sb.AppendLine($"{stt++}\t{itemName}\t{material}\t{d.Asize}\t{d.Bsize}\t{d.Csize}\t{q}\t{d.UNIT}\t{wk}\t{realPrice:N2}\t{amtAfterVat:N2}");
+            sb.AppendLine($"{stt++}\t{itemName}\t{material}\t{d.Asize}\t{d.Bsize}\t{d.Csize}\t{q}\t{d.UNIT}\t{wk}\t{FormatAmt(realPrice)}\t{FormatAmt(amtAfterVat)}");
         }
 
-        sb.AppendLine($"\t\t\t\t\t\t\t\t\tSUB-TOTAL\t{subTotal:N2}");
-        sb.AppendLine($"\t\t\t\t\t\t\t\t\tFinal Price Requested (Included {vatPct:N0}% VAT)\t{finalTotal:N2}");
+        sb.AppendLine($"\t\t\t\t\t\t\t\t\tSUB-TOTAL\t{FormatAmt(subTotal)}");
+        sb.AppendLine($"\t\t\t\t\t\t\t\t\tFinal Price Requested (Included {vatPct:N0}% VAT)\t{FormatAmt(finalTotal)}");
         sb.AppendLine();
         sb.AppendLine("3. Amount");
         sb.AppendLine();
-        sb.AppendLine($"Total Amount:\t\t{subTotal:N2} VNĐ (excluded VAT)");
+        sb.AppendLine($"Total Amount:\t\t{FormatAmt(subTotal)} VNĐ (excluded VAT)");
         sb.AppendLine();
 
         // ── Final amount: luôn là số tiền SAU thuế ──
@@ -3845,17 +3865,17 @@ public class frmPaymentRequestPreview : Form
         {
             var sched = _schedules[cboDot.SelectedIndex - 1];
             // Amount_Plan là số tiền kế hoạch — nhân VAT để ra số tiền sau thuế
-            finalAmt = Math.Round(sched.Amount_Plan * (1 + vatPct / 100), 0);
+            finalAmt = Math.Round(sched.Amount_Plan * (1 + vatPct / 100), 2);
             dotLabel = $"  (Đợt {sched.Dot_TT} — {sched.Percent_TT}%)";
         }
 
         // VAT amount = finalAmt - (finalAmt / (1 + vatPct/100))
-        decimal baseBeforeVat = vatPct > 0 ? Math.Round(finalAmt / (1 + vatPct / 100), 0) : finalAmt;
+        decimal baseBeforeVat = vatPct > 0 ? Math.Round(finalAmt / (1 + vatPct / 100), 2) : finalAmt;
         decimal vatAmount = finalAmt - baseBeforeVat;
 
         sb.AppendLine("4. Payment information");
         sb.AppendLine();
-        sb.AppendLine($"Final amount :\t\t{finalAmt:N2} VNĐ included {vatPct:N0}% VAT ({vatAmount:N2} VNĐ){dotLabel}");
+        sb.AppendLine($"Final amount :\t\t{FormatAmt(finalAmt)} VNĐ included {vatPct:N0}% VAT ({FormatAmt(vatAmount)} VNĐ){dotLabel}");
         sb.AppendLine($"Expect payment date:\t{dtpDate.Value:dd/MM/yyyy}");
         sb.AppendLine($"Name of beneficiary:\t{txtBenef.Text}");
         sb.AppendLine($"Bank account of beneficiary:\t{txtBankAcc.Text}");
@@ -3962,6 +3982,20 @@ public class frmPaymentRequestPreview : Form
     // =====================================================================
     // THUẬT TOÁN ĐẨY HTML LÊN CLIPBOARD BẰNG BYTE OFFSET (CHỐNG LỖI UTF-8)
     // =====================================================================
+    // =====================================================================
+    // HELPER: Format số tiền — hiện 2 thập phân chỉ khi cần, bỏ ",00"
+    // Ví dụ: 1234567      → "1,234,567"
+    //         1234567.5    → "1,234,567.50"
+    //         1234567.12   → "1,234,567.12"
+    // =====================================================================
+    private static string FormatAmt(decimal value)
+    {
+        // Nếu phần thập phân bằng 0 → chỉ hiện số nguyên
+        return value == Math.Floor(value)
+            ? value.ToString("N0")
+            : value.ToString("N2");
+    }
+
     private void CopyToClipboardAsHtml(string htmlFragment, string plainText)
     {
         string startHtml = "<html><body style=\"font-family:'Times New Roman', serif; font-size:11pt;\">\r\n\r\n";
