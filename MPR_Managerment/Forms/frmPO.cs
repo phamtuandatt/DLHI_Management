@@ -1988,6 +1988,7 @@ namespace MPR_Managerment.Forms
                     // Gán nhãn và tính tổng chưa thuế (Sub-total) bằng Formula Excel
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
+                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = "#,##0.00";
 
                     // Gán nhãn cho dòng tổng thanh toán (đã bao gồm các mức thuế khác nhau)
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
@@ -1995,7 +1996,7 @@ namespace MPR_Managerment.Forms
                     // 3. CẬP NHẬT: Gán giá trị tổng sau thuế đã tính toán vào ô kết quả
                     // Chúng ta gán giá trị số trực tiếp và định dạng hiển thị cho chuyên nghiệp
                     ws.Cells[vatRow, 14].Value = totalAfterVAT;
-                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.##"; // Định dạng dấu phân cách hàng nghìn
+                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.00"; // Định dạng dấu phân cách hàng nghìn
                     ws.Cells[vatRow, 14].Style.Font.Bold = true;
 
                     package.Save();
