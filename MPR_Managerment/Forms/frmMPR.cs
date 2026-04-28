@@ -1160,7 +1160,17 @@ namespace MPR_Managerment.Forms
                 }
             }
             FilterProjects();
-            txtSearch.TextChanged += (s, ev) => FilterProjects();
+            // Không tự động lọc khi gõ — chỉ lọc khi nhấn Enter
+            txtSearch.KeyDown += (s, ev) =>
+            {
+                if (ev.KeyCode != Keys.Enter) return;
+                ev.SuppressKeyPress = true;
+                FilterProjects();
+                // Nếu chỉ có 1 kết quả → tự động chọn và hiển thị luôn
+                // Nếu 1 kết quả → chọn tự động, SelectionChanged sẽ gọi ApplyProject
+                if (dgvProj.Rows.Count == 1)
+                    dgvProj.Rows[0].Selected = true;
+            };
 
             // ── Thông tin dự án (chỉ đọc) ──────────────────────────────────────
             int xInfo = 292;
@@ -3016,7 +3026,8 @@ namespace MPR_Managerment.Forms
                     btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 40);
                 };
 
-                popup.ShowDialog(this);
+                popup.Owner = this;
+                popup.Show();
             }
             catch (Exception ex)
             {
