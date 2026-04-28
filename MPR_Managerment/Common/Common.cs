@@ -40,6 +40,29 @@ namespace MPR_Managerment.Common
             };
         }
 
+        public static void CreateDataGridView_Hide_RowHeader(DataGridView dgv)
+        {
+            dgv.ReadOnly = false; // Phải để false để có thể click vào CheckBox
+            dgv.RowHeadersVisible = false;
+            dgv.AllowUserToAddRows = false;
+            dgv.SelectionMode = DataGridViewSelectionMode.CellSelect;
+            dgv.BackgroundColor = Color.White;
+            dgv.BorderStyle = BorderStyle.FixedSingle;
+            dgv.Font = new Font("Segoe UI", 9);
+            dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgv.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            dgv.Margin = new Padding(0, 100, 0, 0);
+
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgv.EnableHeadersVisualStyles = false;
+            dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgv.Dock = DockStyle.Fill;
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
+        }
+
         public static void CreateButtonSave(Button btn)
         {
             btn.Text = "💾 Lưu phiếu";
@@ -80,9 +103,9 @@ namespace MPR_Managerment.Common
             btn.FlatStyle = FlatStyle.Flat;
         }
 
-        public static void CreateButtonDelete(Button btn, string text)
+        public static void CreateButtonDelete(Button btn, string text = "🗑 Xóa dòng")
         {
-            btn.Text = "🗑 Xóa dòng";
+            btn.Text = text;
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btn.BackColor = Color.FromArgb(232, 17, 35);
             btn.ForeColor = Color.White;
@@ -94,6 +117,15 @@ namespace MPR_Managerment.Common
         {
             btn.Text = "🖨 In MPR";
             btn.BackColor = Color.FromArgb(33, 115, 70);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        }
+
+        public static void CreateButtonRefresh(Button btn)
+        {
+            btn.Text = "🔄 Làm mới";
+            btn.BackColor = Color.FromArgb(108, 117, 125);
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);

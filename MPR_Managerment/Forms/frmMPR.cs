@@ -4,6 +4,7 @@ using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml;
+using Syncfusion.XlsIO.Implementation.XmlSerialization;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -1259,6 +1260,33 @@ namespace MPR_Managerment.Forms
             dgvDet.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvDet.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
             dgvDet.EnableHeadersVisualStyles = false;
+
+            dgvDet.CellContentDoubleClick += (e, s) =>
+            {
+                frmSelectItem frmSelectItem = new frmSelectItem();
+                frmSelectItem.ShowDialog();
+
+                if (frmSelectItem.selectedItems.Count <= 0) return;
+                int startRow = dgvDet.CurrentCell?.RowIndex ?? 0;
+                foreach (var item in frmSelectItem.selectedItems)
+                {
+                    dgvDet.Rows.Add();
+                    dgvDet.Rows[startRow].Cells["item_name"].Value = item.Name;
+                    dgvDet.Rows[startRow].Cells["Description"].Value = item.Des2;
+                    dgvDet.Rows[startRow].Cells["Material"].Value = item.ProdMaterialCode;
+                    dgvDet.Rows[startRow].Cells["Thickness_mm"].Value = item.A_Thickness;
+                    dgvDet.Rows[startRow].Cells["Depth_mm"].Value = item.B_Depth;
+                    dgvDet.Rows[startRow].Cells["C_Width_mm"].Value = item.C_Width;
+                    dgvDet.Rows[startRow].Cells["D_Web_mm"].Value = item.D_Web;
+                    dgvDet.Rows[startRow].Cells["E_Flange_mm"].Value = item.E_Flag;
+                    dgvDet.Rows[startRow].Cells["F_Length_mm"].Value = item.F_Length;
+                    dgvDet.Rows[startRow].Cells["UNIT"].Value = "";
+                    dgvDet.Rows[startRow].Cells["Weight_kg"].Value = item.G_Weight;
+
+                    startRow++;
+                }
+            };
+
             // Các cột theo MPR_Details
             void AddCol(string name, string hdr, int w, bool ro = false)
             {

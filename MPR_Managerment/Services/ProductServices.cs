@@ -13,7 +13,23 @@ namespace MPR_Managerment.Services
 {
     public class ProductServices
     {
+        public async Task<DataTable> GetProducts()
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand("SELECT *FROM Products", conn);
+                //cmd.Parameters.AddWithValue("@mprId", mprID);
 
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
         public async Task<bool> SaveProduct_Async(ProductModel product, bool isUpdate)
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())
