@@ -68,28 +68,6 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // Chọn MPR theo MPR_No — dùng sau khi tạo Revise mới
-        private void SelectMPRByNo(string mprNo)
-        {
-            if (string.IsNullOrEmpty(mprNo)) return;
-            // Reload để đảm bảo _mprList có bản mới nhất
-            var target = _mprList.Find(m => m.MPR_No == mprNo);
-            if (target == null) return;
-            txtSearch.Text = mprNo;
-            BtnSearch_Click(null, null);
-            foreach (DataGridViewRow row in dgvMPR.Rows)
-            {
-                if (row.Cells["MPR_No"]?.Value?.ToString() == mprNo)
-                {
-                    dgvMPR.ClearSelection();
-                    row.Selected = true;
-                    if (row.Index >= 0)
-                        dgvMPR.FirstDisplayedScrollingRowIndex = row.Index;
-                    break;
-                }
-            }
-        }
-
         private void SelectMPRById(int id)
         {
             var targetMPR = _mprList.Find(m => m.MPR_ID == id);
@@ -197,7 +175,6 @@ namespace MPR_Managerment.Forms
             dgvMPR.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
             dgvMPR.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvMPR.SelectionChanged += DgvMPR_SelectionChanged;
-            dgvMPR.DataError += (s, ev) => { ev.Cancel = true; };
             panelTop.Controls.Add(dgvMPR);
 
             // ===== PANEL HEADER =====
@@ -401,7 +378,6 @@ namespace MPR_Managerment.Forms
             dgvDetails.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvDetails.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgvDetails.CellFormatting += DgvDetails_CellFormatting;
-            dgvDetails.DataError += (s, ev) => { ev.Cancel = true; }; // chặn popup lỗi format
             dgvDetails.KeyDown += DgvDetails_GridKeyDown;
             // Cho phep copy nhieu o
             dgvDetails.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
@@ -442,7 +418,6 @@ namespace MPR_Managerment.Forms
             dgvPOProgress.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
             dgvPOProgress.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvPOProgress.CellFormatting += DgvPOProgress_CellFormatting;
-            dgvPOProgress.DataError += (s, ev) => { ev.Cancel = true; };
             dgvPOProgress.CellDoubleClick += DgvPOProgress_CellDoubleClick;
             panelDetail.Controls.Add(dgvPOProgress);
 
@@ -668,18 +643,6 @@ namespace MPR_Managerment.Forms
         private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
-
-            // Dòng bị xóa mềm: giữ nguyên style gạch ngang, không override bởi format khác
-            var rowDel = dgvDetails.Rows[e.RowIndex];
-            if (rowDel.DefaultCellStyle.Font?.Strikeout == true)
-            {
-                e.CellStyle.ForeColor = Color.FromArgb(160, 160, 160);
-                e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
-                e.CellStyle.BackColor = Color.FromArgb(245, 245, 245);
-                e.FormattingApplied = true;
-                return;
-            }
-
             string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
             if (colName == "Thickness_mm" || colName == "Depth_mm" ||
@@ -805,9 +768,7 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                // _mprList luôn là TOÀN BỘ — dùng để tính maxRev trong IsOldRevision
                 _mprList = _service.GetAll();
-                // Hiển thị toàn bộ, style được áp dụng ngay trong BindMPRGrid
                 BindMPRGrid(_mprList);
                 lblStatus.Text = $"Tổng: {_mprList.Count} phiếu MPR";
             }
@@ -815,29 +776,6 @@ namespace MPR_Managerment.Forms
             {
                 MessageBox.Show("Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        // Helper: xác định MPR_No có phải bản Revise cũ không
-        // Luôn so sánh với _mprList (toàn bộ) để maxRev chính xác kể cả khi đang filter
-        private bool IsOldRevision(string mprNo, List<MPRHeader> allList = null)
-        {
-            if (string.IsNullOrEmpty(mprNo)) return false;
-            var refList = allList ?? _mprList; // ưu tiên allList, fallback về _mprList
-            string baseNo = mprNo.Contains("_Rev.")
-                ? mprNo.Substring(0, mprNo.IndexOf("_Rev."))
-                : mprNo;
-            // Tìm Rev cao nhất trong nhóm cùng baseMprNo trong toàn bộ _mprList
-            int maxRev = -1;
-            foreach (var m in _mprList)
-            {
-                string b = m.MPR_No.Contains("_Rev.")
-                    ? m.MPR_No.Substring(0, m.MPR_No.IndexOf("_Rev."))
-                    : m.MPR_No;
-                if (b == baseNo && m.Rev > maxRev) maxRev = m.Rev;
-            }
-            // Lấy Rev của MPR_No đang xét từ refList
-            var cur = refList.Find(m => m.MPR_No == mprNo);
-            return cur != null && cur.Rev < maxRev;
         }
 
         private void BindMPRGrid(List<MPRHeader> list)
@@ -857,27 +795,6 @@ namespace MPR_Managerment.Forms
             });
             if (dgvMPR.Columns.Contains("ID"))
                 dgvMPR.Columns["ID"].Visible = false;
-
-            // Style dòng MPR cũ (bị supersede bởi bản Revise mới hơn)
-            // Luôn dùng _mprList (toàn bộ) để tính maxRev đúng kể cả khi đang filter
-            foreach (DataGridViewRow row in dgvMPR.Rows)
-            {
-                if (row.IsNewRow) continue;
-                string mno = row.Cells["MPR_No"]?.Value?.ToString() ?? "";
-                if (IsOldRevision(mno))
-                {
-                    row.DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
-                    row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
-                    row.DefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
-                }
-                else
-                {
-                    // Reset về style mặc định (tránh giữ style cũ khi rebind)
-                    row.DefaultCellStyle.ForeColor = dgvMPR.DefaultCellStyle.ForeColor;
-                    row.DefaultCellStyle.Font = dgvMPR.DefaultCellStyle.Font;
-                    row.DefaultCellStyle.BackColor = dgvMPR.DefaultCellStyle.BackColor;
-                }
-            }
         }
 
         // ===== LOAD TỔNG HỢP TIẾN ĐỘ PO =====
@@ -891,11 +808,6 @@ namespace MPR_Managerment.Forms
 
             try
             {
-                // Lấy baseMprNo (phần trước _Rev.) để tổng hợp PO mọi phiên bản
-                string baseMprNo = mprNo.Contains("_Rev.")
-                    ? mprNo.Substring(0, mprNo.IndexOf("_Rev."))
-                    : mprNo;
-
                 string sql = @"
                     SELECT
                         h.PONo AS [PO No],
@@ -905,24 +817,21 @@ namespace MPR_Managerment.Forms
                             WHEN ISNULL(SUM(d.Qty_Per_Sheet), 0) = 0 THEN 0
                             ELSE CAST(
                                 ISNULL(
-                                    (SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID),
+                                    (SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID), 
                                     ISNULL(SUM(d.Received), 0)
-                                ) * 100.0 / SUM(d.Qty_Per_Sheet)
+                                ) * 100.0 / SUM(d.Qty_Per_Sheet) 
                             AS DECIMAL(5,1))
                         END AS [% Giao]
                     FROM PO_head h
                     LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
-                    -- Lấy PO của tất cả phiên bản cùng gốc (baseMprNo)
                     WHERE h.MPR_No = @mprNo
-                       OR h.MPR_No LIKE @baseLike
                     GROUP BY h.PO_ID, h.PONo, h.PO_Date, h.Status
                     ORDER BY h.PO_Date DESC";
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
                     var cmd = new SqlCommand(sql, conn);
-                    cmd.Parameters.AddWithValue("@mprNo", baseMprNo);
-                    cmd.Parameters.AddWithValue("@baseLike", baseMprNo + "_Rev.%");
+                    cmd.Parameters.AddWithValue("@mprNo", mprNo);
                     var dt = new DataTable();
                     dt.Load(cmd.ExecuteReader());
                     dgvPOProgress.DataSource = dt;
@@ -966,7 +875,6 @@ namespace MPR_Managerment.Forms
                                      SELECT Detail_ID
                                      FROM   MPR_Details
                                      WHERE  MPR_ID = @mprId
-                                       AND  Is_Deleted = 0  -- chỉ lấy PO của dòng active
                                  )
                         ORDER BY pod.MPR_Detail_ID, poh.PONo";
 
@@ -1020,35 +928,25 @@ namespace MPR_Managerment.Forms
                     int idx = dgvDetails.Rows.Add();
                     var row = dgvDetails.Rows[idx];
 
-                    row.Cells["Detail_ID"].Value = d.Detail_ID.ToString();
-                    row.Cells["Item_No"].Value = d.Item_No.ToString();
+                    row.Cells["Detail_ID"].Value = d.Detail_ID;
+                    row.Cells["Item_No"].Value = d.Item_No;
                     row.Cells["Item_Name"].Value = d.Item_Name;
                     row.Cells["Description"].Value = d.Description;
                     row.Cells["Material"].Value = d.Material;
-                    row.Cells["Thickness_mm"].Value = d.Thickness_mm == 0 ? "" : d.Thickness_mm.ToString("G29");
-                    row.Cells["Depth_mm"].Value = d.Depth_mm == 0 ? "" : d.Depth_mm.ToString("G29");
-                    row.Cells["C_Width_mm"].Value = d.C_Width_mm == 0 ? "" : d.C_Width_mm.ToString("G29");
-                    row.Cells["D_Web_mm"].Value = d.D_Web_mm == 0 ? "" : d.D_Web_mm.ToString("G29");
-                    row.Cells["E_Flange_mm"].Value = d.E_Flange_mm == 0 ? "" : d.E_Flange_mm.ToString("G29");
-                    row.Cells["F_Length_mm"].Value = d.F_Length_mm == 0 ? "" : d.F_Length_mm.ToString("G29");
+                    row.Cells["Thickness_mm"].Value = d.Thickness_mm;
+                    row.Cells["Depth_mm"].Value = d.Depth_mm;
+                    row.Cells["C_Width_mm"].Value = d.C_Width_mm;
+                    row.Cells["D_Web_mm"].Value = d.D_Web_mm;
+                    row.Cells["E_Flange_mm"].Value = d.E_Flange_mm;
+                    row.Cells["F_Length_mm"].Value = d.F_Length_mm;
                     row.Cells["UNIT"].Value = d.UNIT;
-                    row.Cells["Qty"].Value = d.Qty_Per_Sheet == 0 ? "" : d.Qty_Per_Sheet.ToString("G29");
-                    row.Cells["Weight"].Value = d.Weight_kg == 0 ? "" : d.Weight_kg.ToString("G29");
+                    row.Cells["Qty"].Value = d.Qty_Per_Sheet;
+                    row.Cells["Weight"].Value = d.Weight_kg;
                     row.Cells["MPS_Info"].Value = d.MPS_Info;
                     row.Cells["Usage_Location"].Value = d.Usage_Location;
                     row.Cells["REV"].Value = d.REV;
                     row.Cells["Remarks"].Value = d.Remarks;
                     row.Cells["PO_No"].Value = poMapping.ContainsKey(d.Detail_ID) ? poMapping[d.Detail_ID] : "";
-
-                    // Nếu dòng bị xóa mềm → gạch ngang xám, không cho chỉnh sửa
-                    if (d.Is_Deleted)
-                    {
-                        row.DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
-                        row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
-                        row.DefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
-                        foreach (DataGridViewCell cell in row.Cells)
-                            cell.ReadOnly = true;
-                    }
                 }
                 // Populate combobox filter voi cac gia tri thuc te tu cot PO_No
                 RefreshPOFilterCombo();
@@ -1090,17 +988,15 @@ namespace MPR_Managerment.Forms
             try
             {
                 string kw = txtSearch.Text.Trim();
-                // _mprList luôn được reload đầy đủ để IsOldRevision tính maxRev đúng
-                _mprList = _service.GetAll();
-                var filteredList = string.IsNullOrEmpty(kw)
-                    ? _mprList
-                    : _mprList.FindAll(m =>
+                _mprList = string.IsNullOrEmpty(kw)
+                    ? _service.GetAll()
+                    : _service.GetAll().FindAll(m =>
                         (m.MPR_No ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                         (m.Project_Name ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                         (m.Project_Code ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase));
 
-                BindMPRGrid(filteredList);
-                lblStatus.Text = $"Tìm thấy: {filteredList.Count} phiếu";
+                BindMPRGrid(_mprList);
+                lblStatus.Text = $"Tìm thấy: {_mprList.Count} phiếu";
             }
             catch (Exception ex)
             {
@@ -1243,11 +1139,13 @@ namespace MPR_Managerment.Forms
             // Load và lọc projects
             var allProjects = new List<MPR_Managerment.Models.ProjectInfo>();
             try { allProjects = new ProjectService().GetAll(); } catch { }
+            var projDict = new Dictionary<int, MPR_Managerment.Models.ProjectInfo>();
 
             void FilterProjects()
             {
                 string kw = txtSearch.Text.Trim().ToLower();
                 dgvProj.Rows.Clear();
+                projDict.Clear();
                 foreach (var p in allProjects)
                 {
                     if (string.IsNullOrEmpty(kw)
@@ -1257,7 +1155,7 @@ namespace MPR_Managerment.Forms
                         int r = dgvProj.Rows.Add();
                         dgvProj.Rows[r].Cells["ProjCode"].Value = p.ProjectCode;
                         dgvProj.Rows[r].Cells["ProjName"].Value = p.ProjectName;
-                        dgvProj.Rows[r].Tag = p;
+                        projDict[r] = p;
                     }
                 }
             }
@@ -1290,11 +1188,9 @@ namespace MPR_Managerment.Forms
             var tNotes = new TextBox { Location = new Point(xInfo + 108, 202), Size = new Size(280, 24), Font = new Font("Segoe UI", 9) };
             dlg.Controls.Add(tNotes);
 
-            // Khi chọn dự án → tự điền thông tin + tính MPR No tiếp theo
-            dgvProj.SelectionChanged += (s, ev) =>
+            // Hàm điền thông tin dự án được chọn
+            void ApplyProject(MPR_Managerment.Models.ProjectInfo prj)
             {
-                if (dgvProj.SelectedRows.Count == 0) return;
-                var prj = dgvProj.SelectedRows[0].Tag as MPR_Managerment.Models.ProjectInfo;
                 if (prj == null) return;
                 tProjCode.Text = prj.ProjectCode ?? "";
                 tProjName.Text = prj.ProjectName ?? "";
@@ -1317,24 +1213,28 @@ namespace MPR_Managerment.Forms
                     tMPRNo.Text = $"{mprPrefix}-{nextSeq:D3}";
                 }
                 catch { tMPRNo.Text = (prj.MPRCode ?? prj.ProjectCode ?? "").TrimEnd('-') + "-001"; }
+            }
+            // Click chuột chọn row
+            dgvProj.CellClick += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                if (projDict.TryGetValue(ev.RowIndex, out var prj2)) ApplyProject(prj2);
+            };
+            // Dùng bàn phím
+            dgvProj.SelectionChanged += (s, ev) =>
+            {
+                if (dgvProj.SelectedRows.Count == 0) return;
+                int ri = dgvProj.SelectedRows[0].Index;
+                if (projDict.TryGetValue(ri, out var prj3)) ApplyProject(prj3);
             };
 
             // ── Bảng MPR Details ────────────────────────────────────────────────
             dlg.Controls.Add(new Label { Text = "CHI TIẾT VẬT TƯ (MPR_Details)", Location = new Point(10, 248), Size = new Size(400, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) });
-            dlg.Controls.Add(new Label
-            {
-                Text = "💡 Paste từ Excel: Copy nhiều cột trong Excel → click vào ô bắt đầu trong bảng → Ctrl+V  |  Thứ tự cột paste: Tên hàng | Mô tả | Vật liệu | T | D | W | Web | Flange | L | Vị trí | MPS | REV | DWG Date | ISSUE DATE | Đơn vị | SL | KG | Ghi chú",
-                Location = new Point(10, 226),
-                Size = new Size(dlg.ClientSize.Width - 20, 20),
-                Font = new Font("Segoe UI", 7.5f, FontStyle.Italic),
-                ForeColor = Color.FromArgb(100, 100, 100),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-            });
 
             var dgvDet = new DataGridView
             {
-                Location = new Point(10, 282),
-                Size = new Size(dlg.ClientSize.Width - 20, 288),
+                Location = new Point(10, 270),
+                Size = new Size(dlg.ClientSize.Width - 20, 300),
                 AllowUserToAddRows = true,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 RowHeadersVisible = false,
@@ -1349,7 +1249,6 @@ namespace MPR_Managerment.Forms
             dgvDet.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvDet.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
             dgvDet.EnableHeadersVisualStyles = false;
-            dgvDet.DataError += (s, ev) => { ev.Cancel = true; };
             // Các cột theo MPR_Details
             void AddCol(string name, string hdr, int w, bool ro = false)
             {
@@ -1362,9 +1261,7 @@ namespace MPR_Managerment.Forms
                     DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleLeft }
                 });
             }
-            AddCol("Item_No", "STT", 40, true);
-            dgvDet.Columns["Item_No"].Visible = false;
-            dgvDet.Columns["Item_No"].Visible = false; // STT tự tạo, ẩn để tránh copy nhầm
+            AddCol("Item_No", "STT", 40);
             AddCol("item_name", "Tên hàng", 140);
             AddCol("Description", "Mô tả", 120);
             AddCol("Material", "Vật liệu", 80);
@@ -1374,130 +1271,36 @@ namespace MPR_Managerment.Forms
             AddCol("D_Web_mm", "Web(mm)", 60);
             AddCol("E_Flange_mm", "Flange(mm)", 70);
             AddCol("F_Length_mm", "L(mm)", 60);
-            AddCol("Usage_Location", "Vị trí", 90);
-            AddCol("MPS_Info", "MPS", 70);
-            AddCol("REV", "REV", 45);
-            AddCol("DWG_BOQ_Receive_Date", "DWG Date", 80);
-            AddCol("Issue_Date", "ISSUE DATE", 85);
             AddCol("UNIT", "Đơn vị", 55);
             AddCol("Qty_Per_Sheet", "SL", 45);
             AddCol("Weight_kg", "KG", 55);
+            AddCol("Usage_Location", "Vị trí", 90);
+            AddCol("MPS_Info", "MPS", 70);
+            AddCol("DWG_BOQ_Receive_Date", "DWG Date", 80);
+            AddCol("Issue_Date", "Issue Date", 80);
             AddCol("Remarks", "Ghi chú", 100);
             dlg.Controls.Add(dgvDet);
 
-            // ── Paste từ Excel — hỗ trợ nhiều cột, nhiều dòng cùng lúc ──────────
-            // Thứ tự cột trong grid (bỏ Item_No readonly):
-            // [0]=Item_No(ro) [1]=item_name [2]=Description [3]=Material
-            // [4]=T [5]=D [6]=W [7]=Web [8]=Flange [9]=L
-            // [10]=Usage_Location [11]=MPS_Info [12]=REV
-            // [13]=DWG_BOQ_Receive_Date [14]=Issue_Date
-            // [15]=UNIT [16]=Qty_Per_Sheet [17]=Weight_kg [18]=Remarks
-
-            // Danh sách tên cột theo đúng thứ tự hiển thị để map khi paste
-            var pasteColNames = new[]
-            {
-                "item_name", "Description", "Material",
-                "Thickness_mm", "Depth_mm", "C_Width_mm", "D_Web_mm", "E_Flange_mm", "F_Length_mm",
-                "Usage_Location", "MPS_Info", "REV",
-                "DWG_BOQ_Receive_Date", "Issue_Date",
-                "UNIT", "Qty_Per_Sheet", "Weight_kg", "Remarks"
-            };
-
+            // Hỗ trợ Paste từ Excel
             dgvDet.KeyDown += (s, ev) =>
             {
-                if (!ev.Control || ev.KeyCode != Keys.V) return;
-                ev.Handled = true;
-                ev.SuppressKeyPress = true;
-
-                string clip = Clipboard.GetText();
-                if (string.IsNullOrEmpty(clip)) return;
-
-                // Tách dòng — loại bỏ dòng trắng cuối file Excel thường thêm vào
-                string[] clipRows = clip.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-                // Cắt dòng trắng ở cuối
-                int lastNonEmpty = clipRows.Length - 1;
-                while (lastNonEmpty >= 0 && string.IsNullOrWhiteSpace(clipRows[lastNonEmpty]))
-                    lastNonEmpty--;
-                if (lastNonEmpty < 0) return;
-
-                // Xác định ô bắt đầu paste
-                int startRow = dgvDet.CurrentCell?.RowIndex ?? 0;
-                int startColIndex = dgvDet.CurrentCell?.ColumnIndex ?? 1;
-
-                // Nếu đang đứng ở cột STT (readonly) thì bắt đầu từ cột tiếp theo
-                if (dgvDet.Columns[startColIndex].ReadOnly)
-                    startColIndex = 1; // index 1 = item_name
-
-                // Tìm vị trí cột đang chọn trong pasteColNames để biết offset
-                string startColName = dgvDet.Columns[startColIndex].Name;
-                int pasteOffset = 0;
-                for (int i = 0; i < pasteColNames.Length; i++)
+                if (ev.Control && ev.KeyCode == Keys.V)
                 {
-                    if (pasteColNames[i] == startColName) { pasteOffset = i; break; }
-                }
-
-                // Tạm dừng repaint để paste nhanh hơn
-                dgvDet.SuspendLayout();
-                try
-                {
-                    for (int ri = 0; ri <= lastNonEmpty; ri++)
+                    string clip = Clipboard.GetText();
+                    if (string.IsNullOrEmpty(clip)) return;
+                    string[] rows2 = clip.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                    int startRow = dgvDet.CurrentCell?.RowIndex ?? 0;
+                    int startCol = dgvDet.CurrentCell?.ColumnIndex ?? 0;
+                    foreach (var row2 in rows2)
                     {
-                        string[] cells = clipRows[ri].Split('\t');
-                        int gridRow = startRow + ri;
-
-                        // Tự động thêm dòng mới nếu cần
-                        while (gridRow >= dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0))
-                            dgvDet.Rows.Add();
-
-                        for (int ci = 0; ci < cells.Length; ci++)
-                        {
-                            int colNameIdx = pasteOffset + ci;
-                            if (colNameIdx >= pasteColNames.Length) break;
-
-                            string colName = pasteColNames[colNameIdx];
-                            if (!dgvDet.Columns.Contains(colName)) continue;
-                            var col = dgvDet.Columns[colName];
-                            if (col.ReadOnly) continue;
-
-                            string rawVal = cells[ci].Trim();
-
-                            // Tự động parse số cho cột số thực
-                            var numericCols = new HashSet<string>
-                            {
-                                "Thickness_mm","Depth_mm","C_Width_mm","D_Web_mm",
-                                "E_Flange_mm","F_Length_mm","Qty_Per_Sheet","Weight_kg"
-                            };
-                            if (numericCols.Contains(colName))
-                            {
-                                // Chấp nhận cả dấu phẩy lẫn dấu chấm thập phân
-                                string normalized = rawVal.Replace(",", ".");
-                                dgvDet.Rows[gridRow].Cells[col.Index].Value =
-                                    decimal.TryParse(normalized,
-                                        System.Globalization.NumberStyles.Any,
-                                        System.Globalization.CultureInfo.InvariantCulture,
-                                        out decimal num) ? (object)num : (object)rawVal;
-                            }
-                            else
-                            {
-                                dgvDet.Rows[gridRow].Cells[col.Index].Value = rawVal;
-                            }
-                        }
-
-                        // Tự động đánh lại STT
-                        dgvDet.Rows[gridRow].Cells["Item_No"].Value = gridRow + 1;
+                        string[] cells = row2.Split('\t');
+                        if (startRow >= dgvDet.Rows.Count) dgvDet.Rows.Add();
+                        for (int c = 0; c < cells.Length && startCol + c < dgvDet.Columns.Count; c++)
+                            if (!dgvDet.Columns[startCol + c].ReadOnly)
+                                dgvDet.Rows[startRow].Cells[startCol + c].Value = cells[c].Trim();
+                        startRow++;
                     }
-
-                    // Refresh để hiển thị dữ liệu mới
-                    dgvDet.Refresh();
-                }
-                catch (Exception exPaste)
-                {
-                    MessageBox.Show("Lỗi khi paste: " + exPaste.Message, "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-                finally
-                {
-                    dgvDet.ResumeLayout();
+                    ev.Handled = true;
                 }
             };
 
@@ -1565,7 +1368,7 @@ namespace MPR_Managerment.Forms
             dlg.Resize += (s, ev) =>
             {
                 dgvDet.Width = dlg.ClientSize.Width - 20;
-                dgvDet.Height = dlg.ClientSize.Height - 282 - 62;
+                dgvDet.Height = dlg.ClientSize.Height - 270 - 62;
                 lblErr2.Top = dlg.ClientSize.Height - 78;
             };
 
@@ -1574,15 +1377,6 @@ namespace MPR_Managerment.Forms
             {
                 if (string.IsNullOrWhiteSpace(tMPRNo.Text)) { lblErr2.Text = "⚠ Nhập MPR No!"; return; }
                 if (string.IsNullOrWhiteSpace(tProjCode.Text)) { lblErr2.Text = "⚠ Chọn dự án!"; return; }
-
-                // Kiểm tra danh sách vật tư không được trống
-                bool hasItem = false;
-                foreach (DataGridViewRow r2 in dgvDet.Rows)
-                {
-                    if (r2.IsNewRow) continue;
-                    if (!string.IsNullOrWhiteSpace(r2.Cells["item_name"].Value?.ToString())) { hasItem = true; break; }
-                }
-                if (!hasItem) { lblErr2.Text = "⚠ Danh sách vật tư trống! Vui lòng nhập ít nhất 1 vật tư."; return; }
                 // Kiểm tra MPR_No đã tồn tại chưa
                 try
                 {
@@ -1638,7 +1432,7 @@ namespace MPR_Managerment.Forms
                             Weight_kg = decimal.TryParse(row2.Cells["Weight_kg"].Value?.ToString(), out decimal wk) ? wk : 0,
                             MPS_Info = row2.Cells["MPS_Info"].Value?.ToString() ?? "",
                             Usage_Location = row2.Cells["Usage_Location"].Value?.ToString() ?? "",
-                            REV = row2.Cells["REV"].Value?.ToString() ?? "0",
+                            REV = "0",
                             Remarks = row2.Cells["Remarks"].Value?.ToString() ?? ""
                         }, _currentUser);
                     }
@@ -1691,7 +1485,7 @@ namespace MPR_Managerment.Forms
             var dgvMPRList = new DataGridView
             {
                 Location = new Point(10, 32),
-                Size = new Size(260, 560),
+                Size = new Size(260, 580),
                 ReadOnly = true,
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -1715,54 +1509,25 @@ namespace MPR_Managerment.Forms
             {
                 using var conn = DatabaseHelper.GetConnection();
                 conn.Open();
-                var cmd = new SqlCommand(
-                    "SELECT MPR_ID, MPR_No, Rev FROM MPR_Header " +
-                    "WHERE Project_Code=@code ORDER BY MPR_No", conn);
+                var cmd = new SqlCommand("SELECT MPR_ID, MPR_No, Rev FROM MPR_Header WHERE Project_Code=@code ORDER BY MPR_No", conn);
                 cmd.Parameters.AddWithValue("@code", projCode);
                 using var rdr = cmd.ExecuteReader();
                 while (rdr.Read())
                 {
                     int r = dgvMPRList.Rows.Add();
-                    dgvMPRList.Rows[r].Cells["RMprId"].Value = rdr["MPR_ID"]?.ToString();
-                    dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"]?.ToString();
-                    dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"]?.ToString();
+                    dgvMPRList.Rows[r].Cells["RMprId"].Value = rdr["MPR_ID"];
+                    dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"];
+                    dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"];
                 }
             }
             catch { }
-
-            // Style dòng MPR cũ (bị supersede bởi bản Revise mới hơn)
-            // Tính maxRev theo từng baseMprNo trong danh sách vừa load
-            var mprRevMap = new Dictionary<string, int>(); // baseMprNo → maxRev
-            foreach (DataGridViewRow rowM in dgvMPRList.Rows)
-            {
-                if (rowM.IsNewRow) continue;
-                string mno = rowM.Cells["RMprNo"]?.Value?.ToString() ?? "";
-                string bno = mno.Contains("_Rev.") ? mno.Substring(0, mno.IndexOf("_Rev.")) : mno;
-                int rev = int.TryParse(rowM.Cells["RMprRev"]?.Value?.ToString(), out int rv) ? rv : 0;
-                if (!mprRevMap.ContainsKey(bno) || rev > mprRevMap[bno])
-                    mprRevMap[bno] = rev;
-            }
-            foreach (DataGridViewRow rowM in dgvMPRList.Rows)
-            {
-                if (rowM.IsNewRow) continue;
-                string mno = rowM.Cells["RMprNo"]?.Value?.ToString() ?? "";
-                string bno = mno.Contains("_Rev.") ? mno.Substring(0, mno.IndexOf("_Rev.")) : mno;
-                int rev = int.TryParse(rowM.Cells["RMprRev"]?.Value?.ToString(), out int rv2) ? rv2 : 0;
-                bool isOld = mprRevMap.ContainsKey(bno) && rev < mprRevMap[bno];
-                if (isOld)
-                {
-                    rowM.DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
-                    rowM.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
-                    rowM.DefaultCellStyle.BackColor = Color.FromArgb(245, 245, 245);
-                }
-            }
 
             // Bảng chi tiết
             dlg.Controls.Add(new Label { Text = "CHI TIẾT VẬT TƯ", Location = new Point(278, 8), Size = new Size(400, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) });
             var dgvRevDet = new DataGridView
             {
                 Location = new Point(278, 32),
-                Size = new Size(dlg.ClientSize.Width - 288, 560),
+                Size = new Size(dlg.ClientSize.Width - 288, 530),
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 RowHeadersVisible = false,
@@ -1797,13 +1562,6 @@ namespace MPR_Managerment.Forms
             dlg.Controls.Add(dgvRevDet);
 
             // Hiệu ứng: dòng xóa mềm = xám gạch ngang
-            // Chặn popup lỗi mặc định của DataGridView khi có format exception
-            dgvRevDet.DataError += (s2, ev2) =>
-            {
-                // Bỏ qua lỗi format — cell sẽ hiển thị rỗng thay vì crash
-                ev2.Cancel = true;
-            };
-
             dgvRevDet.CellFormatting += (s2, ev2) =>
             {
                 if (ev2.RowIndex < 0) return;
@@ -1825,47 +1583,29 @@ namespace MPR_Managerment.Forms
                     var cmd = new SqlCommand("SELECT * FROM MPR_Details WHERE MPR_ID=@id ORDER BY Item_No", conn);
                     cmd.Parameters.AddWithValue("@id", selMprId);
                     using var rdr = cmd.ExecuteReader();
-                    // Helper: convert decimal từ DB sang string gọn (tránh FormatException)
-                    string NumStr(object val)
-                    {
-                        if (val == null || val == DBNull.Value) return "";
-                        if (!decimal.TryParse(val.ToString(), out decimal d)) return val.ToString();
-                        if (d == 0) return "";
-                        // Bỏ số 0 thừa ở cuối: 6.0000 → "6", 125.50 → "125.5"
-                        return d.ToString("G29");
-                    }
-
                     while (rdr.Read())
                     {
                         int r = dgvRevDet.Rows.Add();
-                        // Lưu cả Is_Deleted để biết dòng nào đã bị xóa mềm trước đó
-                        bool wasDeleted = rdr["Is_Deleted"] != DBNull.Value && Convert.ToBoolean(rdr["Is_Deleted"]);
-                        dgvRevDet.Rows[r].Cells["RDetId"].Value = rdr["Detail_ID"]?.ToString();
-                        dgvRevDet.Rows[r].Cells["RDeleted"].Value = wasDeleted ? "1" : "";
-                        dgvRevDet.Rows[r].Cells["RItem_No"].Value = rdr["Item_No"]?.ToString();
-                        dgvRevDet.Rows[r].Cells["Ritem_name"].Value = rdr["item_name"]?.ToString() ?? "";
-                        dgvRevDet.Rows[r].Cells["RDesc"].Value = rdr["Description"]?.ToString() ?? "";
-                        dgvRevDet.Rows[r].Cells["RMaterial"].Value = rdr["Material"]?.ToString() ?? "";
-                        dgvRevDet.Rows[r].Cells["RT_mm"].Value = NumStr(rdr["Thickness_mm"]);
-                        dgvRevDet.Rows[r].Cells["RD_mm"].Value = NumStr(rdr["Depth_mm"]);
-                        dgvRevDet.Rows[r].Cells["RW_mm"].Value = NumStr(rdr["C_Width_mm"]);
-                        dgvRevDet.Rows[r].Cells["RWeb_mm"].Value = NumStr(rdr["D_Web_mm"]);
-                        dgvRevDet.Rows[r].Cells["RFlange_mm"].Value = NumStr(rdr["E_Flange_mm"]);
-                        dgvRevDet.Rows[r].Cells["RL_mm"].Value = NumStr(rdr["F_Length_mm"]);
-                        dgvRevDet.Rows[r].Cells["RUNIT"].Value = rdr["UNIT"]?.ToString() ?? "";
-                        dgvRevDet.Rows[r].Cells["RQty"].Value = NumStr(rdr["Qty_Per_Sheet"]);
-                        dgvRevDet.Rows[r].Cells["RKG"].Value = NumStr(rdr["Weight_kg"]);
-                        dgvRevDet.Rows[r].Cells["RRemarks"].Value = rdr["Remarks"]?.ToString() ?? "";
-                        dgvRevDet.Rows[r].Cells["RREV"].Value = rdr["REV"]?.ToString() ?? "0";
+                        dgvRevDet.Rows[r].Cells["RDetId"].Value = rdr["Detail_ID"];
+                        dgvRevDet.Rows[r].Cells["RDeleted"].Value = "";
+                        dgvRevDet.Rows[r].Cells["RItem_No"].Value = rdr["Item_No"];
+                        dgvRevDet.Rows[r].Cells["Ritem_name"].Value = rdr["item_name"];
+                        dgvRevDet.Rows[r].Cells["RDesc"].Value = rdr["Description"];
+                        dgvRevDet.Rows[r].Cells["RMaterial"].Value = rdr["Material"];
+                        dgvRevDet.Rows[r].Cells["RT_mm"].Value = rdr["Thickness_mm"];
+                        dgvRevDet.Rows[r].Cells["RD_mm"].Value = rdr["Depth_mm"];
+                        dgvRevDet.Rows[r].Cells["RW_mm"].Value = rdr["C_Width_mm"];
+                        dgvRevDet.Rows[r].Cells["RWeb_mm"].Value = rdr["D_Web_mm"];
+                        dgvRevDet.Rows[r].Cells["RFlange_mm"].Value = rdr["E_Flange_mm"];
+                        dgvRevDet.Rows[r].Cells["RL_mm"].Value = rdr["F_Length_mm"];
+                        dgvRevDet.Rows[r].Cells["RUNIT"].Value = rdr["UNIT"];
+                        dgvRevDet.Rows[r].Cells["RQty"].Value = rdr["Qty_Per_Sheet"];
+                        dgvRevDet.Rows[r].Cells["RKG"].Value = rdr["Weight_kg"];
+                        dgvRevDet.Rows[r].Cells["RRemarks"].Value = rdr["Remarks"];
+                        dgvRevDet.Rows[r].Cells["RREV"].Value = rdr["REV"];
                     }
                 }
-                catch (Exception exLoad)
-                {
-                    // lblSave chưa được khai báo tại đây — log lỗi ra Debug output
-                    System.Diagnostics.Debug.WriteLine("Lỗi tải dgvRevDet: " + exLoad.Message);
-                    MessageBox.Show("Lỗi tải dữ liệu vật tư: " + exLoad.Message, "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                catch { }
             };
 
             // Buttons Thêm / Xóa vật tư
@@ -1941,13 +1681,15 @@ namespace MPR_Managerment.Forms
 
             dlg.Resize += (s2, ev2) =>
             {
-                dgvMPRList.Height = dlg.ClientSize.Height - 100;
+                int btnY = dlg.ClientSize.Height - 50;
+                int gridH = Math.Max(80, btnY - 36 - 8);
+                dgvMPRList.Height = gridH;
                 dgvRevDet.Width = dlg.ClientSize.Width - 288;
-                dgvRevDet.Height = dlg.ClientSize.Height - 100;
-                btnAddRow.Top = btnDelRow.Top = btnSaveMPR.Top = btnCloseRev.Top = dlg.ClientSize.Height - 58;
+                dgvRevDet.Height = gridH;
+                btnAddRow.Top = btnDelRow.Top = btnSaveMPR.Top = btnCloseRev.Top = btnY;
                 btnSaveMPR.Left = dlg.ClientSize.Width - 312;
                 btnCloseRev.Left = dlg.ClientSize.Width - 184;
-                lblSave.Top = dlg.ClientSize.Height - 30;
+                lblSave.Top = dlg.ClientSize.Height - 26;
             };
 
             // Lưu MPR Revise
@@ -1958,55 +1700,11 @@ namespace MPR_Managerment.Forms
                 {
                     using var conn = DatabaseHelper.GetConnection();
                     conn.Open();
-                    // ── Tính REV tiếp theo ──────────────────────────────────────────────
-                    // Lấy REV max hiện tại từ MPR_Header (không dùng MAX(MPR_Details.REV)
-                    // vì REV header mới là nguồn chính xác)
-                    var cmdMaxRev = new SqlCommand(
-                        "SELECT ISNULL(Rev,0) FROM MPR_Header WHERE MPR_ID=@id", conn);
+                    // Tính REV max hiện tại
+                    var cmdMaxRev = new SqlCommand("SELECT ISNULL(MAX(REV),0) FROM MPR_Details WHERE MPR_ID=@id", conn);
                     cmdMaxRev.Parameters.AddWithValue("@id", selMprId);
                     int maxRev = Convert.ToInt32(cmdMaxRev.ExecuteScalar());
                     int nextRev = isAdmin ? maxRev : maxRev + 1;
-
-                    // ── Tải dữ liệu gốc của MPR để so sánh thay đổi từng dòng ──────────
-                    // Key = Detail_ID (dòng cũ) hoặc 0 (dòng mới thêm vào)
-                    var originalRows = new Dictionary<int, DataRow>();
-                    if (!isAdmin)
-                    {
-                        var cmdOrig = new SqlCommand(
-                            "SELECT Detail_ID, item_name, Description, Material, " +
-                            "Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm, " +
-                            "UNIT, Qty_Per_Sheet, Weight_kg, Remarks " +
-                            "FROM MPR_Details WHERE MPR_ID=@id", conn);
-                        cmdOrig.Parameters.AddWithValue("@id", selMprId);
-                        var dtOrig = new DataTable();
-                        dtOrig.Load(cmdOrig.ExecuteReader());
-                        foreach (DataRow dr in dtOrig.Rows)
-                            originalRows[Convert.ToInt32(dr["Detail_ID"])] = dr;
-                    }
-
-                    // Đảm bảo originalRows load thành công
-                    if (!isAdmin && originalRows.Count == 0)
-                    {
-                        lblSave.Text = "❌ Không tải được dữ liệu gốc để so sánh REV. Vui lòng thử lại.";
-                        return;
-                    }
-
-                    // Helper: so sánh 2 giá trị decimal từ grid (string) và DB (decimal)
-                    // Chấp nhận cả dấu phẩy lẫn dấu chấm thập phân, "" = 0
-                    bool DecChanged(string gridVal, object dbVal)
-                    {
-                        string normalized = (gridVal ?? "").Trim().Replace(",", ".");
-                        decimal gv = decimal.TryParse(normalized,
-                            System.Globalization.NumberStyles.Any,
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            out decimal gd) ? gd : 0;
-                        decimal dv = (dbVal == null || dbVal == DBNull.Value) ? 0 : Convert.ToDecimal(dbVal);
-                        return gv != dv;
-                    }
-
-                    // Helper: so sánh 2 giá trị string, bỏ qua khoảng trắng đầu/cuối
-                    bool StrChanged(string gridVal, object dbVal)
-                        => (gridVal ?? "").Trim() != (dbVal?.ToString() ?? "").Trim();
 
                     // MPR_No mới
                     string oldMprNo = dgvMPRList.SelectedRows[0].Cells["RMprNo"].Value?.ToString() ?? "";
@@ -2033,7 +1731,7 @@ namespace MPR_Managerment.Forms
                             Department = rdrH["Department"]?.ToString() ?? "",
                             Requestor = rdrH["Requestor"]?.ToString() ?? "",
                             Required_Date = rdrH["Required_Date"] is DateTime dt ? dt : DateTime.Today,
-                            Rev = nextRev,  // REV header luôn tăng khi Revise
+                            Rev = nextRev,
                             Status = rdrH["Status"]?.ToString() ?? "Mới",
                             Notes = rdrH["Notes"]?.ToString() ?? ""
                         };
@@ -2048,65 +1746,17 @@ namespace MPR_Managerment.Forms
                         cmdDel.ExecuteNonQuery();
                     }
 
-                    // ── Insert details với REV thông minh ────────────────────────────────
-                    // - Dòng CŨ không thay đổi → giữ nguyên REV cũ
-                    // - Dòng CŨ có thay đổi   → REV = nextRev
-                    // - Dòng MỚI thêm vào     → REV = nextRev
-                    // - Dòng bị xóa mềm       → giữ REV cũ (chỉ đánh dấu Is_Deleted)
-
+                    // Insert details (bỏ dòng xóa mềm)
                     int stt = 1;
                     foreach (DataGridViewRow row2 in dgvRevDet.Rows)
                     {
                         if (row2.IsNewRow) continue;
+                        if (row2.Cells["RDeleted"].Value?.ToString() == "1") continue;
                         string nm = row2.Cells["Ritem_name"].Value?.ToString() ?? "";
                         if (string.IsNullOrWhiteSpace(nm)) continue;
-                        bool isDeleted2 = row2.Cells["RDeleted"].Value?.ToString() == "1";
-
-                        int detRev;
-                        if (isAdmin)
-                        {
-                            // Admin: giữ nguyên REV đang hiển thị trong grid
-                            detRev = int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rvA) ? rvA : 0;
-                        }
-                        else
-                        {
-                            // Lấy REV hiện tại của dòng này
-                            int oldDetRev = int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rvO) ? rvO : 0;
-                            int detailId = int.TryParse(row2.Cells["RDetId"].Value?.ToString(), out int did) ? did : 0;
-
-                            if (isDeleted2)
-                            {
-                                // Dòng bị xóa → giữ REV cũ
-                                detRev = oldDetRev;
-                            }
-                            else if (detailId == 0 || !originalRows.ContainsKey(detailId))
-                            {
-                                // Dòng mới thêm vào → REV = nextRev
-                                detRev = nextRev;
-                            }
-                            else
-                            {
-                                // Dòng cũ: so sánh từng trường với bản gốc
-                                var orig = originalRows[detailId];
-                                bool changed =
-                                    StrChanged(row2.Cells["Ritem_name"].Value?.ToString(), orig["item_name"]) ||
-                                    StrChanged(row2.Cells["RDesc"].Value?.ToString(), orig["Description"]) ||
-                                    StrChanged(row2.Cells["RMaterial"].Value?.ToString(), orig["Material"]) ||
-                                    StrChanged(row2.Cells["RUNIT"].Value?.ToString(), orig["UNIT"]) ||
-                                    StrChanged(row2.Cells["RRemarks"].Value?.ToString(), orig["Remarks"]) ||
-                                    DecChanged(row2.Cells["RT_mm"].Value?.ToString(), orig["Thickness_mm"]) ||
-                                    DecChanged(row2.Cells["RD_mm"].Value?.ToString(), orig["Depth_mm"]) ||
-                                    DecChanged(row2.Cells["RW_mm"].Value?.ToString(), orig["C_Width_mm"]) ||
-                                    DecChanged(row2.Cells["RWeb_mm"].Value?.ToString(), orig["D_Web_mm"]) ||
-                                    DecChanged(row2.Cells["RFlange_mm"].Value?.ToString(), orig["E_Flange_mm"]) ||
-                                    DecChanged(row2.Cells["RL_mm"].Value?.ToString(), orig["F_Length_mm"]) ||
-                                    DecChanged(row2.Cells["RQty"].Value?.ToString(), orig["Qty_Per_Sheet"]) ||
-                                    DecChanged(row2.Cells["RKG"].Value?.ToString(), orig["Weight_kg"]);
-
-                                detRev = changed ? nextRev : oldDetRev;
-                            }
-                        }
-
+                        int detRev = isAdmin
+                            ? (int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rv) ? rv : 0)
+                            : nextRev; // REV field is string, convert below
                         _service.InsertDetail(new MPRDetail
                         {
                             MPR_ID = targetId,
@@ -2124,78 +1774,16 @@ namespace MPR_Managerment.Forms
                             Qty_Per_Sheet = decimal.TryParse(row2.Cells["RQty"].Value?.ToString(), out decimal rQs) ? rQs : 0,
                             Weight_kg = decimal.TryParse(row2.Cells["RKG"].Value?.ToString(), out decimal rWk) ? rWk : 0,
                             Remarks = row2.Cells["RRemarks"].Value?.ToString() ?? "",
-                            REV = detRev.ToString(),
-                            Is_Deleted = isDeleted2
+                            REV = detRev.ToString()
                         }, _currentUser);
-                    }
-
-                    // ── Transfer tham chiếu PO_Detail → Detail_ID mới ──────────────────
-                    // Sau khi Revise, PO_Detail.MPR_Detail_ID vẫn trỏ về Detail_ID CŨ
-                    // Cần cập nhật sang Detail_ID MỚI để giữ liên kết PO/RIR/phiếu nhập kho
-                    if (!isAdmin)
-                    {
-                        try
-                        {
-                            // Lấy mapping: Item_No → Detail_ID mới (vừa insert)
-                            var cmdNewIds = new SqlCommand(
-                                "SELECT Item_No, Detail_ID FROM MPR_Details " +
-                                "WHERE MPR_ID=@newId AND Is_Deleted=0 ORDER BY Item_No", conn);
-                            cmdNewIds.Parameters.AddWithValue("@newId", targetId);
-                            var newIdMap = new Dictionary<int, int>(); // Item_No → new Detail_ID
-                            using (var rdrNew = cmdNewIds.ExecuteReader())
-                                while (rdrNew.Read())
-                                    newIdMap[Convert.ToInt32(rdrNew["Item_No"])] = Convert.ToInt32(rdrNew["Detail_ID"]);
-
-                            // Lấy mapping: Item_No → Detail_ID cũ (từ selMprId)
-                            var cmdOldIds = new SqlCommand(
-                                "SELECT Item_No, Detail_ID FROM MPR_Details " +
-                                "WHERE MPR_ID=@oldId AND Is_Deleted=0 ORDER BY Item_No", conn);
-                            cmdOldIds.Parameters.AddWithValue("@oldId", selMprId);
-                            var oldIdMap = new Dictionary<int, int>(); // Item_No → old Detail_ID
-                            using (var rdrOld = cmdOldIds.ExecuteReader())
-                                while (rdrOld.Read())
-                                    oldIdMap[Convert.ToInt32(rdrOld["Item_No"])] = Convert.ToInt32(rdrOld["Detail_ID"]);
-
-                            // Với mỗi Item_No có trong cả 2 bản: update PO_Detail.MPR_Detail_ID
-                            int transferCount = 0;
-                            foreach (var kvp in oldIdMap)
-                            {
-                                int itemNo = kvp.Key;
-                                int oldDetId = kvp.Value;
-                                if (!newIdMap.ContainsKey(itemNo)) continue;
-                                int newDetId = newIdMap[itemNo];
-                                if (oldDetId == newDetId) continue;
-
-                                // Cập nhật PO_Detail: trỏ sang Detail_ID mới
-                                var cmdTransfer = new SqlCommand(
-                                    "UPDATE dbo.PO_Detail SET MPR_Detail_ID=@newId " +
-                                    "WHERE MPR_Detail_ID=@oldId", conn);
-                                cmdTransfer.Parameters.AddWithValue("@newId", newDetId);
-                                cmdTransfer.Parameters.AddWithValue("@oldId", oldDetId);
-                                transferCount += cmdTransfer.ExecuteNonQuery();
-                            }
-
-                            System.Diagnostics.Debug.WriteLine(
-                                $"[Transfer] {transferCount} PO_Detail rows re-linked to new Revision.");
-                        }
-                        catch (Exception exTrans)
-                        {
-                            // Transfer thất bại không chặn việc lưu — chỉ cảnh báo
-                            MessageBox.Show(
-                                "⚠ Lưu Revise thành công nhưng không thể transfer liên kết PO/RIR:\n" + exTrans.Message +
-                                "\n\nVui lòng liên hệ Admin để cập nhật thủ công.",
-                                "Cảnh báo Transfer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        }
                     }
 
                     string msg = isAdmin
                         ? $"✅ Admin đã cập nhật MPR '{oldMprNo}' (giữ nguyên REV)!"
-                        : $"✅ Đã tạo Revise '{newMprNo}' (MPR REV={nextRev}, đã transfer liên kết PO/RIR sang bản mới)!";
+                        : $"✅ Đã tạo Revise '{newMprNo}' (REV={nextRev})!";
                     MessageBox.Show(msg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadMPR();
                     dlg.Close();
-                    // Tự động chọn bản Revise mới vừa tạo trong danh sách
-                    SelectMPRByNo(isAdmin ? oldMprNo : newMprNo);
                 }
                 catch (Exception ex) { lblSave.Text = "❌ " + ex.Message; }
             };
@@ -2359,7 +1947,6 @@ namespace MPR_Managerment.Forms
             if (mpr == null) return;
 
             string mprNo = mpr.MPR_No;
-            // Chỉ tạo PO từ các dòng active (Is_Deleted = false)
             var frm = new frmPO(mprNo, true);
             frm.Show();
         }
@@ -2475,12 +2062,6 @@ namespace MPR_Managerment.Forms
                         if (row.IsNewRow) continue;
                         string itemName = row.Cells["Item_Name"].Value?.ToString() ?? "";
                         if (string.IsNullOrWhiteSpace(itemName)) continue;
-
-                        // Không lưu/cập nhật dòng bị xóa mềm — chỉ đọc, giữ nguyên trong DB
-                        var detIdVal = row.Cells["Detail_ID"].Value;
-                        int detIdCheck = detIdVal != null ? Convert.ToInt32(detIdVal) : 0;
-                        var deletedItem = _details.Find(x => x.Detail_ID == detIdCheck);
-                        if (deletedItem != null && deletedItem.Is_Deleted) continue;
 
                         int detailId = Convert.ToInt32(row.Cells["Detail_ID"].Value ?? 0);
                         int itemNo = Convert.ToInt32(row.Cells["Item_No"].Value ?? 0);
@@ -2833,30 +2414,8 @@ namespace MPR_Managerment.Forms
                             ORDER BY rh5.Issue_Date DESC
                         ), N'')                                             AS [Trạng thái RIR]
                     FROM MPR_Header  h
-                    INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID AND d.Is_Deleted = 0
+                    INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID
                     LEFT  JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
-                    -- Chỉ lấy bản Revise mới nhất: MPR_ID phải có Rev = Max(Rev) cùng baseMprNo
-                    INNER JOIN (
-                        SELECT
-                            -- BaseMprNo = phần trước '_Rev.' nếu có, không thì chính MPR_No
-                            CASE WHEN CHARINDEX('_Rev.', MPR_No) > 0
-                                 THEN LEFT(MPR_No, CHARINDEX('_Rev.', MPR_No) - 1)
-                                 ELSE MPR_No
-                            END AS BaseMprNo,
-                            MAX(Rev) AS MaxRev
-                        FROM MPR_Header
-                        GROUP BY
-                            CASE WHEN CHARINDEX('_Rev.', MPR_No) > 0
-                                 THEN LEFT(MPR_No, CHARINDEX('_Rev.', MPR_No) - 1)
-                                 ELSE MPR_No
-                            END
-                    ) latest ON (
-                        CASE WHEN CHARINDEX('_Rev.', h.MPR_No) > 0
-                             THEN LEFT(h.MPR_No, CHARINDEX('_Rev.', h.MPR_No) - 1)
-                             ELSE h.MPR_No
-                        END = latest.BaseMprNo
-                        AND h.Rev = latest.MaxRev
-                    )
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
 
                 DataTable dtFull;
@@ -3520,8 +3079,6 @@ namespace MPR_Managerment.Forms
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
                 if (row.IsNewRow) continue;
-                // Bỏ qua dòng Is_Deleted khi xây danh sách filter PO
-                if (row.DefaultCellStyle.Font?.Strikeout == true) continue;
                 string val = row.Cells["PO_No"]?.Value?.ToString() ?? "";
                 if (string.IsNullOrWhiteSpace(val)) hasEmpty = true;
                 else if (seen.Add(val)) _cboFilterPO.Items.Add(val);
@@ -3541,14 +3098,13 @@ namespace MPR_Managerment.Forms
             {
                 if (row.IsNewRow) continue;
                 string poVal = row.Cells["PO_No"]?.Value?.ToString() ?? "";
-                bool rowIsDeleted = row.DefaultCellStyle.Font?.Strikeout == true;
 
                 if (sel == "(Tat ca)")
-                    row.Visible = true;  // dòng Is_Deleted vẫn hiện để xem lịch sử
+                    row.Visible = true;
                 else if (sel == "(Chua len PO)")
-                    row.Visible = !rowIsDeleted && string.IsNullOrWhiteSpace(poVal);
+                    row.Visible = string.IsNullOrWhiteSpace(poVal);
                 else
-                    row.Visible = !rowIsDeleted && string.Equals(poVal, sel, StringComparison.OrdinalIgnoreCase);
+                    row.Visible = string.Equals(poVal, sel, StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -3601,13 +3157,11 @@ namespace MPR_Managerment.Forms
                 // Lay gia tri truc tiep tu _details (so nguyen/decimal thuc)
                 // de tranh bi format string boi CellFormatting
                 var poMap2 = GetPoMappingForMpr(_selectedMPR_ID);
-                // Build map Detail_ID -> row.Visible, loại bỏ dòng Is_Deleted khỏi xuất Excel
+                // Build map Detail_ID -> row.Visible de biet dong nao dang hien
                 var visibleIds = new System.Collections.Generic.HashSet<int>();
                 foreach (DataGridViewRow dgvRow in dgvDetails.Rows)
                 {
                     if (dgvRow.IsNewRow || !dgvRow.Visible) continue;
-                    // Bỏ qua dòng bị xóa mềm
-                    if (dgvRow.DefaultCellStyle.Font?.Strikeout == true) continue;
                     if (dgvRow.Cells["Detail_ID"]?.Value is int rid) visibleIds.Add(rid);
                     else if (int.TryParse(dgvRow.Cells["Detail_ID"]?.Value?.ToString(), out int rid2))
                         visibleIds.Add(rid2);
@@ -3741,7 +3295,7 @@ namespace MPR_Managerment.Forms
                 // Chi copy cac dong DANG DUOC CHON (selected rows)
                 var selectedRows = dgvDetails.SelectedRows
                     .Cast<DataGridViewRow>()
-                    .Where(r => !r.IsNewRow && r.DefaultCellStyle.Font?.Strikeout != true)
+                    .Where(r => !r.IsNewRow)
                     .OrderBy(r => r.Index)
                     .ToList();
 
