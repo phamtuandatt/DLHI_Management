@@ -2350,83 +2350,101 @@ namespace MPR_Managerment.Forms
         {
             try
             {
+                // SQL tối ưu: CTE pre-aggregate, tương thích SQL Server 2012+
                 const string SQL = @"
+                    WITH
+                    cte_PO AS (
+                        SELECT pod.MPR_Detail_ID,
+                               ISNULL(STUFF((
+                                   SELECT DISTINCT N', ' + ph2.PONo
+                                   FROM   PO_Detail pod2
+                                   INNER JOIN PO_head ph2 ON ph2.PO_ID = pod2.PO_ID
+                                   WHERE  pod2.MPR_Detail_ID = pod.MPR_Detail_ID
+                                   FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS POList
+                        FROM   PO_Detail pod
+                        WHERE  pod.MPR_Detail_ID IS NOT NULL
+                        GROUP BY pod.MPR_Detail_ID
+                    ),
+                    cte_Heat AS (
+                        SELECT pod.MPR_Detail_ID,
+                               ISNULL(STUFF((
+                                   SELECT DISTINCT N', ' + rd2.Heatno
+                                   FROM   PO_Detail pod2
+                                   INNER JOIN PO_head    ph2 ON ph2.PO_ID  = pod2.PO_ID
+                                   INNER JOIN RIR_head   rh2 ON rh2.PONo   = ph2.PONo
+                                   INNER JOIN RIR_detail rd2 ON rd2.RIR_ID = rh2.RIR_ID
+                                   WHERE  pod2.MPR_Detail_ID = pod.MPR_Detail_ID
+                                     AND  ISNULL(rd2.Heatno,N'') != N''
+                                   FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS HeatList
+                        FROM   PO_Detail pod
+                        WHERE  pod.MPR_Detail_ID IS NOT NULL
+                        GROUP BY pod.MPR_Detail_ID
+                    ),
+                    cte_KT AS (
+                        SELECT pod.MPR_Detail_ID,
+                               MIN(CASE rd.Inspect_Result
+                                   WHEN N'Fail' THEN 1 WHEN N'Hold' THEN 2
+                                   WHEN N'Pass' THEN 3 ELSE 4 END) AS KT_Rank
+                        FROM   PO_Detail pod
+                        INNER JOIN PO_head    ph ON ph.PO_ID  = pod.PO_ID
+                        INNER JOIN RIR_head   rh ON rh.PONo   = ph.PONo
+                        INNER JOIN RIR_detail rd ON rd.RIR_ID = rh.RIR_ID
+                        WHERE  pod.MPR_Detail_ID IS NOT NULL
+                        GROUP BY pod.MPR_Detail_ID
+                    ),
+                    cte_RIR AS (
+                        SELECT pod.MPR_Detail_ID,
+                               ISNULL(STUFF((
+                                   SELECT DISTINCT N', ' + rh2.RIR_No
+                                   FROM   PO_Detail pod2
+                                   INNER JOIN PO_head  ph2 ON ph2.PO_ID = pod2.PO_ID
+                                   INNER JOIN RIR_head rh2 ON rh2.PONo  = ph2.PONo
+                                   WHERE  pod2.MPR_Detail_ID = pod.MPR_Detail_ID
+                                     AND  ISNULL(rh2.RIR_No,N'') != N''
+                                   FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS RIRList,
+                               (SELECT TOP 1 rh3.Status
+                                FROM   PO_Detail pod3
+                                INNER JOIN PO_head  ph3 ON ph3.PO_ID = pod3.PO_ID
+                                INNER JOIN RIR_head rh3 ON rh3.PONo  = ph3.PONo
+                                WHERE  pod3.MPR_Detail_ID = pod.MPR_Detail_ID
+                                  AND  ISNULL(rh3.Status,N'') != N''
+                                ORDER BY rh3.Issue_Date DESC) AS RIR_Status
+                        FROM   PO_Detail pod
+                        WHERE  pod.MPR_Detail_ID IS NOT NULL
+                        GROUP BY pod.MPR_Detail_ID
+                    )
                     SELECT
-                        ISNULL(pi.ProjectCode,  N'')                        AS [Mã dự án],
+                        ISNULL(pi.ProjectCode, N'')                         AS [Mã dự án],
                         h.MPR_No                                            AS [MPR No],
                         h.Rev                                               AS [Rev],
                         d.Item_No                                           AS [Item No],
                         d.item_name                                         AS [Tên vật tư],
                         d.Material                                          AS [Vật liệu],
-                        ISNULL(CAST(NULLIF(d.Thickness_mm,0) AS NVARCHAR), N'') AS [A-Dày(mm)],
-                        ISNULL(CAST(NULLIF(d.Depth_mm,    0) AS NVARCHAR), N'') AS [B-Sâu(mm)],
-                        ISNULL(CAST(NULLIF(d.C_Width_mm,  0) AS NVARCHAR), N'') AS [C-Rộng(mm)],
-                        ISNULL(CAST(NULLIF(d.D_Web_mm,    0) AS NVARCHAR), N'') AS [D-Bụng(mm)],
-                        ISNULL(CAST(NULLIF(d.E_Flange_mm, 0) AS NVARCHAR), N'') AS [E-Cánh(mm)],
-                        ISNULL(CAST(NULLIF(d.F_Length_mm, 0) AS NVARCHAR), N'') AS [F-Dài(mm)],
-                        ISNULL(d.UNIT,          N'')                        AS [ĐVT],
+                        ISNULL(CAST(NULLIF(d.Thickness_mm,0) AS NVARCHAR),N'') AS [A-Dày(mm)],
+                        ISNULL(CAST(NULLIF(d.Depth_mm,    0) AS NVARCHAR),N'') AS [B-Sâu(mm)],
+                        ISNULL(CAST(NULLIF(d.C_Width_mm,  0) AS NVARCHAR),N'') AS [C-Rộng(mm)],
+                        ISNULL(CAST(NULLIF(d.D_Web_mm,    0) AS NVARCHAR),N'') AS [D-Bụng(mm)],
+                        ISNULL(CAST(NULLIF(d.E_Flange_mm, 0) AS NVARCHAR),N'') AS [E-Cánh(mm)],
+                        ISNULL(CAST(NULLIF(d.F_Length_mm, 0) AS NVARCHAR),N'') AS [F-Dài(mm)],
+                        ISNULL(d.UNIT,       N'')                           AS [ĐVT],
                         d.Qty_Per_Sheet                                     AS [SL],
-                        ISNULL(d.Weight_kg,     0)                          AS [KG],
-                        ISNULL(STUFF((
-                            SELECT DISTINCT N', ' + ph2.PONo
-                            FROM PO_Detail pod2
-                            INNER JOIN PO_head ph2 ON ph2.PO_ID = pod2.PO_ID
-                            WHERE pod2.MPR_Detail_ID = d.Detail_ID
-                            FOR XML PATH(''), TYPE
-                        ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [PO No],
-                        ISNULL(STUFF((
-                            SELECT DISTINCT N', ' + rd2.Heatno
-                            FROM PO_Detail pod3
-                            INNER JOIN PO_head   ph3 ON ph3.PO_ID  = pod3.PO_ID
-                            INNER JOIN RIR_head  rh2 ON rh2.PONo   = ph3.PONo
-                            INNER JOIN RIR_detail rd2 ON rd2.RIR_ID = rh2.RIR_ID
-                            WHERE pod3.MPR_Detail_ID = d.Detail_ID
-                              AND ISNULL(rd2.Heatno, N'') != N''
-                            FOR XML PATH(''), TYPE
-                        ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [Heat No],
-                        ISNULL((
-                            SELECT TOP 1
-                                CASE rd3.Inspect_Result
-                                    WHEN N'Fail' THEN N'Fail'
-                                    WHEN N'Hold' THEN N'Hold'
-                                    WHEN N'Pass' THEN N'Pass'
-                                    ELSE N'Chưa KT'
-                                END
-                            FROM PO_Detail pod4
-                            INNER JOIN PO_head    ph4 ON ph4.PO_ID  = pod4.PO_ID
-                            INNER JOIN RIR_head   rh3 ON rh3.PONo   = ph4.PONo
-                            INNER JOIN RIR_detail rd3 ON rd3.RIR_ID = rh3.RIR_ID
-                            WHERE pod4.MPR_Detail_ID = d.Detail_ID
-                            ORDER BY
-                                CASE rd3.Inspect_Result
-                                    WHEN N'Fail' THEN 1
-                                    WHEN N'Hold' THEN 2
-                                    WHEN N'Pass' THEN 3
-                                    ELSE 4
-                                END
-                        ), N'Chưa KT')                                      AS [Kết quả KT],
-                        ISNULL(STUFF((
-                            SELECT DISTINCT N', ' + rh4.RIR_No
-                            FROM PO_Detail pod5
-                            INNER JOIN PO_head  ph5 ON ph5.PO_ID = pod5.PO_ID
-                            INNER JOIN RIR_head rh4 ON rh4.PONo  = ph5.PONo
-                            WHERE pod5.MPR_Detail_ID = d.Detail_ID
-                              AND ISNULL(rh4.RIR_No, N'') != N''
-                            FOR XML PATH(''), TYPE
-                        ).value('.','NVARCHAR(MAX)'), 1, 2, N''), N'')      AS [RIR No],
-                        ISNULL((
-                            SELECT TOP 1 rh5.Status
-                            FROM PO_Detail pod6
-                            INNER JOIN PO_head  ph6 ON ph6.PO_ID = pod6.PO_ID
-                            INNER JOIN RIR_head rh5 ON rh5.PONo  = ph6.PONo
-                            WHERE pod6.MPR_Detail_ID = d.Detail_ID
-                              AND ISNULL(rh5.Status, N'') != N''
-                            ORDER BY rh5.Issue_Date DESC
-                        ), N'')                                             AS [Trạng thái RIR]
-                    FROM MPR_Header  h
-                    INNER JOIN MPR_Details d  ON d.MPR_ID = h.MPR_ID
+                        ISNULL(d.Weight_kg,  0)                             AS [KG],
+                        ISNULL(cp.POList,    N'')                           AS [PO No],
+                        ISNULL(ch.HeatList,  N'')                           AS [Heat No],
+                        ISNULL(CASE ck.KT_Rank
+                            WHEN 1 THEN N'Fail' WHEN 2 THEN N'Hold'
+                            WHEN 3 THEN N'Pass' ELSE N'Chưa KT' END, N'Chưa KT') AS [Kết quả KT],
+                        ISNULL(cr.RIRList,   N'')                           AS [RIR No],
+                        ISNULL(cr.RIR_Status,N'')                           AS [Trạng thái RIR]
+                    FROM MPR_Header h
+                    INNER JOIN MPR_Details d  ON d.MPR_ID       = h.MPR_ID
                     LEFT  JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
+                    LEFT  JOIN cte_PO  cp ON cp.MPR_Detail_ID   = d.Detail_ID
+                    LEFT  JOIN cte_Heat ch ON ch.MPR_Detail_ID  = d.Detail_ID
+                    LEFT  JOIN cte_KT  ck ON ck.MPR_Detail_ID   = d.Detail_ID
+                    LEFT  JOIN cte_RIR cr ON cr.MPR_Detail_ID   = d.Detail_ID
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
+
 
                 DataTable dtFull;
                 using (var conn = DatabaseHelper.GetConnection())
