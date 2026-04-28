@@ -4,6 +4,7 @@ using MPR_Managerment.Services;
 using OfficeOpenXml.Utils;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
@@ -180,6 +181,16 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
                 // Đổi màu chữ để báo hiệu ô này "sống"
                 dgvList.Columns["InvoiceNo"].DefaultCellStyle.ForeColor = Color.Blue;
             }
+            if (dgvList.Columns.Contains("InvoiceDate"))
+            {
+                dgvList.Columns["InvoiceDate"].ReadOnly = false;
+
+                // Đổi màu nền cột được sửa thành màu trắng hoặc vàng nhạt để nổi bật
+                dgvList.Columns["InvoiceDate"].DefaultCellStyle.BackColor = Color.White;
+
+                // Đổi màu chữ để báo hiệu ô này "sống"
+                dgvList.Columns["InvoiceDate"].DefaultCellStyle.ForeColor = Color.Blue;
+            }
         }
 
         private void dgvList_Scroll(object sender, ScrollEventArgs e)
@@ -268,21 +279,32 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         private void btnSaveInvoice_Click(object sender, EventArgs e)
         {
             if (dgvList.Rows.Count <= 0) return;
-            var invoiceNo = dgvList.Rows[0].Cells[0].Value.ToString();
-            var invoidDate = dgvList.Rows[0].Cells[1].Value.ToString();
-            var poId = dgvList.Rows[0].Cells["PO_ID"].Value.ToString();
-
-            var wM = new WarehouseImport()
-            {
-                InvoiceNo = invoiceNo,
-                InvoiceDate = invoidDate,
-                PO_ID = Convert.ToInt32(poId)
-            };
 
             try
             {
-                _warehouseServices.Update(wM);
-                MessageBox.Show("Đã làm cập nhật hóa đơn thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                var count = 0;
+                foreach (DataGridViewRow item in dgvList.Rows)
+                {
+                    var invoiceNo = item.Cells[0].Value.ToString();
+                    var invoidDate = item.Cells[1].Value.ToString();
+                    if (!string.IsNullOrEmpty(invoiceNo) && !string.IsNullOrEmpty(invoidDate))
+                    {
+                        var poId = item.Cells["PO_ID"].Value.ToString();
+                        var importID = item.Cells["Import_ID"].Value.ToString();
+
+                        var wM = new WarehouseImport()
+                        {
+                            InvoiceNo = invoiceNo,
+                            InvoiceDate = invoidDate,
+                            PO_ID = Convert.ToInt32(poId),
+                            Import_ID = Convert.ToInt32(importID)
+                        };
+                        _warehouseServices.Update(wM);
+                        count++;
+                    }
+                }
+
+                MessageBox.Show($"Đã làm cập nhật hóa đơn cho {count} vật tư thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 dtSelected.Rows.Clear();
                 dgvList.Refresh();
                 lblStatus.Text = "";

@@ -1927,20 +1927,21 @@ namespace MPR_Managerment.Forms
                 if ((isRefesh)) txtSearchStock.Text = "";
                 string kw = txtSearchStock?.Text.Trim() ?? "";
                 string project = (cboProjectFilter != null && cboProjectFilter.SelectedIndex > 0) ? cboProjectFilter.SelectedItem.ToString() : "";
-                if (!string.IsNullOrEmpty(project))
-                {
-                    BindStockGrid(_service.GetStock(project, kw));
-                    //DataTable stocks = await _service.GetStock_V2(project, kw);
-                    //dgvStock.DataSource = stocks;
-                    //if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
-                    //decimal tQ = 0, tW = 0;
-                    //foreach (DataRow s in stocks.Rows) {
-                    //    var qt = Common.Common.ParseDecimalRaw(s["Qty (SUM)"].ToString());
-                    //    tQ += qt;
-                    //}
-                    //if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Rows.Count} mục";
-                    //if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
-                }
+                BindStockGrid(_service.GetStock(project, kw));
+                //if (!string.IsNullOrEmpty(project))
+                //{
+                //    BindStockGrid(_service.GetStock(project, kw));
+                //    //DataTable stocks = await _service.GetStock_V2(project, kw);
+                //    //dgvStock.DataSource = stocks;
+                //    //if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
+                //    //decimal tQ = 0, tW = 0;
+                //    //foreach (DataRow s in stocks.Rows) {
+                //    //    var qt = Common.Common.ParseDecimalRaw(s["Qty (SUM)"].ToString());
+                //    //    tQ += qt;
+                //    //}
+                //    //if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Rows.Count} mục";
+                //    //if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
+                //}
             }
             catch (Exception ex) { MessageBox.Show("Lỗi tải tồn kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }

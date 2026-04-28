@@ -1,10 +1,13 @@
-﻿using MPR_Managerment.Models;
+﻿using Microsoft.Web.WebView2.Core;
+using MPR_Managerment.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -19,6 +22,16 @@ namespace MPR_Managerment.Forms.DeliveryGUI
             InitializeComponent();
             this._dtProject = projectInfos;
             SetupSaveDeliveryNotetLayout();
+        }
+
+        public void Cleanup(Microsoft.Web.WebView2.WinForms.WebView2 webView)
+        {
+            if (webView != null && webView.CoreWebView2 != null)
+            {
+                // Chuyển về trang trống để giải phóng trang hiện tại
+                webView.CoreWebView2.Navigate("about:blank");
+                webView.Dispose();
+            }
         }
 
         public void SetupSaveDeliveryNotetLayout()
@@ -142,28 +155,55 @@ namespace MPR_Managerment.Forms.DeliveryGUI
             // Khởi tạo WebView2 (Bắt buộc vì WebView2 cần khởi tạo môi trường)
             async void InitializeWebView()
             {
+                //try
+                //{
+                //    // Đặt màu nền của chính Control WebView2 thành trắng ngay từ đầu
+                //    webView.BackColor = Color.White;
+
+                //    // Khởi tạo môi trường WebView2
+                //    await webView.EnsureCoreWebView2Async();
+
+                //    // THIẾT LẬP QUAN TRỌNG: Chỉnh màu nền mặc định của nhân Chromium
+                //    // System.Drawing.Color.White sẽ giúp loại bỏ vùng xám đen khi chưa load file
+                //    webView.CoreWebView2.Environment.UserDataFolder.ToString(); // (Tùy chọn check path)
+                //    webView.DefaultBackgroundColor = Color.White;
+
+                //    // Tắt các tính năng không cần thiết để giao diện sạch hơn
+                //    webView.CoreWebView2.Settings.IsZoomControlEnabled = true;
+
+                //    // Điều hướng đến trang trắng để đảm bảo không có màu lạ
+                //    webView.CoreWebView2.Navigate("about:blank");
+                //}
+                //catch (Exception ex)
+                //{
+                //    MessageBox.Show("Lỗi khởi tạo WebView2: " + ex.Message);
+                //}
                 try
                 {
-                    // Đặt màu nền của chính Control WebView2 thành trắng ngay từ đầu
-                    webView.BackColor = Color.White;
+                    if (webView != null && webView.CoreWebView2 == null)
+                    {
+                        // Thiết lập thư mục UserData riêng biệt trong LocalAppData để tránh tranh chấp file
+                        string userDataFolder = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "MPR_Managerment",
+                            "WebView2_Delivery_Cache"
+                        );
 
-                    // Khởi tạo môi trường WebView2
-                    await webView.EnsureCoreWebView2Async(null);
+                        // Tạo môi trường khởi tạo
+                        var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
 
-                    // THIẾT LẬP QUAN TRỌNG: Chỉnh màu nền mặc định của nhân Chromium
-                    // System.Drawing.Color.White sẽ giúp loại bỏ vùng xám đen khi chưa load file
-                    webView.CoreWebView2.Environment.UserDataFolder.ToString(); // (Tùy chọn check path)
-                    webView.DefaultBackgroundColor = Color.White;
+                        // Khởi tạo CoreWebView2
+                        await webView.EnsureCoreWebView2Async(env);
 
-                    // Tắt các tính năng không cần thiết để giao diện sạch hơn
-                    webView.CoreWebView2.Settings.IsZoomControlEnabled = true;
-
-                    // Điều hướng đến trang trắng để đảm bảo không có màu lạ
-                    webView.CoreWebView2.Navigate("about:blank");
+                        // Cấu hình thêm sau khi đã khởi tạo xong
+                        webView.CoreWebView2.Settings.IsPasswordAutosaveEnabled = false;
+                        webView.CoreWebView2.Settings.IsGeneralAutofillEnabled = false;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi khởi tạo WebView2: " + ex.Message);
+                    // Ghi log hoặc hiển thị lỗi nếu cần
+                    Debug.WriteLine("WebView2 Init Error: " + ex.Message);
                 }
             }
             InitializeWebView();

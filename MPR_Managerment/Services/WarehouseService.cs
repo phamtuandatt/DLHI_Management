@@ -97,11 +97,11 @@ namespace MPR_Managerment.Services
                     UPDATE Warehouse_Import SET
                         InvoiceNo  = @InvoiceNo,
                         InvoiceDate  = @InvoiceDate
-                    WHERE PO_ID = @PO_ID", conn);
+                    WHERE Import_ID = @ImportID", conn);
 
                 cmd.Parameters.AddWithValue("@InvoiceNo", wi.InvoiceNo);
                 cmd.Parameters.AddWithValue("@InvoiceDate", Convert.ToDateTime(wi.InvoiceDate.ToString()).ToString("dd/MM/yyyy"));
-                cmd.Parameters.AddWithValue("@PO_ID", wi.PO_ID);
+                cmd.Parameters.AddWithValue("@ImportID", wi.Import_ID);
 
                 cmd.ExecuteNonQuery();
             }
