@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
+using MPR_Managerment.Common;
 using MPR_Managerment.Forms.DeliveryGUI;
 using MPR_Managerment.Forms.ExportGUI;
 using MPR_Managerment.Forms.ImportWarehouseGUI;
@@ -1813,6 +1814,16 @@ namespace MPR_Managerment.Forms
                 e.CellStyle.ForeColor = val > 0 ? Color.FromArgb(40, 167, 69) : Color.FromArgb(220, 53, 69);
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
+
+            // 2. Định dạng cho cột "Trạng thái" (String)
+            var statusRules = new List<StringRule>
+            {
+                new StringRule { Value = "Pass", CellColor = Color.SeaGreen },
+                new StringRule { Value = "Fail", CellColor = Color.Red },
+                new StringRule { Value = "Hold", CellColor = Color.Orange },
+                new StringRule { Value = "Pending", CellColor = Color.DimGray }
+            };
+            Common.Common.ApplyCustomFormatting(e, dgvStock, "QC_Status", statusRules, null);
         }
 
         private void DgvImportQueue_EditingControlShowing(object? sender, DataGridViewEditingControlShowingEventArgs e)
@@ -2108,8 +2119,8 @@ namespace MPR_Managerment.Forms
                 var projects = new ProjectService().GetByProjectCode(poModel.ProjectCode ?? poModel.Notes);
 
                 string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pnk_template_v2.xlsx");
-                //string exportFolder = projects.PNK_Link;
-                string exportFolder = @"D:\RAC\";
+                string exportFolder = projects.PNK_Link;
+                //string exportFolder = @"D:\RAC\";
                 if (!Directory.Exists(exportFolder)) Directory.CreateDirectory(exportFolder);
 
                 string fileName = $"VMNP_PNK_{billNo}_{DateTime.Now:ddMMyyyy_HHmmss}.xlsx";

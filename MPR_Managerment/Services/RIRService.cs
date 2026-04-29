@@ -133,7 +133,7 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand(@"
                     SELECT RIR_Detail_ID, RIR_ID, PO_Detail_ID, Item_No,
                            item_name, Material, Size, UNIT,
-                           Qty_Per_Sheet, MTRno, Heatno, Created_Date, Qty_Required, Qty_Received, Inspect_Result, ID_Code
+                           Qty_Per_Sheet, MTRno, Heatno, Created_Date, Qty_Required, Qty_Received, Inspect_Result, ID_Code, Remarks
                     FROM RIR_detail
                     WHERE RIR_ID = @rirId
                     ORDER BY Item_No", conn);
@@ -325,6 +325,7 @@ namespace MPR_Managerment.Services
                     cmd.Parameters.AddWithValue("@Inspect_Result", d.Inspect_Result ?? "Accept");
                     cmd.Parameters.AddWithValue("@ID_Code", d.ID_Code ?? "");
                     cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
+                    cmd.Parameters.AddWithValue("@Remarks", d.Remarks);
 
                     try
                     {
@@ -389,7 +390,8 @@ namespace MPR_Managerment.Services
                 Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
                 Inspect_Result = r["Inspect_Result"].ToString() ?? "",
                 ID_Code = r["ID_Code"].ToString() ?? "",
-                Qty_Received = r["Qty_Received"] != DBNull.Value ? Convert.ToInt32(r["Qty_Received"]) : 0
+                Qty_Received = r["Qty_Received"] != DBNull.Value ? Convert.ToInt32(r["Qty_Received"]) : 0,
+                Remarks = r["Remarks"].ToString() ?? ""
             };
         }
     }
