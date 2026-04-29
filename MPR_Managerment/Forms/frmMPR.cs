@@ -1261,7 +1261,7 @@ namespace MPR_Managerment.Forms
             dgvDet.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
             dgvDet.EnableHeadersVisualStyles = false;
 
-            dgvDet.CellContentDoubleClick += (e, s) =>
+            dgvDet.CellDoubleClick += (e, s) =>
             {
                 frmSelectItem frmSelectItem = new frmSelectItem();
                 frmSelectItem.ShowDialog();
@@ -1284,6 +1284,20 @@ namespace MPR_Managerment.Forms
                     dgvDet.Rows[startRow].Cells["Weight_kg"].Value = item.G_Weight;
 
                     startRow++;
+                }
+            };
+
+            dgvDet.ColumnHeaderMouseClick += (s, e) =>
+            {
+               if (e.ColumnIndex < 0) return;
+                string colName = dgvDet.Columns[e.ColumnIndex].Name;
+                if (colName == "item_name")
+                {
+                    int rowIndex = dgvDet.Rows.Add();
+
+                    // 2. Tùy chọn: Focus vào ô đầu tiên của dòng mới để người dùng nhập liệu ngay
+                    dgvDet.CurrentCell = dgvDet.Rows[rowIndex].Cells[0];
+                    dgvDet.BeginEdit(true);
                 }
             };
 
