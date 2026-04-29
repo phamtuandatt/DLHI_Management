@@ -152,6 +152,17 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void ModifyNameOfWarehouseImport(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var sqlUpSize = $"UPDATE Warehouse_Import SET Item_Name = N'{wi.Item_Name}' WHERE Import_ID = {wi.Import_ID}";
+                var cmd = new SqlCommand(sqlUpSize, conn);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public async Task<DataTable> GetWarehouseImportByPOId(int poID)
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())

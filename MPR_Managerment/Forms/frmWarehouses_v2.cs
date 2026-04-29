@@ -2887,6 +2887,10 @@ namespace MPR_Managerment.Forms
                     Label lblSize = new Label() { Text = "Size:", Location = new Point(20, startY + (spacing * 3)), AutoSize = true };
                     TextBox txtSize = new TextBox() { Location = new Point(150, startY + (spacing * 3) - 3), Size = new Size(200, 25) };
 
+                    // Name
+                    Label lblName = new Label() { Text = "Name:", Location = new Point(20, startY + (spacing * 4)), AutoSize = true };
+                    TextBox txtName = new TextBox() { Location = new Point(150, startY + (spacing * 4) - 3), Size = new Size(200, 25) };
+
                     // --- 3. Cấu hình các Button ---
                     // Button Cancel (Nền xám, chữ trắng)
                     Button btnCancel = new Button()
@@ -2919,13 +2923,15 @@ namespace MPR_Managerment.Forms
                         string qty = txtQty.Text;
                         string weight = txtWeight.Text;
                         string sizeValue = txtSize.Text;
+                        string name = txtName.Text;
 
                         var w = new WarehouseImport()
                         {
                             Import_ID = importId,
                             ID_Code = itemCode,
                             Qty_Import = !string.IsNullOrEmpty(qty) ? Convert.ToDecimal(qty.Trim()) : 0,
-                            Size = sizeValue
+                            Size = sizeValue,
+                            Item_Name = name,
                         };
 
                         if (!string.IsNullOrEmpty(txtItemCode.Text))
@@ -2944,7 +2950,10 @@ namespace MPR_Managerment.Forms
                         {
                             _service.ModifySizeOfWarehouseImport(w);
                         }
-
+                        if (!string.IsNullOrEmpty(txtName.Text))
+                        {
+                            _service.ModifyNameOfWarehouseImport(w);
+                        }
                         //// Hiển thị kết quả lấy được để kiểm tra
                         //string info = $"Dữ liệu đã thu thập:\n" +
                         //              $"- Item Code: {itemCode}\n" +
@@ -2964,6 +2973,7 @@ namespace MPR_Managerment.Forms
                         lblQty, txtQty,
                         lblWeight, txtWeight,
                         lblSize, txtSize,
+                        lblName, txtName,
                         btnCancel, btnSave
                     });
 

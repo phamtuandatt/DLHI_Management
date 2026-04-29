@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Drawing;
 using System.Linq;
@@ -17,7 +18,7 @@ namespace MPR_Managerment.Forms.MPRGUI
 {
     public partial class frmSelectItem : Form
     {
-        private const string SearchPlaceholder = "Nhập xong rồi nhấn Fn";
+        private const string SearchPlaceholder = "Mã/tên vật tư...";
         private readonly WarehouseService _warehouseService = new WarehouseService();
         private readonly ProductServices _productServices = new ProductServices();
         private DataTable _dtItems = new DataTable();
@@ -34,6 +35,7 @@ namespace MPR_Managerment.Forms.MPRGUI
             Common.Common.CreateButtonCancel(btnCancels, "");
             Common.Common.CreateButtonSearch(btnSearch, "");
             Common.Common.CreateButtonDelete(btnDelete, "🗑 Bỏ chọn");
+            txtSearch.PlaceholderText = "Mã/tên vật tư...";
         }
 
 
@@ -192,14 +194,21 @@ namespace MPR_Managerment.Forms.MPRGUI
 
             int rsl = dgvItems.CurrentRow.Index;
 
-            ProductModel = new ProductModel()
+            try
             {
-                Id = Convert.ToInt32(dgvItems.CurrentRow.Cells["ID"].Value.ToString()),
-                Name = dgvItems.CurrentRow.Cells["Name"].Value.ToString().Trim() ?? "",
-                Des2 = dgvItems.CurrentRow.Cells["Desciption"].Value.ToString().Trim() ?? "",
-                ProdMaterialCode = dgvItems.CurrentRow.Cells["MaterialCode"].Value.ToString().Trim() ?? "",
-                Code = dgvItems.CurrentRow.Cells["Code"].Value.ToString().Trim() ?? "",
-            };
+                ProductModel = new ProductModel()
+                {
+                    Id = Convert.ToInt32(dgvItems.CurrentRow.Cells["ID"].Value.ToString()),
+                    Name = !string.IsNullOrEmpty(dgvItems.CurrentRow.Cells["Name"].Value.ToString().Trim()) ? dgvItems.CurrentRow.Cells["Name"].Value.ToString().Trim() : "",
+                    Des2 = !string.IsNullOrEmpty(dgvItems.CurrentRow.Cells["Desciption"].Value.ToString().Trim()) ? dgvItems.CurrentRow.Cells["Desciption"].Value.ToString().Trim() : "",
+                    ProdMaterialCode = !string.IsNullOrEmpty(dgvItems.CurrentRow.Cells["MaterialCode"].Value.ToString().Trim()) ? dgvItems.CurrentRow.Cells["MaterialCode"].Value.ToString().Trim() : "",
+                    Code = !string.IsNullOrEmpty(dgvItems.CurrentRow.Cells["Code"].Value.ToString().Trim()) ? dgvItems.CurrentRow.Cells["Code"].Value.ToString().Trim() : "",
+                };
+            }
+            catch (Exception)
+            {
+                Debug.WriteLine("Lỗi khi lấy dữ liệu từ DataGridView. Vui lòng kiểm tra lại cấu trúc cột và dữ liệu.");
+            }
         }
 
         private void SetSearchPlaceholder()
@@ -207,7 +216,7 @@ namespace MPR_Managerment.Forms.MPRGUI
             if (string.IsNullOrWhiteSpace(txtSearch.Text))
             {
                 txtSearch.ForeColor = SystemColors.GrayText;
-                txtSearch.Text = SearchPlaceholder;
+                txtSearch.PlaceholderText = SearchPlaceholder;
             }
         }
 
