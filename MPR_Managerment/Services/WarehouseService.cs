@@ -241,7 +241,7 @@ namespace MPR_Managerment.Services
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                string sql = "SELECT * FROM Warehouse_Import WHERE 1=1";
+                string sql = "SELECT * FROM vw_Get_Stock_Export WHERE 1=1";
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 sql += " ORDER BY Import_Date DESC";

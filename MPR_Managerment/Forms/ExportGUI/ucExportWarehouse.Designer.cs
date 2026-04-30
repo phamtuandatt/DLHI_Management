@@ -29,11 +29,13 @@
         private void InitializeComponent()
         {
             groupBox1 = new GroupBox();
+            txtSearchItem = new TextBox();
             dgvKho = new DataGridView();
             btnCancelSer = new Button();
             btnSearch = new Button();
             cboProject = new ComboBox();
             lblStatus = new Label();
+            label4 = new Label();
             label2 = new Label();
             label1 = new Label();
             groupBox2 = new GroupBox();
@@ -66,11 +68,13 @@
             // groupBox1
             // 
             groupBox1.BackColor = Color.White;
+            groupBox1.Controls.Add(txtSearchItem);
             groupBox1.Controls.Add(dgvKho);
             groupBox1.Controls.Add(btnCancelSer);
             groupBox1.Controls.Add(btnSearch);
             groupBox1.Controls.Add(cboProject);
             groupBox1.Controls.Add(lblStatus);
+            groupBox1.Controls.Add(label4);
             groupBox1.Controls.Add(label2);
             groupBox1.Controls.Add(label1);
             groupBox1.Dock = DockStyle.Top;
@@ -81,6 +85,15 @@
             groupBox1.Size = new Size(1211, 369);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
+            // 
+            // txtSearchItem
+            // 
+            txtSearchItem.Location = new Point(590, 47);
+            txtSearchItem.Margin = new Padding(3, 2, 3, 2);
+            txtSearchItem.Name = "txtSearchItem";
+            txtSearchItem.Size = new Size(202, 23);
+            txtSearchItem.TabIndex = 8;
+            txtSearchItem.KeyDown += txtSearchItem_KeyDown;
             // 
             // dgvKho
             // 
@@ -109,7 +122,7 @@
             btnCancelSer.FlatStyle = FlatStyle.Flat;
             btnCancelSer.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnCancelSer.ForeColor = Color.White;
-            btnCancelSer.Location = new Point(438, 42);
+            btnCancelSer.Location = new Point(434, 42);
             btnCancelSer.Margin = new Padding(3, 2, 3, 2);
             btnCancelSer.Name = "btnCancelSer";
             btnCancelSer.Size = new Size(101, 33);
@@ -123,7 +136,7 @@
             btnSearch.FlatStyle = FlatStyle.Flat;
             btnSearch.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnSearch.ForeColor = Color.White;
-            btnSearch.Location = new Point(336, 42);
+            btnSearch.Location = new Point(332, 42);
             btnSearch.Margin = new Padding(3, 2, 3, 2);
             btnSearch.Name = "btnSearch";
             btnSearch.Size = new Size(101, 33);
@@ -154,6 +167,15 @@
             lblStatus.Size = new Size(42, 15);
             lblStatus.TabIndex = 1;
             lblStatus.Text = "Status";
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Location = new Point(543, 51);
+            label4.Name = "label4";
+            label4.Size = new Size(41, 15);
+            label4.TabIndex = 1;
+            label4.Text = "Vật tư:";
             // 
             // label2
             // 
@@ -487,5 +509,7 @@
         private DataGridView dgvKho;
         private Button btnClear;
         private Button button1;
+        private TextBox txtSearchItem;
+        private Label label4;
     }
 }

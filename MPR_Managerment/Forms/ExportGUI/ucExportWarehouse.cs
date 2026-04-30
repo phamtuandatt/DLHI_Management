@@ -90,18 +90,39 @@ namespace MPR_Managerment.Forms.ExportGUI
                 dgvKho.Columns["Import_ID"].Visible = false;
                 dgvKho.Columns["PO_ID"].Visible = false;
                 dgvKho.Columns["PO_Detail_ID"].Visible = false;
-                dgvKho.Columns["RIR_ID"].Visible = false;
-                dgvKho.Columns["Item_ID"].Visible = false;
-                dgvKho.Columns["Warehouse_ID"].Visible = false;
-                dgvKho.Columns["Item_Code"].Visible = false;
+                //dgvKho.Columns["RIR_ID"].Visible = false;
+                //dgvKho.Columns["Item_ID"].Visible = false;
+                //dgvKho.Columns["Warehouse_ID"].Visible = false;
+                //dgvKho.Columns["Item_Code"].Visible = false;
                 dgvKho.Columns["ID_Code"].Visible = false;
 
                 dgvKho.Columns["Location"].Visible = false;
-                dgvKho.Columns["Notes"].Visible = false;
+                //dgvKho.Columns["Notes"].Visible = false;
                 dgvKho.Columns["MTRno"].Visible = false;
                 dgvKho.Columns["Heatno"].Visible = false;
-                dgvKho.Columns["InvoiceNo"].Visible = false;
-                dgvKho.Columns["InvoiceDate"].Visible = false;
+                //dgvKho.Columns["InvoiceNo"].Visible = false;
+                //dgvKho.Columns["InvoiceDate"].Visible = false;
+
+                dgvKho.Columns["Project_Code"].Visible = false;
+                dgvKho.Columns["PONo"].Visible = false;
+                dgvKho.Columns["MPR_No"].Visible = false;
+                dgvKho.Columns["PO_Date"].Visible = false;
+                dgvKho.Columns["WorkorderNo"].Visible = false;
+            }
+        }
+
+
+        private void txtSearchItem_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                if (_dtStock.Rows.Count <= 0 || string.IsNullOrEmpty(txtSearchItem.Text)) return;
+                var lstProperty = new List<string>()
+                {
+                    "Item_Name", "Material", "Size", "ID_Code" // Tên cột phải khớp chính xác với DataTable
+                };
+                DataView dv = Common.Common.Search(txtSearchItem.Text.Trim(), _dtStock, lstProperty);
+                dgvKho.DataSource = dv;
             }
         }
 
@@ -121,7 +142,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                     DataRow sourceRow = drv.Row;
 
                     // Lấy số lượng tối đa hiện có trong kho để cảnh báo
-                    decimal maxQtyInStock = Convert.ToDecimal(sourceRow["Qty_Import"]);
+                    decimal maxQtyInStock = Convert.ToDecimal(sourceRow["Qty_Stock"]);
 
                     key = $"{sourceRow["Import_ID"].ToString()}";
                     value = sourceRow["ID_Code"].ToString();
@@ -358,7 +379,7 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             if (e.RowIndex < 0) return;
             string col = dgvKho.Columns[e.ColumnIndex].Name;
-            if (col == "Qty_Import")
+            if (col == "Qty_Stock")
             {
                 decimal val = e.Value != null ? Convert.ToDecimal(e.Value) : 0;
                 e.CellStyle.ForeColor = val > 0 ? Color.FromArgb(40, 167, 69) : Color.FromArgb(220, 53, 69);
@@ -403,9 +424,9 @@ namespace MPR_Managerment.Forms.ExportGUI
             {
                 new NumericRule { MinValue = 0.01m, MaxValue = decimal.MaxValue, CellColor = Color.ForestGreen }, // > 0
                 new NumericRule { MinValue = decimal.MinValue, MaxValue = -0.01m, CellColor = Color.Red },       // < 0
-                new NumericRule { MinValue = 0, MaxValue = 0, CellColor = Color.Gray }                          // = 0
+                new NumericRule { MinValue = 0, MaxValue = 0, CellColor = Color.Red }                          // = 0
             };
-            Common.Common.ApplyCustomFormatting(e, dgvKho, "Qty_Import", null, qtyRules);
+            Common.Common.ApplyCustomFormatting(e, dgvKho, "Qty_Stock", null, qtyRules);
 
             // 2. Định dạng cho cột "Trạng thái" (String)
             var statusRules = new List<StringRule>
