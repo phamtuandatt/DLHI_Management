@@ -1161,16 +1161,27 @@ namespace MPR_Managerment.Forms
                 }
             }
             FilterProjects();
-            // Không tự động lọc khi gõ — chỉ lọc khi nhấn Enter
+            // Chỉ lọc khi nhấn Enter
+            // ApplyProject sẽ được gọi qua SelectionChanged (định nghĩa sau)
             txtSearch.KeyDown += (s, ev) =>
             {
                 if (ev.KeyCode != Keys.Enter) return;
                 ev.SuppressKeyPress = true;
                 FilterProjects();
-                // Nếu chỉ có 1 kết quả → tự động chọn và hiển thị luôn
-                // Nếu 1 kết quả → chọn tự động, SelectionChanged sẽ gọi ApplyProject
+                // Nếu đúng 1 kết quả → chọn ngay, SelectionChanged tự gọi ApplyProject
                 if (dgvProj.Rows.Count == 1)
+                {
+                    dgvProj.ClearSelection();
                     dgvProj.Rows[0].Selected = true;
+                    dgvProj.CurrentCell = dgvProj.Rows[0].Cells[0];
+                }
+                // Nếu nhiều kết quả → chọn row đầu tiên để user thấy ngay
+                else if (dgvProj.Rows.Count > 1)
+                {
+                    dgvProj.ClearSelection();
+                    dgvProj.Rows[0].Selected = true;
+                    dgvProj.CurrentCell = dgvProj.Rows[0].Cells[0];
+                }
             };
 
             // ── Thông tin dự án (chỉ đọc) ──────────────────────────────────────
@@ -1289,7 +1300,7 @@ namespace MPR_Managerment.Forms
 
             dgvDet.ColumnHeaderMouseClick += (s, e) =>
             {
-               if (e.ColumnIndex < 0) return;
+                if (e.ColumnIndex < 0) return;
                 string colName = dgvDet.Columns[e.ColumnIndex].Name;
                 if (colName == "item_name")
                 {
@@ -1323,36 +1334,55 @@ namespace MPR_Managerment.Forms
             AddCol("D_Web_mm", "Web(mm)", 60);
             AddCol("E_Flange_mm", "Flange(mm)", 70);
             AddCol("F_Length_mm", "L(mm)", 60);
+            AddCol("Usage_Location", "Vị trí", 90);
+            AddCol("MPS_Info", "MPS", 70);
+            AddCol("REV", "REV", 45);
+            AddCol("DWG_BOQ_Receive_Date", "DWG Date", 80);
+            AddCol("Issue_Date", "Issue Date", 80);
             AddCol("UNIT", "Đơn vị", 55);
             AddCol("Qty_Per_Sheet", "SL", 45);
             AddCol("Weight_kg", "KG", 55);
-            AddCol("Usage_Location", "Vị trí", 90);
-            AddCol("MPS_Info", "MPS", 70);
-            AddCol("DWG_BOQ_Receive_Date", "DWG Date", 80);
-            AddCol("Issue_Date", "Issue Date", 80);
             AddCol("Remarks", "Ghi chú", 100);
             dlg.Controls.Add(dgvDet);
 
-            // Hỗ trợ Paste từ Excel
+            // Paste từ Excel — 1 lần, xử lý đúng new row placeholder
             dgvDet.KeyDown += (s, ev) =>
             {
                 if (ev.Control && ev.KeyCode == Keys.V)
                 {
+                    ev.Handled = true;
+                    ev.SuppressKeyPress = true;
                     string clip = Clipboard.GetText();
                     if (string.IsNullOrEmpty(clip)) return;
+                    dgvDet.EndEdit();
                     string[] rows2 = clip.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-                    int startRow = dgvDet.CurrentCell?.RowIndex ?? 0;
+                    if (rows2.Length == 0) return;
+
+                    // Xác định ô bắt đầu — nếu CurrentCell là new row hoặc null thì về row 0
                     int startCol = dgvDet.CurrentCell?.ColumnIndex ?? 0;
+                    int curRow = dgvDet.CurrentCell?.RowIndex ?? 0;
+                    // Số dòng data thực (không tính new row placeholder)
+                    int dataRowCount = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
+                    // Nếu đang đứng ở new row placeholder → paste từ cuối data
+                    int startRow = (curRow >= dataRowCount) ? dataRowCount : curRow;
+
+                    dgvDet.SuspendLayout();
                     foreach (var row2 in rows2)
                     {
                         string[] cells = row2.Split('\t');
-                        if (startRow >= dgvDet.Rows.Count) dgvDet.Rows.Add();
+                        // Thêm dòng mới nếu cần (trước new row placeholder)
+                        int dataRows = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
+                        if (startRow >= dataRows)
+                        {
+                            dgvDet.Rows.Insert(dataRows, 1);
+                        }
                         for (int c = 0; c < cells.Length && startCol + c < dgvDet.Columns.Count; c++)
                             if (!dgvDet.Columns[startCol + c].ReadOnly)
                                 dgvDet.Rows[startRow].Cells[startCol + c].Value = cells[c].Trim();
                         startRow++;
                     }
-                    ev.Handled = true;
+                    dgvDet.ResumeLayout();
+                    dgvDet.Refresh();
                 }
             };
 
