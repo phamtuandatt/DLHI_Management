@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Drawing;
 using System.Linq;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -25,6 +26,7 @@ namespace MPR_Managerment.Forms.MPRGUI
         public List<ProductModel> selectedItems { get; set; } = new List<ProductModel>();
 
         public ProductModel ProductModel { get; set; }
+        public int CheckedQuanty = 0;
 
         public frmSelectItem()
         {
@@ -101,7 +103,24 @@ namespace MPR_Managerment.Forms.MPRGUI
 
             dgvItems.CellValueChanged += (s, e) =>
             {
-                CalculateCheckedData();
+                if (dgvItems.Columns[e.ColumnIndex].Name == "Chon" && e.RowIndex >= 0)
+                {
+                    bool isChecked = Convert.ToBoolean(dgvItems.Rows[e.RowIndex].Cells["Chon"].Value);
+
+                    if (isChecked)
+                    {
+                        CheckedQuanty++; // Người dùng check -> +1
+                    }
+                    else
+                    {
+                        // Chỉ trừ nếu biến đang lớn hơn 0 để tránh số âm ngoài ý muốn
+                        if (CheckedQuanty > 0) CheckedQuanty--;
+                    }
+
+                    // Hiển thị lên giao diện
+                    lblStatus.Text = $"Đã chọn: {CheckedQuanty} vật tư";
+                }
+
             };
 
             dgvItems.CurrentCellDirtyStateChanged += (s, e) =>
@@ -116,74 +135,115 @@ namespace MPR_Managerment.Forms.MPRGUI
 
         private async Task LoadItems()
         {
+            //_dtItems = await _productServices.GetProducts();
+            //BindStockGrid(_dtItems);
             _dtItems = await _productServices.GetProducts();
+
+            // Thêm cột logic 'Chon' vào DataTable nếu chưa có
+            if (!_dtItems.Columns.Contains("Chon"))
+            {
+                DataColumn col = new DataColumn("Chon", typeof(bool));
+                col.DefaultValue = false;
+                _dtItems.Columns.Add(col);
+            }
+
             BindStockGrid(_dtItems);
         }
 
         private void BindStockGrid(DataTable models)
         {
-            // Xóa cột cũ và dữ liệu cũ trước khi nạp lại (tránh trùng lặp cột khi gọi hàm nhiều lần)
-            dgvItems.Columns.Clear();
-            dgvItems.DataSource = null;
+            //// Xóa cột cũ và dữ liệu cũ trước khi nạp lại (tránh trùng lặp cột khi gọi hàm nhiều lần)
+            //dgvItems.Columns.Clear();
+            //dgvItems.DataSource = null;
 
-            // Thêm cột Checkbox trước
-            DataGridViewCheckBoxColumn checkColumn = new DataGridViewCheckBoxColumn();
-            checkColumn.Name = "Chon";
-            checkColumn.HeaderText = "Chọn";
-            checkColumn.ReadOnly = false; // Cho phép tương tác
-            dgvItems.Columns.Add(checkColumn);
-            //dgvItems.Columns["Chon"].Width = 300;
+            //// Thêm cột Checkbox trước
+            //DataGridViewCheckBoxColumn checkColumn = new DataGridViewCheckBoxColumn();
+            //checkColumn.Name = "Chon";
+            //checkColumn.HeaderText = "Chọn";
+            //checkColumn.ReadOnly = false; // Cho phép tương tác
+            //dgvItems.Columns.Add(checkColumn);
+            ////dgvItems.Columns["Chon"].Width = 300;
 
-            // Thêm cột Checkbox trước
-            DataGridViewImageColumn imgCol = new DataGridViewImageColumn();
-            imgCol.HeaderText = "Hình ảnh";
-            imgCol.Name = "imgColumn";
-            imgCol.ReadOnly = false;
-            dgvItems.Columns.Add(imgCol);
+            //// Thêm cột Checkbox trước
+            //DataGridViewImageColumn imgCol = new DataGridViewImageColumn();
+            //imgCol.HeaderText = "Hình ảnh";
+            //imgCol.Name = "imgColumn";
+            //imgCol.ReadOnly = false;
+            //dgvItems.Columns.Add(imgCol);
 
-            //dgvItems.Columns["imgColumn"].Width = 35;
+            ////dgvItems.Columns["imgColumn"].Width = 35;
 
-            // Gán DataSource
-            dgvItems.DataSource = models.AsEnumerable().Select(row => new
-            {
-                Id = row.Field<int>("Id"),
-                Name = row.Field<string>("name"),
-                Desciption = row.Field<string>("des_2"),
-                Code = row.Field<string>("code"),
-                MaterialCode = row.Field<string>("prod_material_code"),
-                Thinkness = row.Field<string>("a_thinkness"),
-                Depth = row.Field<string>("b_depth"),
-                Width = row.Field<string>("c_witdth"),
-                Web = row.Field<string>("d_web"),
-                Flag = row.Field<string>("e_flag"),
-                Lenght = row.Field<string>("f_length"),
-                Weight = row.Field<string>("g_weight"),
-            }).ToList();
-
-            foreach (DataGridViewColumn column in dgvItems.Columns)
-            {
-                // Check if the column name or header contains "id" (case-insensitive)
-                if (column.Name.IndexOf("id", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    column.Visible = false;
-                }
-            }
-
-            //// Tính toán tổng số lượng
-            //decimal tQ = 0, tW = 0;
-            //if (stocks != null)
+            //// Gán DataSource
+            //dgvItems.DataSource = models.AsEnumerable().Select(row => new
             //{
-            //    foreach (var s in stocks)
+            //    Id = row.Field<int>("Id"),
+            //    Name = row.Field<string>("name"),
+            //    Desciption = row.Field<string>("des_2"),
+            //    Code = row.Field<string>("code"),
+            //    MaterialCode = row.Field<string>("prod_material_code"),
+            //    Thinkness = row.Field<string>("a_thinkness"),
+            //    Depth = row.Field<string>("b_depth"),
+            //    Width = row.Field<string>("c_witdth"),
+            //    Web = row.Field<string>("d_web"),
+            //    Flag = row.Field<string>("e_flag"),
+            //    Lenght = row.Field<string>("f_length"),
+            //    Weight = row.Field<string>("g_weight"),
+            //}).ToList();
+
+            //foreach (DataGridViewColumn column in dgvItems.Columns)
+            //{
+            //    // Check if the column name or header contains "id" (case-insensitive)
+            //    if (column.Name.IndexOf("id", StringComparison.OrdinalIgnoreCase) >= 0)
             //    {
-            //        tQ += s.Qty_Stock;
-            //        tW += s.Weight_Stock;
+            //        column.Visible = false;
             //    }
-            //    if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Count} mục";
-            //    if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
-            //    if (lblStockWeight != null) lblStockWeight.Text = tW.ToString("N2") + " kg";
             //}
 
-            // Thủ thuật nhỏ: Để CheckBox phản hồi click chuột ngay lập tức (không cần click 2 lần)
+            ////// Tính toán tổng số lượng
+            ////decimal tQ = 0, tW = 0;
+            ////if (stocks != null)
+            ////{
+            ////    foreach (var s in stocks)
+            ////    {
+            ////        tQ += s.Qty_Stock;
+            ////        tW += s.Weight_Stock;
+            ////    }
+            ////    if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Count} mục";
+            ////    if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
+            ////    if (lblStockWeight != null) lblStockWeight.Text = tW.ToString("N2") + " kg";
+            ////}
+
+            //// Thủ thuật nhỏ: Để CheckBox phản hồi click chuột ngay lập tức (không cần click 2 lần)
+            //dgvItems.EditMode = DataGridViewEditMode.EditOnEnter;
+
+            // KHÔNG xóa toàn bộ cột nếu đã có cột "Chon"
+            if (dgvItems.Columns.Count == 0)
+            {
+                DataGridViewCheckBoxColumn checkColumn = new DataGridViewCheckBoxColumn();
+                checkColumn.Name = "Chon";
+                checkColumn.HeaderText = "Chọn";
+                checkColumn.DataPropertyName = "Chon"; // Map trực tiếp với cột trong DataTable
+                dgvItems.Columns.Add(checkColumn);
+
+                DataGridViewImageColumn imgCol = new DataGridViewImageColumn();
+                imgCol.HeaderText = "Hình ảnh";
+                imgCol.Name = "imgColumn";
+                dgvItems.Columns.Add(imgCol);
+            }
+
+            // Gán DataSource là DataTable/DataView chứa cột 'Chon'
+            dgvItems.DataSource = models;
+
+            // Ẩn các cột ID và cấu hình hiển thị
+            foreach (DataGridViewColumn column in dgvItems.Columns)
+            {
+                if (column.Name.IndexOf("id", StringComparison.OrdinalIgnoreCase) >= 0)
+                    column.Visible = false;
+
+                // Cấu hình các cột hiển thị đẹp hơn (tùy chọn)
+                if (column.Name == "Chon") column.DisplayIndex = 0;
+            }
+
             dgvItems.EditMode = DataGridViewEditMode.EditOnEnter;
         }
 
@@ -235,20 +295,33 @@ namespace MPR_Managerment.Forms.MPRGUI
 
         private void Search(string text)
         {
-            if (txtSearch.Text.Length == 0)
-            {
-                //dgvProds.DataSource = this.dtProds;
-                dgvItems.Refresh();
-            }
+            //if (txtSearch.Text.Length == 0)
+            //{
+            //    //dgvProds.DataSource = this.dtProds;
+            //    dgvItems.Refresh();
+            //}
 
+            //var lstProperty = new List<string>()
+            //{
+            //    "Name", "des_2", "code", "prod_material_code", "a_thinkness", "b_depth", "c_witdth", "d_web", "e_flag", "f_length", "g_weight"
+            //};
+
+            //DataView dv = Common.Common.Search(txtSearch.Text, _dtItems, lstProperty);
+
+            //BindStockGrid(dv.ToTable());
+            // Sử dụng RowFilter của DefaultView để ẩn/hiện dòng mà không làm mất dữ liệu
             var lstProperty = new List<string>()
             {
-                "Name", "des_2", "code", "prod_material_code", "a_thinkness", "b_depth", "c_witdth", "d_web", "e_flag", "f_length", "g_weight"
+                "name", "des_2", "code", "prod_material_code" // Tên cột phải khớp chính xác với DataTable
             };
 
-            DataView dv = Common.Common.Search(txtSearch.Text, _dtItems, lstProperty);
+            DataView dv = Common.Common.Search(text, _dtItems, lstProperty);
 
-            BindStockGrid(dv.ToTable());
+            // Thay vì tạo bảng mới, chỉ cần cập nhật DataSource bằng View đã lọc
+            dgvItems.DataSource = dv;
+
+            // Cập nhật lại số lượng đã chọn sau khi search
+            CalculateCheckedData();
         }
 
         private void btnSelect_Click(object sender, EventArgs e)
@@ -264,17 +337,17 @@ namespace MPR_Managerment.Forms.MPRGUI
                     selectedItems.Add(new ProductModel
                     {
                         Id = Convert.ToInt32(row.Cells["Id"].Value.ToString().Trim()),
-                        Name = row.Cells["Name"].Value?.ToString(),
-                        Des2 = row.Cells["Desciption"].Value?.ToString(),
-                        Code = row.Cells["Code"].Value?.ToString(),
-                        ProdMaterialCode = row.Cells["MaterialCode"].Value?.ToString(),
-                        A_Thickness = row.Cells["Thinkness"].Value?.ToString(),
-                        B_Depth = row.Cells["Depth"].Value?.ToString(),
-                        C_Width = row.Cells["Width"].Value?.ToString(),
-                        D_Web = row.Cells["Web"].Value?.ToString(),
-                        E_Flag = row.Cells["Flag"].Value?.ToString(),
-                        F_Length = row.Cells["Lenght"].Value?.ToString(),
-                        G_Weight = row.Cells["Weight"].Value?.ToString(),
+                        Name = row.Cells["name"].Value?.ToString(),
+                        Des2 = row.Cells["des_2"].Value?.ToString(),
+                        Code = row.Cells["code"].Value?.ToString(),
+                        ProdMaterialCode = row.Cells["prod_material_code"].Value?.ToString(),
+                        A_Thickness = row.Cells["a_thinkness"].Value?.ToString(),
+                        B_Depth = row.Cells["b_depth"].Value?.ToString(),
+                        C_Width = row.Cells["c_witdth"].Value?.ToString(),
+                        D_Web = row.Cells["d_web"].Value?.ToString(),
+                        E_Flag = row.Cells["e_flag"].Value?.ToString(),
+                        F_Length = row.Cells["f_length"].Value?.ToString(),
+                        G_Weight = row.Cells["g_weight"].Value?.ToString(),
                     });
                 }
             }

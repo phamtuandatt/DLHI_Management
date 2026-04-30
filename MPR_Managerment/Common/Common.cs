@@ -11,6 +11,95 @@ namespace MPR_Managerment.Common
     public static class Common
     {
         private static readonly System.Globalization.CultureInfo _numCulture = new System.Globalization.CultureInfo("vi-VN");
+        public static void AutoAdjustColumnWidths(DataGridView dgvDetails)
+        {
+            if (dgvDetails.Columns.Count == 0) return;
+            dgvDetails.SuspendLayout();
+            dgvDetails.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            using (Graphics g = dgvDetails.CreateGraphics())
+            {
+                Font headerFont = dgvDetails.ColumnHeadersDefaultCellStyle.Font ?? dgvDetails.Font;
+                foreach (DataGridViewColumn col in dgvDetails.Columns)
+                {
+                    if (!col.Visible) continue;
+                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                    SizeF headerSize = g.MeasureString(col.HeaderText, headerFont);
+                    int minWidth = (int)Math.Ceiling(headerSize.Width) + 20; int maxWidth = minWidth;
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    {
+                        if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
+                        string cellValue = row.Cells[col.Index].Value?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(cellValue))
+                        {
+                            SizeF size = g.MeasureString(cellValue, dgvDetails.Font); int cw = (int)Math.Ceiling(size.Width) + 15;
+                            if (cw > maxWidth) maxWidth = cw;
+                        }
+                    }
+                    if (maxWidth > 200) { col.Width = 200; col.DefaultCellStyle.WrapMode = DataGridViewTriState.True; }
+                    else { col.Width = maxWidth; col.DefaultCellStyle.WrapMode = DataGridViewTriState.False; }
+                }
+            }
+            dgvDetails.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
+            dgvDetails.ResumeLayout();
+        }
+
+        public static void ColorRowsByIdGroups(DataGridView dgv, string idColumnName)
+        {
+            // 1. Đếm số lần xuất hiện của từng ID
+            // Key: Giá trị ID, Value: Số lần xuất hiện
+            Dictionary<string, int> idCounts = new Dictionary<string, int>();
+
+            foreach (DataGridViewRow row in dgv.Rows)
+            {
+                if (row.IsNewRow) continue;
+                string idValue = row.Cells[idColumnName].Value?.ToString();
+                if (string.IsNullOrEmpty(idValue)) continue;
+
+                if (idCounts.ContainsKey(idValue))
+                    idCounts[idValue]++;
+                else
+                    idCounts[idValue] = 1;
+            }
+
+            // 2. Bảng màu đậm rõ nét cho các nhóm trùng
+            Color[] groupColors = new Color[]
+            {
+                Color.FromArgb(210, 230, 255), // Xanh dương
+                Color.FromArgb(200, 245, 210), // Xanh lá
+                Color.FromArgb(255, 235, 190), // Vàng cam
+                Color.FromArgb(235, 210, 255), // Tím
+                Color.FromArgb(255, 210, 210)  // Hồng
+            };
+
+            Dictionary<string, Color> idColorMap = new Dictionary<string, Color>();
+            int colorIndex = 0;
+
+            dgv.SuspendLayout();
+
+            foreach (DataGridViewRow row in dgv.Rows)
+            {
+                if (row.IsNewRow) continue;
+                string idValue = row.Cells[idColumnName].Value?.ToString();
+
+                // Kiểm tra: Chỉ tô màu nếu ID này xuất hiện từ 2 lần trở lên
+                if (!string.IsNullOrEmpty(idValue) && idCounts[idValue] > 1)
+                {
+                    if (!idColorMap.ContainsKey(idValue))
+                    {
+                        idColorMap[idValue] = groupColors[colorIndex % groupColors.Length];
+                        colorIndex++;
+                    }
+                    row.DefaultCellStyle.BackColor = idColorMap[idValue];
+                }
+                else
+                {
+                    // Nếu không trùng, trả về màu mặc định (Trắng hoặc màu xen kẽ của Grid)
+                    row.DefaultCellStyle.BackColor = Color.White;
+                }
+            }
+
+            dgv.ResumeLayout();
+        }
 
         public static void CreateDataGridView(DataGridView dgv)
         {

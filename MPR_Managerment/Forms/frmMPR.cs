@@ -52,6 +52,8 @@ namespace MPR_Managerment.Forms
         // Khai báo phía trên cùng của Class Form
         private System.Diagnostics.Process _excelProcess = null;
 
+        private List<ProductModel> _selectedItem = new List<ProductModel>();
+
 
         public frmMPR(int mprId = 0)
         {
@@ -1131,6 +1133,8 @@ namespace MPR_Managerment.Forms
 
         private void ShowCreateMPRPopup()
         {
+            bool isUpdatingTotal = false; // Biến cờ ngăn chặn vòng lặp vô tận
+
             var dlg = new Form
             {
                 Text = "➕ Tạo MPR mới",
@@ -1287,7 +1291,7 @@ namespace MPR_Managerment.Forms
             {
                 Location = new Point(10, 270),
                 Size = new Size(dlg.ClientSize.Width - 20, 300),
-                AllowUserToAddRows = true,
+                AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 RowHeadersVisible = false,
                 BackgroundColor = Color.White,
@@ -1312,6 +1316,7 @@ namespace MPR_Managerment.Forms
                 foreach (var item in frmSelectItem.selectedItems)
                 {
                     dgvDet.Rows.Add();
+                    dgvDet.Rows[startRow].Cells["Item_No"].Value = startRow + 1;
                     dgvDet.Rows[startRow].Cells["item_name"].Value = item.Name;
                     dgvDet.Rows[startRow].Cells["Description"].Value = item.Des2;
                     dgvDet.Rows[startRow].Cells["Material"].Value = item.ProdMaterialCode;
@@ -1323,22 +1328,53 @@ namespace MPR_Managerment.Forms
                     dgvDet.Rows[startRow].Cells["F_Length_mm"].Value = item.F_Length;
                     dgvDet.Rows[startRow].Cells["UNIT"].Value = "";
                     dgvDet.Rows[startRow].Cells["Weight_kg"].Value = item.G_Weight;
+                    dgvDet.Rows[startRow].Cells["Id"].Value = item.Id;
 
                     startRow++;
                 }
             };
 
-            dgvDet.ColumnHeaderMouseClick += (s, e) =>
+            dgvDet.CellFormatting += (s, e) =>
             {
-                if (e.ColumnIndex < 0) return;
-                string colName = dgvDet.Columns[e.ColumnIndex].Name;
-                if (colName == "item_name")
-                {
-                    int rowIndex = dgvDet.Rows.Add();
+                if (e.RowIndex < 0) return;
+                Common.Common.ColorRowsByIdGroups(dgvDet, "Id");
+            };
 
-                    // 2. Tùy chọn: Focus vào ô đầu tiên của dòng mới để người dùng nhập liệu ngay
-                    dgvDet.CurrentCell = dgvDet.Rows[rowIndex].Cells[0];
-                    dgvDet.BeginEdit(true);
+            dgvDet.CellEndEdit += (s, e) =>
+            {
+                // Chỉ kiểm tra nếu cột đang sửa là "SL_Xuat"
+                if (dgvDet.Columns[e.ColumnIndex].Name == "Qty_Per_Sheet")
+                {
+                    var row = dgvDet.Rows[e.RowIndex];
+
+                    // Lấy giá trị nhập vào và giá trị tồn
+                    decimal slNhap = 0;
+
+                    // Ép kiểu an toàn (sử dụng decimal.TryParse để tránh lỗi nhập chữ)
+                    decimal.TryParse(row.Cells["Qty_Per_Sheet"].Value?.ToString() ?? "0", out slNhap);
+
+                    if (slNhap == 0)
+                    {
+                        // Gán lại giá trị Xuất bằng giá trị Tồn
+                        row.Cells["Qty_Per_Sheet"].Value = 0;
+                    }
+                }
+                // Chỉ kiểm tra nếu cột đang sửa là "SL_Xuat"
+                if (dgvDet.Columns[e.ColumnIndex].Name == "Weight_kg")
+                {
+                    var row = dgvDet.Rows[e.RowIndex];
+
+                    // Lấy giá trị nhập vào và giá trị tồn
+                    decimal slNhap = 0;
+
+                    // Ép kiểu an toàn (sử dụng decimal.TryParse để tránh lỗi nhập chữ)
+                    decimal.TryParse(row.Cells["Weight_kg"].Value?.ToString() ?? "0", out slNhap);
+
+                    if (slNhap == 0)
+                    {
+                        // Gán lại giá trị Xuất bằng giá trị Tồn
+                        row.Cells["Weight_kg"].Value = 0;
+                    }
                 }
             };
 
@@ -1373,7 +1409,128 @@ namespace MPR_Managerment.Forms
             AddCol("Qty_Per_Sheet", "SL", 45);
             AddCol("Weight_kg", "KG", 55);
             AddCol("Remarks", "Ghi chú", 100);
+            AddCol("Id", "Item Id", 50);
+            dgvDet.Columns["Id"].Visible = false;
             dlg.Controls.Add(dgvDet);
+
+            // --- THÊM DÒNG TỔNG BAN ĐẦU ---
+            void AddTotalRow()
+            {
+                int idx = dgvDet.Rows.Add();
+                DataGridViewRow totalRow = dgvDet.Rows[idx];
+                totalRow.Tag = "TOTAL"; // Đánh dấu đây là dòng tổng
+                totalRow.ReadOnly = true;
+                totalRow.DefaultCellStyle.BackColor = Color.LightGray;
+                totalRow.DefaultCellStyle.Font = new Font(dgvDet.Font, FontStyle.Bold);
+                totalRow.Cells["item_name"].Value = "🔥 TỔNG CỘNG:";
+                UpdateGridTotal();
+            }
+
+            // --- HÀM TÍNH TỔNG ---
+            void UpdateGridTotal()
+            {
+                decimal totalQty = 0;
+                decimal totalWeight = 0;
+
+                foreach (DataGridViewRow row in dgvDet.Rows)
+                {
+                    // Chỉ tính những dòng thường, bỏ qua dòng TOTAL và NewRow
+                    if (row.Tag?.ToString() != "TOTAL" && !row.IsNewRow)
+                    {
+                        if (decimal.TryParse(row.Cells["Qty_Per_Sheet"].Value?.ToString(), out decimal q)) totalQty += q;
+                        if (decimal.TryParse(row.Cells["Weight_kg"].Value?.ToString(), out decimal w)) totalWeight += w;
+                    }
+                }
+
+                // Hiển thị lên dòng TOTAL
+                foreach (DataGridViewRow row in dgvDet.Rows)
+                {
+                    if (row.Tag?.ToString() == "TOTAL")
+                    {
+                        row.Cells["Qty_Per_Sheet"].Value = totalQty.ToString("N0");
+                        row.Cells["Weight_kg"].Value = totalWeight.ToString("N2");
+                        break;
+                    }
+                }
+            }
+
+            // Sự kiện này kích hoạt khi thêm dòng mới hoặc xóa dòng
+            dgvDet.RowsAdded += (s, e) => RebuildTotalRow();
+            dgvDet.RowsRemoved += (s, e) => RebuildTotalRow();
+
+            // Gọi lần đầu để hiển thị dòng Total ngay khi mở popup
+            RebuildTotalRow();
+
+            //dgvDet.RowsRemoved += (s, e) => UpdateGridTotal();
+            // Đăng ký các sự kiện để tự động cập nhật
+            // Đăng ký sự kiện ngay sau khi khởi tạo dgvDet
+            dgvDet.CellValueChanged += (s, e) => {
+                if (e.RowIndex >= 0 && (dgvDet.Columns[e.ColumnIndex].Name == "Qty_Per_Sheet" ||
+                                       dgvDet.Columns[e.ColumnIndex].Name == "Weight_kg"))
+                {
+                    RebuildTotalRow();
+                }
+            };
+
+            void RebuildTotalRow()
+            {
+                if (isUpdatingTotal) return;
+                isUpdatingTotal = true;
+
+                decimal totalQty = 0;
+                decimal totalWeight = 0;
+
+                dgvDet.SuspendLayout();
+                try
+                {
+                    // 1. Tìm và xóa dòng TOTAL cũ, đồng thời tính tổng
+                    for (int i = dgvDet.Rows.Count - 1; i >= 0; i--)
+                    {
+                        var row = dgvDet.Rows[i];
+                        if (row.IsNewRow) continue; // Bỏ qua dòng trống mặc định
+
+                        if (row.Tag?.ToString() == "TOTAL")
+                        {
+                            dgvDet.Rows.RemoveAt(i);
+                        }
+                        else
+                        {
+                            if (decimal.TryParse(row.Cells["Qty_Per_Sheet"].Value?.ToString(), out decimal q)) totalQty += q;
+                            if (decimal.TryParse(row.Cells["Weight_kg"].Value?.ToString(), out decimal w)) totalWeight += w;
+                        }
+                    }
+
+                    // 2. Tạm thời tắt AllowUserToAddRows để dòng TOTAL là dòng cuối cùng thực sự
+                    dgvDet.AllowUserToAddRows = false;
+
+                    // 3. Thêm dòng TOTAL vào cuối cùng
+                    int totalIdx = dgvDet.Rows.Add();
+                    DataGridViewRow totalRow = dgvDet.Rows[totalIdx];
+
+                    totalRow.Tag = "TOTAL";
+                    totalRow.ReadOnly = true;
+                    totalRow.DefaultCellStyle.BackColor = Color.FromArgb(230, 230, 230);
+                    totalRow.DefaultCellStyle.Font = new Font(dgvDet.Font, FontStyle.Bold);
+                    totalRow.DefaultCellStyle.ForeColor = Color.FromArgb(0, 120, 212);
+
+                    totalRow.Cells["item_name"].Value = "🔥 TỔNG CỘNG:";
+                    totalRow.Cells["Qty_Per_Sheet"].Value = totalQty.ToString("N0");
+                    totalRow.Cells["Weight_kg"].Value = totalWeight.ToString("N2");
+
+                    // 4. Bật lại nếu bạn vẫn muốn người dùng có thể click vào dòng trống để nhập
+                    // Lưu ý: Nếu bật lại, dòng trống sẽ xuất hiện LẠI bên dưới dòng TOTAL.
+                    // LỜI KHUYÊN: Nên để false và hướng dẫn người dùng Double Click hoặc nhấn phím tắt để thêm dòng.
+                    // dgvDet.AllowUserToAddRows = true; 
+                }
+                finally
+                {
+                    isUpdatingTotal = false;
+                    dgvDet.ResumeLayout();
+                }
+            }
+
+            // Gọi hàm thêm dòng tổng ngay sau khi khởi tạo
+            AddTotalRow();
 
             // Paste từ Excel — 1 lần, xử lý đúng new row placeholder
             dgvDet.KeyDown += (s, ev) =>
@@ -1419,6 +1576,32 @@ namespace MPR_Managerment.Forms
             // ── Buttons ─────────────────────────────────────────────────────────
             var lblErr2 = new Label { Location = new Point(10, dlg.ClientSize.Height - 78), Size = new Size(500, 20), ForeColor = Color.Red, Font = new Font("Segoe UI", 8), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
             dlg.Controls.Add(lblErr2);
+
+            var btnAddRow = new Button
+            {
+                Text = "+ Thêm dòng",
+                Location = new Point(10, dlg.ClientSize.Height - 50),
+                Size = new Size(110, 32),
+                BackColor = Color.FromArgb(40, 167, 69),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+            };
+            btnAddRow.FlatAppearance.BorderSize = 0;
+
+            var btnDeleteRow = new Button
+            {
+                Text = "🗑 Xóa dòng",
+                Location = new Point(130, dlg.ClientSize.Height - 50),
+                Size = new Size(110, 34),
+                BackColor = Color.FromArgb(255, 67, 60),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+            };
+            btnDeleteDetail.FlatAppearance.BorderSize = 0;
 
             var btnCreate = new Button
             {
@@ -1473,7 +1656,7 @@ namespace MPR_Managerment.Forms
                 DialogResult = DialogResult.Cancel
             };
             btnClose2.FlatAppearance.BorderSize = 0;
-            dlg.Controls.AddRange(new Control[] { btnCreate, btnRevise, btnAdmin, btnClose2 });
+            dlg.Controls.AddRange(new Control[] { btnAddRow, btnDeleteRow, btnCreate, btnRevise, btnAdmin, btnClose2 });
             dlg.CancelButton = btnClose2;
 
             // Resize handler
@@ -1484,11 +1667,109 @@ namespace MPR_Managerment.Forms
                 lblErr2.Top = dlg.ClientSize.Height - 78;
             };
 
+            // -- THÊM DÒNG
+            btnAddRow.Click += (s, e) =>
+            {
+                int rowIndex = dgvDet.Rows.Add();
+
+                // 2. Tùy chọn: Focus vào ô đầu tiên của dòng mới để người dùng nhập liệu ngay
+                dgvDet.CurrentCell = dgvDet.Rows[rowIndex].Cells[0];
+                dgvDet.BeginEdit(true);
+            };
+
+            // -- XÓA DÒNG
+            btnDeleteRow.Click += (s, e) =>
+            {
+                if (dgvDet.SelectedRows.Count == 0)
+                {
+                    MessageBox.Show("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                string msg = dgvDet.SelectedRows.Count == 1 ?
+                "Bạn có chắc chắn muốn xóa dòng này?" : $"Bạn có chắc chắn muốn xóa {dgvDet.SelectedRows.Count} dòng đã chọn?";
+                if (MessageBox.Show(msg, "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        //var rowsToDelete = new List<DataGridViewRow>();
+                        //foreach (DataGridViewRow row in dgvDet.SelectedRows)
+                        //    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") rowsToDelete.Add(row);
+                        var rowsToDelete = new List<DataGridViewRow>();
+                        foreach (DataGridViewRow row in dgvDet.SelectedRows)
+                        {
+                            // KHÔNG cho phép xóa dòng TOTAL
+                            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
+                                rowsToDelete.Add(row);
+                        }
+
+                        foreach (var row in rowsToDelete) dgvDet.Rows.Remove(row);
+                        int itemNo = 1;
+                        foreach (DataGridViewRow row in dgvDet.Rows)
+                            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
+                        Common.Common.AutoAdjustColumnWidths(dgvDet);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            };
+
             // ── Tạo MPR ─────────────────────────────────────────────────────────
             btnCreate.Click += (s, ev) =>
             {
                 if (string.IsNullOrWhiteSpace(tMPRNo.Text)) { lblErr2.Text = "⚠ Nhập MPR No!"; return; }
                 if (string.IsNullOrWhiteSpace(tProjCode.Text)) { lblErr2.Text = "⚠ Chọn dự án!"; return; }
+
+                // --- BẮT ĐẦU KIỂM TRA DỮ LIỆU GRID ---
+                dgvDet.EndEdit(); // Kết thúc biên tập để đảm bảo dữ liệu được ghi nhận
+
+                foreach (DataGridViewRow row in dgvDet.Rows)
+                {
+                    // Bỏ qua dòng placeholder mới và dòng TOTAL
+                    if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
+
+                    // Lấy giá trị từ 2 cột Qty và Weight
+                    var valQty = row.Cells["Qty_Per_Sheet"].Value;
+                    var valWeight = row.Cells["Weight_kg"].Value;
+
+                    if (!decimal.TryParse(valQty.ToString(), out decimal qty_result) || Convert.ToDecimal(qty_result) == 0)
+                    {
+                        // 'result' now contains the numeric value
+                        MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Số lượng (Qty)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        dgvDet.CurrentCell = row.Cells["Qty_Per_Sheet"]; // Focus vào ô lỗi
+                        dgvDet.BeginEdit(true); // Mở chế độ nhập liệu ngay
+                        return;
+                    }
+
+                    if (!decimal.TryParse(valWeight.ToString(), out decimal weight_result) || Convert.ToDecimal(weight_result) == 0)
+                    {
+                        // 'result' now contains the numeric value
+                        MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Số lượng (Weight)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        dgvDet.CurrentCell = row.Cells["Weight_kg"]; // Focus vào ô lỗi
+                        dgvDet.BeginEdit(true); // Mở chế độ nhập liệu ngay
+                        return;
+                    }
+
+                    //// 1. Kiểm tra cột Số lượng (Qty_Per_Sheet)
+                    //if (valQty == null || string.IsNullOrWhiteSpace(valQty.ToString()) || Convert.ToDecimal(valQty) == 0)
+                    //{
+                    //    MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Số lượng (Qty)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    //    dgvDet.CurrentCell = row.Cells["Qty_Per_Sheet"]; // Focus vào ô lỗi
+                    //    dgvDet.BeginEdit(true); // Mở chế độ nhập liệu ngay
+                    //    return;
+                    //}
+
+                    //// 2. Kiểm tra cột Khối lượng (Weight_kg)
+                    //if (valWeight == null || string.IsNullOrWhiteSpace(valWeight.ToString()) || Convert.ToDecimal(valWeight) == 0)
+                    //{
+                    //    MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Khối lượng (Weight)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    //    dgvDet.CurrentCell = row.Cells["Weight_kg"]; // Focus vào ô lỗi
+                    //    dgvDet.BeginEdit(true);
+                    //    return;
+                    //}
+                }
+
                 // Kiểm tra MPR_No đã tồn tại chưa
                 try
                 {
@@ -1523,7 +1804,8 @@ namespace MPR_Managerment.Forms
                     int stt = 1;
                     foreach (DataGridViewRow row2 in dgvDet.Rows)
                     {
-                        if (row2.IsNewRow) continue;
+                        if (row2.IsNewRow || row2.Tag?.ToString() == "TOTAL") continue; // THÊM ĐIỀU KIỆN NÀY
+                        
                         string nm = row2.Cells["item_name"].Value?.ToString() ?? "";
                         if (string.IsNullOrWhiteSpace(nm)) continue;
                         _service.InsertDetail(new MPRDetail
