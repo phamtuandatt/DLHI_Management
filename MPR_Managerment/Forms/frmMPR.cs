@@ -145,9 +145,24 @@ namespace MPR_Managerment.Forms
             btnDeleteMPR.Click += BtnDeleteMPR_Click;
             panelTop.Controls.Add(btnDeleteMPR);
 
+            var btnPrint = new Button
+            {
+                Text = "🖨 In MPR",
+                Location = new Point(860, 47),
+                Size = new Size(110, 30),
+                BackColor = Color.FromArgb(33, 115, 70),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            btnPrint.FlatAppearance.BorderSize = 0;
+            btnPrint.Click += BtnPrint_Click;
+            panelTop.Controls.Add(btnPrint);
+
             lblStatus = new Label
             {
-                Location = new Point(660, 52),
+                Location = new Point(820, 52),
                 Size = new Size(500, 25),
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.Gray
@@ -423,6 +438,21 @@ namespace MPR_Managerment.Forms
             panelDetail.Controls.Add(dgvPOProgress);
 
             Common.Common.AutoBringToFontControl(new[] { panelTop, panelHeader, panelDetail });
+        }
+
+        private void BtnPrint_Click(object? sender, EventArgs e)
+        {
+            if (dgvMPR.Rows.Count <= 0) return;
+            int rsl = dgvMPR.CurrentRow.Index;
+            int mprId = Convert.ToInt32(dgvMPR.Rows[rsl].Cells["ID"].Value.ToString().Trim());
+
+            var projectName = dgvMPR.CurrentRow.Cells["Ten_Du_An"].Value.ToString().Trim();
+            var mprNo = dgvMPR.CurrentRow.Cells["MPR_No"].Value.ToString().Trim();
+            var mpr_detail = _service.GetActiveDetails(mprId);
+
+            var mpr_header = new MPRHeader() { MPR_ID = mprId, MPR_No = mprNo, Project_Name = projectName };
+
+            ExportMPRToExcel(mpr_header, mpr_detail);
         }
 
         // =====================================================================
@@ -1547,6 +1577,141 @@ namespace MPR_Managerment.Forms
 
             dlg.Owner = this.FindForm();
             dlg.ShowDialog();
+        }
+
+        public void ExportMPRToExcel(MPRHeader header, List<MPRDetail> details)
+        {
+            // 1. Kiểm tra template
+            string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "mpr_template.xlsx");
+            if (!File.Exists(templatePath))
+            {
+                MessageBox.Show("Không tìm thấy file template mpr_template.xlsx!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // 2. Chọn nơi lưu file
+            SaveFileDialog saveDialog = new SaveFileDialog
+            {
+                Filter = "Excel Files|*.xlsx",
+                FileName = $"MPR_{header.MPR_No}_{DateTime.Now:ddMMyyyy_HHmm}.xlsx",
+                Title = "Lưu file MPR"
+            };
+
+            if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                // Copy từ template
+                File.Copy(templatePath, saveDialog.FileName, true);
+                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+                using (var package = new ExcelPackage(new FileInfo(saveDialog.FileName)))
+                {
+                    var ws = package.Workbook.Worksheets[0]; // Giả định dữ liệu ở Sheet đầu tiên
+
+                    // --- PHẦN 1: THAY THẾ HEADER <<...>> ---
+                    // Dựa vào snippet của bạn, các giá trị này nằm ở các dòng đầu (dòng 1 và 2)
+                    ReplaceText(ws, "<<MPR-NO>>", header.MPR_No);
+                    ReplaceText(ws, "<<PROJECT-NAME>>", header.Project_Name);
+                    ReplaceText(ws, "<<WO-NO>>", ""); // Hoặc WO_No của bạn
+                    ReplaceText(ws, "<<REV>>", header.Rev.ToString() ?? "0");
+                    ReplaceText(ws, "<<DATE>>", DateTime.Now.ToString("dd/MM/yyyy"));
+
+                    // --- PHẦN 2: ĐIỀN DỮ LIỆU CHI TIẾT ---
+                    int startRow = 4; // Dòng bắt đầu điền item đầu tiên (Dưới tiêu đề cột)
+                    int detailCount = details.Count;
+
+                    // Nếu có nhiều hơn 1 dòng, chèn thêm dòng để giữ định dạng và không đè phần Footer
+                    if (detailCount > 1)
+                    {
+                        // Chèn thêm (n-1) dòng, copy format từ dòng startRow
+                        ws.InsertRow(startRow + 1, detailCount - 1, startRow);
+                    }
+
+                    decimal totalQty = 0;
+                    decimal totalWeight = 0;
+
+                    for (int i = 0; i < detailCount; i++)
+                    {
+                        var d = details[i];
+                        int currentRow = startRow + i;
+
+                        // Cột dựa theo cấu trúc: NO(A), DESCRIPTION(B,C), MATERIAL(D), A(E), B(F)...
+                        ws.Cells[currentRow, 1].Value = i + 1; // NO
+                        ws.Cells[currentRow, 2].Value = d.Item_Name; // Cột B
+                        ws.Cells[currentRow, 3].Value = d.Description; // Cột C (nếu có)
+                        ws.Cells[currentRow, 4].Value = d.Material; // MATERIAL
+                        ws.Cells[currentRow, 5].Value = d.Thickness_mm; // A
+                        ws.Cells[currentRow, 6].Value = d.Depth_mm; // B
+                        ws.Cells[currentRow, 7].Value = d.C_Width_mm; // C
+                        ws.Cells[currentRow, 8].Value = d.D_Web_mm; // D
+                        ws.Cells[currentRow, 9].Value = d.E_Flange_mm; // E
+                        ws.Cells[currentRow, 10].Value = d.F_Length_mm; // F
+
+                        ws.Cells[currentRow, 11].Value = d.Usage_Location; // F
+                        ws.Cells[currentRow, 12].Value = d.MPS_Info; // F
+                        ws.Cells[currentRow, 13].Value = d.REV; // F
+                        ws.Cells[currentRow, 14].Value = d.DWG_BOQ_Receive_Date; // F
+                        ws.Cells[currentRow, 15].Value = d.Issue_Date; // F
+
+                        // Các cột khác...
+                        ws.Cells[currentRow, 16].Value = d.UNIT; // UNIT (Cột P)
+                        ws.Cells[currentRow, 17].Value = d.Qty_Per_Sheet; // Q'ty / Sh't (Cột Q)
+                        ws.Cells[currentRow, 18].Value = d.Weight_kg; // Weight(kg) (Cột R)
+
+                        totalQty += d.Qty_Per_Sheet > 0 ? d.Qty_Per_Sheet : 0;
+                        totalWeight += d.Weight_kg > 0 ? d.Weight_kg : 0;
+                    }
+
+                    // --- PHẦN 3: TÍNH TỔNG (GRAND-TOTAL) ---
+                    // Tìm dòng có chữ "GRAND-TOTAL" để điền tổng
+                    int grandTotalRow = -1;
+                    // Tìm trong phạm vi 10 dòng sau khi kết thúc dữ liệu
+                    for (int r = startRow + detailCount; r < startRow + detailCount + 10; r++)
+                    {
+                        if (ws.Cells[r, 2].Text.Contains("GRAND-TOTAL"))
+                        {
+                            grandTotalRow = r;
+                            break;
+                        }
+                    }
+
+                    if (grandTotalRow != -1)
+                    {
+                        ws.Cells[grandTotalRow, 17].Value = totalQty; // Cột Q
+                        ws.Cells[grandTotalRow, 18].Value = totalWeight; // Cột R
+                        ws.Cells[grandTotalRow, 17, grandTotalRow, 18].Style.Font.Bold = true;
+                    }
+
+                    package.Save();
+                }
+
+                if (MessageBox.Show($"✅ Xuất phiếu MPR thành công!\nBạn có muốn mở file không?", "Thành công",
+                            MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(saveDialog.FileName) { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // Hàm bổ trợ thay thế text trong Header
+        private void ReplaceText(ExcelWorksheet ws, string findText, string replaceValue)
+        {
+            // Quét vùng Header (ví dụ dòng 1 đến 3)
+            for (int r = 1; r <= 5; r++)
+            {
+                for (int c = 1; c <= 20; c++)
+                {
+                    if (ws.Cells[r, c].Text.Contains(findText))
+                    {
+                        ws.Cells[r, c].Value = ws.Cells[r, c].Text.Replace(findText, replaceValue ?? "");
+                    }
+                }
+            }
         }
 
         // ── Revise MPR Popup ─────────────────────────────────────────────────────
