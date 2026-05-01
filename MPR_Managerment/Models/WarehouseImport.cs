@@ -33,5 +33,10 @@ namespace MPR_Managerment.Models
         public string InvoiceDate { get; set; }
 
         public string Inspector_Result { get; set; }
+
+        public bool IsPrint { get; set; }
+
+        // Just use to show recevied qty
+        public decimal Received_Qty { get; set; }
     }
 }

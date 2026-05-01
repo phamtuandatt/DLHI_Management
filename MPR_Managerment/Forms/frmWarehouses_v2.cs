@@ -487,6 +487,16 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.EditingControlShowing += DgvImportQueue_EditingControlShowing;
             dgvImportQueue.CellDoubleClick += DgvImportQueue_CellDoubleClick;
             dgvImportQueue.KeyDown += DgvImportQueue_KeyDown;
+            //dgvImportQueue.CellFormatting += (s, e) =>
+            //{
+            //    var qtyRules = new List<NumericRule>
+            //    {
+            //        new NumericRule { MinValue = 0.01m, MaxValue = decimal.MaxValue, CellColor = Color.ForestGreen }, // > 0
+            //        new NumericRule { MinValue = decimal.MinValue, MaxValue = -0.01m, CellColor = Color.Red },       // < 0
+            //        new NumericRule { MinValue = 0, MaxValue = 0, CellColor = Color.Red }                          // = 0
+            //    };
+            //    Common.Common.ApplyCustomFormatting(e, dgvImportQueue, "Received_Qty", null, qtyRules);
+            //};
 
             gbDetails.Controls.AddRange(new Control[] { lblDetail, btnPaste, btnDeleteRow, dgvImportQueue });
 
@@ -1478,6 +1488,54 @@ namespace MPR_Managerment.Forms
             dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
             gbHeader.Controls.Add(dgvStock);
 
+            // 1. Khởi tạo ContextMenuStrip
+            ContextMenuStrip menuStock = new ContextMenuStrip();
+
+            // 2. Thêm các mục (Items) vào menu
+            ToolStripMenuItem itemXemChiTiet = new ToolStripMenuItem("📄 Chuyển vật tư");
+            //ToolStripMenuItem itemSaoChep = new ToolStripMenuItem("📋 Sao chép mã");
+            //ToolStripMenuItem itemXuatKho = new ToolStripMenuItem("📤 Xuất kho");
+
+            menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet/*, itemSaoChep, new ToolStripSeparator(), itemXuatKho*/ });
+
+            // 3. Gắn menu vào DataGridView
+            if (AppSession.CurrentUser.Role_ID == 1)
+            {
+                dgvStock.ContextMenuStrip = menuStock;
+            }
+
+            // 4. Sự kiện khi click vào một mục trong menu
+            itemXemChiTiet.Click += (s, e) =>
+            {
+                if (dgvStock.CurrentRow != null)
+                {
+                    // Lấy dữ liệu từ dòng đang chọn
+                    var row = dgvStock.CurrentRow;
+                    string id = row.Cells["Import_ID"].Value?.ToString();
+                    var importId = Convert.ToInt32(row.Cells["Import_ID"].Value.ToString());
+                    var maxQty = Common.Common.ParseDecimalRaw(row.Cells["SL_Nhap"].Value.ToString());
+                    frmProjectMaterialTransform frmProjectMaterialTransform = new frmProjectMaterialTransform(_dtProject, importId, maxQty);
+                    frmProjectMaterialTransform.ShowDialog();
+                    btnSearch.PerformClick();
+                }
+            };
+
+            // 5. QUAN TRỌNG: Xử lý để chuột phải vào dòng nào thì chọn dòng đó (thay vì chỉ hiện menu)
+            dgvStock.MouseDown += (s, e) =>
+            {
+                if (e.Button == MouseButtons.Right)
+                {
+                    var hit = dgvStock.HitTest(e.X, e.Y);
+                    if (hit.RowIndex >= 0)
+                    {
+                        // Xóa các lựa chọn cũ và chọn dòng vừa click chuột phải
+                        dgvStock.ClearSelection();
+                        dgvStock.Rows[hit.RowIndex].Selected = true;
+                        dgvStock.CurrentCell = dgvStock.Rows[hit.RowIndex].Cells[hit.ColumnIndex];
+                    }
+                }
+            };
+
             GroupBox gbAction = new GroupBox();
             gbAction.Text = "";
             gbAction.Dock = DockStyle.Top;
@@ -2075,10 +2133,12 @@ namespace MPR_Managerment.Forms
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Import", HeaderText = "SL nhập", Width = 80 });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight_kg", HeaderText = "KG", Width = 75 });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100, ReadOnly = true });
+            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Recevied_Qty", HeaderText = "Số lượng đã nhận", Width = 160, ReadOnly = true }); /// New
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ma_Phieu", HeaderText = "Mã phiếu", Width = 160, ReadOnly = true });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Id", HeaderText = "Material Detail Id", Width = 160, ReadOnly = true });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Number", HeaderText = "Material Detail Number", Width = 160, ReadOnly = true });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_Detail_ID", Width = 160, ReadOnly = true, Visible = true });
+
         }
 
         public void TrackButtonClick()
@@ -2233,6 +2293,9 @@ namespace MPR_Managerment.Forms
 
                     package.Save();
                 }
+
+                // Update print status print
+                _service.UpdateStatusPrintPNK(new WarehouseImport() { PO_ID = poId });
 
                 if (MessageBox.Show($"✅ Xuất phiếu PNK thành công!\nBạn có muốn mở file không?", "Thành công",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
@@ -2422,7 +2485,7 @@ namespace MPR_Managerment.Forms
                 // Ngược lại: Cập nhập số lượng đã nhập và không cập nhật status PO = 1
                 else
                 {
-                    foreach (var item in lstDif)
+                    foreach (var item in _importQueueActual)
                     {
                         PODetail pODetail = new PODetail() { PO_Detail_ID = item.Key, Received_Qty = item.Value };
                         _poService.UpdateReceiveQtyPODetail(pODetail, DateTime.UtcNow.ToString());
@@ -2521,9 +2584,26 @@ namespace MPR_Managerment.Forms
                     MTR_No = i.MTRno,
                     Ma_DA = i.Project_Code,
                     Vi_Tri = i.Location,
-                    PO_ID = i.PO_ID
+                    PO_ID = i.PO_ID,
+                    Printed = i.IsPrint.ToString()
                 });
                 if (dgvImport.Columns.Contains("ID")) dgvImport.Columns["ID"].Visible = false;
+
+                dgvImport.CellFormatting += (s, e) =>
+                {
+                    if (e.RowIndex < 0) return;
+                    string col = dgvImport.Columns[e.ColumnIndex].Name;
+                    if (col == "Printed")
+                    {
+                        var statusRules = new List<StringRule>
+                        {
+                            new StringRule { Value = "true", CellColor = Color.SeaGreen },
+                            new StringRule { Value = "false", CellColor = Color.Red }
+                        };
+                        Common.Common.ApplyCustomFormatting(e, dgvImport, "Printed", statusRules, null);
+                    }
+
+                };
             }
             catch (Exception ex)
             {
@@ -2701,8 +2781,9 @@ namespace MPR_Managerment.Forms
                     dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "SL_NK", HeaderText = "SL nhập", Width = 75, ReadOnly = true });
                     dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "KG", HeaderText = "KG", Width = 65, ReadOnly = true });
                     dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPS_No", HeaderText = "MPS No", Width = 90, ReadOnly = true });
+                    dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received_Qty", HeaderText = "SL đã nhập", Width = 90, ReadOnly = true }); /// NEW
                     foreach (var d in details)
-                        dgv.Rows.Add(false, d.PO_Detail_ID, d.Item_No, d.Item_Name, d.Material, d.Asize, d.Bsize, d.Csize, d.UNIT, d.Qty_Per_Sheet, d.Weight_kg, d.MPSNo);
+                        dgv.Rows.Add(false, d.PO_Detail_ID, d.Item_No, d.Item_Name, d.Material, d.Asize, d.Bsize, d.Csize, d.UNIT, d.Qty_Per_Sheet, d.Weight_kg, d.MPSNo, d.Received_Qty);
 
                     var btnAll = new Button { Text = "☑ Chọn tất cả", Location = new Point(10, 405), Size = new Size(120, 32), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
                     btnAll.FlatAppearance.BorderSize = 0;
@@ -2762,6 +2843,8 @@ namespace MPR_Managerment.Forms
                                 Weight_kg = detail.Weight_kg,
                                 Project_Code = projectCode,
                                 WorkorderNo = po.WorkorderNo ?? "",
+
+                                Received_Qty = Convert.ToDecimal(row.Cells["Received_Qty"].Value.ToString().Trim() ?? "0")
                             });
 
                             _importQueueBase.Add(detail.PO_Detail_ID, qty);
@@ -2784,7 +2867,8 @@ namespace MPR_Managerment.Forms
             for (int i = 0; i < _importQueue.Count; i++)
             {
                 var item = _importQueue[i];
-                dgvImportQueue.Rows.Add(i + 1, item.Item_Name, item.Material, item.Size, item.UNIT, item.Qty_Import, item.Weight_kg, item.ID_Code, item.Import_No, "", "", item.PO_Detail_ID);
+                //dgvImportQueue.Rows.Add(i + 1, item.Item_Name, item.Material, item.Size, item.UNIT, item.Qty_Import, item.Weight_kg, item.ID_Code, item.Import_No, "", "", item.PO_Detail_ID);
+                dgvImportQueue.Rows.Add(i + 1, item.Item_Name, item.Material, item.Size, item.UNIT, item.Qty_Import, item.Weight_kg, item.ID_Code, item.Received_Qty, item.Import_No, "", "", item.PO_Detail_ID);
             }
         }
 

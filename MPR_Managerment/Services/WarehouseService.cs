@@ -163,6 +163,17 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void UpdateStatusPrintPNK(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var sqlUpSize = $"UPDATE Warehouse_Import SET Is_Printed = 1 WHERE PO_ID = {wi.PO_ID}";
+                var cmd = new SqlCommand(sqlUpSize, conn);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public async Task<DataTable> GetWarehouseImportByPOId(int poID)
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())
@@ -286,6 +297,58 @@ namespace MPR_Managerment.Services
                 if (r.Read()) return Convert.ToInt32(r["NewImport_ID"]);
                 return 0;
             }
+        }
+
+        public int ProjectMaterialTransform(WarehouseImport imp, string oldProjectCode, string newProjectCode, decimal qtyTransform)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("sp_ProjectMaterialTransformTransaction", conn);
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@Old_Value_Location", oldProjectCode);
+                cmd.Parameters.AddWithValue("@New_Value_Location", newProjectCode);
+                cmd.Parameters.AddWithValue("@Number_Tranform", qtyTransform);
+                cmd.Parameters.AddWithValue("@Import_ID", imp.Import_ID);
+                cmd.Parameters.AddWithValue("@Import_No", imp.Import_No ?? "");
+                cmd.Parameters.AddWithValue("@Import_Date", imp.Import_Date ?? DateTime.Now);
+                cmd.Parameters.AddWithValue("@PO_ID", imp.PO_ID);
+                cmd.Parameters.AddWithValue("@PO_Detail_ID", imp.PO_Detail_ID);
+                cmd.Parameters.AddWithValue("@Item_Name", imp.Item_Name ?? "");
+                cmd.Parameters.AddWithValue("@Material", imp.Material ?? "");
+                cmd.Parameters.AddWithValue("@Size", imp.Size ?? "");
+                cmd.Parameters.AddWithValue("@UNIT", imp.UNIT ?? "");
+                cmd.Parameters.AddWithValue("@Qty_Import", imp.Qty_Import);
+                cmd.Parameters.AddWithValue("@Weight_kg", imp.Weight_kg);
+                cmd.Parameters.AddWithValue("@ID_Code", imp.ID_Code ?? "");
+                cmd.Parameters.AddWithValue("@Project_Code", imp.Project_Code ?? "");
+                cmd.Parameters.AddWithValue("@WorkorderNo", imp.WorkorderNo ?? "");
+                cmd.Parameters.AddWithValue("@Location", imp.Location ?? "");
+                cmd.Parameters.AddWithValue("@Notes", imp.Notes);
+                var r = cmd.ExecuteReader();
+
+                // Insert import warehouse
+                imp.Project_Code = newProjectCode;
+                imp.Qty_Import = qtyTransform;
+                var rs = InsertImport(imp, "Admin");
+
+                if (r.Read()) return Convert.ToInt32(r["NewImport_ID"]);
+                return 0;
+            }
+        }
+
+
+        public WarehouseImport GetImportByImportID(int importID)
+        {
+            var wh = new WarehouseImport();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand($"SELECT *FROM Warehouse_Import WHERE Import_ID = {importID}", conn);
+                var r = cmd.ExecuteReader();
+                while (r.Read()) wh = MapImport(r);
+            }
+            return wh;
         }
 
         public void DeleteImport(int importId)
@@ -469,6 +532,7 @@ namespace MPR_Managerment.Services
 
         private WarehouseImport MapImport(SqlDataReader r)
         {
+            var isPrint = !string.IsNullOrEmpty(r["Is_Printed"].ToString()) ? r["Is_Printed"] : "0";
             return new WarehouseImport
             {
                 Import_ID = Convert.ToInt32(r["Import_ID"]),
@@ -491,7 +555,8 @@ namespace MPR_Managerment.Services
                 Location = r["Location"]?.ToString() ?? "",
                 Notes = r["Notes"]?.ToString() ?? "",
                 Created_By = r["Created_By"]?.ToString() ?? "",
-                Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null
+                Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
+                IsPrint = (isPrint == "0") ? false : true
             };
         }
 

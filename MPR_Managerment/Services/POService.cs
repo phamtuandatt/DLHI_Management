@@ -341,7 +341,9 @@ namespace MPR_Managerment.Services
                 Received = r["Received"] != DBNull.Value ? Convert.ToInt32(r["Received"]) : 0,
                 VAT = r["VAT"] != DBNull.Value ? Convert.ToDecimal(r["VAT"]) : 0,
                 Remarks = r["Remarks"]?.ToString() ?? "",
-                MPR_Detail_ID = r["MPR_Detail_ID"] != DBNull.Value ? Convert.ToInt32(r["MPR_Detail_ID"]) : (int?)null
+                MPR_Detail_ID = r["MPR_Detail_ID"] != DBNull.Value ? Convert.ToInt32(r["MPR_Detail_ID"]) : (int?)null,
+
+                Received_Qty = r["Received_Qty"] != DBNull.Value ? Convert.ToDecimal(r["Received_Qty"]) : 0,
             };
         }
     }
