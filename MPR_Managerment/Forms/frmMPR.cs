@@ -1176,8 +1176,10 @@ namespace MPR_Managerment.Forms
             try { allProjects = new ProjectService().GetAll(); } catch { }
             var projDict = new Dictionary<int, MPR_Managerment.Models.ProjectInfo>();
 
+            bool _suppressSelection = false;
             void FilterProjects()
             {
+                _suppressSelection = true; // tắt SelectionChanged khi rebuild
                 string kw = txtSearch.Text.Trim().ToLower();
                 dgvProj.Rows.Clear();
                 projDict.Clear();
@@ -1193,6 +1195,9 @@ namespace MPR_Managerment.Forms
                         projDict[r] = p;
                     }
                 }
+                dgvProj.ClearSelection();
+                dgvProj.CurrentCell = null;
+                _suppressSelection = false;
             }
             FilterProjects();
             // Chỉ lọc khi nhấn Enter
@@ -1236,6 +1241,17 @@ namespace MPR_Managerment.Forms
             var tMPRNo = new TextBox { Location = new Point(xInfo + 108, 146), Size = new Size(280, 24), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
             dlg.Controls.Add(tMPRNo);
 
+            // dlg.Shown SAU khi tất cả textbox đã khai báo → tránh CS0841
+            dlg.Shown += (s, ev) =>
+            {
+                _suppressSelection = true;
+                dgvProj.ClearSelection();
+                dgvProj.CurrentCell = null;
+                _suppressSelection = false;
+                tProjCode.Text = ""; tProjName.Text = "";
+                tDept.Text = ""; tReq.Text = ""; tMPRNo.Text = "";
+            };
+
             dlg.Controls.Add(new Label { Text = "Required Date:", Location = new Point(xInfo, 176), Size = new Size(105, 20), Font = new Font("Segoe UI", 9) });
             var dtp = new DateTimePicker { Location = new Point(xInfo + 108, 174), Size = new Size(180, 24), Font = new Font("Segoe UI", 9), Value = DateTime.Today.AddDays(30) };
             dlg.Controls.Add(dtp);
@@ -1260,7 +1276,7 @@ namespace MPR_Managerment.Forms
                     using var conn = DatabaseHelper.GetConnection();
                     conn.Open();
                     var cmd = new SqlCommand(
-                        "SELECT MAX(CAST(SUBSTRING(MPR_No, LEN(@prefix)+2, 10) AS INT)) FROM MPR_Header WHERE MPR_No LIKE @like",
+                        "SELECT MAX(TRY_CAST(SUBSTRING(MPR_No, LEN(@prefix)+2, 10) AS INT)) FROM MPR_Header WHERE MPR_No LIKE @like",
                         conn);
                     cmd.Parameters.AddWithValue("@prefix", mprPrefix);
                     cmd.Parameters.AddWithValue("@like", mprPrefix + "-%");
@@ -1279,6 +1295,7 @@ namespace MPR_Managerment.Forms
             // Dùng bàn phím
             dgvProj.SelectionChanged += (s, ev) =>
             {
+                if (_suppressSelection) return; // đang rebuild → bỏ qua
                 if (dgvProj.SelectedRows.Count == 0) return;
                 int ri = dgvProj.SelectedRows[0].Index;
                 if (projDict.TryGetValue(ri, out var prj3)) ApplyProject(prj3);
@@ -1553,20 +1570,24 @@ namespace MPR_Managerment.Forms
                     // Nếu đang đứng ở new row placeholder → paste từ cuối data
                     int startRow = (curRow >= dataRowCount) ? dataRowCount : curRow;
 
+                    // Pre-add tất cả rows cần thiết TRƯỚC KHI ghi data
+                    int dataRowsBefore = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
+                    int rowsNeeded = startRow + rows2.Length - dataRowsBefore;
                     dgvDet.SuspendLayout();
-                    foreach (var row2 in rows2)
+                    for (int ri = 0; ri < rowsNeeded; ri++)
                     {
-                        string[] cells = row2.Split('\t');
-                        // Thêm dòng mới nếu cần (trước new row placeholder)
-                        int dataRows = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
-                        if (startRow >= dataRows)
-                        {
-                            dgvDet.Rows.Insert(dataRows, 1);
-                        }
+                        int insertAt = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
+                        dgvDet.Rows.Insert(insertAt, 1);
+                    }
+                    // Ghi data vào các rows đã tạo sẵn
+                    for (int ri2 = 0; ri2 < rows2.Length; ri2++)
+                    {
+                        string[] cells = rows2[ri2].Split('\t');
+                        int targetRow = startRow + ri2;
+                        if (targetRow >= dgvDet.Rows.Count) break;
                         for (int c = 0; c < cells.Length && startCol + c < dgvDet.Columns.Count; c++)
                             if (!dgvDet.Columns[startCol + c].ReadOnly)
-                                dgvDet.Rows[startRow].Cells[startCol + c].Value = cells[c].Trim();
-                        startRow++;
+                                dgvDet.Rows[targetRow].Cells[startCol + c].Value = cells[c].Trim();
                     }
                     dgvDet.ResumeLayout();
                     dgvDet.Refresh();
@@ -1805,7 +1826,7 @@ namespace MPR_Managerment.Forms
                     foreach (DataGridViewRow row2 in dgvDet.Rows)
                     {
                         if (row2.IsNewRow || row2.Tag?.ToString() == "TOTAL") continue; // THÊM ĐIỀU KIỆN NÀY
-                        
+
                         string nm = row2.Cells["item_name"].Value?.ToString() ?? "";
                         if (string.IsNullOrWhiteSpace(nm)) continue;
                         _service.InsertDetail(new MPRDetail
