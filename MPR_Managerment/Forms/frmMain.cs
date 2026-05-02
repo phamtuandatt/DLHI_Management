@@ -506,29 +506,49 @@ namespace MPR_Managerment.Forms
         // ── Tiến độ mua hàng từng dự án active ─────────────────────────────
         private void BuildProjectProgressPanel()
         {
+            // SQL dùng subquery độc lập — tránh double-count khi JOIN nhiều bảng
             const string SQL = @"
                 SELECT
                     p.ProjectCode,
                     p.ProjectName,
-                    ISNULL(p.PJBudget, 0)                                        AS Budget,
-                    ISNULL(p.PJWeight, 0)                                        AS PJWeight_kg,
-                    -- Tổng SL + KG MPR (LEFT JOIN → dự án chưa có MPR = 0)
-                    ISNULL(SUM(md.Qty_Per_Sheet), 0)                             AS MPR_Qty,
-                    ISNULL(SUM(md.Weight_kg * md.Qty_Per_Sheet), 0)              AS MPR_KG,
-                    -- Tổng SL + KG + tiền PO (không Cancelled)
-                    ISNULL(SUM(CASE WHEN ISNULL(ph.Status,'') <> 'Cancelled'
-                                    THEN pod.Qty_Per_Sheet ELSE 0 END), 0)       AS PO_Qty,
-                    ISNULL(SUM(CASE WHEN ISNULL(ph.Status,'') <> 'Cancelled'
-                                    THEN pod.Weight_kg * pod.Qty_Per_Sheet ELSE 0 END), 0) AS PO_KG,
-                    ISNULL(SUM(CASE WHEN ISNULL(ph.Status,'') <> 'Cancelled'
-                                    THEN ph.Total_Amount ELSE 0 END), 0)         AS PO_Amount
+                    ISNULL(p.PJBudget, 0)  AS Budget,
+                    ISNULL(p.PJWeight, 0)  AS PJWeight_kg,
+                    -- MPR: đếm từ MPR_Details trực tiếp
+                    ISNULL((
+                        SELECT SUM(md.Qty_Per_Sheet)
+                        FROM MPR_Header mh
+                        JOIN MPR_Details md ON md.MPR_ID = mh.MPR_ID
+                        WHERE mh.Project_Code = p.ProjectCode
+                    ), 0) AS MPR_Qty,
+                    ISNULL((
+                        SELECT SUM(md.Weight_kg * md.Qty_Per_Sheet)
+                        FROM MPR_Header mh
+                        JOIN MPR_Details md ON md.MPR_ID = mh.MPR_ID
+                        WHERE mh.Project_Code = p.ProjectCode
+                    ), 0) AS MPR_KG,
+                    -- PO Qty/KG: từ PO_Detail, không qua MPR
+                    ISNULL((
+                        SELECT SUM(pod.Qty_Per_Sheet)
+                        FROM PO_head ph
+                        JOIN PO_Detail pod ON pod.PO_ID = ph.PO_ID
+                        WHERE ph.WorkorderNo = p.WorkorderNo
+                          AND ISNULL(ph.Status,'') <> 'Cancelled'
+                    ), 0) AS PO_Qty,
+                    ISNULL((
+                        SELECT SUM(pod.Weight_kg * pod.Qty_Per_Sheet)
+                        FROM PO_head ph
+                        JOIN PO_Detail pod ON pod.PO_ID = ph.PO_ID
+                        WHERE ph.WorkorderNo = p.WorkorderNo
+                          AND ISNULL(ph.Status,'') <> 'Cancelled'
+                    ), 0) AS PO_KG,
+                    -- Budget: SUM từ PO_head — KHÔNG qua PO_Detail để tránh nhân bội
+                    ISNULL((
+                        SELECT SUM(ph.Total_Amount)
+                        FROM PO_head ph
+                        WHERE ph.WorkorderNo = p.WorkorderNo
+                          AND ISNULL(ph.Status,'') <> 'Cancelled'
+                    ), 0) AS PO_Amount
                 FROM ProjectInfo p
-                -- LEFT JOIN: giữ lại dự án dù chưa có MPR/PO
-                LEFT JOIN MPR_Header  mh  ON mh.Project_Code   = p.ProjectCode
-                LEFT JOIN MPR_Details md  ON md.MPR_ID         = mh.MPR_ID
-                LEFT JOIN PO_Detail   pod ON pod.MPR_Detail_ID = md.Detail_ID
-                LEFT JOIN PO_head     ph  ON ph.PO_ID          = pod.PO_ID
-                GROUP BY p.ProjectCode, p.ProjectName, p.PJBudget, p.PJWeight, p.CreatedDate
                 ORDER BY p.CreatedDate DESC, p.ProjectCode DESC";
 
             // Container chính
@@ -634,9 +654,10 @@ namespace MPR_Managerment.Forms
                     double poQty = Convert.ToDouble(r["PO_Qty"]);
                     double poKG = Convert.ToDouble(r["PO_KG"]);
                     double poAmt = Convert.ToDouble(r["PO_Amount"]);
-                    double pctQty = mprQty > 0 ? Math.Min(poQty / mprQty * 100, 100) : 0;
-                    double pctBudg = budget > 0 ? Math.Min(poAmt / budget * 100, 100) : 0;
-                    double pctKG = pjKG > 0 ? Math.Min(poKG / pjKG * 100, 100) : 0;
+                    // Hiển thị % thực — không cap 100 để phát hiện over-order/over-budget
+                    double pctQty = mprQty > 0 ? Math.Round(poQty / mprQty * 100, 1) : 0;
+                    double pctBudg = budget > 0 ? Math.Round(poAmt / budget * 100, 1) : 0;
+                    double pctKG = pjKG > 0 ? Math.Round(poKG / pjKG * 100, 1) : 0;
                     rows.Add((
                         r["ProjectCode"]?.ToString() ?? "",
                         r["ProjectName"]?.ToString() ?? "",
@@ -740,21 +761,25 @@ namespace MPR_Managerment.Forms
                             BackColor = Color.FromArgb(220, 225, 235)
                         };
                         card.Controls.Add(bg);
-                        int fillW = (int)(barW * pct / 100);
+                        // fillW tối đa = barW (không tràn), nhưng % label hiển thị số thực
+                        int fillW = (int)(barW * Math.Min(pct, 100) / 100);
                         if (fillW > 0)
                             bg.Controls.Add(new Panel
                             {
                                 Location = new Point(0, 0),
                                 Size = new Size(fillW, 14),
-                                BackColor = pct >= 100 ? Color.FromArgb(40, 167, 69)
-                                           : pct >= 60 ? barColor
-                                           : Color.FromArgb(255, 140, 0)
+                                BackColor = pct > 100 ? Color.FromArgb(220, 53, 69)   // đỏ = vượt
+                                           : pct >= 100 ? Color.FromArgb(40, 167, 69)  // xanh = đủ
+                                           : pct >= 60 ? barColor                     // màu gốc
+                                           : Color.FromArgb(255, 140, 0)               // cam = thấp
                             });
                         card.Controls.Add(new Label
                         {
                             Text = $"{pct:F1}%",
                             Font = new Font("Segoe UI", 8, FontStyle.Bold),
-                            ForeColor = pct >= 100 ? Color.FromArgb(40, 167, 69) : barColor,
+                            ForeColor = pct > 100 ? Color.FromArgb(220, 53, 69)  // đỏ = vượt
+                                      : pct >= 100 ? Color.FromArgb(40, 167, 69)  // xanh = đủ
+                                      : barColor,
                             Location = new Point(120 + barW + 6, barY),
                             Size = new Size(52, 18),
                             TextAlign = ContentAlignment.MiddleLeft

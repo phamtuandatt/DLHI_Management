@@ -28,6 +28,26 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        // ===== GET LATEST ONLY — chỉ MPR mới nhất (Is_Latest=1) =====
+        public List<MPRHeader> GetLatestOnly()
+        {
+            var list = new List<MPRHeader>();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    SELECT MPR_ID, MPR_No, Project_Name, Project_Code,
+                           Department, Requestor, Rev, Required_Date,
+                           Status, Total_Amount, Notes, Created_Date, Created_By
+                    FROM MPR_Header
+                    WHERE Is_Latest = 1
+                    ORDER BY Created_Date DESC", conn);
+                using (var r = cmd.ExecuteReader())
+                    while (r.Read()) list.Add(MapHeader(r));
+            }
+            return list;
+        }
+
         // ===== SEARCH =====
         public List<MPRHeader> Search(string keyword)
         {
@@ -58,10 +78,10 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand(@"
                     INSERT INTO MPR_Header
                         (MPR_No, Project_Name, Project_Code, Department, Requestor,
-                         Rev, Required_Date, Status, Notes, Created_By, Created_Date)
+                         Rev, Required_Date, Status, Notes, Created_By, Created_Date, Is_Latest)
                     VALUES
                         (@MPR_No, @Project_Name, @Project_Code, @Department, @Requestor,
-                         @Rev, @Required_Date, @Status, @Notes, @Created_By, GETDATE());
+                         @Rev, @Required_Date, @Status, @Notes, @Created_By, GETDATE(), 1);
                     SELECT SCOPE_IDENTITY();", conn);
 
                 cmd.Parameters.AddWithValue("@MPR_No", m.MPR_No);
@@ -266,7 +286,7 @@ namespace MPR_Managerment.Services
 
         private MPRHeader MapHeader(SqlDataReader r)
         {
-            return new MPRHeader
+            var h = new MPRHeader
             {
                 MPR_ID = Convert.ToInt32(r["MPR_ID"]),
                 MPR_No = r["MPR_No"]?.ToString() ?? "",
@@ -282,6 +302,7 @@ namespace MPR_Managerment.Services
                 Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
                 Created_By = r["Created_By"]?.ToString() ?? ""
             };
+            return h;
         }
 
         private MPRDetail MapDetail(SqlDataReader r)
