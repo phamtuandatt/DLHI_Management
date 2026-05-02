@@ -3043,7 +3043,15 @@ namespace MPR_Managerment.Forms
             {
                 // SQL tối ưu: CTE pre-aggregate, tương thích SQL Server 2012+
                 const string SQL = @"
-                    WITH
+                    WITH FilteredMPR AS (
+                        SELECT *,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY Project_Code,
+                                       SUBSTRING(MPR_No, 1, CHARINDEX('_Rev.', MPR_No + '_Rev.') - 1)
+                                   ORDER BY Rev DESC, MPR_ID DESC
+                               ) as rn
+                        FROM MPR_Header
+                    ),
                     cte_PO AS (
                         SELECT pod.MPR_Detail_ID,
                                ISNULL(STUFF((
@@ -3127,13 +3135,14 @@ namespace MPR_Managerment.Forms
                             WHEN 3 THEN N'Pass' ELSE N'Chưa KT' END, N'Chưa KT') AS [Kết quả KT],
                         ISNULL(cr.RIRList,   N'')                           AS [RIR No],
                         ISNULL(cr.RIR_Status,N'')                           AS [Trạng thái RIR]
-                    FROM MPR_Header h
+                    FROM FilteredMPR h
                     INNER JOIN MPR_Details d  ON d.MPR_ID       = h.MPR_ID
                     LEFT  JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
                     LEFT  JOIN cte_PO  cp ON cp.MPR_Detail_ID   = d.Detail_ID
                     LEFT  JOIN cte_Heat ch ON ch.MPR_Detail_ID  = d.Detail_ID
                     LEFT  JOIN cte_KT  ck ON ck.MPR_Detail_ID   = d.Detail_ID
                     LEFT  JOIN cte_RIR cr ON cr.MPR_Detail_ID   = d.Detail_ID
+                    WHERE h.rn = 1
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
 
 
@@ -3882,6 +3891,10 @@ namespace MPR_Managerment.Forms
                 foreach (DataGridViewRow dgvRow in dgvDetails.Rows)
                 {
                     if (dgvRow.IsNewRow || !dgvRow.Visible) continue;
+
+                    // --- BỎ QUA CÁC DÒNG ĐÃ BỊ XÓA (Gạch ngang / STT = 0) ---
+                    if (dgvRow.Tag?.ToString() == "deleted" || dgvRow.Cells["Item_No"]?.Value?.ToString() == "0") continue;
+
                     if (dgvRow.Cells["Detail_ID"]?.Value is int rid) visibleIds.Add(rid);
                     else if (int.TryParse(dgvRow.Cells["Detail_ID"]?.Value?.ToString(), out int rid2))
                         visibleIds.Add(rid2);
@@ -4015,7 +4028,7 @@ namespace MPR_Managerment.Forms
                 // Chi copy cac dong DANG DUOC CHON (selected rows)
                 var selectedRows = dgvDetails.SelectedRows
                     .Cast<DataGridViewRow>()
-                    .Where(r => !r.IsNewRow)
+                    .Where(r => !r.IsNewRow && r.Tag?.ToString() != "deleted" && r.Cells["Item_No"]?.Value?.ToString() != "0")
                     .OrderBy(r => r.Index)
                     .ToList();
 
