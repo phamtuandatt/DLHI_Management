@@ -1,9 +1,10 @@
-﻿using System;
-using System.Drawing;
-using System.Windows.Forms;
+﻿using Microsoft.Data.SqlClient;
 using MPR_Managerment.Forms.RIRGUI;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using System;
+using System.Drawing;
+using System.Windows.Forms;
 
 namespace MPR_Managerment.Forms
 {
@@ -440,6 +441,9 @@ namespace MPR_Managerment.Forms
                 });
             }
 
+            // ── Panel tiến độ dự án (phía phải) ──────────────────────────
+            BuildProjectProgressPanel();
+
             // Panel hướng dẫn
             var panelGuide = new Panel
             {
@@ -497,6 +501,290 @@ namespace MPR_Managerment.Forms
                 Location = new Point(15, 15),
                 Size = new Size(920, 22)
             });
+        }
+
+        // ── Tiến độ mua hàng từng dự án active ─────────────────────────────
+        private void BuildProjectProgressPanel()
+        {
+            const string SQL = @"
+                SELECT
+                    p.ProjectCode,
+                    p.ProjectName,
+                    ISNULL(p.PJBudget, 0)                                        AS Budget,
+                    ISNULL(p.PJWeight, 0)                                        AS PJWeight_kg,
+                    -- Tổng SL + KG MPR (LEFT JOIN → dự án chưa có MPR = 0)
+                    ISNULL(SUM(md.Qty_Per_Sheet), 0)                             AS MPR_Qty,
+                    ISNULL(SUM(md.Weight_kg * md.Qty_Per_Sheet), 0)              AS MPR_KG,
+                    -- Tổng SL + KG + tiền PO (không Cancelled)
+                    ISNULL(SUM(CASE WHEN ISNULL(ph.Status,'') <> 'Cancelled'
+                                    THEN pod.Qty_Per_Sheet ELSE 0 END), 0)       AS PO_Qty,
+                    ISNULL(SUM(CASE WHEN ISNULL(ph.Status,'') <> 'Cancelled'
+                                    THEN pod.Weight_kg * pod.Qty_Per_Sheet ELSE 0 END), 0) AS PO_KG,
+                    ISNULL(SUM(CASE WHEN ISNULL(ph.Status,'') <> 'Cancelled'
+                                    THEN ph.Total_Amount ELSE 0 END), 0)         AS PO_Amount
+                FROM ProjectInfo p
+                -- LEFT JOIN: giữ lại dự án dù chưa có MPR/PO
+                LEFT JOIN MPR_Header  mh  ON mh.Project_Code   = p.ProjectCode
+                LEFT JOIN MPR_Details md  ON md.MPR_ID         = mh.MPR_ID
+                LEFT JOIN PO_Detail   pod ON pod.MPR_Detail_ID = md.Detail_ID
+                LEFT JOIN PO_head     ph  ON ph.PO_ID          = pod.PO_ID
+                GROUP BY p.ProjectCode, p.ProjectName, p.PJBudget, p.PJWeight, p.CreatedDate
+                ORDER BY p.CreatedDate DESC, p.ProjectCode DESC";
+
+            // Container chính
+            // ── Header cố định (NGOÀI pRight, không bị scroll) ──────────────
+            var pHeader = new Panel
+            {
+                Location = new Point(950, 80),
+                Size = new Size(panelContent.Width - 970, 70),
+                BackColor = Color.FromArgb(245, 248, 255),
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left
+            };
+            panelContent.Controls.Add(pHeader);
+
+            // ── pRight: scroll area cho cards, bên dưới header ──────────────
+            var pRight = new Panel
+            {
+                Location = new Point(950, 152),
+                Size = new Size(panelContent.Width - 970, panelContent.Height - 172),
+                AutoScroll = true,
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom | AnchorStyles.Left
+            };
+            panelContent.Controls.Add(pRight);
+
+            pHeader.Controls.Add(new Label
+            {
+                Text = "📊  Project Progress",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212),
+                Location = new Point(10, 8),
+                Size = new Size(200, 22)
+            });
+
+            // Hàng 2: txtSearch + cboFilter
+            var txtSearch = new TextBox
+            {
+                Location = new Point(10, 36),
+                Size = new Size(180, 24),
+                Font = new Font("Segoe UI", 8),
+                PlaceholderText = "🔍 Tìm dự án..."
+            };
+            pHeader.Controls.Add(txtSearch);
+
+            pHeader.Controls.Add(new Label
+            {
+                Text = "Tiến độ:",
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.Gray,
+                Location = new Point(198, 39),
+                Size = new Size(50, 18)
+            });
+            var cboFilter = new ComboBox
+            {
+                Location = new Point(250, 36),
+                Size = new Size(140, 24),
+                Font = new Font("Segoe UI", 8),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cboFilter.Items.AddRange(new object[]
+            {
+                "Tất cả",
+                "Chưa đặt (0%)",
+                "Đang đặt (1-99%)",
+                "Hoàn thành (100%)"
+            });
+            cboFilter.SelectedIndex = 0;
+            pHeader.Controls.Add(cboFilter);
+
+            // Panel chứa các cards (có thể re-render)
+            // pCards: không giới hạn chiều cao — tự mở rộng theo số dự án
+            var pCards = new Panel
+            {
+                Location = new Point(0, 4),
+                Size = new Size(pRight.Width - 18, 10), // chiều cao sẽ được set sau khi render
+                AutoScroll = false,
+                BackColor = Color.White
+            };
+            pRight.Controls.Add(pCards);
+
+            // Load data một lần
+            var rows = new System.Collections.Generic.List<(
+                string code, string name,
+                double budget, double pjKG,
+                double mprQty, double mprKG,
+                double poQty, double poKG, double poAmt,
+                double pctQty, double pctBudg, double pctKG)>();
+
+            try
+            {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                var dt = new System.Data.DataTable();
+                dt.Load(new SqlCommand(SQL, conn).ExecuteReader());
+
+                foreach (System.Data.DataRow r in dt.Rows)
+                {
+                    double budget = Convert.ToDouble(r["Budget"]);
+                    double pjKG = Convert.ToDouble(r["PJWeight_kg"]);
+                    double mprQty = Convert.ToDouble(r["MPR_Qty"]);
+                    double mprKG = Convert.ToDouble(r["MPR_KG"]);
+                    double poQty = Convert.ToDouble(r["PO_Qty"]);
+                    double poKG = Convert.ToDouble(r["PO_KG"]);
+                    double poAmt = Convert.ToDouble(r["PO_Amount"]);
+                    double pctQty = mprQty > 0 ? Math.Min(poQty / mprQty * 100, 100) : 0;
+                    double pctBudg = budget > 0 ? Math.Min(poAmt / budget * 100, 100) : 0;
+                    double pctKG = pjKG > 0 ? Math.Min(poKG / pjKG * 100, 100) : 0;
+                    rows.Add((
+                        r["ProjectCode"]?.ToString() ?? "",
+                        r["ProjectName"]?.ToString() ?? "",
+                        budget, pjKG, mprQty, mprKG,
+                        poQty, poKG, poAmt,
+                        pctQty, pctBudg, pctKG));
+                }
+            }
+            catch (Exception ex)
+            {
+                pCards.Controls.Add(new Label
+                {
+                    Text = "⚠ Lỗi tải tiến độ: " + ex.Message,
+                    Font = new Font("Segoe UI", 9),
+                    ForeColor = Color.Red,
+                    Location = new Point(10, 10),
+                    Size = new Size(pRight.Width - 20, 40)
+                });
+                return;
+            }
+
+            // ── Render cards theo thứ tự sort ───────────────────────────────
+            void RenderCards(int _unused)
+            {
+                // Lấy filter hiện tại
+                string kw = txtSearch.Text.Trim().ToLower();
+                int cat = cboFilter.SelectedIndex; // 0=Tất cả,1=0%,2=1-99%,3=100%
+
+                // Lọc theo search + tiến độ (dùng pctQty làm đại diện tiến độ đặt hàng)
+                var sorted = rows.FindAll(d =>
+                {
+                    bool matchKW = string.IsNullOrEmpty(kw)
+                        || d.code.ToLower().Contains(kw)
+                        || d.name.ToLower().Contains(kw);
+                    bool matchCat = cat switch
+                    {
+                        1 => d.pctQty == 0,
+                        2 => d.pctQty > 0 && d.pctQty < 100,
+                        3 => d.pctQty >= 100,
+                        _ => true
+                    };
+                    return matchKW && matchCat;
+                });
+
+                pRight.SuspendLayout();
+                pCards.SuspendLayout();
+                pCards.Controls.Clear();
+
+                int yp = 6;
+                int pw = pRight.Width - 24;
+
+                if (sorted.Count == 0)
+                {
+                    pCards.Controls.Add(new Label
+                    {
+                        Text = "Không có dự án nào.",
+                        Font = new Font("Segoe UI", 9),
+                        ForeColor = Color.Gray,
+                        Location = new Point(10, yp),
+                        Size = new Size(pw, 24)
+                    });
+                    pCards.ResumeLayout();
+                    return;
+                }
+
+                foreach (var d in sorted)
+                {
+                    var card = new Panel
+                    {
+                        Location = new Point(10, yp),
+                        Size = new Size(pw, 128),
+                        BackColor = Color.FromArgb(245, 248, 255),
+                        BorderStyle = BorderStyle.FixedSingle
+                    };
+                    pCards.Controls.Add(card);
+
+                    card.Controls.Add(new Label
+                    {
+                        Text = $"🏗 {d.code}  —  {d.name}",
+                        Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                        ForeColor = Color.FromArgb(0, 80, 160),
+                        Location = new Point(8, 6),
+                        Size = new Size(pw - 16, 20)
+                    });
+
+                    void AddBar(string lbl, double pct, Color barColor, int barY)
+                    {
+                        int barW = pw - 190;
+                        card.Controls.Add(new Label
+                        {
+                            Text = lbl,
+                            Font = new Font("Segoe UI", 8),
+                            ForeColor = Color.FromArgb(60, 60, 60),
+                            Location = new Point(8, barY),
+                            Size = new Size(108, 18)
+                        });
+                        var bg = new Panel
+                        {
+                            Location = new Point(120, barY + 2),
+                            Size = new Size(barW, 14),
+                            BackColor = Color.FromArgb(220, 225, 235)
+                        };
+                        card.Controls.Add(bg);
+                        int fillW = (int)(barW * pct / 100);
+                        if (fillW > 0)
+                            bg.Controls.Add(new Panel
+                            {
+                                Location = new Point(0, 0),
+                                Size = new Size(fillW, 14),
+                                BackColor = pct >= 100 ? Color.FromArgb(40, 167, 69)
+                                           : pct >= 60 ? barColor
+                                           : Color.FromArgb(255, 140, 0)
+                            });
+                        card.Controls.Add(new Label
+                        {
+                            Text = $"{pct:F1}%",
+                            Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                            ForeColor = pct >= 100 ? Color.FromArgb(40, 167, 69) : barColor,
+                            Location = new Point(120 + barW + 6, barY),
+                            Size = new Size(52, 18),
+                            TextAlign = ContentAlignment.MiddleLeft
+                        });
+                    }
+
+                    AddBar($"📦 SL ({d.poQty:N0}/{d.mprQty:N0})",
+                           d.pctQty, Color.FromArgb(0, 120, 212), 30);
+                    AddBar($"💰 Budget ({d.poAmt / 1e6:F1}M/{d.budget / 1e6:F1}M)",
+                           d.pctBudg, Color.FromArgb(233, 30, 99), 52);
+                    AddBar($"⚖ KG ({d.poKG:N0}/{d.pjKG:N0})",
+                           d.pctKG, Color.FromArgb(102, 51, 153), 74);
+
+                    yp += 136;
+                }
+
+                // Set chiều cao pCards = nội dung thực, pRight tự scroll
+                pCards.Height = yp + 10;
+                pCards.Width = pRight.Width - 18;
+                pRight.AutoScrollMinSize = new Size(0, yp + 10);
+                pCards.ResumeLayout();
+                pRight.ResumeLayout();
+            }
+
+            // Render lần đầu
+            RenderCards(0);
+
+            // Filter events
+            txtSearch.TextChanged += (s, ev) => RenderCards(0);
+            cboFilter.SelectedIndexChanged += (s, ev) => RenderCards(0);
         }
 
         private void AddCard(string title, string value, Color color, int x, int y)
