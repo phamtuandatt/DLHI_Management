@@ -1728,7 +1728,7 @@ namespace MPR_Managerment.Forms
                 {
                     // Bỏ qua dòng placeholder mới và dòng TOTAL
                     if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
-
+                    if (IsRowEmpty(row)) continue; // Bỏ qua dòng trống
                     // Lấy giá trị từ 2 cột Qty và Weight
                     var valQty = row.Cells["Qty_Per_Sheet"].Value;
                     var valWeight = row.Cells["Weight_kg"].Value;
@@ -1742,14 +1742,14 @@ namespace MPR_Managerment.Forms
                         return;
                     }
 
-                    if (!decimal.TryParse(valWeight.ToString(), out decimal weight_result) || Convert.ToDecimal(weight_result) == 0)
-                    {
-                        // 'result' now contains the numeric value
-                        MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Số lượng (Weight)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        dgvDet.CurrentCell = row.Cells["Weight_kg"]; // Focus vào ô lỗi
-                        dgvDet.BeginEdit(true); // Mở chế độ nhập liệu ngay
-                        return;
-                    }
+                    //if (!decimal.TryParse(valWeight.ToString(), out decimal weight_result) || Convert.ToDecimal(weight_result) == 0)
+                    //{
+                    //    // 'result' now contains the numeric value
+                    //    MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Số lượng (Weight)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    //    dgvDet.CurrentCell = row.Cells["Weight_kg"]; // Focus vào ô lỗi
+                    //    dgvDet.BeginEdit(true); // Mở chế độ nhập liệu ngay
+                    //    return;
+                    //}
 
                     //// 1. Kiểm tra cột Số lượng (Qty_Per_Sheet)
                     //if (valQty == null || string.IsNullOrWhiteSpace(valQty.ToString()) || Convert.ToDecimal(valQty) == 0)
@@ -1859,6 +1859,16 @@ namespace MPR_Managerment.Forms
 
             dlg.Owner = this.FindForm();
             dlg.ShowDialog();
+        }
+
+        private bool IsRowEmpty(DataGridViewRow row)
+        {
+            // Ignore the new row placeholder
+            if (row.IsNewRow) return true;
+
+            // Check if all cells are null or empty
+            return row.Cells.Cast<DataGridViewCell>()
+                .All(cell => cell.Value == null || string.IsNullOrWhiteSpace(cell.Value.ToString()));
         }
 
         public void ExportMPRToExcel(MPRHeader header, List<MPRDetail> details)
