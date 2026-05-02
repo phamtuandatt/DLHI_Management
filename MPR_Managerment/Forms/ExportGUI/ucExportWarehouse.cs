@@ -188,10 +188,10 @@ namespace MPR_Managerment.Forms.ExportGUI
                 newRow["Size"] = sourceRow["Size"];
                 newRow["UNIT"] = sourceRow["UNIT"];
                 newRow["ID_Code"] = sourceRow["ID_Code"];
-                newRow["Weight_kg"] = sourceRow["Weight_kg"];
+                newRow["Weight_kg"] = sourceRow["Weight_Import"];
                 newRow["Project_Code"] = sourceRow["Project_Code"];
                 newRow["WorkorderNo"] = sourceRow["WorkorderNo"] ?? null;
-                newRow["Warehouse_ID"] = sourceRow["Warehouse_ID"] ?? null;
+                //newRow["Warehouse_ID"] = sourceRow["Warehouse_ID"] ?? null;
 
                 // Gán số lượng xuất từ Popup
                 newRow["Qty_Export"] = qty;

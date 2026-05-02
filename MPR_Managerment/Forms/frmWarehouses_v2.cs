@@ -1238,7 +1238,7 @@ namespace MPR_Managerment.Forms
                 _importList.Remove(key);
                 _importQueue.RemoveAt(idx);
 
-                _importQueueActual.Remove(int.Parse(dgvImportQueue.SelectedRows[0].Cells[11].Value.ToString().Trim()));
+                _importQueueActual.Remove(int.Parse(dgvImportQueue.SelectedRows[0].Cells[12].Value.ToString().Trim()));
 
                 if (_importQueue.Count == 0) _currentBatchNo = "";
                 RefreshQueueGrid();
@@ -2242,7 +2242,7 @@ namespace MPR_Managerment.Forms
 
                         ws.Cells[currentRow, 1].Value = i + 1;
                         ws.Cells[currentRow, 2].Value = dr["ID_Code"];
-                        ws.Cells[currentRow, 3].Value = dr["Item_Name"];
+                        ws.Cells[currentRow, 3].Value = $"{dr["Item_Name"]} {dr["Size"].ToString()}";
                         ws.Cells[currentRow, 4].Value = Convert.ToDecimal(dr["Qty_Import"] ?? 0);
                         ws.Cells[currentRow, 5].Value = dr["UNIT"];
                         ws.Cells[currentRow, 6].Value = dr["Weight_kg"];
