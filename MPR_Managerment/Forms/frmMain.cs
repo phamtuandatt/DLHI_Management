@@ -261,16 +261,16 @@ namespace MPR_Managerment.Forms
             btn.BackColor = Color.FromArgb(0, 120, 212);
             string tag = btn.Tag?.ToString() ?? "";
 
+            // Tag = text button (có emoji + spaces) → dùng Contains với keyword đủ unique
             if (tag.Contains("Tổng quan")) ShowDashboard();
             else if (tag.Contains("Dashboard")) OpenForm(new frmDashboard());
             else if (tag.Contains("Dự án")) OpenForm(new frmProject());
             else if (tag.Contains("Nhà cung cấp")) OpenForm(new frmSupplier());
+            else if (tag.Contains("Material Inspector")) OpenForm(new frmRIRForQC()); // trước RIR
+            else if (tag.Contains("Kiểm tra (RIR)")) OpenForm(new frmRIR());
             else if (tag.Contains("MPR")) OpenForm(new frmMPR());
-            else if (tag.Contains("PO")) OpenForm(new frmPO());
-            else if (tag.Contains("RIR")) OpenForm(new frmRIR());
-            else if (tag.Contains("Material Inspector Request")) OpenForm(new frmRIRForQC());
+            else if (tag.Contains("Đơn đặt hàng")) OpenForm(new frmPO());
             else if (tag.Contains("Thanh toán Debit")) OpenForm(new frmPayment());
-            //else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouse());
             else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouses_v2());
             else if (tag.Contains("Quản lý User")) OpenForm(new frmUserManagement());
             else if (tag.Contains("Đổi mật khẩu"))
@@ -352,6 +352,15 @@ namespace MPR_Managerment.Forms
             }
 
             _activeFormKey = key;
+            // Đảm bảo form vẫn là child của panelContent (có thể bị xóa khi ShowDashboard)
+            if (_activeForm.Parent != panelContent)
+            {
+                panelContent.Controls.Clear(); // xóa dashboard controls
+                _activeForm.TopLevel = false;
+                _activeForm.FormBorderStyle = FormBorderStyle.None;
+                _activeForm.Dock = DockStyle.Fill;
+                panelContent.Controls.Add(_activeForm);
+            }
             _activeForm.Show();
             _activeForm.BringToFront();
         }
@@ -383,6 +392,12 @@ namespace MPR_Managerment.Forms
         // =====================================================================
         private void ShowDashboard()
         {
+            // Ẩn và dispose tất cả cached forms trước khi clear panelContent
+            foreach (var kv in _formCache)
+            {
+                try { kv.Value.Hide(); } catch { }
+            }
+            _formCache.Clear();
             if (_activeForm != null && !_activeForm.IsDisposed)
                 _activeForm.Hide();
             _activeForm = null;
