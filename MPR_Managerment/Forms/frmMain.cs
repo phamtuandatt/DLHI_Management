@@ -534,8 +534,9 @@ namespace MPR_Managerment.Forms
                         WHERE ph.WorkorderNo = p.WorkorderNo
                           AND ISNULL(ph.Status,'') <> 'Cancelled'
                     ), 0) AS PO_Qty,
+                    -- PO_KG: SUM Weight_kg từ PO_Detail (Weight_kg = tổng KG dòng đó)
                     ISNULL((
-                        SELECT SUM(pod.Weight_kg * pod.Qty_Per_Sheet)
+                        SELECT SUM(pod.Weight_kg)
                         FROM PO_head ph
                         JOIN PO_Detail pod ON pod.PO_ID = ph.PO_ID
                         WHERE ph.WorkorderNo = p.WorkorderNo
@@ -790,7 +791,8 @@ namespace MPR_Managerment.Forms
                            d.pctQty, Color.FromArgb(0, 120, 212), 30);
                     AddBar($"💰 Budget ({d.poAmt / 1e6:F1}M/{d.budget / 1e6:F1}M)",
                            d.pctBudg, Color.FromArgb(233, 30, 99), 52);
-                    AddBar($"⚖ KG ({d.poKG:N0}/{d.pjKG:N0})",
+                    // % KG = Tổng KG đã đặt PO / PJWeight dự án
+                    AddBar($"⚖ KG ({d.poKG:N0}/{d.pjKG:N0} kg)",
                            d.pctKG, Color.FromArgb(102, 51, 153), 74);
 
                     yp += 136;
