@@ -1804,7 +1804,7 @@ namespace MPR_Managerment.Forms
                     var valQty = row.Cells["Qty_Per_Sheet"].Value;
                     var valWeight = row.Cells["Weight_kg"].Value;
 
-                    if (!decimal.TryParse(valQty.ToString(), out decimal qty_result) || Convert.ToDecimal(qty_result) == 0)
+                    if (!decimal.TryParse(valQty.ToString(), out decimal qty_result) || (qty_result) == 0)
                     {
                         MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Số lượng (Qty)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         dgvDet.CurrentCell = row.Cells["Qty_Per_Sheet"]; // Focus vào ô lỗi

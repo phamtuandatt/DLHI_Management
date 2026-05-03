@@ -1521,8 +1521,8 @@ namespace MPR_Managerment.Forms
         private void StartNotifyTimer()
         {
             // Baseline: lay thoi gian hien tai lam moc, khong lay theo count
-            _lastCheckTime = DateTime.Now.AddMinutes(-1); // Check ngay tu 1 phut truoc
-            _notifyTimer = new System.Windows.Forms.Timer { Interval = 60 * 1000 }; // 1 phut
+            _lastCheckTime = DateTime.Now; // Baseline = ngay bay gio
+            _notifyTimer = new System.Windows.Forms.Timer { Interval = 30 * 1000 }; // 30 giay
             _notifyTimer.Tick += (s, e) =>
             {
                 // WinForms Timer luon chay tren UI thread — an toan
@@ -1618,8 +1618,8 @@ namespace MPR_Managerment.Forms
                     rRIR.Close();
                 }
 
-                // Cap nhat moc thoi gian
-                _lastCheckTime = DateTime.Now;
+                // Cap nhat moc thoi gian SAU khi da lay het data
+                DateTime checkTime = DateTime.Now;
 
                 int newPO = msgs.FindAll(m => m.StartsWith("[PO]")).Count;
                 int newMPR = msgs.FindAll(m => m.StartsWith("[MPR]")).Count;
@@ -1627,6 +1627,7 @@ namespace MPR_Managerment.Forms
 
                 if (newPO == 0 && newMPR == 0 && newRIR == 0 && !force) return;
 
+                _lastCheckTime = checkTime; // cập nhật SAU khi query xong
                 if (this.InvokeRequired)
                     this.Invoke(new Action(() => ApplyNotify(newPO, newMPR, newRIR, msgs, force)));
                 else
@@ -1671,12 +1672,23 @@ namespace MPR_Managerment.Forms
                 _lblNotifyCount.Text = string.Join(" | ", parts) + "  (" + t + ")";
                 _lblNotifyCount.ForeColor = Color.FromArgb(255, 200, 200); // Do nhat
 
-                if (!_panelNotify.Visible)
+                // Luôn hiện và BringToFront khi có thông báo mới
+                _panelNotify.Visible = true;
+                PositionNotifyPanel();
+                _panelNotify.BringToFront();
+                // Flash badge để thu hút chú ý
+                _btnNotify.BackColor = Color.FromArgb(220, 53, 69);
+                var flashTimer = new System.Windows.Forms.Timer { Interval = 500 };
+                int flashCount = 0;
+                flashTimer.Tick += (ft, fe) =>
                 {
-                    _panelNotify.Visible = true;
-                    PositionNotifyPanel();
-                    _panelNotify.BringToFront();
-                }
+                    flashCount++;
+                    _btnNotify.BackColor = flashCount % 2 == 0
+                        ? Color.FromArgb(220, 53, 69)
+                        : Color.FromArgb(255, 140, 0);
+                    if (flashCount >= 6) { ((System.Windows.Forms.Timer)ft).Stop(); }
+                };
+                flashTimer.Start();
             }
             else if (force)
             {
