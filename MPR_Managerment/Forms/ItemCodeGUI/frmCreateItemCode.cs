@@ -17,6 +17,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
     public partial class frmCreateItemCode : Form
     {
         private ProductServices _productServices = new ProductServices();
+        private WarehouseService _warehouseServices = new WarehouseService();
         private bool _isLoadedMaterialCate = false;
         private string itemNumberOfMaterial = "";
         private bool _isStandardLoaded = false;
@@ -381,7 +382,135 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             DataView dv = Common.Common.Search(txtSearch.Text, dtItemCode, ["material_detail_name"]);
 
             dgvItemExist.DataSource = dv;
-            
+
+        }
+
+        private void dgvItemExist_CellContentDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (AppSession.CurrentUser.Role_ID == 1)
+            {
+                // Sử dụng khối lệnh using để khởi tạo và tự động giải phóng tài nguyên Form
+                using (Form frm = new Form())
+                {
+                    // --- 1. Cấu hình giao diện Form ---
+                    frm.Text = "Cập nhật dữ liệu - Product Entry V2";
+                    frm.Size = new Size(400, 380);
+                    frm.StartPosition = FormStartPosition.CenterScreen;
+                    frm.FormBorderStyle = FormBorderStyle.FixedDialog;
+                    frm.MaximizeBox = false;
+                    frm.Font = new Font("Segoe UI", 10);
+
+                    // Biến hỗ trợ vị trí hiển thị
+                    int startY = 25;
+                    int spacing = 45;
+
+                    // --- 2. Khởi tạo 4 cặp Label và TextBox ---
+                    // Item_Code
+                    Label lblItemCode = new Label() { Text = "Item Code:", Location = new Point(20, startY), AutoSize = true };
+                    TextBox txtItemCode = new TextBox() { Location = new Point(150, startY - 3), Size = new Size(200, 25) };
+
+                    //// Qty_Import
+                    //Label lblQty = new Label() { Text = "Qty_Import:", Location = new Point(20, startY + spacing), AutoSize = true };
+                    //TextBox txtQty = new TextBox() { Location = new Point(150, startY + spacing - 3), Size = new Size(200, 25) };
+
+                    //// Weight_kg
+                    //Label lblWeight = new Label() { Text = "Weight_kg:", Location = new Point(20, startY + (spacing * 2)), AutoSize = true };
+                    //TextBox txtWeight = new TextBox() { Location = new Point(150, startY + (spacing * 2) - 3), Size = new Size(200, 25) };
+
+                    //// Size
+                    //Label lblSize = new Label() { Text = "Size:", Location = new Point(20, startY + (spacing * 3)), AutoSize = true };
+                    //TextBox txtSize = new TextBox() { Location = new Point(150, startY + (spacing * 3) - 3), Size = new Size(200, 25) };
+
+                    //// Name
+                    //Label lblName = new Label() { Text = "Name:", Location = new Point(20, startY + (spacing * 4)), AutoSize = true };
+                    //TextBox txtName = new TextBox() { Location = new Point(150, startY + (spacing * 4) - 3), Size = new Size(200, 25) };
+
+                    // --- 3. Cấu hình các Button ---
+                    // Button Cancel (Nền xám, chữ trắng)
+                    Button btnCancel = new Button()
+                    {
+                        Text = "Cancel",
+                        Location = new Point(150, startY + spacing - 3),
+                        Size = new Size(90, 35),
+                        BackColor = Color.Gray,
+                        ForeColor = Color.White,
+                        FlatStyle = FlatStyle.Flat
+                    };
+                    btnCancel.Click += (s, e) => { frm.Close(); };
+
+                    // Button Save (Nền xanh, chữ trắng)
+                    Button btnSave = new Button()
+                    {
+                        Text = "Save",
+                        Location = new Point(260, startY + spacing - 3),
+                        Size = new Size(90, 35),
+                        BackColor = Color.DodgerBlue,
+                        ForeColor = Color.White,
+                        FlatStyle = FlatStyle.Flat
+                    };
+
+                    // --- 4. Logic lấy dữ liệu khi Click Save ---
+                    btnSave.Click += (s, e) =>
+                    {
+                        //[cite_start]// Truy xuất giá trị từ các TextBox [cite: 108, 111]
+                        string itemCode = txtItemCode.Text;
+                        //string qty = txtQty.Text;
+                        //string weight = txtWeight.Text;
+                        //string sizeValue = txtSize.Text;
+                        //string name = txtName.Text;
+
+                        var material_detail_id = dgvItemExist.CurrentRow.Cells[0].Value;
+                        var item_code = txtItemCode.Text.Trim().Substring(0, 9);
+
+                        if (!string.IsNullOrEmpty(txtItemCode.Text))
+                        {
+                            _warehouseServices.UpdateMaterialDetail(Convert.ToInt32(material_detail_id), item_code);
+                        }
+                        //if (!string.IsNullOrEmpty(txtQty.Text))
+                        //{
+                        //    _service.ModifyQtyImportOfWarehouseImport(w);
+                        //}
+                        //if (!string.IsNullOrEmpty(txtWeight.Text))
+                        //{
+                        //    _service.ModifyWeightOfWarehouseImport(w);
+                        //}
+                        //if (!string.IsNullOrEmpty(txtSize.Text))
+                        //{
+                        //    _service.ModifySizeOfWarehouseImport(w);
+                        //}
+                        //if (!string.IsNullOrEmpty(txtName.Text))
+                        //{
+                        //    _service.ModifyNameOfWarehouseImport(w);
+                        //}
+                        // Hiển thị kết quả lấy được để kiểm tra
+                        string info = $"Dữ liệu đã thu thập:\n" +
+                                      $"- Item Code: {itemCode}\n";
+                                      //$"- Qty: {qty}\n" +
+                                      //$"- Weight: {weight}\n" +
+                                      //$"- Size: {sizeValue}";
+
+                        MessageBox.Show(info, "Kết quả lưu dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        // Sau khi xử lý xong có thể đóng form hoặc giữ lại tùy ý
+                        frm.DialogResult = DialogResult.OK;
+                    };
+
+                    // --- 5. Thêm Controls vào Form và hiển thị ---
+                    frm.Controls.AddRange(new Control[] {
+                        lblItemCode, txtItemCode,
+                        //lblQty, txtQty,
+                        //lblWeight, txtWeight,
+                        //lblSize, txtSize,
+                        //lblName, txtName,
+                        btnCancel, btnSave
+                    });
+
+                    frm.AcceptButton = btnSave; // Nhấn Enter để Save [cite: 115]
+                    frm.CancelButton = btnCancel; // Nhấn Esc để Cancel [cite: 115]
+
+                    frm.ShowDialog();
+                }
+            }
         }
     }
 }

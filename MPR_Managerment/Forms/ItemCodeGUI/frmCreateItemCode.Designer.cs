@@ -200,6 +200,7 @@
             dgvItemExist.Size = new Size(693, 151);
             dgvItemExist.TabIndex = 0;
             dgvItemExist.CellClick += dgvItemExist_CellClick;
+            dgvItemExist.CellContentDoubleClick += dgvItemExist_CellContentDoubleClick;
             dgvItemExist.RowPostPaint += dgvItemExist_RowPostPaint;
             dgvItemExist.RowPrePaint += dgvItemExist_RowPrePaint;
             // 

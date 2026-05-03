@@ -1559,6 +1559,7 @@ namespace MPR_Managerment.Forms
             var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(627, fy - 3), 130, 28);
             var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(767, fy - 3), 100, 28);
             var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(86, 56, 103), new Point(915, fy - 3), 200, 28);
+            var b5 = CreateBtn("📝 Cập nhật chi tiết vật tư", Color.FromArgb(0, 176, 80), new Point(1120, fy - 3), 200, 28);
             b1.Click += async (s, e) => await LoadStock();
             b2.Click += (s, e) => LoadStockOnly();
             b3.Click += async (s, e) => await LoadStock(true);
@@ -1567,6 +1568,16 @@ namespace MPR_Managerment.Forms
             gbAction.Controls.Add(b2);
             gbAction.Controls.Add(b3);
             gbAction.Controls.Add(b4);
+
+            if (AppSession.CurrentUser.Role_ID == 1)
+            {
+                b5.Click += (s, ev) =>
+                {
+                    frmCreateItemCode frmCreateItemCode = new frmCreateItemCode("Cập nhật");
+                    frmCreateItemCode.ShowDialog();
+                };
+                gbAction.Controls.Add(b5);
+            }
 
             panelStockSummary = new Panel
             {
@@ -3049,14 +3060,14 @@ namespace MPR_Managerment.Forms
                         {
                             _service.ModifyNameOfWarehouseImport(w);
                         }
-                        //// Hiển thị kết quả lấy được để kiểm tra
-                        //string info = $"Dữ liệu đã thu thập:\n" +
-                        //              $"- Item Code: {itemCode}\n" +
-                        //              $"- Qty: {qty}\n" +
-                        //              $"- Weight: {weight}\n" +
-                        //              $"- Size: {sizeValue}";
+                        // Hiển thị kết quả lấy được để kiểm tra
+                        string info = $"Dữ liệu đã thu thập:\n" +
+                                      $"- Item Code: {itemCode}\n" +
+                                      $"- Qty: {qty}\n" +
+                                      $"- Weight: {weight}\n" +
+                                      $"- Size: {sizeValue}";
 
-                        //MessageBox.Show(info, "Kết quả lưu dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(info, "Kết quả lưu dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                         // Sau khi xử lý xong có thể đóng form hoặc giữ lại tùy ý
                         frm.DialogResult = DialogResult.OK;

@@ -107,6 +107,23 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void UpdateMaterialDetail(int material_detail_id, string item_code_existed)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    UPDATE Material_Detail
+                        SET item_code_existed = @item_code_existed
+                    WHERE material_detail_id = @material_detail_id", conn);
+
+                cmd.Parameters.AddWithValue("@item_code_existed", item_code_existed);
+                cmd.Parameters.AddWithValue("@material_detail_id", material_detail_id);
+
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public void ModifyIDCodeOfWarehouse(WarehouseImport wi)
         {
             using (var conn = DatabaseHelper.GetConnection())
