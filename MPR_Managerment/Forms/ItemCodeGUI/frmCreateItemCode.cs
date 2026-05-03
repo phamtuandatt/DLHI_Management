@@ -1,4 +1,5 @@
-﻿using MPR_Managerment.Common;
+﻿using Microsoft.Data.SqlClient;
+using MPR_Managerment.Common;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml.ConditionalFormatting.Contracts;
@@ -341,6 +342,41 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             var dtItemExistedList = await _productServices.GetitemExistedList(Convert.ToInt32(cboMaterial.SelectedValue.ToString()));
             dgvItemExist.DataSource = dtItemExistedList;
             dtItemCode = dtItemExistedList.Copy();
+
+            // 1. Khởi tạo ContextMenuStrip
+            ContextMenuStrip menuStock = new ContextMenuStrip();
+
+            // 2. Thêm các mục (Items) vào menu
+            ToolStripMenuItem itemDeleteItem = new ToolStripMenuItem("📄 Xóa vật tư");
+
+            menuStock.Items.AddRange(new ToolStripItem[] { itemDeleteItem });
+
+            // 3. Gắn menu vào DataGridView
+            if (AppSession.CurrentUser.Role_ID == 1)
+            {
+                dgvItemExist.ContextMenuStrip = menuStock;
+            }
+
+            // 4. Sự kiện khi click vào một mục trong menu
+            itemDeleteItem.Click += (s, e) =>
+            {
+                if (dgvItemExist.CurrentRow != null)
+                {
+                    try
+                    {
+                        // Lấy dữ liệu từ dòng đang chọn
+                        var row = dgvItemExist.CurrentRow;
+                        int material_detail_id = int.Parse(row.Cells["material_detail_id"].Value?.ToString());
+
+                        _warehouseServices.DeleteMaterialDetail(material_detail_id);
+                        MessageBox.Show($"Xóa vật tư thành công !", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (SqlException ex)
+                    {
+                        MessageBox.Show($"Xóa vật tư không thành công\nLỗi: {ex.Message}", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            };
         }
 
         private void button1_Click(object sender, EventArgs e)

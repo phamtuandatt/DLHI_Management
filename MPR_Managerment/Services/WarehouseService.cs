@@ -124,6 +124,19 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void DeleteMaterialDetail(int material_detail_id)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"DELETE FROM Material_Detail WHERE material_detail_id = @material_detail_id", conn);
+
+                cmd.Parameters.AddWithValue("@material_detail_id", material_detail_id);
+
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public void ModifyIDCodeOfWarehouse(WarehouseImport wi)
         {
             using (var conn = DatabaseHelper.GetConnection())
