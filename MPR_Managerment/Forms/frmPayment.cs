@@ -2589,7 +2589,7 @@ namespace MPR_Managerment.Forms
             MessageBox.Show(msg, "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
 
         // Được gọi từ frmPrintPreview khi user chọn OK cập nhật lịch sử
-        public void AddPrintHistory(string poNo, string project, List<PaymentSchedule> scheds)
+        public void AddPrintHistory(string poNo, string project, List<PaymentSchedule> scheds, decimal vatRate = 0.1m)
         {
             if (dgvPrintHistory == null) return;
             string dateStr = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
@@ -2597,7 +2597,7 @@ namespace MPR_Managerment.Forms
             foreach (var s in scheds)
             {
                 decimal net = s.Amount_Plan;
-                decimal vat = Math.Round(net * 0.1m, 2);
+                decimal vat = Math.Round(net * vatRate, 2); // dùng VAT thực tế từ PO
                 decimal total = net + vat;
                 string dot = s.Dot_TT == 1 ? "1st" : s.Dot_TT == 2 ? "2nd" :
                                 s.Dot_TT == 3 ? "3rd" : $"{s.Dot_TT}th";
@@ -2856,6 +2856,17 @@ namespace MPR_Managerment.Forms
                     $"PaymentRequest_{po.PONo}_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
                 System.IO.File.Copy(templatePath, tempPath, true);
 
+                // Lấy VAT rate thực tế từ chi tiết PO — khai báo NGOÀI using block
+                // để dùng được khi mở frmPrintPreview (sau khi pkg đã đóng)
+                var poDetails = _poSvc.GetDetails(_selectedPO_ID);
+                decimal actualVatRate = 0.1m; // fallback 10%
+                if (poDetails != null && poDetails.Count > 0)
+                {
+                    decimal maxVat = poDetails.Max(d => d.VAT);
+                    if (maxVat > 0)
+                        actualVatRate = maxVat / 100m;
+                }
+
                 OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
                 using (var pkg = new OfficeOpenXml.ExcelPackage(new System.IO.FileInfo(tempPath)))
                 {
@@ -2865,6 +2876,7 @@ namespace MPR_Managerment.Forms
                     decimal totalBeforeVat = po.Total_PO_Amount;
                     decimal totalPaid = po.Total_Paid;
                     int dotCount = scheds.Count;
+
 
                     // A1 — (N)th Payment Request
                     int paidDots = scheds.Count(s => s.Status == "Đã TT đủ");
@@ -2929,7 +2941,7 @@ namespace MPR_Managerment.Forms
                         {
                             var s = scheds[i];
                             decimal net = s.Amount_Plan;
-                            decimal vat = Math.Round(net * 0.1m, 2);
+                            decimal vat = Math.Round(net * actualVatRate, 2); // dùng VAT thực tế từ PO
                             decimal tot = net + vat;
                             sumNet += net;
                             sumVat += vat;
@@ -2985,7 +2997,7 @@ namespace MPR_Managerment.Forms
 
                     // Row 19 — Balance
                     decimal balNet = Math.Max(totalBeforeVat - sumNet, 0);
-                    decimal balTotal = Math.Max(totalBeforeVat * 1.1m - sumTotal - totalPaid, 0);
+                    decimal balTotal = Math.Max(totalBeforeVat * (1 + actualVatRate) - sumTotal - totalPaid, 0); // dùng VAT thực tế từ PO
                     ReplaceCell(ws, "<<Tổng số tiền trước thuế còn lại>>", FormatAmt(balNet));
                     ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", FormatAmt(balTotal));
 
@@ -3002,7 +3014,7 @@ namespace MPR_Managerment.Forms
                 }
 
                 // ── Mở Print Preview ──
-                var dlg = new frmPrintPreview(tempPath, po.PONo, po.Project_Name, scheds, this);
+                var dlg = new frmPrintPreview(tempPath, po.PONo, po.Project_Name, scheds, this, actualVatRate);
                 dlg.ShowDialog(this);
 
                 // Dọn file tạm sau khi đóng
@@ -3224,15 +3236,17 @@ public class frmPrintPreview : Form
     private readonly string _project;
     private readonly List<PaymentSchedule> _scheds;
     private readonly frmPayment _owner;
+    private readonly decimal _vatRate; // VAT rate thực tế từ PO (vd: 0.1m = 10%)
 
     public frmPrintPreview(string filePath, string poNo, string project,
-        List<PaymentSchedule> scheds, frmPayment owner)
+        List<PaymentSchedule> scheds, frmPayment owner, decimal vatRate = 0.1m)
     {
         _filePath = filePath;
         _poNo = poNo;
         _project = project ?? "";
         _scheds = scheds ?? new List<PaymentSchedule>();
         _owner = owner;
+        _vatRate = vatRate;
         BuildUI();
         // Hỏi cập nhật lịch sử khi form đóng
         this.FormClosing += FrmPrintPreview_FormClosing;
@@ -3253,7 +3267,7 @@ public class frmPrintPreview : Form
 
         if (ans == DialogResult.OK)
         {
-            _owner.AddPrintHistory(_poNo, _project, _scheds);
+            _owner.AddPrintHistory(_poNo, _project, _scheds, _vatRate);
             _historyUpdated = true;
         }
     }
