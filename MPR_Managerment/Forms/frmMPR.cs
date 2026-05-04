@@ -1604,7 +1604,7 @@ namespace MPR_Managerment.Forms
             // Gọi hàm thêm dòng tổng ngay sau khi khởi tạo
             AddTotalRow();
 
-            // Paste từ Excel — 1 lần, xử lý đúng new row placeholder
+            // Paste từ Excel — 1 lần, xử lý đúng new row placeholder và dòng TOTAL
             dgvDet.KeyDown += (s, ev) =>
             {
                 if (ev.Control && ev.KeyCode == Keys.V)
@@ -1614,38 +1614,65 @@ namespace MPR_Managerment.Forms
                     string clip = Clipboard.GetText();
                     if (string.IsNullOrEmpty(clip)) return;
                     dgvDet.EndEdit();
-                    string[] rows2 = clip.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+                    // Dùng None để không bỏ dòng cuối có ô trống.
+                    // Chỉ loại bỏ đúng 1 phần tử rỗng ở CUỐI (do Excel tự thêm \r\n).
+                    string[] rows2 = clip.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                    if (rows2.Length > 0 && string.IsNullOrEmpty(rows2[rows2.Length - 1]))
+                        rows2 = rows2.Take(rows2.Length - 1).ToArray();
                     if (rows2.Length == 0) return;
 
-                    // Xác định ô bắt đầu — nếu CurrentCell là new row hoặc null thì về row 0
+                    // Tìm index của dòng TOTAL (luôn là dòng cuối cùng thực sự)
+                    int totalRowIndex = -1;
+                    for (int i = dgvDet.Rows.Count - 1; i >= 0; i--)
+                    {
+                        if (!dgvDet.Rows[i].IsNewRow && dgvDet.Rows[i].Tag?.ToString() == "TOTAL")
+                        {
+                            totalRowIndex = i;
+                            break;
+                        }
+                    }
+
+                    // Số dòng data thực = tất cả rows trừ TOTAL và new-row placeholder
+                    int dataRowCount = dgvDet.Rows.Count
+                        - (dgvDet.AllowUserToAddRows ? 1 : 0)
+                        - (totalRowIndex >= 0 ? 1 : 0);
+
+                    // Xác định ô bắt đầu
                     int startCol = dgvDet.CurrentCell?.ColumnIndex ?? 0;
                     int curRow = dgvDet.CurrentCell?.RowIndex ?? 0;
-                    // Số dòng data thực (không tính new row placeholder)
-                    int dataRowCount = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
-                    // Nếu đang đứng ở new row placeholder → paste từ cuối data
-                    int startRow = (curRow >= dataRowCount) ? dataRowCount : curRow;
 
-                    // Pre-add tất cả rows cần thiết TRƯỚC KHI ghi data
-                    int dataRowsBefore = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
-                    int rowsNeeded = startRow + rows2.Length - dataRowsBefore;
+                    // Nếu con trỏ đang ở dòng TOTAL hoặc vượt quá data → paste từ cuối data
+                    int startRow = (curRow >= dataRowCount || (totalRowIndex >= 0 && curRow == totalRowIndex))
+                        ? dataRowCount
+                        : curRow;
+
+                    // Số dòng cần thêm mới (insert TRƯỚC dòng TOTAL)
+                    int rowsNeeded = (startRow + rows2.Length) - dataRowCount;
                     dgvDet.SuspendLayout();
                     for (int ri = 0; ri < rowsNeeded; ri++)
                     {
-                        int insertAt = dgvDet.Rows.Count - (dgvDet.AllowUserToAddRows ? 1 : 0);
+                        // Insert ngay trước dòng TOTAL (hoặc ở cuối nếu không có TOTAL)
+                        int insertAt = (totalRowIndex >= 0) ? totalRowIndex : dgvDet.Rows.Count;
                         dgvDet.Rows.Insert(insertAt, 1);
+                        // Sau mỗi lần insert, totalRowIndex bị đẩy xuống 1
+                        if (totalRowIndex >= 0) totalRowIndex++;
                     }
-                    // Ghi data vào các rows đã tạo sẵn
+
+                    // Ghi data — bỏ qua nếu targetRow là dòng TOTAL
                     for (int ri2 = 0; ri2 < rows2.Length; ri2++)
                     {
                         string[] cells = rows2[ri2].Split('\t');
                         int targetRow = startRow + ri2;
                         if (targetRow >= dgvDet.Rows.Count) break;
+                        if (dgvDet.Rows[targetRow].Tag?.ToString() == "TOTAL") break; // không ghi đè TOTAL
                         for (int c = 0; c < cells.Length && startCol + c < dgvDet.Columns.Count; c++)
                             if (!dgvDet.Columns[startCol + c].ReadOnly)
                                 dgvDet.Rows[targetRow].Cells[startCol + c].Value = cells[c].Trim();
                     }
                     dgvDet.ResumeLayout();
                     dgvDet.Refresh();
+                    RebuildTotalRow(); // Cập nhật lại tổng sau khi paste
                 }
             };
 
@@ -2182,8 +2209,12 @@ namespace MPR_Managerment.Forms
                 if (string.IsNullOrEmpty(clip)) return;
 
                 dgvRevDet.EndEdit();
+                // Dùng None thay vì RemoveEmptyEntries để không bỏ dòng cuối có ô trống.
+                // Chỉ loại bỏ phần tử rỗng hoàn toàn ở CUỐI cùng (do Excel tự thêm \r\n).
                 string[] pasteRows = clip.Split(
-                    new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                    new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                if (pasteRows.Length > 0 && string.IsNullOrEmpty(pasteRows[pasteRows.Length - 1]))
+                    pasteRows = pasteRows.Take(pasteRows.Length - 1).ToArray();
                 if (pasteRows.Length == 0) return;
 
                 // Cột hiển thị có thể paste (bỏ ẩn và ReadOnly)
