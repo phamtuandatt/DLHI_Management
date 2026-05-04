@@ -807,6 +807,25 @@ namespace MPR_Managerment.Forms
             flowDetailBtns.Controls.Add(btnExport);        // Xuất Excel
             flowDetailBtns.Controls.Add(btnCheckBySize);   // Check by size — cạnh Xuất Excel
 
+            var btnCalculartor = CreateButton("🔍 Tính", Color.FromArgb(102, 51, 153), Point.Empty, 110, 28); /*btnCalculartor.Tag = "110,28";*/
+            flowDetailBtns.Controls.Add(btnCalculartor);
+
+            btnCalculartor.Click += (s, e) =>
+            {
+                if (dgvDetails.Rows.Count == 0 || (dgvDetails.Rows.Count == 1 && dgvDetails.Rows[0].IsNewRow))
+                {
+                    MessageBox.Show("Không có dòng nào để tính!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                foreach (DataGridViewRow row in dgvDetails.Rows)
+                {
+                    if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
+                    RecalculateAmount(row.Index);
+                }
+                //UpdateTotal();
+            };
+
+
             // ── Bộ lọc "Đã lên PO" — nằm trong flowDetailBtns ──────────
             flowDetailBtns.Controls.Add(new Label
             {
@@ -915,7 +934,10 @@ namespace MPR_Managerment.Forms
                     cboApplyVAT.SelectedItem?.ToString()?.Replace("%", "") ?? "10";
                 foreach (DataGridViewRow row in dgvDetails.Rows)
                     if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
-                    { row.Cells["VAT"].Value = vatVal; RecalculateAmount(row.Index); }
+                    { 
+                        row.Cells["VAT"].Value = vatVal; 
+                        //RecalculateAmount(row.Index); 
+                    }
                 UpdateTotal();
             };
             panelRight.Controls.Add(btnApplyVAT);
@@ -948,7 +970,10 @@ namespace MPR_Managerment.Forms
                 string calcVal = cboApplyCalc.SelectedItem?.ToString() ?? "Theo KG";
                 foreach (DataGridViewRow row in dgvDetails.Rows)
                     if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
-                    { row.Cells["Calc_Method"].Value = calcVal; RecalculateAmount(row.Index); }
+                    {
+                        row.Cells["Calc_Method"].Value = calcVal; 
+                        //RecalculateAmount(row.Index); 
+                    }
                 UpdateTotal();
             };
             panelRight.Controls.Add(btnApplyCalc);
@@ -1579,7 +1604,10 @@ namespace MPR_Managerment.Forms
         }
 
         private void DgvDetails_CellValueChanged(object sender, DataGridViewCellEventArgs e)
-        { if (e.RowIndex >= 0 && dgvDetails.Columns[e.ColumnIndex].Name == "Calc_Method") RecalculateAmount(e.RowIndex); }
+        { 
+            //if (e.RowIndex >= 0 && dgvDetails.Columns[e.ColumnIndex].Name == "Calc_Method") 
+            //    RecalculateAmount(e.RowIndex); 
+        }
 
         private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
@@ -2694,7 +2722,7 @@ namespace MPR_Managerment.Forms
                             dgvRow.Cells[colIdx].Value = val;
                         }
                     }
-                    RecalculateAmount(curRow);
+                    //RecalculateAmount(curRow);
                 }
                 dgvDetails.ResumeLayout();
                 AutoAdjustColumnWidths();
@@ -2738,23 +2766,23 @@ namespace MPR_Managerment.Forms
         // Intercept gia tri khi nguoi dung nhap/paste — parse dung vi-VN
         private void DgvDetails_CellParsing(object sender, DataGridViewCellParsingEventArgs e)
         {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
-            string colName = dgvDetails.Columns[e.ColumnIndex].Name;
+            //if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            //string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
-            // Chi xu ly cac cot so
-            if (colName != "Price" && colName != "Qty" && colName != "Weight"
-                && colName != "Amount" && colName != "SubAmount" && colName != "Received") return;
+            //// Chi xu ly cac cot so
+            //if (colName != "Price" && colName != "Qty" && colName != "Weight"
+            //    && colName != "Amount" && colName != "SubAmount" && colName != "Received") return;
 
-            string raw = e.Value?.ToString() ?? "";
-            if (string.IsNullOrWhiteSpace(raw)) return;
+            //string raw = e.Value?.ToString() ?? "";
+            //if (string.IsNullOrWhiteSpace(raw)) return;
 
-            decimal parsed = ParseDecimalRaw(raw);
-            // Luu gia tri decimal thuc vao cell, tranh WinForms parse lai sai
-            e.Value = parsed;
-            e.ParsingApplied = true;
-            // Dong thoi ghi thang vao cell de dam bao
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
-                dgvDetails.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = parsed;
+            //decimal parsed = ParseDecimalRaw(raw);
+            //// Luu gia tri decimal thuc vao cell, tranh WinForms parse lai sai
+            //e.Value = parsed;
+            //e.ParsingApplied = true;
+            //// Dong thoi ghi thang vao cell de dam bao
+            //if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+            //    dgvDetails.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = parsed;
         }
 
         // Parse so tu chuoi bat ky: xu ly ca vi-VN (. ngan , thap phan)
@@ -2800,7 +2828,8 @@ namespace MPR_Managerment.Forms
 
         private void DgvDetails_CellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
-            RecalculateAmount(e.RowIndex); AutoAdjustColumnWidths();
+            //RecalculateAmount(e.RowIndex); 
+            AutoAdjustColumnWidths();
         }
 
         private void BtnSearch_Click(object sender, EventArgs e)
@@ -3249,10 +3278,16 @@ namespace MPR_Managerment.Forms
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
                 if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
-                decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
-                decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
-                decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
-                decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
+                //decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
+                //decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
+                //decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
+                //decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
+
+                decimal q = Common.Common.ParseDecimalRaw(row.Cells["Qty"].Value?.ToString());
+                decimal wk = Common.Common.ParseDecimalRaw(row.Cells["Weight"].Value?.ToString());
+                decimal p = Common.Common.ParseDecimalRaw(row.Cells["Price"].Value?.ToString());
+                decimal vat = Common.Common.ParseDecimalRaw(row.Cells["VAT"].Value?.ToString());
+
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
                 remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
