@@ -2091,15 +2091,36 @@ namespace MPR_Managerment.Forms
             {
                 using var conn = DatabaseHelper.GetConnection();
                 conn.Open();
-                var cmd = new SqlCommand("SELECT MPR_ID, MPR_No, Rev FROM MPR_Header WHERE Project_Code=@code ORDER BY MPR_No", conn);
+                var cmd = new SqlCommand(
+                    "SELECT MPR_ID, MPR_No, Rev, ISNULL(Is_Latest,1) AS Is_Latest " +
+                    "FROM MPR_Header WHERE Project_Code=@code ORDER BY Rev DESC, MPR_No", conn);
                 cmd.Parameters.AddWithValue("@code", projCode);
                 using var rdr = cmd.ExecuteReader();
+                int latestRowIdx = -1;
                 while (rdr.Read())
                 {
                     int r = dgvMPRList.Rows.Add();
                     dgvMPRList.Rows[r].Cells["RMprId"].Value = rdr["MPR_ID"];
                     dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"];
                     dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"];
+                    bool isLatest = Convert.ToBoolean(rdr["Is_Latest"]);
+                    if (isLatest && latestRowIdx < 0)
+                    {
+                        dgvMPRList.Rows[r].DefaultCellStyle.ForeColor = Color.FromArgb(0, 120, 212);
+                        dgvMPRList.Rows[r].DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                        latestRowIdx = r;
+                    }
+                    else
+                    {
+                        dgvMPRList.Rows[r].DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
+                    }
+                }
+                rdr.Close();
+                // Tự động chọn MPR mới nhất → load details ngay
+                if (latestRowIdx >= 0)
+                {
+                    dgvMPRList.Rows[latestRowIdx].Selected = true;
+                    dgvMPRList.CurrentCell = dgvMPRList.Rows[latestRowIdx].Cells["RMprNo"];
                 }
             }
             catch { }
@@ -2667,15 +2688,15 @@ namespace MPR_Managerment.Forms
                     {
                         try
                         {
-                            // Bước 1: Xóa PO_Detail liên kết đến các dòng MPR_Details của MPR này
-                            // (giải phóng FK_PO_Detail_MPR_Details trước khi xóa MPR_Details)
+                            // Bước 1: NULL hóa MPR_Detail_ID trong PO_Detail
+                            // KHÔNG xóa PO_Detail vì sẽ mất dữ liệu PO đã đặt hàng!
                             var cmd1 = new SqlCommand(@"
-                                DELETE pod
+                                UPDATE pod SET pod.MPR_Detail_ID = NULL
                                 FROM dbo.PO_Detail pod
                                 INNER JOIN dbo.MPR_Details md ON pod.MPR_Detail_ID = md.Detail_ID
                                 WHERE md.MPR_ID = @mprId", conn, tran);
                             cmd1.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
-                            int poDetailDeleted = cmd1.ExecuteNonQuery();
+                            int poDetailUpdated = cmd1.ExecuteNonQuery();
 
                             // Bước 2: Xóa toàn bộ MPR_Details của MPR này
                             var cmd2 = new SqlCommand(
@@ -2683,7 +2704,34 @@ namespace MPR_Managerment.Forms
                             cmd2.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
                             int detailDeleted = cmd2.ExecuteNonQuery();
 
-                            // Bước 3: Xóa MPR Header
+                            // Bước 3: Reset Is_Latest về MPR gốc trước khi xóa
+                            var cmdBase = new SqlCommand(@"
+                                DECLARE @base NVARCHAR(200), @proj NVARCHAR(50);
+                                SELECT @base = CASE WHEN MPR_No LIKE N'%_Rev.%'
+                                    THEN LEFT(MPR_No, CHARINDEX(N'_Rev.', MPR_No)-1)
+                                    ELSE MPR_No END,
+                                       @proj = Project_Code
+                                FROM MPR_Header WHERE MPR_ID = @mprId;
+                                -- Reset tất cả về 0
+                                UPDATE MPR_Header SET Is_Latest = 0
+                                WHERE Project_Code = @proj
+                                  AND (MPR_No = @base OR MPR_No LIKE @base + N'_Rev.%');
+                                -- Set MPR có Rev cao nhất (trừ MPR đang xóa) = 1
+                                UPDATE h SET h.Is_Latest = 1
+                                FROM MPR_Header h
+                                INNER JOIN (
+                                    SELECT MAX(Rev) AS MaxRev FROM MPR_Header
+                                    WHERE MPR_ID <> @mprId
+                                      AND Project_Code = @proj
+                                      AND (MPR_No = @base OR MPR_No LIKE @base + N'_Rev.%')
+                                ) mx ON h.Rev = mx.MaxRev
+                                WHERE h.MPR_ID <> @mprId
+                                  AND h.Project_Code = @proj
+                                  AND (h.MPR_No = @base OR h.MPR_No LIKE @base + N'_Rev.%');", conn, tran);
+                            cmdBase.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                            cmdBase.ExecuteNonQuery();
+
+                            // Bước 4: Xóa MPR Header
                             var cmd3 = new SqlCommand(
                                 "DELETE FROM dbo.MPR_Header WHERE MPR_ID = @mprId", conn, tran);
                             cmd3.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
@@ -2693,7 +2741,7 @@ namespace MPR_Managerment.Forms
 
                             string resultMsg = $"✅ Xóa phiếu MPR [{mprNoDisplay}] thành công!\n\n" +
                                                $"   • {detailDeleted} dòng vật tư đã xóa\n" +
-                                               $"   • {poDetailDeleted} liên kết PO_Detail đã xóa";
+                                               $"   • {poDetailUpdated} liên kết PO_Detail đã ngắt (PO được giữ nguyên)";
                             MessageBox.Show(resultMsg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         catch
