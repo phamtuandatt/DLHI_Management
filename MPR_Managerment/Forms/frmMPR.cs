@@ -2128,22 +2128,102 @@ namespace MPR_Managerment.Forms
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RDeleted", Visible = false }); // "1"=xóa mềm
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "ROrigHash", Visible = false }); // snapshot khi load
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RIsNew", Visible = false }); // "1"=dòng mới thêm
+            // Cột đồng bộ với dgvDet (Tạo MPR): STT, Tên hàng, Mô tả, Vật liệu, T,D,W,Web,Flange,L, Vị trí, MPS, REV, DWG, Issue, ĐVT, SL, KG, Ghi chú
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RItem_No", HeaderText = "STT", Width = 40, ReadOnly = true });
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ritem_name", HeaderText = "Tên hàng", Width = 140 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RDesc", HeaderText = "Mô tả", Width = 110 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RDesc", HeaderText = "Mô tả", Width = 120 });
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMaterial", HeaderText = "Vật liệu", Width = 80 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RT_mm", HeaderText = "T(mm)", Width = 50 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RD_mm", HeaderText = "D(mm)", Width = 50 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RW_mm", HeaderText = "W(mm)", Width = 50 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RWeb_mm", HeaderText = "Web", Width = 50 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RFlange_mm", HeaderText = "Flange", Width = 55 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RL_mm", HeaderText = "L(mm)", Width = 55 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RUNIT", HeaderText = "ĐVT", Width = 50 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RT_mm", HeaderText = "T(mm)", Width = 55 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RD_mm", HeaderText = "D(mm)", Width = 55 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RW_mm", HeaderText = "W(mm)", Width = 55 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RWeb_mm", HeaderText = "Web(mm)", Width = 60 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RFlange_mm", HeaderText = "Flange(mm)", Width = 70 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RL_mm", HeaderText = "L(mm)", Width = 60 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RUsage", HeaderText = "Vị trí", Width = 90 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMPS", HeaderText = "MPS", Width = 70 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RREV", HeaderText = "REV", Width = 45, ReadOnly = true });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RDWG", HeaderText = "DWG Date", Width = 80 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RIssue", HeaderText = "Issue Date", Width = 80 });
+            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RUNIT", HeaderText = "Đơn vị", Width = 55 });
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RQty", HeaderText = "SL", Width = 45 });
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RKG", HeaderText = "KG", Width = 55 });
             dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RRemarks", HeaderText = "Ghi chú", Width = 100 });
-            dgvRevDet.Columns.Add(new DataGridViewTextBoxColumn { Name = "RREV", HeaderText = "REV", Width = 40, ReadOnly = true });
             dlg.Controls.Add(dgvRevDet);
+
+            // ── Paste từ Excel vào dgvRevDet (Ctrl+V) ────────────────────
+            dgvRevDet.KeyDown += (s2, ev2) =>
+            {
+                if (!(ev2.Control && ev2.KeyCode == Keys.V)) return;
+                ev2.Handled = true;
+                ev2.SuppressKeyPress = true;
+
+                string clip = Clipboard.GetText();
+                if (string.IsNullOrEmpty(clip)) return;
+
+                dgvRevDet.EndEdit();
+                string[] pasteRows = clip.Split(
+                    new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                if (pasteRows.Length == 0) return;
+
+                // Cột hiển thị có thể paste (bỏ ẩn và ReadOnly)
+                // Thứ tự visible: STT(ro), Tên hàng, Mô tả, Vật liệu, T,D,W,Web,Flange,L, ĐVT,SL,KG, Ghi chú, REV(ro)
+                var pasteCols = new[] {
+                    "Ritem_name", "RDesc", "RMaterial",
+                    "RT_mm", "RD_mm", "RW_mm", "RWeb_mm", "RFlange_mm", "RL_mm",
+                    "RUsage", "RMPS", "RDWG", "RIssue",
+                    "RUNIT", "RQty", "RKG", "RRemarks"
+                };
+
+                // Tìm startCol trong pasteCols từ CurrentCell
+                int startPasteCol = 0;
+                if (dgvRevDet.CurrentCell != null)
+                {
+                    string curName = dgvRevDet.Columns[dgvRevDet.CurrentCell.ColumnIndex].Name;
+                    int ci = System.Array.IndexOf(pasteCols, curName);
+                    if (ci >= 0) startPasteCol = ci;
+                }
+
+                // startRow: ưu tiên CurrentCell, nếu là dòng ẩn/deleted thì xuống
+                int curRowIdx = dgvRevDet.CurrentCell?.RowIndex ?? 0;
+                // Đếm data rows (không tính ẩn)
+                int dataRows = dgvRevDet.Rows.Count - (dgvRevDet.AllowUserToAddRows ? 1 : 0);
+                int startRow = (curRowIdx >= dataRows) ? dataRows : curRowIdx;
+
+                // Bước 1: Pre-add tất cả rows cần thiết
+                int rowsNeeded = startRow + pasteRows.Length - dataRows;
+                dgvRevDet.SuspendLayout();
+                for (int ri = 0; ri < rowsNeeded; ri++)
+                {
+                    dgvRevDet.AllowUserToAddRows = true;
+                    int ni = dgvRevDet.Rows.Add();
+                    dgvRevDet.AllowUserToAddRows = false;
+                    // Đánh dấu dòng mới thêm
+                    dgvRevDet.Rows[ni].Cells["RIsNew"].Value = "1";
+                    dgvRevDet.Rows[ni].Cells["ROrigHash"].Value = "__NEW__";
+                }
+
+                // Bước 2: Ghi data
+                for (int ri2 = 0; ri2 < pasteRows.Length; ri2++)
+                {
+                    string[] cells = pasteRows[ri2].Split('\t');
+                    int targetRow = startRow + ri2;
+                    if (targetRow >= dgvRevDet.Rows.Count) break;
+                    // Bỏ qua dòng bị xóa mềm
+                    if (dgvRevDet.Rows[targetRow].Cells["RDeleted"].Value?.ToString() == "1") continue;
+                    // Đánh dấu dòng cũ được paste vào là có thay đổi
+                    if (dgvRevDet.Rows[targetRow].Cells["RIsNew"].Value?.ToString() != "1")
+                        dgvRevDet.Rows[targetRow].Cells["ROrigHash"].Value = "__CHANGED__";
+                    for (int c = 0; c < cells.Length && startPasteCol + c < pasteCols.Length; c++)
+                    {
+                        string colName = pasteCols[startPasteCol + c];
+                        var col = dgvRevDet.Columns[colName];
+                        if (col != null && !col.ReadOnly)
+                            dgvRevDet.Rows[targetRow].Cells[colName].Value = cells[c].Trim();
+                    }
+                }
+                dgvRevDet.ResumeLayout();
+                dgvRevDet.Refresh();
+            };
 
             // Hiệu ứng: dòng xóa mềm = xám gạch ngang
             dgvRevDet.CellFormatting += (s2, ev2) =>
@@ -2182,6 +2262,12 @@ namespace MPR_Managerment.Forms
                         dgvRevDet.Rows[r].Cells["RWeb_mm"].Value = rdr["D_Web_mm"];
                         dgvRevDet.Rows[r].Cells["RFlange_mm"].Value = rdr["E_Flange_mm"];
                         dgvRevDet.Rows[r].Cells["RL_mm"].Value = rdr["F_Length_mm"];
+                        dgvRevDet.Rows[r].Cells["RUsage"].Value = rdr["Usage_Location"];
+                        dgvRevDet.Rows[r].Cells["RMPS"].Value = rdr["MPS_Info"];
+                        dgvRevDet.Rows[r].Cells["RDWG"].Value = rdr["DWG_BOQ_Receive_Date"] != DBNull.Value
+                            ? Convert.ToDateTime(rdr["DWG_BOQ_Receive_Date"]).ToString("dd/MM/yyyy") : "";
+                        dgvRevDet.Rows[r].Cells["RIssue"].Value = rdr["Issue_Date"] != DBNull.Value
+                            ? Convert.ToDateTime(rdr["Issue_Date"]).ToString("dd/MM/yyyy") : "";
                         dgvRevDet.Rows[r].Cells["RUNIT"].Value = rdr["UNIT"];
                         dgvRevDet.Rows[r].Cells["RQty"].Value = rdr["Qty_Per_Sheet"];
                         dgvRevDet.Rows[r].Cells["RKG"].Value = rdr["Weight_kg"];
@@ -2191,10 +2277,12 @@ namespace MPR_Managerment.Forms
                         dgvRevDet.Rows[r].Cells["RIsNew"].Value = ""; // dòng từ DB
                         // Chuẩn hóa về string trước khi hash để tránh mismatch type
                         string Norm(object v) => (v == DBNull.Value || v == null) ? "" : v.ToString()!.Trim();
+                        // snap phải có cùng thứ tự/số field với curHash
                         dgvRevDet.Rows[r].Cells["ROrigHash"].Value = string.Join("|",
                             Norm(rdr["item_name"]), Norm(rdr["Description"]), Norm(rdr["Material"]),
                             Norm(rdr["Thickness_mm"]), Norm(rdr["Depth_mm"]), Norm(rdr["C_Width_mm"]),
                             Norm(rdr["D_Web_mm"]), Norm(rdr["E_Flange_mm"]), Norm(rdr["F_Length_mm"]),
+                            Norm(rdr["Usage_Location"]), Norm(rdr["MPS_Info"]),
                             Norm(rdr["UNIT"]), Norm(rdr["Qty_Per_Sheet"]), Norm(rdr["Weight_kg"]),
                             Norm(rdr["Remarks"]));
                     }
@@ -2411,7 +2499,8 @@ namespace MPR_Managerment.Forms
                                 C(row2.Cells["RMaterial"]), C(row2.Cells["RT_mm"]),
                                 C(row2.Cells["RD_mm"]), C(row2.Cells["RW_mm"]),
                                 C(row2.Cells["RWeb_mm"]), C(row2.Cells["RFlange_mm"]),
-                                C(row2.Cells["RL_mm"]), C(row2.Cells["RUNIT"]),
+                                C(row2.Cells["RL_mm"]), C(row2.Cells["RUsage"]),
+                                C(row2.Cells["RMPS"]), C(row2.Cells["RUNIT"]),
                                 C(row2.Cells["RQty"]), C(row2.Cells["RKG"]),
                                 C(row2.Cells["RRemarks"]));
                             bool changed = isNewRow || origHash == "__NEW__" || curHash != origHash;
@@ -2428,7 +2517,7 @@ namespace MPR_Managerment.Forms
                         _service.InsertDetail(new MPRDetail
                         {
                             MPR_ID = targetId,
-                            Item_No = isSoftDeleted ? 0 : stt++, // deleted: Item_No=0
+                            Item_No = isSoftDeleted ? 0 : stt++,
                             Item_Name = nm,
                             Description = row2.Cells["RDesc"].Value?.ToString() ?? "",
                             Material = row2.Cells["RMaterial"].Value?.ToString() ?? "",
@@ -2438,6 +2527,10 @@ namespace MPR_Managerment.Forms
                             D_Web_mm = decimal.TryParse(row2.Cells["RWeb_mm"].Value?.ToString(), out decimal rDw) ? rDw : 0,
                             E_Flange_mm = decimal.TryParse(row2.Cells["RFlange_mm"].Value?.ToString(), out decimal rEf) ? rEf : 0,
                             F_Length_mm = decimal.TryParse(row2.Cells["RL_mm"].Value?.ToString(), out decimal rFl) ? rFl : 0,
+                            Usage_Location = row2.Cells["RUsage"].Value?.ToString() ?? "",
+                            MPS_Info = row2.Cells["RMPS"].Value?.ToString() ?? "",
+                            DWG_BOQ_Receive_Date = DateTime.TryParse(row2.Cells["RDWG"].Value?.ToString(), out DateTime rDwg) ? rDwg : (DateTime?)null,
+                            Issue_Date = DateTime.TryParse(row2.Cells["RIssue"].Value?.ToString(), out DateTime rIss) ? rIss : (DateTime?)null,
                             UNIT = row2.Cells["RUNIT"].Value?.ToString() ?? "",
                             Qty_Per_Sheet = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RQty"].Value?.ToString(), out decimal rQs) ? rQs : 0),
                             Weight_kg = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RKG"].Value?.ToString(), out decimal rWk) ? rWk : 0),
