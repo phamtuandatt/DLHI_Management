@@ -807,8 +807,9 @@ namespace MPR_Managerment.Forms
             flowDetailBtns.Controls.Add(btnExport);        // Xuất Excel
             flowDetailBtns.Controls.Add(btnCheckBySize);   // Check by size — cạnh Xuất Excel
 
-            var btnCalculartor = CreateButton("🔍 Tính", Color.FromArgb(102, 51, 153), Point.Empty, 110, 28); /*btnCalculartor.Tag = "110,28";*/
+            var btnCalculartor = CreateButton("📠 Tính", Color.FromArgb(102, 51, 153), Point.Empty, 110, 28); /*btnCalculartor.Tag = "110,28";*/
             flowDetailBtns.Controls.Add(btnCalculartor);
+            btnCalculartor.Margin = new Padding(0, 0, 4, 0);
 
             btnCalculartor.Click += (s, e) =>
             {
