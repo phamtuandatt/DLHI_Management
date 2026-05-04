@@ -1804,7 +1804,7 @@ namespace MPR_Managerment.Forms
                         int itemNo = 1;
                         foreach (DataGridViewRow row in dgvDet.Rows)
                             if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
-                        Common.Common.AutoAdjustColumnWidths(dgvDet);
+                        //Common.Common.AutoAdjustColumnWidths(dgvDet);
                     }
                     catch (Exception ex)
                     {

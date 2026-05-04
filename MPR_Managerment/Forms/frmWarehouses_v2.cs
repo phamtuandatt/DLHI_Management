@@ -77,6 +77,7 @@ namespace MPR_Managerment.Forms
         private List<POHead> _poList = new List<POHead>();
         private Label lblStatus;
         private List<object> _makeRequestExport = new List<object>();
+        private List<SelectedItemModel> _selectedItem = new List<SelectedItemModel>();
 
         public frmWarehouses_v2(string targetPONo = "")
         {
@@ -1486,6 +1487,35 @@ namespace MPR_Managerment.Forms
             dgvStock.CellFormatting += DgvStock_CellFormatting;
             dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick;
             dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
+            dgvStock.CellValueChanged += (s, e) =>
+            {
+                if (dgvStock.Columns[e.ColumnIndex].Name == "Chon" && e.RowIndex >= 0)
+                {
+                    bool isChecked = Convert.ToBoolean(dgvStock.Rows[e.RowIndex].Cells["Chon"].Value);
+                    int importId = Convert.ToInt32(dgvStock.Rows[e.RowIndex].Cells["Import_ID"]?.Value?.ToString()?.Trim() ?? "0");
+
+                    if (isChecked)
+                    {
+                        if (_selectedItem.Any(i => i.Import_ID == importId)) return;
+                        _selectedItem.Add(new SelectedItemModel
+                        {
+                            Import_ID = importId,
+                            Ma_Phieu = dgvStock.Rows[e.RowIndex].Cells["Ma_Phieu"].Value?.ToString() ?? "",
+                            Ten_Vat_Tu = dgvStock.Rows[e.RowIndex].Cells["Ten_Vat_Tu"].Value?.ToString() ?? "",
+                            Vat_Lieu = dgvStock.Rows[e.RowIndex].Cells["Vat_Lieu"].Value?.ToString() ?? "",
+                            Kich_Thuoc = dgvStock.Rows[e.RowIndex].Cells["Kich_Thuoc"].Value?.ToString() ?? "",
+                            DVT = dgvStock.Rows[e.RowIndex].Cells["DVT"].Value?.ToString() ?? "",
+                            Item_Code = dgvStock.Rows[e.RowIndex].Cells["Item_Code"].Value?.ToString() ?? "",
+                            SL_Ton = Convert.ToDecimal(dgvStock.Rows[e.RowIndex].Cells["SL_Ton"].Value),
+                            SL_Xuat = 0
+                        });
+                    }
+                    else
+                    {
+                        _selectedItem.RemoveAll(impId => impId.Import_ID == importId);
+                    }
+                }
+            };
             gbHeader.Controls.Add(dgvStock);
 
             // 1. Khởi tạo ContextMenuStrip
@@ -1598,35 +1628,59 @@ namespace MPR_Managerment.Forms
             lblStatus = AddStatLbl(panelStockSummary, "Số lượng:", "0 kg", Color.FromArgb(254, 0, 51), 730);
         }
 
+        private void SyncDataGridViewWithList(DataGridView dgv, List<SelectedItemModel> selectedItem)
+        {
+            // 1. Kiểm tra điều kiện đầu vào
+            if (dgv.Rows.Count == 0 || selectedItem == null) return;
+
+            // 2. Tối ưu hiệu suất: Chuyển List ID sang HashSet để tìm kiếm nhanh O(1)
+            // Thay vì duyệt List nhiều lần, HashSet giúp kiểm tra sự tồn tại tức thì.
+            var selectedIds = new HashSet<int>(selectedItem.Select(p => p.Import_ID));
+
+            // 3. Tạm dừng vẽ giao diện để tăng tốc độ xử lý nếu dữ liệu cực lớn (tùy chọn)
+            // dgv.SuspendLayout(); 
+
+            try
+            {
+                // Kết thúc biên tập ô để đảm bảo dữ liệu đồng bộ
+                dgv.EndEdit();
+
+                foreach (DataGridViewRow row in dgv.Rows)
+                {
+                    // Bỏ qua dòng trống mới (nếu có)
+                    if (row.IsNewRow) continue;
+
+                    // Lấy giá trị ID từ cột "ID" của dòng hiện tại
+                    if (row.Cells["Import_ID"].Value != null && int.TryParse(row.Cells["Import_ID"].Value.ToString(), out int rowId))
+                    {
+                        // Nếu ID của dòng nằm trong danh sách chọn, tích checkbox "Chon"
+                        if (selectedIds.Contains(rowId))
+                        {
+                            row.Cells["Chon"].Value = true;
+                        }
+                        else
+                        {
+                            row.Cells["Chon"].Value = false;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Có lỗi xảy ra: " + ex.Message);
+            }
+            finally
+            {
+                // dgv.ResumeLayout();
+            }
+        }
+
         private void btnLayDuLieu_Click()
         {
             // 1. Kết thúc việc biên tập ô hiện tại trên lưới gốc
             dgvStock.EndEdit();
 
-            // 2. Lấy danh sách các dòng được check
-            List<SelectedItemModel> selectedItems = new List<SelectedItemModel>();
-            foreach (DataGridViewRow row in dgvStock.Rows)
-            {
-                if (row.IsNewRow) continue;
-                bool isChecked = Convert.ToBoolean(row.Cells["Chon"].Value);
-                if (isChecked)
-                {
-                    selectedItems.Add(new SelectedItemModel
-                    {
-                        Import_ID = row.Cells["Import_ID"].Value,
-                        Ma_Phieu = row.Cells["Ma_Phieu"].Value?.ToString(),
-                        Ten_Vat_Tu = row.Cells["Ten_Vat_Tu"].Value?.ToString(),
-                        Vat_Lieu = row.Cells["Vat_Lieu"].Value?.ToString(),
-                        Kich_Thuoc = row.Cells["Kich_Thuoc"].Value?.ToString(),
-                        DVT = row.Cells["DVT"].Value?.ToString(),
-                        Item_Code = row.Cells["Item_Code"].Value?.ToString(),
-                        SL_Ton = Convert.ToDecimal(row.Cells["SL_Ton"].Value),
-                        SL_Xuat = 0
-                    });
-                }
-            }
-
-            if (selectedItems.Count > 0)
+            if (_selectedItem.Count > 0)
             {
                 using (Form dlg = new Form())
                 {
@@ -1705,7 +1759,7 @@ namespace MPR_Managerment.Forms
                     };
 
                     // Nạp dữ liệu vào Grid
-                    foreach (var d in selectedItems)
+                    foreach (var d in _selectedItem)
                         dgvSelected.Rows.Add(d.Import_ID, d.Ma_Phieu, d.Ten_Vat_Tu, d.Vat_Lieu, d.Kich_Thuoc, d.DVT, d.Item_Code, d.SL_Ton, d.SL_Xuat);
 
                     // Định dạng cột SL_Xuat
@@ -2004,7 +2058,11 @@ namespace MPR_Managerment.Forms
             try
             {
                 if (dgvStock == null) return;
-                if ((isRefesh)) txtSearchStock.Text = "";
+                if ((isRefesh))
+                {
+                    txtSearchStock.Text = "";
+                    _selectedItem.Clear();
+                }
                 string kw = txtSearchStock?.Text.Trim() ?? "";
                 string project = (cboProjectFilter != null && cboProjectFilter.SelectedIndex > 0) ? cboProjectFilter.SelectedItem.ToString() : "";
                 BindStockGrid(_service.GetStock(project, kw));
@@ -2132,6 +2190,7 @@ namespace MPR_Managerment.Forms
 
             // Thủ thuật nhỏ: Để CheckBox phản hồi click chuột ngay lập tức (không cần click 2 lần)
             dgvStock.EditMode = DataGridViewEditMode.EditOnEnter;
+            SyncDataGridViewWithList(dgvStock, _selectedItem);
         }
 
         private void BuildQueueColumns()
@@ -3118,7 +3177,7 @@ namespace MPR_Managerment.Forms
 
     public class SelectedItemModel
     {
-        public object Import_ID { get; set; }
+        public int Import_ID { get; set; }
         public string Ma_Phieu { get; set; }
         public string Ten_Vat_Tu { get; set; }
         public string Vat_Lieu { get; set; }

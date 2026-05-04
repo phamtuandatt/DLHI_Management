@@ -25,6 +25,8 @@ namespace MPR_Managerment.Forms.MPRGUI
         private DataTable _dtItems = new DataTable();
         public List<ProductModel> selectedItems { get; set; } = new List<ProductModel>();
 
+        public List<ProductModel> selectedProducts { get; set; } = new List<ProductModel>();
+
         public ProductModel ProductModel { get; set; }
         public int CheckedQuanty = 0;
 
@@ -106,19 +108,37 @@ namespace MPR_Managerment.Forms.MPRGUI
                 if (dgvItems.Columns[e.ColumnIndex].Name == "Chon" && e.RowIndex >= 0)
                 {
                     bool isChecked = Convert.ToBoolean(dgvItems.Rows[e.RowIndex].Cells["Chon"].Value);
-
+                    int Id = Convert.ToInt32(dgvItems.Rows[e.RowIndex].Cells["Id"]?.Value?.ToString()?.Trim() ?? "0");
                     if (isChecked)
                     {
                         CheckedQuanty++; // Người dùng check -> +1
+                        if (selectedProducts.Any(i => i.Id == Id)) return;
+                        selectedProducts.Add(new ProductModel
+                        {
+                            Id = Id,
+                            Name = dgvItems.Rows[e.RowIndex].Cells["name"].Value?.ToString() ?? "",
+                            Des2 = dgvItems.Rows[e.RowIndex].Cells["des_2"].Value?.ToString() ?? "",
+                            Code = dgvItems.Rows[e.RowIndex].Cells["code"].Value?.ToString() ?? "",
+                            ProdMaterialCode = dgvItems.Rows[e.RowIndex].Cells["prod_material_code"].Value?.ToString() ?? "",
+                            A_Thickness = dgvItems.Rows[e.RowIndex].Cells["a_thinkness"].Value?.ToString() ?? "",
+                            B_Depth = dgvItems.Rows[e.RowIndex].Cells["b_depth"].Value?.ToString() ?? "",
+                            C_Width = dgvItems.Rows[e.RowIndex].Cells["c_witdth"].Value?.ToString() ?? "",
+                            D_Web = dgvItems.Rows[e.RowIndex].Cells["d_web"].Value?.ToString() ?? "",
+                            E_Flag = dgvItems.Rows[e.RowIndex].Cells["e_flag"].Value?.ToString() ?? "",
+                            F_Length = dgvItems.Rows[e.RowIndex].Cells["f_length"].Value?.ToString() ?? "",
+                            G_Weight = dgvItems.Rows[e.RowIndex].Cells["g_weight"].Value?.ToString() ?? "",
+                        });
                     }
                     else
                     {
                         // Chỉ trừ nếu biến đang lớn hơn 0 để tránh số âm ngoài ý muốn
                         if (CheckedQuanty > 0) CheckedQuanty--;
+                        int id = Convert.ToInt32(dgvItems.Rows[e.RowIndex].Cells["Id"]?.Value?.ToString()?.Trim() ?? "0");
+                        selectedProducts.RemoveAll(p => p.Id == id);
                     }
 
                     // Hiển thị lên giao diện
-                    lblStatus.Text = $"Đã chọn: {CheckedQuanty} vật tư";
+                    lblStatus.Text = $"Đã chọn: {selectedProducts.Count} vật tư";
                 }
 
             };
@@ -131,6 +151,53 @@ namespace MPR_Managerment.Forms.MPRGUI
                     dgvItems.CommitEdit(DataGridViewDataErrorContexts.Commit);
                 }
             };
+        }
+
+        private void SyncDataGridViewWithList(DataGridView dgv, List<ProductModel> selectedProducts)
+        {
+            // 1. Kiểm tra điều kiện đầu vào
+            if (dgv.Rows.Count == 0 || selectedProducts == null) return;
+
+            // 2. Tối ưu hiệu suất: Chuyển List ID sang HashSet để tìm kiếm nhanh O(1)
+            // Thay vì duyệt List nhiều lần, HashSet giúp kiểm tra sự tồn tại tức thì.
+            var selectedIds = new HashSet<int>(selectedProducts.Select(p => p.Id));
+
+            // 3. Tạm dừng vẽ giao diện để tăng tốc độ xử lý nếu dữ liệu cực lớn (tùy chọn)
+            // dgv.SuspendLayout(); 
+
+            try
+            {
+                // Kết thúc biên tập ô để đảm bảo dữ liệu đồng bộ
+                dgv.EndEdit();
+
+                foreach (DataGridViewRow row in dgv.Rows)
+                {
+                    // Bỏ qua dòng trống mới (nếu có)
+                    if (row.IsNewRow) continue;
+
+                    // Lấy giá trị ID từ cột "ID" của dòng hiện tại
+                    if (row.Cells["Id"].Value != null && int.TryParse(row.Cells["Id"].Value.ToString(), out int rowId))
+                    {
+                        // Nếu ID của dòng nằm trong danh sách chọn, tích checkbox "Chon"
+                        if (selectedIds.Contains(rowId))
+                        {
+                            row.Cells["Chon"].Value = true;
+                        }
+                        else
+                        {
+                            row.Cells["Chon"].Value = false;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Có lỗi xảy ra: " + ex.Message);
+            }
+            finally
+            {
+                // dgv.ResumeLayout();
+            }
         }
 
         private async Task LoadItems()
@@ -234,6 +301,8 @@ namespace MPR_Managerment.Forms.MPRGUI
             // Gán DataSource là DataTable/DataView chứa cột 'Chon'
             dgvItems.DataSource = models;
 
+            SyncDataGridViewWithList(dgvItems, selectedProducts);
+
             // Ẩn các cột ID và cấu hình hiển thị
             foreach (DataGridViewColumn column in dgvItems.Columns)
             {
@@ -245,6 +314,7 @@ namespace MPR_Managerment.Forms.MPRGUI
             }
 
             dgvItems.EditMode = DataGridViewEditMode.EditOnEnter;
+            lblStatus.Text = $"Đã chọn: {selectedProducts.Count} vật tư";
         }
 
         private void DgvItems_CellContentClick(object? sender, DataGridViewCellEventArgs e)
@@ -321,36 +391,39 @@ namespace MPR_Managerment.Forms.MPRGUI
             dgvItems.DataSource = dv;
 
             // Cập nhật lại số lượng đã chọn sau khi search
-            CalculateCheckedData();
+            //CalculateCheckedData();
+            SyncDataGridViewWithList(dgvItems, selectedProducts);
+            lblStatus.Text = $"Đã chọn: {selectedProducts.Count} vật tư";
         }
 
         private void btnSelect_Click(object sender, EventArgs e)
         {
             dgvItems.EndEdit();
             selectedItems = new List<ProductModel>();
-            foreach (DataGridViewRow row in dgvItems.Rows)
-            {
-                if (row.IsNewRow) continue;
-                bool isChecked = Convert.ToBoolean(row.Cells["Chon"].Value);
-                if (isChecked)
-                {
-                    selectedItems.Add(new ProductModel
-                    {
-                        Id = Convert.ToInt32(row.Cells["Id"].Value.ToString().Trim()),
-                        Name = row.Cells["name"].Value?.ToString(),
-                        Des2 = row.Cells["des_2"].Value?.ToString(),
-                        Code = row.Cells["code"].Value?.ToString(),
-                        ProdMaterialCode = row.Cells["prod_material_code"].Value?.ToString(),
-                        A_Thickness = row.Cells["a_thinkness"].Value?.ToString(),
-                        B_Depth = row.Cells["b_depth"].Value?.ToString(),
-                        C_Width = row.Cells["c_witdth"].Value?.ToString(),
-                        D_Web = row.Cells["d_web"].Value?.ToString(),
-                        E_Flag = row.Cells["e_flag"].Value?.ToString(),
-                        F_Length = row.Cells["f_length"].Value?.ToString(),
-                        G_Weight = row.Cells["g_weight"].Value?.ToString(),
-                    });
-                }
-            }
+            //foreach (DataGridViewRow row in dgvItems.Rows)
+            //{
+            //    if (row.IsNewRow) continue;
+            //    bool isChecked = Convert.ToBoolean(row.Cells["Chon"].Value);
+            //    if (isChecked)
+            //    {
+            //        selectedItems.Add(new ProductModel
+            //        {
+            //            Id = Convert.ToInt32(row.Cells["Id"].Value.ToString().Trim()),
+            //            Name = row.Cells["name"].Value?.ToString(),
+            //            Des2 = row.Cells["des_2"].Value?.ToString(),
+            //            Code = row.Cells["code"].Value?.ToString(),
+            //            ProdMaterialCode = row.Cells["prod_material_code"].Value?.ToString(),
+            //            A_Thickness = row.Cells["a_thinkness"].Value?.ToString(),
+            //            B_Depth = row.Cells["b_depth"].Value?.ToString(),
+            //            C_Width = row.Cells["c_witdth"].Value?.ToString(),
+            //            D_Web = row.Cells["d_web"].Value?.ToString(),
+            //            E_Flag = row.Cells["e_flag"].Value?.ToString(),
+            //            F_Length = row.Cells["f_length"].Value?.ToString(),
+            //            G_Weight = row.Cells["g_weight"].Value?.ToString(),
+            //        });
+            //    }
+            //}
+            selectedItems = selectedProducts;
             this.Close();
         }
 
@@ -369,27 +442,9 @@ namespace MPR_Managerment.Forms.MPRGUI
                 // Set the cell value to false (unchecked)
                 row.Cells["Chon"].Value = false;
             }
-            CalculateCheckedData();
+            selectedProducts.Clear();
+            SyncDataGridViewWithList(dgvItems, selectedProducts);
+            lblStatus.Text = $"Đã chọn: {selectedProducts.Count} vật tư";
         }
-
-        private void CalculateCheckedData()
-        {
-            int count = 0;
-
-            foreach (DataGridViewRow row in dgvItems.Rows)
-            {
-                // Replace "CheckColumn" with the Name or Index of your checkbox column
-                bool isChecked = Convert.ToBoolean(row.Cells["Chon"].Value);
-
-                if (isChecked)
-                {
-                    count++;
-                }
-            }
-
-            // Display results in Labels
-            lblStatus.Text = $"Đã chọn: {count} vật tư";
-        }
-
     }
 }
