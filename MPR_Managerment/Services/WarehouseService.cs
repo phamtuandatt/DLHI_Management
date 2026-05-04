@@ -107,18 +107,19 @@ namespace MPR_Managerment.Services
             }
         }
 
-        public void UpdateMaterialDetail(int material_detail_id, string item_code_existed)
+        public void UpdateMaterialDetail(int material_detail_id, string item_code_existed, string item_number)
         {
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                var cmd = new SqlCommand(@"
-                    UPDATE Material_Detail
-                        SET item_code_existed = @item_code_existed
-                    WHERE material_detail_id = @material_detail_id", conn);
+                string sql = @$"UPDATE Material_Detail SET";
+                if (!string.IsNullOrEmpty(item_code_existed))
+                    sql += $" item_code_existed = '{item_code_existed}'";
+                if (!string.IsNullOrEmpty(item_number))
+                    sql += $" ,material_detail_number = '{item_number}'";
+                sql += $" WHERE material_detail_id = {material_detail_id}";
 
-                cmd.Parameters.AddWithValue("@item_code_existed", item_code_existed);
-                cmd.Parameters.AddWithValue("@material_detail_id", material_detail_id);
+                var cmd = new SqlCommand(sql, conn);
 
                 cmd.ExecuteNonQuery();
             }
@@ -464,7 +465,7 @@ namespace MPR_Managerment.Services
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                string sql = "SELECT * FROM vw_Warehouse_Stock WHERE 1=1";
+                string sql = "SELECT * FROM vw_Warehouse_Stock_V2 WHERE 1=1";
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 if (!string.IsNullOrEmpty(keyword))
@@ -643,6 +644,7 @@ namespace MPR_Managerment.Services
 
                 QC_Code = r["QC_Code"]?.ToString() ?? "",
                 QC_Status = r["QC_Status"]?.ToString() ?? "",
+                Remarks = r["Remarks"]?.ToString() ?? ""
             };
         }
     }

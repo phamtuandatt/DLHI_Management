@@ -29,5 +29,6 @@ namespace MPR_Managerment.Models
 
         public string QC_Code { get; set; } = "";
         public string QC_Status { get; set; } = "";
+        public string Remarks { get; set; } = "";
     }
 }

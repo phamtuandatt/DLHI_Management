@@ -2095,12 +2095,13 @@ namespace MPR_Managerment.Forms
                 Item_Code = s.ID_Code,
                 PO_No = s.PONo,
                 Ma_DA = s.Project_Code,
-                Vi_Tri = s.Location,
+                //Vi_Tri = s.Location,
                 SL_Nhap = s.Qty_Import,
                 SL_Xuat = s.Qty_Exported,
                 SL_Ton = s.Qty_Stock,
                 QC_Code = s.QC_Code,
-                QC_Status = s.QC_Status
+                QC_Status = s.QC_Status,
+                Remarks = s.Remarks
             }).ToList();
 
             // Thiết lập ReadOnly cho tất cả các cột ngoại trừ cột "Chon"

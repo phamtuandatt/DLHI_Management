@@ -445,9 +445,9 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                     Label lblItemCode = new Label() { Text = "Item Code:", Location = new Point(20, startY), AutoSize = true };
                     TextBox txtItemCode = new TextBox() { Location = new Point(150, startY - 3), Size = new Size(200, 25) };
 
-                    //// Qty_Import
-                    //Label lblQty = new Label() { Text = "Qty_Import:", Location = new Point(20, startY + spacing), AutoSize = true };
-                    //TextBox txtQty = new TextBox() { Location = new Point(150, startY + spacing - 3), Size = new Size(200, 25) };
+                    // Qty_Import
+                    Label lblItemNumber = new Label() { Text = "Item number:", Location = new Point(20, startY + spacing), AutoSize = true };
+                    TextBox txtItemNumber = new TextBox() { Location = new Point(150, startY + spacing - 3), Size = new Size(200, 25) };
 
                     //// Weight_kg
                     //Label lblWeight = new Label() { Text = "Weight_kg:", Location = new Point(20, startY + (spacing * 2)), AutoSize = true };
@@ -490,7 +490,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                     {
                         //[cite_start]// Truy xuất giá trị từ các TextBox [cite: 108, 111]
                         string itemCode = txtItemCode.Text;
-                        //string qty = txtQty.Text;
+                        string itemNumber = txtItemNumber.Text;
                         //string weight = txtWeight.Text;
                         //string sizeValue = txtSize.Text;
                         //string name = txtName.Text;
@@ -498,10 +498,8 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                         var material_detail_id = dgvItemExist.CurrentRow.Cells[0].Value;
                         var item_code = txtItemCode.Text.Trim().Substring(0, 9);
 
-                        if (!string.IsNullOrEmpty(txtItemCode.Text))
-                        {
-                            _warehouseServices.UpdateMaterialDetail(Convert.ToInt32(material_detail_id), item_code);
-                        }
+                        _warehouseServices.UpdateMaterialDetail(Convert.ToInt32(material_detail_id), item_code, itemNumber);
+
                         //if (!string.IsNullOrEmpty(txtQty.Text))
                         //{
                         //    _service.ModifyQtyImportOfWarehouseImport(w);
@@ -534,7 +532,7 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
                     // --- 5. Thêm Controls vào Form và hiển thị ---
                     frm.Controls.AddRange(new Control[] {
                         lblItemCode, txtItemCode,
-                        //lblQty, txtQty,
+                        lblItemNumber, txtItemNumber,
                         //lblWeight, txtWeight,
                         //lblSize, txtSize,
                         //lblName, txtName,
