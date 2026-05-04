@@ -292,10 +292,10 @@ namespace MPR_Managerment.Forms.MPRGUI
                 checkColumn.DataPropertyName = "Chon"; // Map trực tiếp với cột trong DataTable
                 dgvItems.Columns.Add(checkColumn);
 
-                DataGridViewImageColumn imgCol = new DataGridViewImageColumn();
-                imgCol.HeaderText = "Hình ảnh";
-                imgCol.Name = "imgColumn";
-                dgvItems.Columns.Add(imgCol);
+                //DataGridViewImageColumn imgCol = new DataGridViewImageColumn();
+                //imgCol.HeaderText = "Hình ảnh";
+                //imgCol.Name = "imgColumn";
+                //dgvItems.Columns.Add(imgCol);
             }
 
             // Gán DataSource là DataTable/DataView chứa cột 'Chon'
@@ -312,6 +312,8 @@ namespace MPR_Managerment.Forms.MPRGUI
                 // Cấu hình các cột hiển thị đẹp hơn (tùy chọn)
                 if (column.Name == "Chon") column.DisplayIndex = 0;
             }
+            dgvItems.Columns["picture_link"].Visible = false;
+            dgvItems.Columns["picture"].Visible = false;
 
             dgvItems.EditMode = DataGridViewEditMode.EditOnEnter;
             lblStatus.Text = $"Đã chọn: {selectedProducts.Count} vật tư";

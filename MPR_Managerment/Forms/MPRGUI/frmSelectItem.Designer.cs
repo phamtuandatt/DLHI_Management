@@ -223,6 +223,7 @@
             dgvItems.Dock = DockStyle.Fill;
             dgvItems.Location = new Point(3, 23);
             dgvItems.Name = "dgvItems";
+            dgvItems.ReadOnly = true;
             dgvItems.RowTemplate.Height = 30;
             dgvItems.Size = new Size(1195, 468);
             dgvItems.TabIndex = 0;
