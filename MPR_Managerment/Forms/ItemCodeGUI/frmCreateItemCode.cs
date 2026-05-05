@@ -153,10 +153,18 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             // 4. Gán nguồn dữ liệu cho ComboBox
             // Lưu ý: Phải gán DisplayMember và ValueMember TRƯỚC khi gán DataSource
             cboStandard.DataSource = null; // Clear dữ liệu cũ nếu có
-            cboStandard.DisplayMember = "NAME";
-            cboStandard.ValueMember = "ID";
-            cboStandard.DataSource = dtCbo;
+            //cboStandard.DisplayMember = "NAME";
+            //cboStandard.ValueMember = "ID";
+            //cboStandard.DataSource = dtCbo;
             _isStandardLoaded = true;
+
+            Common.Common.SetupComboBoxSearchUsingDataTable(cboStandard, dtCbo, "NAME", "ID");
+            cboStandard.TextUpdate += CboStandard_TextUpdate;
+        }
+
+        private void CboStandard_TextUpdate(object? sender, EventArgs e)
+        {
+            Common.Common.ComboBoxTextUpdateForDataTable(sender, e);
         }
 
         private async Task LoadMaterialByCate(int cateId)
@@ -185,9 +193,16 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
             // 4. Gán nguồn dữ liệu cho ComboBox
             // Lưu ý: Phải gán DisplayMember và ValueMember TRƯỚC khi gán DataSource
             cboMaterial.DataSource = null; // Clear dữ liệu cũ nếu có
-            cboMaterial.DisplayMember = "NAME";
-            cboMaterial.ValueMember = "ID";
-            cboMaterial.DataSource = dtCbo;
+            //cboMaterial.DisplayMember = "NAME";
+            //cboMaterial.ValueMember = "ID";
+            //cboMaterial.DataSource = dtCbo;
+            Common.Common.SetupComboBoxSearchUsingDataTable(cboMaterial, dtCbo, "NAME", "ID");
+            cboMaterial.TextUpdate += CboMaterial_TextUpdate; ;
+        }
+
+        private void CboMaterial_TextUpdate(object? sender, EventArgs e)
+        {
+            Common.Common.ComboBoxTextUpdateForDataTable(sender, e);
         }
 
         private void panel1_Paint(object sender, PaintEventArgs e)

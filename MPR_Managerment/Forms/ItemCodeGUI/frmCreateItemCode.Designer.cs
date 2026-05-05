@@ -472,8 +472,6 @@
             // 
             // cboMaterial
             // 
-            cboMaterial.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
-            cboMaterial.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboMaterial.Dock = DockStyle.Fill;
             cboMaterial.FormattingEnabled = true;
             cboMaterial.Location = new Point(126, 6);

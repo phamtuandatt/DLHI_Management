@@ -79,6 +79,8 @@ namespace MPR_Managerment.Forms
         private List<object> _makeRequestExport = new List<object>();
         private List<SelectedItemModel> _selectedItem = new List<SelectedItemModel>();
 
+        private List<string> originalPOList = new List<string>();
+
         public frmWarehouses_v2(string targetPONo = "")
         {
             _targetPONo = targetPONo; // Tham số nhận từ màn hình Dashboard
@@ -619,16 +621,18 @@ namespace MPR_Managerment.Forms
                 Location = new Point(290, 33),
                 AutoSize = true
             };
-            cboPONo = new ComboBox()
-            {
-                Name = "cbPONo",
-                Location = new Point(350, 30),
-                Width = 200,
-                DropDownStyle = ComboBoxStyle.DropDown,
-                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
-                AutoCompleteSource = AutoCompleteSource.ListItems
-            };
+            //cboPONo = new ComboBox()
+            //{
+            //    Name = "cbPONo",
+            //    Location = new Point(350, 30),
+            //    Width = 200,
+            //    DropDownStyle = ComboBoxStyle.DropDown,
+            //    AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+            //    AutoCompleteSource = AutoCompleteSource.ListItems
+            //};
             //cboPONo.Validating += CboPONo_Validating;
+            cboPONo = Common.Common.CreateCombox("cboPONo", new Point(350, 30), 200);
+            cboPONo.TextUpdate += CboPONo_TextUpdate;
 
             btnSearch = new Button()
             {
@@ -651,6 +655,11 @@ namespace MPR_Managerment.Forms
                 FlatStyle = FlatStyle.Flat,
             };
             gbHeader.Controls.AddRange(new Control[] { lblProject, cboProject, lblPONo, cboPONo, btnSearch, btnCancelSearch });
+        }
+
+        private void CboPONo_TextUpdate(object? sender, EventArgs e)
+        {
+            Common.Common.ComboBoxTextUpdateForListItem(sender, e, originalPOList);
         }
 
         private void CboPONo_Validating(object? sender, CancelEventArgs e)
@@ -2755,10 +2764,12 @@ namespace MPR_Managerment.Forms
                     cboFilterPO.SelectedIndex = 0;
                     return;
                 }
+                originalPOList.Clear();
                 foreach (var po in filtered)
                 {
                     cboPONo.Items.Add(po.PONo);
                     //cboFilterPO.Items.Add(po.PONo);
+                    originalPOList.Add(po.PONo);
                 }
                 cboPONo.SelectedIndex = 0;
                 //cboFilterPO.SelectedIndex = 0;

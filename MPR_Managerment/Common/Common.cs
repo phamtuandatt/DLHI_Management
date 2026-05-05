@@ -11,6 +11,101 @@ namespace MPR_Managerment.Common
     public static class Common
     {
         private static readonly System.Globalization.CultureInfo _numCulture = new System.Globalization.CultureInfo("vi-VN");
+
+        public static void ComboBoxTextUpdateForListItem(object? sender, EventArgs e, List<string> itemList)
+        {
+            ComboBox cb = sender as ComboBox;
+            string typedText = cb.Text;
+
+            // Nếu trống thì hiện lại toàn bộ danh sách
+            if (string.IsNullOrWhiteSpace(typedText) || typedText == "-- Chọn PO --")
+            {
+                cb.Items.Clear();
+                cb.Items.Add("-- Chọn PO --");
+                cb.Items.AddRange(itemList.ToArray());
+            }
+            else
+            {
+                // Lọc danh sách gốc theo điều kiện "Contains"
+                var filtered = itemList
+                    .Where(x => x.IndexOf(typedText, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+
+                cb.Items.Clear();
+                cb.Items.AddRange(filtered.ToArray());
+            }
+
+            // Giữ trạng thái hiển thị
+            cb.DroppedDown = true;
+            cb.Text = typedText;
+            cb.SelectionStart = typedText.Length; // Đưa con trỏ về cuối văn bản
+            Cursor.Current = Cursors.Default;
+        }
+
+        public static ComboBox CreateCombox(string cboName, Point location, int width = 200)
+        {
+            ComboBox cb = new ComboBox()
+            {
+                Name = cboName,
+                Location = location,
+                Width = width,
+                DropDownStyle = ComboBoxStyle.DropDown,
+                // Quan trọng: Để tự xử lý search "Contains", ta tắt AutoComplete mặc định
+                AutoCompleteMode = AutoCompleteMode.None
+            };
+            return cb;
+        }
+
+        public static void ComboBoxTextUpdateForDataTable(object? sender, EventArgs e)
+        {
+            ComboBox cb = sender as ComboBox;
+            string filterText = cb.Text;
+
+            if (string.IsNullOrWhiteSpace(filterText))
+            {
+                (cb.DataSource as DataView).RowFilter = "";
+                cb.SelectedIndex = 0;
+            }
+            else
+            {
+                // Lọc các item có chứa (Contains) chuỗi nhập vào
+                (cb.DataSource as DataView).RowFilter = $"{cb.DisplayMember} LIKE '%{filterText}%'";
+            }
+
+            // Giữ cho Dropdown luôn mở và cập nhật text người dùng đang gõ
+            cb.DroppedDown = true;
+            cb.Text = filterText;
+            cb.SelectionStart = filterText.Length;
+            Cursor.Current = Cursors.Default;
+        }
+
+        public static ComboBox CreateComboxUsingDataTable(DataTable dtSource, string displayMember, string valueMember, string cboName, Point location, int width = 200)
+        {
+            ComboBox cb = new ComboBox()
+            {
+                Name = cboName,
+                Location = location,
+                Width = width,
+                DropDownStyle = ComboBoxStyle.DropDown,
+                // Lưu ý: Tắt AutoComplete mặc định của Windows để dùng Custom Filter bên dưới
+                AutoCompleteMode = AutoCompleteMode.None,
+                DataSource = dtSource.DefaultView,
+                DisplayMember = displayMember,
+                ValueMember = valueMember
+            };
+            return cb;
+        }
+
+        public static void SetupComboBoxSearchUsingDataTable(ComboBox cb, DataTable dtSource, string displayMember, string valueMember)
+        {
+            cb.DropDownStyle = ComboBoxStyle.DropDown;
+            // Lưu ý: Tắt AutoComplete mặc định của Windows để dùng Custom Filter bên dưới
+            cb.AutoCompleteMode = AutoCompleteMode.None;
+            cb.DataSource = dtSource.DefaultView;
+            cb.DisplayMember = displayMember;
+            cb.ValueMember = valueMember;
+        }
+
         public static void AutoAdjustColumnWidths(DataGridView dgvDetails)
         {
             if (dgvDetails.Columns.Count == 0) return;
