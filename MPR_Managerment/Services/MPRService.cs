@@ -18,29 +18,11 @@ namespace MPR_Managerment.Services
                 conn.Open();
                 var cmd = new SqlCommand(@"
                     SELECT MPR_ID, MPR_No, Project_Name, Project_Code,
-                           Department, Requestor, Rev, Required_Date,
+                           Department, Requestor,
+                           ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) AS Rev,
+                           Required_Date,
                            Status, Total_Amount, Notes, Created_Date, Created_By
                     FROM MPR_Header
-                    ORDER BY Created_Date DESC", conn);
-                using (var r = cmd.ExecuteReader())
-                    while (r.Read()) list.Add(MapHeader(r));
-            }
-            return list;
-        }
-
-        // ===== GET LATEST ONLY — chỉ MPR mới nhất (Is_Latest=1) =====
-        public List<MPRHeader> GetLatestOnly()
-        {
-            var list = new List<MPRHeader>();
-            using (var conn = DatabaseHelper.GetConnection())
-            {
-                conn.Open();
-                var cmd = new SqlCommand(@"
-                    SELECT MPR_ID, MPR_No, Project_Name, Project_Code,
-                           Department, Requestor, Rev, Required_Date,
-                           Status, Total_Amount, Notes, Created_Date, Created_By
-                    FROM MPR_Header
-                    WHERE Is_Latest = 1
                     ORDER BY Created_Date DESC", conn);
                 using (var r = cmd.ExecuteReader())
                     while (r.Read()) list.Add(MapHeader(r));
@@ -57,7 +39,9 @@ namespace MPR_Managerment.Services
                 conn.Open();
                 var cmd = new SqlCommand(@"
                     SELECT MPR_ID, MPR_No, Project_Name, Project_Code,
-                           Department, Requestor, Rev, Required_Date,
+                           Department, Requestor,
+                           ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) AS Rev,
+                           Required_Date,
                            Status, Total_Amount, Notes, Created_Date, Created_By
                     FROM MPR_Header
                     WHERE MPR_No LIKE @kw OR Project_Name LIKE @kw OR Project_Code LIKE @kw
@@ -78,10 +62,10 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand(@"
                     INSERT INTO MPR_Header
                         (MPR_No, Project_Name, Project_Code, Department, Requestor,
-                         Rev, Required_Date, Status, Notes, Created_By, Created_Date, Is_Latest)
+                         Rev, Required_Date, Status, Notes, Created_By, Created_Date)
                     VALUES
                         (@MPR_No, @Project_Name, @Project_Code, @Department, @Requestor,
-                         @Rev, @Required_Date, @Status, @Notes, @Created_By, GETDATE(), 1);
+                         @Rev, @Required_Date, @Status, @Notes, @Created_By, GETDATE());
                     SELECT SCOPE_IDENTITY();", conn);
 
                 cmd.Parameters.AddWithValue("@MPR_No", m.MPR_No);
@@ -286,7 +270,7 @@ namespace MPR_Managerment.Services
 
         private MPRHeader MapHeader(SqlDataReader r)
         {
-            var h = new MPRHeader
+            return new MPRHeader
             {
                 MPR_ID = Convert.ToInt32(r["MPR_ID"]),
                 MPR_No = r["MPR_No"]?.ToString() ?? "",
@@ -294,7 +278,9 @@ namespace MPR_Managerment.Services
                 Project_Code = r["Project_Code"]?.ToString() ?? "",
                 Department = r["Department"]?.ToString() ?? "",
                 Requestor = r["Requestor"]?.ToString() ?? "",
-                Rev = r["Rev"] != DBNull.Value ? Convert.ToInt32(r["Rev"]) : 0,
+                Rev = r["Rev"] != DBNull.Value
+                    ? (int)Math.Floor(Convert.ToDecimal(r["Rev"].ToString().Trim()))
+                    : 0,
                 Required_Date = r["Required_Date"] != DBNull.Value ? Convert.ToDateTime(r["Required_Date"]) : null,
                 Status = r["Status"]?.ToString() ?? "",
                 Total_Amount = r["Total_Amount"] != DBNull.Value ? Convert.ToDecimal(r["Total_Amount"]) : 0,
@@ -302,7 +288,6 @@ namespace MPR_Managerment.Services
                 Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
                 Created_By = r["Created_By"]?.ToString() ?? ""
             };
-            return h;
         }
 
         private MPRDetail MapDetail(SqlDataReader r)

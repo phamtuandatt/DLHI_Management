@@ -34,6 +34,16 @@ namespace MPR_Managerment.Forms
                         ALTER TABLE MPR_Details ADD Is_Deleted BIT NOT NULL DEFAULT 0", conn)
                     .ExecuteNonQuery();
 
+                // ── Làm sạch dữ liệu Rev về số nguyên ──
+                // Rev lưu varchar có thể chứa '0.40', '00', '01' → chuẩn hóa thành '0', '1', '2'...
+                new SqlCommand(@"
+                    UPDATE MPR_Header
+                    SET Rev = CAST(FLOOR(TRY_CAST(Rev AS INT)) AS VARCHAR(10))
+                    WHERE TRY_CAST(Rev AS INT) IS NULL
+                       OR Rev LIKE '%.%'
+                       OR (LEN(Rev) > 1 AND LEFT(Rev,1) = '0')", conn)
+                    .ExecuteNonQuery();
+
                 // Cột Is_Latest trong MPR_Header — đánh dấu MPR mới nhất của mỗi chuỗi Revise
                 new SqlCommand(@"
                     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
@@ -45,7 +55,7 @@ namespace MPR_Managerment.Forms
                         UPDATE h SET h.Is_Latest = 1
                         FROM MPR_Header h
                         INNER JOIN (
-                            SELECT Project_Code, MAX(Rev) AS MaxRev,
+                            SELECT Project_Code, MAX(TRY_CAST(Rev AS INT)) AS MaxRev,
                                    CASE WHEN MPR_No LIKE '%_Rev.%'
                                         THEN SUBSTRING(MPR_No,1,CHARINDEX('_Rev.',MPR_No)-1)
                                         ELSE MPR_No END AS BaseNo
@@ -55,7 +65,7 @@ namespace MPR_Managerment.Forms
                                      THEN SUBSTRING(MPR_No,1,CHARINDEX('_Rev.',MPR_No)-1)
                                      ELSE MPR_No END
                         ) mx ON mx.Project_Code = h.Project_Code
-                               AND mx.MaxRev = h.Rev
+                               AND mx.MaxRev = TRY_CAST(h.Rev AS INT)
                                AND (
                                   CASE WHEN h.MPR_No LIKE '%_Rev.%'
                                        THEN SUBSTRING(h.MPR_No,1,CHARINDEX('_Rev.',h.MPR_No)-1)
@@ -853,10 +863,10 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                // Chỉ load MPR mới nhất (Is_Latest=1) — bỏ qua các Rev cũ
-                _mprList = _service.GetLatestOnly();
+                // Load TẤT CẢ MPR — bao gồm cả các Rev cũ (hiển thị dạng chỉ đọc/xám)
+                _mprList = _service.GetAll();
                 BindMPRGrid(_mprList);
-                lblStatus.Text = $"Tổng: {_mprList.Count} phiếu MPR hiện hành";
+                lblStatus.Text = $"Tổng: {_mprList.Count} phiếu MPR";
             }
             catch (Exception ex)
             {
@@ -866,6 +876,19 @@ namespace MPR_Managerment.Forms
 
         private void BindMPRGrid(List<MPRHeader> list)
         {
+            // Xác định MPR nào là "mới nhất" trong mỗi nhóm cùng MPR_No
+            // Dùng decimal để sort Rev an toàn kể cả khi Rev lưu dạng "0.40", "01", "1"
+            var latestIds = new HashSet<int>();
+            foreach (var g in list.GroupBy(m => m.MPR_No))
+            {
+                latestIds.Add(g.OrderByDescending(m =>
+                {
+                    // Rev có thể là int hoặc object từ DB varchar "0.40" → parse an toàn
+                    try { return Convert.ToDecimal(m.Rev); }
+                    catch { return 0m; }
+                }).First().MPR_ID);
+            }
+
             dgvMPR.DataSource = list.ConvertAll(m => new
             {
                 ID = m.MPR_ID,
@@ -877,10 +900,30 @@ namespace MPR_Managerment.Forms
                 Ngay_Can = m.Required_Date.HasValue ? m.Required_Date.Value.ToString("dd/MM/yyyy") : "",
                 Rev = m.Rev,
                 Trang_Thai = m.Status,
-                Ngay_Tao = m.Created_Date.HasValue ? m.Created_Date.Value.ToString("dd/MM/yyyy") : ""
+                Ngay_Tao = m.Created_Date.HasValue ? m.Created_Date.Value.ToString("dd/MM/yyyy") : "",
+                _IsLatest = latestIds.Contains(m.MPR_ID) ? 1 : 0  // cột ẩn để format dòng
             });
             if (dgvMPR.Columns.Contains("ID"))
                 dgvMPR.Columns["ID"].Visible = false;
+            if (dgvMPR.Columns.Contains("_IsLatest"))
+                dgvMPR.Columns["_IsLatest"].Visible = false;
+
+            // Tô màu xám (chỉ đọc) dòng Rev cũ — vẫn hiển thị trong danh sách
+            foreach (DataGridViewRow row in dgvMPR.Rows)
+            {
+                if (row.IsNewRow) continue;
+                bool isLatest = Convert.ToInt32(row.Cells["_IsLatest"].Value) == 1;
+                if (!isLatest)
+                {
+                    row.ReadOnly = true;
+                    foreach (DataGridViewCell cell in row.Cells)
+                    {
+                        cell.Style.ForeColor = Color.FromArgb(160, 160, 160);
+                        cell.Style.BackColor = Color.FromArgb(245, 245, 245);
+                        cell.Style.Font = new Font("Segoe UI", 9, FontStyle.Italic);
+                    }
+                }
+            }
         }
 
         // ===== LOAD TỔNG HỢP TIẾN ĐỘ PO =====
@@ -894,6 +937,11 @@ namespace MPR_Managerment.Forms
 
             try
             {
+                // Tính baseMprNo để match PO của tất cả Rev cùng chuỗi
+                string baseMprNo = mprNo.Contains("_Rev.")
+                    ? mprNo.Substring(0, mprNo.IndexOf("_Rev."))
+                    : mprNo;
+
                 string sql = @"
                     SELECT
                         h.PONo AS [PO No],
@@ -910,14 +958,14 @@ namespace MPR_Managerment.Forms
                         END AS [% Giao]
                     FROM PO_head h
                     LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
-                    WHERE h.MPR_No = @mprNo
+                    WHERE h.MPR_No = @baseNo OR h.MPR_No LIKE @baseNo + '_Rev.%'
                     GROUP BY h.PO_ID, h.PONo, h.PO_Date, h.Status
                     ORDER BY h.PO_Date DESC";
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
                     var cmd = new SqlCommand(sql, conn);
-                    cmd.Parameters.AddWithValue("@mprNo", mprNo);
+                    cmd.Parameters.AddWithValue("@baseNo", baseMprNo);
                     var dt = new DataTable();
                     dt.Load(cmd.ExecuteReader());
                     dgvPOProgress.DataSource = dt;
@@ -950,37 +998,64 @@ namespace MPR_Managerment.Forms
                 {
                     conn.Open();
 
-                    // Join chính xác: 1 dòng MPR_Details → nhiều dòng PO_Detail → nhiều PO_head
-                    // GROUP BY Detail_ID để gộp nhiều PO của cùng 1 vật tư
+                    // Lấy MPR_No để tính baseMprNo
+                    string curMprNo = "";
+                    using (var cmdNo = new SqlCommand(
+                        "SELECT MPR_No FROM MPR_Header WHERE MPR_ID = @mprId", conn))
+                    {
+                        cmdNo.Parameters.AddWithValue("@mprId", mprId);
+                        curMprNo = cmdNo.ExecuteScalar()?.ToString() ?? "";
+                    }
+                    string baseMprNo = curMprNo.Contains("_Rev.")
+                        ? curMprNo.Substring(0, curMprNo.IndexOf("_Rev."))
+                        : curMprNo;
+
+                    // ── Query hợp nhất: lấy PO từ TẤT CẢ Rev trong cùng chuỗi MPR_No ──
+                    // Chiến lược: với mỗi Detail_ID của MPR hiện tại,
+                    //   1. Tìm trực tiếp qua PO_Detail.MPR_Detail_ID = Detail_ID hiện tại
+                    //   2. Tìm qua các Rev khác: match Item_No (số thứ tự vật tư) trong cùng chuỗi
+                    //      vì khi Revise, Item_No được giữ nguyên theo thứ tự gốc
                     string sql = @"
-                        SELECT   pod.MPR_Detail_ID  AS Detail_ID,
-                                 poh.PONo
-                        FROM     PO_Detail pod
-                        INNER JOIN PO_head poh ON poh.PO_ID = pod.PO_ID
-                        WHERE    pod.MPR_Detail_ID IN (
-                                     SELECT Detail_ID
-                                     FROM   MPR_Details
-                                     WHERE  MPR_ID = @mprId
-                                 )
-                        ORDER BY pod.MPR_Detail_ID, poh.PONo";
+                        -- Bước 1: PO liên kết trực tiếp với Detail_ID của MPR hiện tại
+                        SELECT cur.Detail_ID AS CurDetailId, poh.PONo
+                        FROM   MPR_Details cur
+                        INNER JOIN PO_Detail pod ON pod.MPR_Detail_ID = cur.Detail_ID
+                        INNER JOIN PO_head   poh ON poh.PO_ID = pod.PO_ID
+                        WHERE  cur.MPR_ID = @mprId
+
+                        UNION
+
+                        -- Bước 2: PO liên kết với Detail_ID của Rev khác, match theo Item_No
+                        SELECT cur.Detail_ID AS CurDetailId, poh.PONo
+                        FROM   MPR_Details cur
+                        INNER JOIN MPR_Details old
+                               ON old.Item_No = cur.Item_No
+                              AND old.MPR_ID != cur.MPR_ID
+                        INNER JOIN MPR_Header oldH ON oldH.MPR_ID = old.MPR_ID
+                        INNER JOIN PO_Detail pod   ON pod.MPR_Detail_ID = old.Detail_ID
+                        INNER JOIN PO_head poh     ON poh.PO_ID = pod.PO_ID
+                        WHERE  cur.MPR_ID = @mprId
+                          AND  (oldH.MPR_No = @baseNo OR oldH.MPR_No LIKE @baseNo + N'_Rev.%')
+
+                        ORDER BY CurDetailId, PONo";
 
                     using (var cmd = new SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@mprId", mprId);
+                        cmd.Parameters.AddWithValue("@baseNo", baseMprNo);
                         using (var reader = cmd.ExecuteReader())
                         {
                             while (reader.Read())
                             {
-                                if (reader["Detail_ID"] == DBNull.Value) continue;
-                                int detailId = Convert.ToInt32(reader["Detail_ID"]);
+                                if (reader["CurDetailId"] == DBNull.Value) continue;
+                                int detailId = Convert.ToInt32(reader["CurDetailId"]);
                                 string poNo = reader["PONo"]?.ToString()?.Trim() ?? "";
                                 if (string.IsNullOrEmpty(poNo)) continue;
 
                                 if (dict.ContainsKey(detailId))
                                 {
-                                    // Tránh trùng PO (1 PO có nhiều dòng cùng vật tư)
-                                    var existing = dict[detailId].Split(new[] { ", " },
-                                        StringSplitOptions.RemoveEmptyEntries);
+                                    var existing = dict[detailId].Split(
+                                        new[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
                                     if (!Array.Exists(existing, p => p == poNo))
                                         dict[detailId] += ", " + poNo;
                                 }
@@ -1101,16 +1176,16 @@ namespace MPR_Managerment.Forms
             try
             {
                 string kw = txtSearch.Text.Trim();
-                var latestList = _service.GetLatestOnly();
+                var allList = _service.GetAll();
                 _mprList = string.IsNullOrEmpty(kw)
-                    ? latestList
-                    : latestList.FindAll(m =>
+                    ? allList
+                    : allList.FindAll(m =>
                         (m.MPR_No ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                         (m.Project_Name ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                         (m.Project_Code ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase));
 
                 BindMPRGrid(_mprList);
-                lblStatus.Text = $"Tìm thấy: {_mprList.Count} phiếu (bản mới nhất)";
+                lblStatus.Text = $"Tìm thấy: {_mprList.Count} phiếu MPR";
             }
             catch (Exception ex)
             {
@@ -1804,7 +1879,7 @@ namespace MPR_Managerment.Forms
                         int itemNo = 1;
                         foreach (DataGridViewRow row in dgvDet.Rows)
                             if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
-                        //Common.Common.AutoAdjustColumnWidths(dgvDet);
+                        Common.Common.AutoAdjustColumnWidths(dgvDet);
                     }
                     catch (Exception ex)
                     {
@@ -2111,6 +2186,7 @@ namespace MPR_Managerment.Forms
             dgvMPRList.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMprId", Visible = false });
             dgvMPRList.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMprNo", HeaderText = "MPR No", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
             dgvMPRList.Columns.Add(new DataGridViewTextBoxColumn { Name = "RMprRev", HeaderText = "Rev", Width = 45 });
+            dgvMPRList.Columns.Add(new DataGridViewTextBoxColumn { Name = "RIsLatest", Visible = false }); // "1"=bản mới nhất
             dlg.Controls.Add(dgvMPRList);
 
             // Load MPR theo project
@@ -2120,7 +2196,7 @@ namespace MPR_Managerment.Forms
                 conn.Open();
                 var cmd = new SqlCommand(
                     "SELECT MPR_ID, MPR_No, Rev, ISNULL(Is_Latest,1) AS Is_Latest " +
-                    "FROM MPR_Header WHERE Project_Code=@code ORDER BY Rev DESC, MPR_No", conn);
+                    "FROM MPR_Header WHERE Project_Code=@code ORDER BY TRY_CAST(Rev AS INT) DESC, MPR_No", conn);
                 cmd.Parameters.AddWithValue("@code", projCode);
                 using var rdr = cmd.ExecuteReader();
                 int latestRowIdx = -1;
@@ -2131,6 +2207,7 @@ namespace MPR_Managerment.Forms
                     dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"];
                     dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"];
                     bool isLatest = Convert.ToBoolean(rdr["Is_Latest"]);
+                    dgvMPRList.Rows[r].Cells["RIsLatest"].Value = isLatest ? "1" : "0";
                     if (isLatest && latestRowIdx < 0)
                     {
                         dgvMPRList.Rows[r].DefaultCellStyle.ForeColor = Color.FromArgb(0, 120, 212);
@@ -2286,11 +2363,31 @@ namespace MPR_Managerment.Forms
             };
 
             int selMprId = 0;
-            // Khi chọn MPR → load details
+            // Khi chọn MPR → load details (chỉ cho phép chọn bản mới nhất để Revise)
             dgvMPRList.SelectionChanged += (s2, ev2) =>
             {
                 if (dgvMPRList.SelectedRows.Count == 0) return;
-                selMprId = Convert.ToInt32(dgvMPRList.SelectedRows[0].Cells["RMprId"].Value ?? 0);
+                var selectedRow = dgvMPRList.SelectedRows[0];
+
+                // Nếu chọn Rev cũ (không phải latest) → tự động chuyển sang bản mới nhất
+                bool isLatestRow = selectedRow.Cells["RIsLatest"].Value?.ToString() == "1";
+                if (!isLatestRow)
+                {
+                    // Tìm dòng latest trong danh sách và chọn lại
+                    foreach (DataGridViewRow r2 in dgvMPRList.Rows)
+                    {
+                        if (r2.Cells["RIsLatest"].Value?.ToString() == "1")
+                        {
+                            dgvMPRList.ClearSelection();
+                            r2.Selected = true;
+                            dgvMPRList.CurrentCell = r2.Cells["RMprNo"];
+                            return; // SelectionChanged sẽ fire lại với dòng đúng
+                        }
+                    }
+                    return;
+                }
+
+                selMprId = Convert.ToInt32(selectedRow.Cells["RMprId"].Value ?? 0);
                 dgvRevDet.Rows.Clear();
                 try
                 {
@@ -2442,22 +2539,21 @@ namespace MPR_Managerment.Forms
                     using var conn = DatabaseHelper.GetConnection();
                     conn.Open();
 
-                    // ── Tính maxRev đúng: REV là string → TRY_CAST sang INT ──
-                    var cmdMaxRev = new SqlCommand(
-                        @"SELECT ISNULL(MAX(TRY_CAST(md.REV AS INT)), 0)
-                          FROM MPR_Details md
-                          INNER JOIN MPR_Header mh ON mh.MPR_ID = md.MPR_ID
-                          WHERE mh.Project_Code = (
-                              SELECT Project_Code FROM MPR_Header WHERE MPR_ID = @id)", conn);
-                    cmdMaxRev.Parameters.AddWithValue("@id", selMprId);
-                    int maxRev = Convert.ToInt32(cmdMaxRev.ExecuteScalar());
-                    int nextRev = isAdmin ? maxRev : maxRev + 1;
-
-                    // ── MPR_No mới: lấy base từ MPR gốc (bỏ _Rev.X nếu có) ──
+                    // ── Lấy baseMprNo trước để query maxRev đúng từ MPR_Header ──
                     string oldMprNo = dgvMPRList.SelectedRows[0].Cells["RMprNo"].Value?.ToString() ?? "";
                     string baseMprNo = oldMprNo.Contains("_Rev.")
                         ? oldMprNo.Substring(0, oldMprNo.IndexOf("_Rev."))
                         : oldMprNo;
+
+                    // ── Tính maxRev đúng: đọc từ MPR_Header.Rev của cùng chuỗi MPR_No ──
+                    var cmdMaxRev = new SqlCommand(
+                        @"SELECT ISNULL(MAX(TRY_CAST(Rev AS INT)), 0)
+                          FROM MPR_Header
+                          WHERE MPR_No = @baseNo OR MPR_No LIKE @baseNo + '_Rev.%'", conn);
+                    cmdMaxRev.Parameters.AddWithValue("@baseNo", baseMprNo);
+                    // Rev đã được chuẩn hóa về INT trong DB
+                    int maxRev = Convert.ToInt32(cmdMaxRev.ExecuteScalar());
+                    int nextRev = isAdmin ? maxRev : maxRev + 1;
                     string newMprNo = isAdmin ? oldMprNo : $"{baseMprNo}_Rev.{nextRev}";
 
                     // ── Kiểm tra trùng MPR_No trước khi INSERT ──
@@ -2602,18 +2698,9 @@ namespace MPR_Managerment.Forms
                         }
                     }
 
-                    // ── Transfer PO_Detail link từ MPR cũ sang MPR mới ──────────────
-                    if (!isAdmin && deletedDetailMap.Count > 0)
-                    {
-                        foreach (var kv in deletedDetailMap)
-                        {
-                            var cmdTransfer = new SqlCommand(
-                                "UPDATE PO_Detail SET MPR_Detail_ID=@newId WHERE MPR_Detail_ID=@oldId", conn);
-                            cmdTransfer.Parameters.AddWithValue("@newId", kv.Value);
-                            cmdTransfer.Parameters.AddWithValue("@oldId", kv.Key);
-                            cmdTransfer.ExecuteNonQuery();
-                        }
-                    }
+                    // ── Transfer PO_Detail link: không cần nữa ──────────────────────
+                    // GetPoMappingForMpr tự cross-match Item_No+item_name qua các Rev
+                    // → tuyệt đối không UPDATE PO_Detail khi Revise MPR
 
                     // ── Đánh dấu Is_Deleted=1 cho các dòng xóa mềm trong DB ─────────
                     if (!isAdmin)
@@ -2694,16 +2781,15 @@ namespace MPR_Managerment.Forms
                 return;
             }
 
-            // Lấy tên MPR để hiển thị xác nhận
             var mprToDelete = _mprList.Find(m => m.MPR_ID == _selectedMPR_ID);
             string mprNoDisplay = mprToDelete?.MPR_No ?? _selectedMPR_ID.ToString();
 
             string confirmMsg =
                 $"Bạn có chắc chắn muốn xóa phiếu MPR: [{mprNoDisplay}] ?\n\n" +
-                $"⚠ Thao tác này sẽ xóa toàn bộ:\n" +
+                $"⚠ Thao tác này sẽ xóa:\n" +
                 $"   • Chi tiết vật tư của phiếu MPR này\n" +
-                $"   • Liên kết PO_Detail đến các dòng vật tư\n\n" +
-                $"Dữ liệu sẽ KHÔNG thể khôi phục!";
+                $"   • Liên kết PO sẽ được chuyển về phiên bản Rev trước (nếu có)\n\n" +
+                $"Dữ liệu PO sẽ KHÔNG bị xóa!";
 
             if (MessageBox.Show(confirmMsg, "⚠ Xác nhận xóa MPR",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
@@ -2719,60 +2805,104 @@ namespace MPR_Managerment.Forms
                     {
                         try
                         {
-                            // Bước 1: NULL hóa MPR_Detail_ID trong PO_Detail
-                            // KHÔNG xóa PO_Detail vì sẽ mất dữ liệu PO đã đặt hàng!
-                            var cmd1 = new SqlCommand(@"
-                                UPDATE pod SET pod.MPR_Detail_ID = NULL
-                                FROM dbo.PO_Detail pod
-                                INNER JOIN dbo.MPR_Details md ON pod.MPR_Detail_ID = md.Detail_ID
-                                WHERE md.MPR_ID = @mprId", conn, tran);
-                            cmd1.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
-                            int poDetailUpdated = cmd1.ExecuteNonQuery();
+                            // Tính baseMprNo để xác định chuỗi Rev
+                            string baseMprNo = mprNoDisplay.Contains("_Rev.")
+                                ? mprNoDisplay.Substring(0, mprNoDisplay.IndexOf("_Rev."))
+                                : mprNoDisplay;
 
-                            // Bước 2: Xóa toàn bộ MPR_Details của MPR này
-                            var cmd2 = new SqlCommand(
+                            // ── Bước 1: Tìm Rev ngay trước để chuyển PO_Detail sang ──
+                            // Lấy MPR_ID của Rev cao nhất trong chuỗi (không tính MPR đang xóa)
+                            var cmdPrevRev = new SqlCommand(@"
+                                SELECT TOP 1 MPR_ID
+                                FROM   MPR_Header
+                                WHERE  MPR_ID <> @mprId
+                                  AND  (MPR_No = @baseNo OR MPR_No LIKE @baseNo + N'_Rev.%')
+                                ORDER BY TRY_CAST(Rev AS INT) DESC", conn, tran);
+                            cmdPrevRev.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                            cmdPrevRev.Parameters.AddWithValue("@baseNo", baseMprNo);
+                            object prevRevObj = cmdPrevRev.ExecuteScalar();
+                            int prevRevMprId = prevRevObj != null && prevRevObj != DBNull.Value
+                                ? Convert.ToInt32(prevRevObj) : 0;
+
+                            int poDetailMoved = 0;
+                            if (prevRevMprId > 0)
+                            {
+                                // ── Bước 2: Chuyển PO_Detail.MPR_Detail_ID sang Detail_ID
+                                //            tương ứng của Rev trước (match Item_No + item_name) ──
+                                // TUYỆT ĐỐI không xóa PO_Detail, chỉ cập nhật FK
+                                var cmdMovePO = new SqlCommand(@"
+                                    UPDATE pod
+                                    SET    pod.MPR_Detail_ID = prev.Detail_ID
+                                    FROM   PO_Detail pod
+                                    INNER JOIN MPR_Details cur
+                                           ON cur.Detail_ID = pod.MPR_Detail_ID
+                                          AND cur.MPR_ID    = @mprId
+                                    INNER JOIN MPR_Details prev
+                                           ON prev.MPR_ID    = @prevMprId
+                                          AND prev.Item_No   = cur.Item_No
+                                          AND prev.item_name = cur.item_name", conn, tran);
+                                cmdMovePO.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                                cmdMovePO.Parameters.AddWithValue("@prevMprId", prevRevMprId);
+                                poDetailMoved = cmdMovePO.ExecuteNonQuery();
+                            }
+                            // Nếu không có Rev trước (MPR đơn lẻ): PO_Detail.MPR_Detail_ID
+                            // sẽ bị orphan sau khi xóa Detail → set về NULL để giữ PO nguyên vẹn
+                            else
+                            {
+                                var cmdNullPO = new SqlCommand(@"
+                                    UPDATE pod
+                                    SET    pod.MPR_Detail_ID = NULL
+                                    FROM   PO_Detail pod
+                                    INNER JOIN MPR_Details cur
+                                           ON cur.Detail_ID = pod.MPR_Detail_ID
+                                          AND cur.MPR_ID    = @mprId", conn, tran);
+                                cmdNullPO.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                                cmdNullPO.ExecuteNonQuery();
+                            }
+
+                            // ── Bước 3: Xóa MPR_Details của MPR đang xóa ──
+                            var cmdDelDet = new SqlCommand(
                                 "DELETE FROM dbo.MPR_Details WHERE MPR_ID = @mprId", conn, tran);
-                            cmd2.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
-                            int detailDeleted = cmd2.ExecuteNonQuery();
+                            cmdDelDet.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                            int detailDeleted = cmdDelDet.ExecuteNonQuery();
 
-                            // Bước 3: Reset Is_Latest về MPR gốc trước khi xóa
-                            var cmdBase = new SqlCommand(@"
-                                DECLARE @base NVARCHAR(200), @proj NVARCHAR(50);
-                                SELECT @base = CASE WHEN MPR_No LIKE N'%_Rev.%'
-                                    THEN LEFT(MPR_No, CHARINDEX(N'_Rev.', MPR_No)-1)
-                                    ELSE MPR_No END,
-                                       @proj = Project_Code
-                                FROM MPR_Header WHERE MPR_ID = @mprId;
-                                -- Reset tất cả về 0
-                                UPDATE MPR_Header SET Is_Latest = 0
-                                WHERE Project_Code = @proj
-                                  AND (MPR_No = @base OR MPR_No LIKE @base + N'_Rev.%');
-                                -- Set MPR có Rev cao nhất (trừ MPR đang xóa) = 1
-                                UPDATE h SET h.Is_Latest = 1
-                                FROM MPR_Header h
-                                INNER JOIN (
-                                    SELECT MAX(Rev) AS MaxRev FROM MPR_Header
-                                    WHERE MPR_ID <> @mprId
-                                      AND Project_Code = @proj
-                                      AND (MPR_No = @base OR MPR_No LIKE @base + N'_Rev.%')
-                                ) mx ON h.Rev = mx.MaxRev
-                                WHERE h.MPR_ID <> @mprId
-                                  AND h.Project_Code = @proj
-                                  AND (h.MPR_No = @base OR h.MPR_No LIKE @base + N'_Rev.%');", conn, tran);
-                            cmdBase.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
-                            cmdBase.ExecuteNonQuery();
+                            // ── Bước 4: Cập nhật Is_Latest đúng trong chuỗi MPR_No ──
+                            var cmdLatest = new SqlCommand(@"
+                                -- Reset toàn bộ chuỗi về 0
+                                UPDATE MPR_Header
+                                SET    Is_Latest = 0
+                                WHERE  MPR_No = @baseNo
+                                  OR   MPR_No LIKE @baseNo + N'_Rev.%';
 
-                            // Bước 4: Xóa MPR Header
-                            var cmd3 = new SqlCommand(
+                                -- Đặt Is_Latest=1 cho Rev cao nhất còn lại (không tính MPR đang xóa)
+                                UPDATE MPR_Header
+                                SET    Is_Latest = 1
+                                WHERE  MPR_ID = (
+                                    SELECT TOP 1 MPR_ID
+                                    FROM   MPR_Header
+                                    WHERE  MPR_ID <> @mprId
+                                      AND  (MPR_No = @baseNo OR MPR_No LIKE @baseNo + N'_Rev.%')
+                                    ORDER BY TRY_CAST(Rev AS INT) DESC
+                                );", conn, tran);
+                            cmdLatest.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                            cmdLatest.Parameters.AddWithValue("@baseNo", baseMprNo);
+                            cmdLatest.ExecuteNonQuery();
+
+                            // ── Bước 5: Xóa MPR Header ──
+                            var cmdDelHead = new SqlCommand(
                                 "DELETE FROM dbo.MPR_Header WHERE MPR_ID = @mprId", conn, tran);
-                            cmd3.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
-                            cmd3.ExecuteNonQuery();
+                            cmdDelHead.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
+                            cmdDelHead.ExecuteNonQuery();
 
                             tran.Commit();
 
-                            string resultMsg = $"✅ Xóa phiếu MPR [{mprNoDisplay}] thành công!\n\n" +
-                                               $"   • {detailDeleted} dòng vật tư đã xóa\n" +
-                                               $"   • {poDetailUpdated} liên kết PO_Detail đã ngắt (PO được giữ nguyên)";
+                            string resultMsg =
+                                $"✅ Xóa phiếu MPR [{mprNoDisplay}] thành công!\n\n" +
+                                $"   • {detailDeleted} dòng vật tư đã xóa\n" +
+                                (poDetailMoved > 0
+                                    ? $"   • {poDetailMoved} liên kết PO đã chuyển về Rev trước ✅\n"
+                                    : $"   • Không có liên kết PO nào cần chuyển\n") +
+                                $"   • Dữ liệu PO được giữ nguyên hoàn toàn ✅";
                             MessageBox.Show(resultMsg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         catch
@@ -3220,7 +3350,7 @@ namespace MPR_Managerment.Forms
                                ROW_NUMBER() OVER (
                                    PARTITION BY Project_Code,
                                        SUBSTRING(MPR_No, 1, CHARINDEX('_Rev.', MPR_No + '_Rev.') - 1)
-                                   ORDER BY Rev DESC, MPR_ID DESC
+                                   ORDER BY TRY_CAST(Rev AS INT) DESC, MPR_ID DESC
                                ) as rn
                         FROM MPR_Header
                     ),
