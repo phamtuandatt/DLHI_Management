@@ -1507,7 +1507,8 @@ namespace MPR_Managerment.Forms
                             DVT = dgvStock.Rows[e.RowIndex].Cells["DVT"].Value?.ToString() ?? "",
                             Item_Code = dgvStock.Rows[e.RowIndex].Cells["Item_Code"].Value?.ToString() ?? "",
                             SL_Ton = Convert.ToDecimal(dgvStock.Rows[e.RowIndex].Cells["SL_Ton"].Value),
-                            SL_Xuat = 0
+                            SL_Xuat = 0,
+                            ID_Code = dgvStock.Rows[e.RowIndex].Cells["QC_Code"].Value?.ToString() ?? "",
                         });
                     }
                     else
@@ -1724,6 +1725,8 @@ namespace MPR_Managerment.Forms
                     dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Code", HeaderText = "Item Code", ReadOnly = true });
                     dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "SL_Ton", HeaderText = "Số lượng tồn", ReadOnly = true });
                     dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "SL_Xuat", HeaderText = "Số Lượng Xuất (*)", ReadOnly = false });
+
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID_Code", ReadOnly = false });
                     //dgvSelected.EditingControlShowing += DgvSelectedMakeExport_EditingControlShowing;
 
                     dgvSelected.CellEndEdit += (s, e) =>
@@ -1760,7 +1763,7 @@ namespace MPR_Managerment.Forms
 
                     // Nạp dữ liệu vào Grid
                     foreach (var d in _selectedItem)
-                        dgvSelected.Rows.Add(d.Import_ID, d.Ma_Phieu, d.Ten_Vat_Tu, d.Vat_Lieu, d.Kich_Thuoc, d.DVT, d.Item_Code, d.SL_Ton, d.SL_Xuat);
+                        dgvSelected.Rows.Add(d.Import_ID, d.Ma_Phieu, d.Ten_Vat_Tu, d.Vat_Lieu, d.Kich_Thuoc, d.DVT, d.Item_Code, d.SL_Ton, d.SL_Xuat, d.ID_Code);
 
                     // Định dạng cột SL_Xuat
                     if (dgvSelected.Columns.Contains("SL_Xuat"))
@@ -1839,6 +1842,9 @@ namespace MPR_Managerment.Forms
                                     }
                                 }
 
+                                ReplaceCell(ws, "<<PROJECT-NAME>>", cboProjectFilter.Text ?? "");
+                                ReplaceCell(ws, "<<USER>>", AppSession.CurrentUser.Username ?? "");
+
                                 int startRow = 11; // Dòng bắt đầu điền dữ liệu (Dòng có STT 1)
                                 int detailCount = dgvSelected.Rows.Count;
                                 decimal totalQty = 0;
@@ -1866,6 +1872,7 @@ namespace MPR_Managerment.Forms
                                     ws.Cells[currentRow, 6].Value = row.Cells["Vat_Lieu"].Value; // Cột Grade (F)
                                     ws.Cells[currentRow, 7].Value = slXuat; // Cột Q'ty (G)
                                     ws.Cells[currentRow, 8].Value = row.Cells["DVT"].Value; // Cột Unit (H)
+                                    ws.Cells[currentRow, 9].Value = row.Cells["ID_Code"].Value; // Cột ID_Code (I)
                                 }
 
                                 // 4. Tìm và thay thế <<SUM>> bằng tổng thực tế
@@ -3164,6 +3171,10 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        private void ReplaceCell(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string value)
+        { for (int r = 1; r <= ws.Dimension.End.Row; r++) for (int c = 1; c <= ws.Dimension.End.Column; c++) if (ws.Cells[r, c].Value?.ToString() == placeholder) ws.Cells[r, c].Value = value; }
+
+
         // =====================================================
         //  ÁP DỤNG PHÂN QUYỀN
         // =====================================================
@@ -3186,5 +3197,6 @@ namespace MPR_Managerment.Forms
         public string Item_Code { get; set; }
         public decimal SL_Ton { get; set; }
         public decimal SL_Xuat { get; set; } // Thuộc tính này sẽ cho phép chỉnh sửa
+        public string ID_Code { get; set; } = string.Empty;
     }
 }
