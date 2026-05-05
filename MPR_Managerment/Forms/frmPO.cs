@@ -49,9 +49,9 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvDetails;
         private Button btnAddDetail, btnDeleteDetail;
         private Label lblTotal, lblSubTotal;
-        // Culture dinh dang so: dau "." ngan hang nghin, dau "," thap phan
+        // Culture định dạng số theo hệ thống Windows (dấu thập phân và ngàn tùy cài đặt)
         private static readonly System.Globalization.CultureInfo _numCulture =
-            new System.Globalization.CultureInfo("vi-VN");
+            System.Globalization.CultureInfo.CurrentCulture;
         private Panel panelTop, panelHeader, panelDetail;
         private Panel _mainScroll; // Panel bọc ngoài hỗ trợ scroll trên màn hình nhỏ
         private DataGridView dgvMPRFiles; // Bảng file MPR Link bên phải chi tiết
@@ -935,9 +935,9 @@ namespace MPR_Managerment.Forms
                     cboApplyVAT.SelectedItem?.ToString()?.Replace("%", "") ?? "10";
                 foreach (DataGridViewRow row in dgvDetails.Rows)
                     if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
-                    { 
-                        row.Cells["VAT"].Value = vatVal; 
-                        //RecalculateAmount(row.Index); 
+                    {
+                        row.Cells["VAT"].Value = vatVal;
+                        RecalculateAmount(row.Index);
                     }
                 UpdateTotal();
             };
@@ -972,8 +972,8 @@ namespace MPR_Managerment.Forms
                 foreach (DataGridViewRow row in dgvDetails.Rows)
                     if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
                     {
-                        row.Cells["Calc_Method"].Value = calcVal; 
-                        //RecalculateAmount(row.Index); 
+                        row.Cells["Calc_Method"].Value = calcVal;
+                        RecalculateAmount(row.Index);
                     }
                 UpdateTotal();
             };
@@ -1605,9 +1605,13 @@ namespace MPR_Managerment.Forms
         }
 
         private void DgvDetails_CellValueChanged(object sender, DataGridViewCellEventArgs e)
-        { 
-            //if (e.RowIndex >= 0 && dgvDetails.Columns[e.ColumnIndex].Name == "Calc_Method") 
-            //    RecalculateAmount(e.RowIndex); 
+        {
+            if (e.RowIndex < 0) return;
+            string colName = dgvDetails.Columns[e.ColumnIndex].Name;
+            // Tính lại khi thay đổi các cột ảnh hưởng đến thành tiền
+            if (colName == "Price" || colName == "Qty" || colName == "Weight"
+                || colName == "VAT" || colName == "Calc_Method")
+                RecalculateAmount(e.RowIndex);
         }
 
         private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
@@ -1615,12 +1619,22 @@ namespace MPR_Managerment.Forms
             if (e.RowIndex < 0) return;
             string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
-            // Cột Đơn giá và Thành tiền — định dạng số có dấu phân cách, căn phải
-            if (colName == "Price" || colName == "Amount" || colName == "SubAmount")
+            // Cột Đơn giá và Thành tiền — định dạng số theo Windows system culture
+            if (colName == "Price" || colName == "SubAmount")
             {
                 if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal num))
                 {
                     e.Value = num.ToString("N2", _numCulture);
+                    e.FormattingApplied = true;
+                }
+                e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            }
+            if (colName == "Amount")
+            {
+                if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal numAmt))
+                {
+                    // Thành tiền làm tròn số nguyên
+                    e.Value = numAmt.ToString("N0", _numCulture);
                     e.FormattingApplied = true;
                 }
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -2561,9 +2575,12 @@ namespace MPR_Managerment.Forms
 
         private void UpdateTotal()
         {
-            decimal total = 0;
             decimal subTotal = 0;
-            decimal totalQty = 0, totalKg = 0, totalAmount = 0;
+            decimal total = 0;
+            decimal totalQty = 0;
+            decimal totalKg = 0;
+            decimal totalSubAmt = 0;
+            decimal totalAmount = 0;
 
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
@@ -2572,24 +2589,25 @@ namespace MPR_Managerment.Forms
                 decimal weight = ParseDecimalRaw(row.Cells["Weight"].Value?.ToString() ?? "");
                 decimal price = ParseDecimalRaw(row.Cells["Price"].Value?.ToString() ?? "");
                 decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
-                decimal amount = ParseDecimalRaw(row.Cells["Amount"].Value?.ToString() ?? "");
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
-                decimal rowSubTotal = baseValue * price;
-                decimal rowTotalAmount = rowSubTotal * (1 + vat / 100);
-                subTotal += rowSubTotal; total += rowTotalAmount;
+                decimal rowSubAmt = baseValue * price;
+                decimal rowAmount = Math.Round(rowSubAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero);
+
                 totalQty += qty;
                 totalKg += weight;
-                totalAmount += amount > 0 ? amount : rowTotalAmount;
+                totalSubAmt += rowSubAmt;
+                totalAmount += rowAmount;
             }
+            subTotal = totalSubAmt;
+            total = totalAmount;
 
             if (lblSubTotal != null && lblSubTotal.Visible)
                 lblSubTotal.Text = "Trước VAT: " + subTotal.ToString("N2", _numCulture) + " VND";
             if (lblTotal != null && lblTotal.Visible)
-                lblTotal.Text = "Sau VAT: " + total.ToString("N2", _numCulture) + " VND";
+                lblTotal.Text = "Sau VAT: " + total.ToString("N0", _numCulture) + " VND";
 
             // ── Cập nhật dòng Total ở cuối dgvDetails ──
-            // Xóa dòng total cũ nếu có
             for (int i = dgvDetails.Rows.Count - 1; i >= 0; i--)
                 if (dgvDetails.Rows[i].Tag?.ToString() == "TOTAL")
                 { dgvDetails.Rows.RemoveAt(i); break; }
@@ -2601,13 +2619,12 @@ namespace MPR_Managerment.Forms
                 tr.Tag = "TOTAL";
                 tr.ReadOnly = true;
 
-                // Đặt giá trị tổng
                 if (dgvDetails.Columns.Contains("Item_Name")) tr.Cells["Item_Name"].Value = "TỔNG CỘNG";
                 if (dgvDetails.Columns.Contains("Qty")) tr.Cells["Qty"].Value = totalQty > 0 ? (object)totalQty : "";
                 if (dgvDetails.Columns.Contains("Weight")) tr.Cells["Weight"].Value = totalKg > 0 ? (object)Math.Round(totalKg, 2) : "";
+                if (dgvDetails.Columns.Contains("SubAmount")) tr.Cells["SubAmount"].Value = totalSubAmt > 0 ? (object)totalSubAmt : "";
                 if (dgvDetails.Columns.Contains("Amount")) tr.Cells["Amount"].Value = totalAmount > 0 ? (object)totalAmount : "";
 
-                // Style dòng total
                 tr.DefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
                 tr.DefaultCellStyle.ForeColor = Color.White;
                 tr.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
@@ -2723,7 +2740,7 @@ namespace MPR_Managerment.Forms
                             dgvRow.Cells[colIdx].Value = val;
                         }
                     }
-                    //RecalculateAmount(curRow);
+                    RecalculateAmount(curRow);
                 }
                 dgvDetails.ResumeLayout();
                 AutoAdjustColumnWidths();
@@ -2741,16 +2758,25 @@ namespace MPR_Managerment.Forms
             if (rowIndex < 0 || rowIndex >= dgvDetails.Rows.Count) return;
             var row = dgvDetails.Rows[rowIndex];
             if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") return;
-            // Dung ParseDecimalRaw de xu ly moi dinh dang nhap/paste
+
             decimal qty = ParseDecimalRaw(row.Cells["Qty"].Value?.ToString() ?? "");
             decimal weight = ParseDecimalRaw(row.Cells["Weight"].Value?.ToString() ?? "");
             decimal price = ParseDecimalRaw(row.Cells["Price"].Value?.ToString() ?? "");
             decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal vat);
             string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
+
             decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
+
+            // TT trước thuế = số lượng/KG × đơn giá (không làm tròn)
             decimal subAmt = baseValue * price;
-            if (dgvDetails.Columns.Contains("SubAmount")) row.Cells["SubAmount"].Value = subAmt;
-            row.Cells["Amount"].Value = subAmt * (1 + vat / 100);
+
+            // Thành tiền = TT trước thuế × (1 + VAT%) — làm tròn đến số nguyên
+            decimal amount = Math.Round(subAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero);
+
+            if (dgvDetails.Columns.Contains("SubAmount"))
+                row.Cells["SubAmount"].Value = subAmt;
+            row.Cells["Amount"].Value = amount;
+
             UpdateTotal();
         }
 
@@ -2786,50 +2812,52 @@ namespace MPR_Managerment.Forms
             //    dgvDetails.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = parsed;
         }
 
-        // Parse so tu chuoi bat ky: xu ly ca vi-VN (. ngan , thap phan)
-        // lan InvariantCulture (, ngan . thap phan)
+        // Parse số từ chuỗi bất kỳ — tự nhận dạng dấu thập phân và ngàn theo Windows system
         private decimal ParseDecimalRaw(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return 0;
             raw = raw.Trim();
 
-            // Co ca "." va ","
+            char sysDec = System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
+            char sysGrp = System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NumberGroupSeparator[0];
+
+            // Có cả "." và ","
             if (raw.Contains(".") && raw.Contains(","))
             {
-                if (raw.IndexOf(".") < raw.IndexOf(","))
-                {
-                    // "1.234,56" -> vi-VN -> bo . -> "1234,56"
-                    raw = raw.Replace(".", "");
-                }
+                if (raw.IndexOf('.') < raw.IndexOf(','))
+                    // "1.234,56" → dấu "." là ngàn, "," là thập phân
+                    raw = raw.Replace(".", "").Replace(',', sysDec);
                 else
-                {
-                    // "1,234.56" -> InvariantCulture -> bo , -> "1234.56" -> doi . thanh ,
-                    raw = raw.Replace(",", "").Replace(".", ",");
-                }
+                    // "1,234.56" → dấu "," là ngàn, "." là thập phân
+                    raw = raw.Replace(",", "").Replace('.', sysDec);
             }
             else if (raw.Contains(".") && !raw.Contains(","))
             {
-                // Chi co "."
                 var parts = raw.Split('.');
-                // Neu tat ca phan sau dau . deu co 3 chu so -> day la ngan separator
-                bool allThousand = parts.Length > 1 &&
-                    parts.Skip(1).All(p => p.Length == 3);
-                if (allThousand)
-                    raw = raw.Replace(".", "");        // bo ngan
-                else
-                    raw = raw.Replace(".", ",");        // doi . -> , (thap phan vi-VN)
+                bool allThousand = parts.Length > 1 && parts.Skip(1).All(p => p.Length == 3);
+                raw = allThousand
+                    ? raw.Replace(".", "")           // "1.234.567" → ngàn separator
+                    : raw.Replace('.', sysDec);      // "1.5" → thập phân
             }
-            // Chi co "," hoac so nguyen: vi-VN hieu "," la thap phan -> giu nguyen
+            else if (raw.Contains(",") && !raw.Contains("."))
+            {
+                var parts = raw.Split(',');
+                bool allThousand = parts.Length > 1 && parts.Skip(1).All(p => p.Length == 3);
+                raw = allThousand
+                    ? raw.Replace(",", "")           // "1,234,567" → ngàn separator
+                    : raw.Replace(',', sysDec);      // "1,5" → thập phân
+            }
 
             decimal.TryParse(raw,
                 System.Globalization.NumberStyles.Number,
-                _numCulture, out decimal result);
+                System.Globalization.CultureInfo.CurrentCulture,
+                out decimal result);
             return result;
         }
 
         private void DgvDetails_CellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
-            //RecalculateAmount(e.RowIndex); 
+            if (e.RowIndex >= 0) RecalculateAmount(e.RowIndex);
             AutoAdjustColumnWidths();
         }
 

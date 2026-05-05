@@ -19,6 +19,8 @@ namespace MPR_Managerment.Forms
     public partial class frmMPR : Form
     {
         private MPRService _service = new MPRService();
+        // Backup PO links khi Admin xóa và insert lại Details — dùng để re-link sau insert
+        private Dictionary<int, List<int>> _adminPoLinkBackup = new Dictionary<int, List<int>>();
 
         // Đảm bảo cột Is_Deleted tồn tại trong DB (chạy 1 lần, idempotent)
         private static void EnsureIsDeletedColumn()
@@ -38,8 +40,8 @@ namespace MPR_Managerment.Forms
                 // Rev lưu varchar có thể chứa '0.40', '00', '01' → chuẩn hóa thành '0', '1', '2'...
                 new SqlCommand(@"
                     UPDATE MPR_Header
-                    SET Rev = CAST(FLOOR(TRY_CAST(Rev AS INT)) AS VARCHAR(10))
-                    WHERE TRY_CAST(Rev AS INT) IS NULL
+                    SET Rev = CAST(FLOOR(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT)) AS VARCHAR(10))
+                    WHERE TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) IS NULL
                        OR Rev LIKE '%.%'
                        OR (LEN(Rev) > 1 AND LEFT(Rev,1) = '0')", conn)
                     .ExecuteNonQuery();
@@ -55,7 +57,7 @@ namespace MPR_Managerment.Forms
                         UPDATE h SET h.Is_Latest = 1
                         FROM MPR_Header h
                         INNER JOIN (
-                            SELECT Project_Code, MAX(TRY_CAST(Rev AS INT)) AS MaxRev,
+                            SELECT Project_Code, MAX(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT)) AS MaxRev,
                                    CASE WHEN MPR_No LIKE '%_Rev.%'
                                         THEN SUBSTRING(MPR_No,1,CHARINDEX('_Rev.',MPR_No)-1)
                                         ELSE MPR_No END AS BaseNo
@@ -65,7 +67,7 @@ namespace MPR_Managerment.Forms
                                      THEN SUBSTRING(MPR_No,1,CHARINDEX('_Rev.',MPR_No)-1)
                                      ELSE MPR_No END
                         ) mx ON mx.Project_Code = h.Project_Code
-                               AND mx.MaxRev = TRY_CAST(h.Rev AS INT)
+                               AND mx.MaxRev = TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT)
                                AND (
                                   CASE WHEN h.MPR_No LIKE '%_Rev.%'
                                        THEN SUBSTRING(h.MPR_No,1,CHARINDEX('_Rev.',h.MPR_No)-1)
@@ -2195,8 +2197,11 @@ namespace MPR_Managerment.Forms
                 using var conn = DatabaseHelper.GetConnection();
                 conn.Open();
                 var cmd = new SqlCommand(
-                    "SELECT MPR_ID, MPR_No, Rev, ISNULL(Is_Latest,1) AS Is_Latest " +
-                    "FROM MPR_Header WHERE Project_Code=@code ORDER BY TRY_CAST(Rev AS INT) DESC, MPR_No", conn);
+                    "SELECT MPR_ID, MPR_No, " +
+                    "ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) AS Rev, " +
+                    "ISNULL(Is_Latest,1) AS Is_Latest " +
+                    "FROM MPR_Header WHERE Project_Code=@code " +
+                    "ORDER BY ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) DESC, MPR_No", conn);
                 cmd.Parameters.AddWithValue("@code", projCode);
                 using var rdr = cmd.ExecuteReader();
                 int latestRowIdx = -1;
@@ -2547,7 +2552,7 @@ namespace MPR_Managerment.Forms
 
                     // ── Tính maxRev đúng: đọc từ MPR_Header.Rev của cùng chuỗi MPR_No ──
                     var cmdMaxRev = new SqlCommand(
-                        @"SELECT ISNULL(MAX(TRY_CAST(Rev AS INT)), 0)
+                        @"SELECT ISNULL(MAX(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT)), 0)
                           FROM MPR_Header
                           WHERE MPR_No = @baseNo OR MPR_No LIKE @baseNo + '_Rev.%'", conn);
                     cmdMaxRev.Parameters.AddWithValue("@baseNo", baseMprNo);
@@ -2613,34 +2618,96 @@ namespace MPR_Managerment.Forms
                     }
                     else
                     {
-                        // Admin: xóa toàn bộ details cũ (hard delete) rồi insert mới
-                        var cmdDel = new SqlCommand("DELETE FROM MPR_Details WHERE MPR_ID=@id", conn);
-                        cmdDel.Parameters.AddWithValue("@id", targetId);
-                        cmdDel.ExecuteNonQuery();
+                        // ── Admin: chỉnh sửa TẠI CHỖ — không tạo Rev mới, không xóa Details ──
+                        // UPDATE dòng đã có Detail_ID, INSERT dòng mới, soft-delete dòng bị xóa
+                        // → PO_Detail.MPR_Detail_ID không bị đụng đến → PO link giữ nguyên
+                        int stt = 1;
+                        foreach (DataGridViewRow row2 in dgvRevDet.Rows)
+                        {
+                            if (row2.IsNewRow) continue;
+                            string nm = row2.Cells["Ritem_name"].Value?.ToString() ?? "";
+                            if (string.IsNullOrWhiteSpace(nm)) continue;
+
+                            bool isSoftDeleted = row2.Cells["RDeleted"].Value?.ToString() == "1";
+                            int oldDetId = int.TryParse(row2.Cells["RDetId"].Value?.ToString(), out int odid) ? odid : 0;
+                            int detRev = int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rvA) ? rvA : 0;
+
+                            var det = new MPRDetail
+                            {
+                                MPR_ID = targetId,
+                                Item_No = isSoftDeleted ? 0 : stt++,
+                                Item_Name = nm,
+                                Description = row2.Cells["RDesc"].Value?.ToString() ?? "",
+                                Material = row2.Cells["RMaterial"].Value?.ToString() ?? "",
+                                Thickness_mm = decimal.TryParse(row2.Cells["RT_mm"].Value?.ToString(), out decimal rTh) ? rTh : 0,
+                                Depth_mm = decimal.TryParse(row2.Cells["RD_mm"].Value?.ToString(), out decimal rDp) ? rDp : 0,
+                                C_Width_mm = decimal.TryParse(row2.Cells["RW_mm"].Value?.ToString(), out decimal rCw) ? rCw : 0,
+                                D_Web_mm = decimal.TryParse(row2.Cells["RWeb_mm"].Value?.ToString(), out decimal rDw) ? rDw : 0,
+                                E_Flange_mm = decimal.TryParse(row2.Cells["RFlange_mm"].Value?.ToString(), out decimal rEf) ? rEf : 0,
+                                F_Length_mm = decimal.TryParse(row2.Cells["RL_mm"].Value?.ToString(), out decimal rFl) ? rFl : 0,
+                                Usage_Location = row2.Cells["RUsage"].Value?.ToString() ?? "",
+                                MPS_Info = row2.Cells["RMPS"].Value?.ToString() ?? "",
+                                DWG_BOQ_Receive_Date = DateTime.TryParse(row2.Cells["RDWG"].Value?.ToString(), out DateTime rDwg) ? rDwg : (DateTime?)null,
+                                Issue_Date = DateTime.TryParse(row2.Cells["RIssue"].Value?.ToString(), out DateTime rIss) ? rIss : (DateTime?)null,
+                                UNIT = row2.Cells["RUNIT"].Value?.ToString() ?? "",
+                                Qty_Per_Sheet = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RQty"].Value?.ToString(), out decimal rQs) ? rQs : 0),
+                                Weight_kg = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RKG"].Value?.ToString(), out decimal rWk) ? rWk : 0),
+                                Remarks = row2.Cells["RRemarks"].Value?.ToString() ?? "",
+                                REV = detRev.ToString(),
+                                Is_Deleted = isSoftDeleted
+                            };
+
+                            if (oldDetId > 0)
+                                // Dòng đã tồn tại → UPDATE tại chỗ (PO link không bị ảnh hưởng)
+                                _service.UpdateDetail(det, _currentUser, oldDetId);
+                            else
+                                // Dòng mới thêm → INSERT
+                                _service.InsertDetail(det, _currentUser);
+                        }
+
+                        // Xóa cứng các dòng trong DB mà user đã xóa hẳn (không phải soft-delete)
+                        // Đây là các Detail_ID cũ không còn xuất hiện trong grid
+                        var currentIds = new HashSet<int>(
+                            dgvRevDet.Rows.Cast<DataGridViewRow>()
+                                .Where(r2 => !r2.IsNewRow)
+                                .Select(r2 => int.TryParse(r2.Cells["RDetId"].Value?.ToString(), out int rid) ? rid : 0)
+                                .Where(id => id > 0));
+
+                        using (var cmdGetOld = new SqlCommand(
+                            "SELECT Detail_ID FROM MPR_Details WHERE MPR_ID=@id", conn))
+                        {
+                            cmdGetOld.Parameters.AddWithValue("@id", targetId);
+                            var oldIds = new List<int>();
+                            using var r3 = cmdGetOld.ExecuteReader();
+                            while (r3.Read()) oldIds.Add(Convert.ToInt32(r3["Detail_ID"]));
+                            r3.Close();
+
+                            foreach (int orphanId in oldIds.Where(id => !currentIds.Contains(id)))
+                            {
+                                // Trước khi xóa: NULL hóa PO link nếu có (bảo vệ PO data)
+                                new SqlCommand(
+                                    $"UPDATE PO_Detail SET MPR_Detail_ID=NULL WHERE MPR_Detail_ID={orphanId}", conn)
+                                    .ExecuteNonQuery();
+                                new SqlCommand(
+                                    $"DELETE FROM MPR_Details WHERE Detail_ID={orphanId}", conn)
+                                    .ExecuteNonQuery();
+                            }
+                        }
                     }
 
-                    // Dòng bị xóa mềm (RDeleted=1):
-                    // → INSERT vào MPR mới với Is_Deleted=1 (chỉ xem, không tính toán)
-                    // → Transfer PO_Detail link từ Detail_ID cũ sang Detail_ID mới
-                    var deletedDetailMap = new System.Collections.Generic.Dictionary<int, int>(); // oldId → newId
-                    int stt = 1;
-                    foreach (DataGridViewRow row2 in dgvRevDet.Rows)
+                    // ── Vòng lặp INSERT Details cho non-Admin (Revise tạo bản mới) ──────
+                    if (!isAdmin)
                     {
-                        if (row2.IsNewRow) continue;
-                        bool isSoftDeleted = row2.Cells["RDeleted"].Value?.ToString() == "1";
-                        string nm = row2.Cells["Ritem_name"].Value?.ToString() ?? "";
-                        if (string.IsNullOrWhiteSpace(nm)) continue;
-                        // REV thông minh: mới/thay đổi → nextRev; không đổi → giữ REV cũ; Admin → giữ nguyên
-                        int detRev;
-                        if (isAdmin)
+                        int stt2 = 1;
+                        foreach (DataGridViewRow row2 in dgvRevDet.Rows)
                         {
-                            detRev = int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rvA) ? rvA : 0;
-                        }
-                        else
-                        {
+                            if (row2.IsNewRow) continue;
+                            bool isSoftDeleted = row2.Cells["RDeleted"].Value?.ToString() == "1";
+                            string nm = row2.Cells["Ritem_name"].Value?.ToString() ?? "";
+                            if (string.IsNullOrWhiteSpace(nm)) continue;
+
                             bool isNewRow = row2.Cells["RIsNew"].Value?.ToString() == "1";
                             string origHash = row2.Cells["ROrigHash"].Value?.ToString() ?? "";
-                            // Dùng cùng chuẩn hóa với origHash
                             string C(DataGridViewCell c) => c.Value?.ToString()?.Trim() ?? "";
                             string curHash = string.Join("|",
                                 C(row2.Cells["Ritem_name"]), C(row2.Cells["RDesc"]),
@@ -2652,59 +2719,37 @@ namespace MPR_Managerment.Forms
                                 C(row2.Cells["RQty"]), C(row2.Cells["RKG"]),
                                 C(row2.Cells["RRemarks"]));
                             bool changed = isNewRow || origHash == "__NEW__" || curHash != origHash;
-                            detRev = changed
-                                ? nextRev  // mới thêm hoặc có thay đổi → REV tiếp theo
+                            int detRev = changed
+                                ? nextRev
                                 : (int.TryParse(row2.Cells["RREV"].Value?.ToString(), out int rvO) ? rvO : 0);
+
+                            _service.InsertDetail(new MPRDetail
+                            {
+                                MPR_ID = targetId,
+                                Item_No = isSoftDeleted ? 0 : stt2++,
+                                Item_Name = nm,
+                                Description = row2.Cells["RDesc"].Value?.ToString() ?? "",
+                                Material = row2.Cells["RMaterial"].Value?.ToString() ?? "",
+                                Thickness_mm = decimal.TryParse(row2.Cells["RT_mm"].Value?.ToString(), out decimal rTh) ? rTh : 0,
+                                Depth_mm = decimal.TryParse(row2.Cells["RD_mm"].Value?.ToString(), out decimal rDp) ? rDp : 0,
+                                C_Width_mm = decimal.TryParse(row2.Cells["RW_mm"].Value?.ToString(), out decimal rCw) ? rCw : 0,
+                                D_Web_mm = decimal.TryParse(row2.Cells["RWeb_mm"].Value?.ToString(), out decimal rDw) ? rDw : 0,
+                                E_Flange_mm = decimal.TryParse(row2.Cells["RFlange_mm"].Value?.ToString(), out decimal rEf) ? rEf : 0,
+                                F_Length_mm = decimal.TryParse(row2.Cells["RL_mm"].Value?.ToString(), out decimal rFl) ? rFl : 0,
+                                Usage_Location = row2.Cells["RUsage"].Value?.ToString() ?? "",
+                                MPS_Info = row2.Cells["RMPS"].Value?.ToString() ?? "",
+                                DWG_BOQ_Receive_Date = DateTime.TryParse(row2.Cells["RDWG"].Value?.ToString(), out DateTime rDwg) ? rDwg : (DateTime?)null,
+                                Issue_Date = DateTime.TryParse(row2.Cells["RIssue"].Value?.ToString(), out DateTime rIss) ? rIss : (DateTime?)null,
+                                UNIT = row2.Cells["RUNIT"].Value?.ToString() ?? "",
+                                Qty_Per_Sheet = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RQty"].Value?.ToString(), out decimal rQs) ? rQs : 0),
+                                Weight_kg = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RKG"].Value?.ToString(), out decimal rWk) ? rWk : 0),
+                                Remarks = row2.Cells["RRemarks"].Value?.ToString() ?? "",
+                                REV = isSoftDeleted ? "0" : detRev.ToString(),
+                                Is_Deleted = isSoftDeleted
+                            }, _currentUser);
                         }
 
-
-                        // Lấy oldDetailId để transfer PO link sau
-                        int oldDetId = int.TryParse(row2.Cells["RDetId"].Value?.ToString(), out int odid) ? odid : 0;
-
-                        // Insert vào DB (cả dòng bình thường lẫn dòng deleted)
-                        _service.InsertDetail(new MPRDetail
-                        {
-                            MPR_ID = targetId,
-                            Item_No = isSoftDeleted ? 0 : stt++,
-                            Item_Name = nm,
-                            Description = row2.Cells["RDesc"].Value?.ToString() ?? "",
-                            Material = row2.Cells["RMaterial"].Value?.ToString() ?? "",
-                            Thickness_mm = decimal.TryParse(row2.Cells["RT_mm"].Value?.ToString(), out decimal rTh) ? rTh : 0,
-                            Depth_mm = decimal.TryParse(row2.Cells["RD_mm"].Value?.ToString(), out decimal rDp) ? rDp : 0,
-                            C_Width_mm = decimal.TryParse(row2.Cells["RW_mm"].Value?.ToString(), out decimal rCw) ? rCw : 0,
-                            D_Web_mm = decimal.TryParse(row2.Cells["RWeb_mm"].Value?.ToString(), out decimal rDw) ? rDw : 0,
-                            E_Flange_mm = decimal.TryParse(row2.Cells["RFlange_mm"].Value?.ToString(), out decimal rEf) ? rEf : 0,
-                            F_Length_mm = decimal.TryParse(row2.Cells["RL_mm"].Value?.ToString(), out decimal rFl) ? rFl : 0,
-                            Usage_Location = row2.Cells["RUsage"].Value?.ToString() ?? "",
-                            MPS_Info = row2.Cells["RMPS"].Value?.ToString() ?? "",
-                            DWG_BOQ_Receive_Date = DateTime.TryParse(row2.Cells["RDWG"].Value?.ToString(), out DateTime rDwg) ? rDwg : (DateTime?)null,
-                            Issue_Date = DateTime.TryParse(row2.Cells["RIssue"].Value?.ToString(), out DateTime rIss) ? rIss : (DateTime?)null,
-                            UNIT = row2.Cells["RUNIT"].Value?.ToString() ?? "",
-                            Qty_Per_Sheet = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RQty"].Value?.ToString(), out decimal rQs) ? rQs : 0),
-                            Weight_kg = isSoftDeleted ? 0 : (decimal.TryParse(row2.Cells["RKG"].Value?.ToString(), out decimal rWk) ? rWk : 0),
-                            Remarks = row2.Cells["RRemarks"].Value?.ToString() ?? "",
-                            REV = isSoftDeleted ? "0" : detRev.ToString()
-                        }, _currentUser);
-
-                        // Lưu map oldId → newId để transfer PO link sau
-                        if (!isSoftDeleted && oldDetId > 0)
-                        {
-                            var cmdGetNewId = new SqlCommand(
-                                "SELECT MAX(Detail_ID) FROM MPR_Details WHERE MPR_ID=@mid AND Item_Name=@nm", conn);
-                            cmdGetNewId.Parameters.AddWithValue("@mid", targetId);
-                            cmdGetNewId.Parameters.AddWithValue("@nm", nm);
-                            int newDetId = Convert.ToInt32(cmdGetNewId.ExecuteScalar());
-                            if (newDetId > 0) deletedDetailMap[oldDetId] = newDetId;
-                        }
-                    }
-
-                    // ── Transfer PO_Detail link: không cần nữa ──────────────────────
-                    // GetPoMappingForMpr tự cross-match Item_No+item_name qua các Rev
-                    // → tuyệt đối không UPDATE PO_Detail khi Revise MPR
-
-                    // ── Đánh dấu Is_Deleted=1 cho các dòng xóa mềm trong DB ─────────
-                    if (!isAdmin)
-                    {
+                        // Đánh dấu Is_Deleted=1 cho các dòng xóa mềm trong DB
                         var cmdMarkDel = new SqlCommand(
                             "UPDATE MPR_Details SET Is_Deleted=1 WHERE MPR_ID=@mid AND Item_No=0", conn);
                         cmdMarkDel.Parameters.AddWithValue("@mid", targetId);
@@ -2817,7 +2862,7 @@ namespace MPR_Managerment.Forms
                                 FROM   MPR_Header
                                 WHERE  MPR_ID <> @mprId
                                   AND  (MPR_No = @baseNo OR MPR_No LIKE @baseNo + N'_Rev.%')
-                                ORDER BY TRY_CAST(Rev AS INT) DESC", conn, tran);
+                                ORDER BY TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) DESC", conn, tran);
                             cmdPrevRev.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
                             cmdPrevRev.Parameters.AddWithValue("@baseNo", baseMprNo);
                             object prevRevObj = cmdPrevRev.ExecuteScalar();
@@ -2882,7 +2927,7 @@ namespace MPR_Managerment.Forms
                                     FROM   MPR_Header
                                     WHERE  MPR_ID <> @mprId
                                       AND  (MPR_No = @baseNo OR MPR_No LIKE @baseNo + N'_Rev.%')
-                                    ORDER BY TRY_CAST(Rev AS INT) DESC
+                                    ORDER BY TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) DESC
                                 );", conn, tran);
                             cmdLatest.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
                             cmdLatest.Parameters.AddWithValue("@baseNo", baseMprNo);
@@ -3350,7 +3395,7 @@ namespace MPR_Managerment.Forms
                                ROW_NUMBER() OVER (
                                    PARTITION BY Project_Code,
                                        SUBSTRING(MPR_No, 1, CHARINDEX('_Rev.', MPR_No + '_Rev.') - 1)
-                                   ORDER BY TRY_CAST(Rev AS INT) DESC, MPR_ID DESC
+                                   ORDER BY TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) DESC, MPR_ID DESC
                                ) as rn
                         FROM MPR_Header
                     ),
@@ -3421,12 +3466,12 @@ namespace MPR_Managerment.Forms
                         d.Item_No                                           AS [Item No],
                         d.item_name                                         AS [Tên vật tư],
                         d.Material                                          AS [Vật liệu],
-                        ISNULL(CAST(NULLIF(d.Thickness_mm,'') AS NVARCHAR),N'') AS [A-Dày(mm)],
-                        ISNULL(CAST(NULLIF(d.Depth_mm,    '') AS NVARCHAR),N'') AS [B-Sâu(mm)],
-                        ISNULL(CAST(NULLIF(d.C_Width_mm,  '') AS NVARCHAR),N'') AS [C-Rộng(mm)],
-                        ISNULL(CAST(NULLIF(d.D_Web_mm,    '') AS NVARCHAR),N'') AS [D-Bụng(mm)],
-                        ISNULL(CAST(NULLIF(d.E_Flange_mm, '') AS NVARCHAR),N'') AS [E-Cánh(mm)],
-                        ISNULL(CAST(NULLIF(d.F_Length_mm, '') AS NVARCHAR),N'') AS [F-Dài(mm)],
+                        ISNULL(CAST(NULLIF(d.Thickness_mm,0) AS NVARCHAR),N'') AS [A-Dày(mm)],
+                        ISNULL(CAST(NULLIF(d.Depth_mm,    0) AS NVARCHAR),N'') AS [B-Sâu(mm)],
+                        ISNULL(CAST(NULLIF(d.C_Width_mm,  0) AS NVARCHAR),N'') AS [C-Rộng(mm)],
+                        ISNULL(CAST(NULLIF(d.D_Web_mm,    0) AS NVARCHAR),N'') AS [D-Bụng(mm)],
+                        ISNULL(CAST(NULLIF(d.E_Flange_mm, 0) AS NVARCHAR),N'') AS [E-Cánh(mm)],
+                        ISNULL(CAST(NULLIF(d.F_Length_mm, 0) AS NVARCHAR),N'') AS [F-Dài(mm)],
                         ISNULL(d.UNIT,       N'')                           AS [ĐVT],
                         d.Qty_Per_Sheet                                     AS [SL],
                         ISNULL(d.Weight_kg,  0)                             AS [KG],

@@ -203,6 +203,9 @@ namespace MPR_Managerment.Services
 
         // ===== UPDATE DETAIL =====
         public void UpdateDetail(MPRDetail d, string modifiedBy)
+            => UpdateDetail(d, modifiedBy, d.Detail_ID);
+
+        public void UpdateDetail(MPRDetail d, string modifiedBy, int detailId)
         {
             using (var conn = DatabaseHelper.GetConnection())
             {
@@ -227,9 +230,10 @@ namespace MPR_Managerment.Services
                         REV            = @REV,
                         Remarks        = @Remarks,
                         Is_Deleted     = @Is_Deleted
-                    WHERE Detail_ID = @MPR_ID", conn);
+                    WHERE Detail_ID = @DetailId", conn);
 
                 AddDetailParams(cmd, d);
+                cmd.Parameters.AddWithValue("@DetailId", detailId);
                 cmd.ExecuteNonQuery();
             }
         }
