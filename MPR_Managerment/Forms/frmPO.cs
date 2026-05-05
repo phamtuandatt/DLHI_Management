@@ -1943,9 +1943,9 @@ namespace MPR_Managerment.Forms
                         decimal realPrice = d.Price;
                         string rem = d.Remarks ?? "";
 
-                        if (rem.Contains("[CALC:KG]"))
+                        if (rem.Contains("[CALC:KG]") || rem.Contains("[CALC:SL]"))
                         {
-                            rem = rem.Replace("[CALC:KG]", "").Trim();
+                            rem = rem.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
 
@@ -3141,9 +3141,9 @@ namespace MPR_Managerment.Forms
                         decimal realPrice = d.Price;
                         string rem = d.Remarks ?? "";
 
-                        if (rem.Contains("[CALC:KG]"))
+                        if (rem.Contains("[CALC:KG]") || rem.Contains("[CALC:SL]"))
                         {
-                            rem = rem.Replace("[CALC:KG]", "").Trim();
+                            rem = rem.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
 
@@ -3157,22 +3157,54 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 8].Value = d.UNIT ?? "";
                         ws.Cells[row, 9].Value = d.Weight_kg;
                         ws.Cells[row, 10].Value = d.MPSNo ?? "";
-                        ws.Cells[row, 11].Value = d.RequestDay;
+                        ws.Cells[row, 11].Value = poHead.Expected_Delivery;
                         ws.Cells[row, 12].Value = "Kho DLHI";
                         ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
                         ws.Cells[row, 14].Value = d.Amount;
                         ws.Cells[row, 16].Value = rem;
 
+                        // --- CỦNG CỐ ĐỊNH DẠNG MERGE CHO REMARKS ---
+                        // Nếu trong template cột Remarks gộp từ cột 16 (P) và 17 (Q)
+                        if (!ws.Cells[row, 16].Merge)
+                        {
+                            ws.Cells[row, 16, row, 17].Merge = true;
+                        }
+
                         totalAfterVAT += d.Amount * (1 + d.VAT / 100);
+
+                        // Thiết lập Style cho hàng
+                        using (var range = ws.Cells[row, 1, row, 17])
+                        {
+                            range.Style.Font.Name = "Times New Roman";
+                            range.Style.Font.Size = 11;
+                            range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+
+                            // Kẻ khung
+                            range.Style.Border.Top.Style = range.Style.Border.Bottom.Style =
+                            range.Style.Border.Left.Style = range.Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                        }
+                        ws.Cells[row, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        ws.Cells[row, 16].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+
+                        ws.Cells[row, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        ws.Cells[row, 11].Style.Numberformat.Format = "dd/MM/yyyy";
+
+                        ws.Cells[row, 13].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                        ws.Cells[row, 13].Style.Numberformat.Format = "#,##0.00";
+
+                        ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                        ws.Cells[row, 14].Style.Numberformat.Format = "#,##0.00";
                     }
 
                     int subTotalRow = startRow + detailCount;
                     int vatRow = subTotalRow + 1;
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
+                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = "#,##0.00";
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
                     ws.Cells[vatRow, 14].Value = totalAfterVAT;
-                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.##";
+                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.00";
                     ws.Cells[vatRow, 14].Style.Font.Bold = true;
 
                     package.Save();
@@ -3321,7 +3353,12 @@ namespace MPR_Managerment.Forms
                 string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
                 remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
                 decimal dbPrice = p;
-                if (calcMethod == "Theo KG") { remarks += " [CALC:KG]"; if (q > 0 && wk > 0) dbPrice = (wk * p) / q; }
+                if (calcMethod == "Theo KG") 
+                { 
+                    remarks += " [CALC:KG]"; 
+                    if (q > 0 && wk > 0) 
+                        dbPrice = (wk * p) / q; 
+                }
                 else remarks += " [CALC:SL]";
                 int? mprDetailId = null;
                 if (dgvDetails.Columns.Contains("MPR_Detail_ID") && row.Cells["MPR_Detail_ID"].Value != null)
