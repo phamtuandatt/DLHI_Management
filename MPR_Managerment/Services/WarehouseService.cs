@@ -330,7 +330,7 @@ namespace MPR_Managerment.Services
             }
         }
 
-        public int ProjectMaterialTransform(WarehouseImport imp, string oldProjectCode, string newProjectCode, decimal qtyTransform)
+        public int ProjectMaterialTransform(WarehouseImport imp, string oldProjectCode, string newProjectCode, decimal qtyTransform, string note_2)
         {
             using (var conn = DatabaseHelper.GetConnection())
             {
@@ -361,6 +361,7 @@ namespace MPR_Managerment.Services
                 // Insert import warehouse
                 imp.Project_Code = newProjectCode;
                 imp.Qty_Import = qtyTransform;
+                imp.Notes = note_2;
                 var rs = InsertImport(imp, "Admin");
 
                 if (r.Read()) return Convert.ToInt32(r["NewImport_ID"]);

@@ -50,6 +50,9 @@
     <None Update="Templates\mpr_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Templates\payment_template.xlsx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Templates\pnk_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
