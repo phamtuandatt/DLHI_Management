@@ -43,8 +43,8 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
             try
             {
                 var wh = _warehouseServices.GetImportByImportID(this.importId);
-                wh.Notes = string.IsNullOrEmpty(txtNotes.Text.Trim()) ? txtNotes.Text.Trim() : $"Chuyển vật tư của dự án {wh.Project_Code.ToUpper()} sang cho dự án {cboProject.SelectedItem.ToString().ToUpper()}";
-                string notes_2 = $"Vật tư mượn của dự án {wh.Project_Code.ToUpper()}";
+                wh.Notes = $"{txtNotes.Text.Trim()} - Chuyển {txtQty.Value} {wh.UNIT} của dự án {wh.Project_Code.ToUpper()} sang cho dự án {cboProject.SelectedItem.ToString().ToUpper()}";
+                string notes_2 = $"Mượn {txtQty.Value} {wh.UNIT} của dự án {wh.Project_Code.ToUpper()}";
                 var rs = _warehouseServices.ProjectMaterialTransform(wh, wh.Project_Code, cboProject.SelectedItem.ToString() ?? wh.Project_Code, txtQty.Value, notes_2);
                 MessageBox.Show($"✅ Chuyển vật tư thành công!\nTên vật tư: {wh.Item_Name}\nKích thước vật tư: {wh.Size} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();

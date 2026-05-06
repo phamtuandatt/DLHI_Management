@@ -642,6 +642,7 @@ namespace MPR_Managerment.Services
                 Weight_Exported = r["Weight_Exported"] != DBNull.Value ? Convert.ToDecimal(r["Weight_Exported"]) : 0,
                 Qty_Stock = r["Qty_Stock"] != DBNull.Value ? Convert.ToDecimal(r["Qty_Stock"]) : 0,
                 Weight_Stock = r["Weight_Stock"] != DBNull.Value ? Convert.ToDecimal(r["Weight_Stock"]) : 0,
+                Notes = r["Notes"]?.ToString() ?? "",
 
                 QC_Code = r["QC_Code"]?.ToString() ?? "",
                 QC_Status = r["QC_Status"]?.ToString() ?? "",
