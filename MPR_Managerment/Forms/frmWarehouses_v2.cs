@@ -1992,7 +1992,7 @@ namespace MPR_Managerment.Forms
             if (dgvImportQueue.Columns[e.ColumnIndex].Name == "Qty_Import")
             {
                 var cell = dgvImportQueue.Rows[e.RowIndex].Cells[e.ColumnIndex];
-                var poDetailIdCell = dgvImportQueue.Rows[e.RowIndex].Cells[11].Value;
+                var poDetailIdCell = dgvImportQueue.Rows[e.RowIndex].Cells[12].Value;
                 if (cell.Value != null)
                 {
                     decimal newValue;
