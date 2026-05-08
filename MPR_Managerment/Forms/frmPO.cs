@@ -1943,9 +1943,9 @@ namespace MPR_Managerment.Forms
                         decimal realPrice = d.Price;
                         string rem = d.Remarks ?? "";
 
-                        if (rem.Contains("[CALC:KG]") || rem.Contains("[CALC:SL]"))
+                        if (rem.Contains("[CALC:KG]"))
                         {
-                            rem = rem.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
+                            rem = rem.Replace("[CALC:KG]", "").Trim();
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
 
@@ -3141,9 +3141,9 @@ namespace MPR_Managerment.Forms
                         decimal realPrice = d.Price;
                         string rem = d.Remarks ?? "";
 
-                        if (rem.Contains("[CALC:KG]") || rem.Contains("[CALC:SL]"))
+                        if (rem.Contains("[CALC:KG]"))
                         {
-                            rem = rem.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
+                            rem = rem.Replace("[CALC:KG]", "").Trim();
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
 
