@@ -5,6 +5,7 @@ using MPR_Managerment.Forms.DeliveryGUI;
 using MPR_Managerment.Forms.ExportGUI;
 using MPR_Managerment.Forms.ImportWarehouseGUI;
 using MPR_Managerment.Forms.ItemCodeGUI;
+using MPR_Managerment.Forms.WarehouseGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
@@ -1434,19 +1435,49 @@ namespace MPR_Managerment.Forms
             };
             mainScrollPanel.Controls.Add(container);
 
-            GroupBox gbHeader = new GroupBox();
-            gbHeader.Text = "Lịch sử nhập hàng";
-            //gbHeader.Size = new Size(1280, 700);
-            gbHeader.Dock = DockStyle.Top;
-            gbHeader.Height = 700;
-            gbHeader.Location = new Point(10, 115);
-            container.Controls.Add(gbHeader);
+            ucWarehouse ucWarehouse = new ucWarehouse();
+            ucWarehouse.Dock = DockStyle.Fill;
+            container.Controls.Add(ucWarehouse);
+            ucWarehouse.BringToFront();
+            //GroupBox gbHeader = new GroupBox();
+            //gbHeader.Text = "Lịch sử nhập hàng";
+            ////gbHeader.Size = new Size(1280, 700);
+            //gbHeader.Dock = DockStyle.Top;
+            //gbHeader.Height = 700;
+            //gbHeader.Location = new Point(10, 115);
+            //container.Controls.Add(gbHeader);
 
+            ////dgvStock = new DataGridView
+            ////{
+            ////    //Location = new Point(10, 115),
+            ////    //Size = new Size(1200, 1200),
+            ////    ReadOnly = true,
+            ////    AllowUserToAddRows = false,
+            ////    SelectionMode = DataGridViewSelectionMode.CellSelect,
+            ////    BackgroundColor = Color.White,
+            ////    BorderStyle = BorderStyle.FixedSingle,
+            ////    RowHeadersVisible = false,
+            ////    Font = new Font("Segoe UI", 9),
+            ////    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            ////    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+            ////    Margin = new Padding(0, 100, 0, 0),
+            ////};
+            ////dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            ////dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            ////dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            ////dgvStock.EnableHeadersVisualStyles = false;
+            ////dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            ////dgvStock.Dock = DockStyle.Fill;
+            ////dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick1;
+
+            ////// Xanh nhạt cho selection
+            ////dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            ////dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
+            //// 1. Cập nhật lại phần khởi tạo DataGridView
             //dgvStock = new DataGridView
             //{
-            //    //Location = new Point(10, 115),
-            //    //Size = new Size(1200, 1200),
-            //    ReadOnly = true,
+            //    Size = new Size(1200, 1200),
+            //    ReadOnly = false, // Phải để false để có thể click vào CheckBox
             //    AllowUserToAddRows = false,
             //    SelectionMode = DataGridViewSelectionMode.CellSelect,
             //    BackgroundColor = Color.White,
@@ -1457,185 +1488,159 @@ namespace MPR_Managerment.Forms
             //    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
             //    Margin = new Padding(0, 100, 0, 0),
             //};
+
             //dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             //dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             //dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             //dgvStock.EnableHeadersVisualStyles = false;
             //dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
             //dgvStock.Dock = DockStyle.Fill;
-            //dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick1;
-
-            //// Xanh nhạt cho selection
             //dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
             //dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
-            // 1. Cập nhật lại phần khởi tạo DataGridView
-            dgvStock = new DataGridView
-            {
-                Size = new Size(1200, 1200),
-                ReadOnly = false, // Phải để false để có thể click vào CheckBox
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.CellSelect,
-                BackgroundColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle,
-                RowHeadersVisible = false,
-                Font = new Font("Segoe UI", 9),
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-                Margin = new Padding(0, 100, 0, 0),
-            };
 
-            dgvStock.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
-            dgvStock.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-            dgvStock.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-            dgvStock.EnableHeadersVisualStyles = false;
-            dgvStock.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
-            dgvStock.Dock = DockStyle.Fill;
-            dgvStock.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
-            dgvStock.DefaultCellStyle.SelectionForeColor = Color.Black;
+            //dgvStock.CellFormatting += DgvStock_CellFormatting;
+            //dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick;
+            //dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
+            //dgvStock.CellValueChanged += (s, e) =>
+            //{
+            //    if (dgvStock.Columns[e.ColumnIndex].Name == "Chon" && e.RowIndex >= 0)
+            //    {
+            //        bool isChecked = Convert.ToBoolean(dgvStock.Rows[e.RowIndex].Cells["Chon"].Value);
+            //        int importId = Convert.ToInt32(dgvStock.Rows[e.RowIndex].Cells["Import_ID"]?.Value?.ToString()?.Trim() ?? "0");
 
-            dgvStock.CellFormatting += DgvStock_CellFormatting;
-            dgvStock.CellContentDoubleClick += DgvStock_CellContentDoubleClick;
-            dgvStock.SelectionChanged += (s, e) => Common.Common.UpdateSelectionSum(dgvStock, lblStatus);
-            dgvStock.CellValueChanged += (s, e) =>
-            {
-                if (dgvStock.Columns[e.ColumnIndex].Name == "Chon" && e.RowIndex >= 0)
-                {
-                    bool isChecked = Convert.ToBoolean(dgvStock.Rows[e.RowIndex].Cells["Chon"].Value);
-                    int importId = Convert.ToInt32(dgvStock.Rows[e.RowIndex].Cells["Import_ID"]?.Value?.ToString()?.Trim() ?? "0");
+            //        if (isChecked)
+            //        {
+            //            if (_selectedItem.Any(i => i.Import_ID == importId)) return;
+            //            _selectedItem.Add(new SelectedItemModel
+            //            {
+            //                Import_ID = importId,
+            //                Ma_Phieu = dgvStock.Rows[e.RowIndex].Cells["Ma_Phieu"].Value?.ToString() ?? "",
+            //                Ten_Vat_Tu = dgvStock.Rows[e.RowIndex].Cells["Ten_Vat_Tu"].Value?.ToString() ?? "",
+            //                Vat_Lieu = dgvStock.Rows[e.RowIndex].Cells["Vat_Lieu"].Value?.ToString() ?? "",
+            //                Kich_Thuoc = dgvStock.Rows[e.RowIndex].Cells["Kich_Thuoc"].Value?.ToString() ?? "",
+            //                DVT = dgvStock.Rows[e.RowIndex].Cells["DVT"].Value?.ToString() ?? "",
+            //                Item_Code = dgvStock.Rows[e.RowIndex].Cells["Item_Code"].Value?.ToString() ?? "",
+            //                SL_Ton = Convert.ToDecimal(dgvStock.Rows[e.RowIndex].Cells["SL_Ton"].Value),
+            //                SL_Xuat = 0,
+            //                ID_Code = dgvStock.Rows[e.RowIndex].Cells["QC_Code"].Value?.ToString() ?? "",
+            //            });
+            //        }
+            //        else
+            //        {
+            //            _selectedItem.RemoveAll(impId => impId.Import_ID == importId);
+            //        }
+            //    }
+            //};
+            //gbHeader.Controls.Add(dgvStock);
 
-                    if (isChecked)
-                    {
-                        if (_selectedItem.Any(i => i.Import_ID == importId)) return;
-                        _selectedItem.Add(new SelectedItemModel
-                        {
-                            Import_ID = importId,
-                            Ma_Phieu = dgvStock.Rows[e.RowIndex].Cells["Ma_Phieu"].Value?.ToString() ?? "",
-                            Ten_Vat_Tu = dgvStock.Rows[e.RowIndex].Cells["Ten_Vat_Tu"].Value?.ToString() ?? "",
-                            Vat_Lieu = dgvStock.Rows[e.RowIndex].Cells["Vat_Lieu"].Value?.ToString() ?? "",
-                            Kich_Thuoc = dgvStock.Rows[e.RowIndex].Cells["Kich_Thuoc"].Value?.ToString() ?? "",
-                            DVT = dgvStock.Rows[e.RowIndex].Cells["DVT"].Value?.ToString() ?? "",
-                            Item_Code = dgvStock.Rows[e.RowIndex].Cells["Item_Code"].Value?.ToString() ?? "",
-                            SL_Ton = Convert.ToDecimal(dgvStock.Rows[e.RowIndex].Cells["SL_Ton"].Value),
-                            SL_Xuat = 0,
-                            ID_Code = dgvStock.Rows[e.RowIndex].Cells["QC_Code"].Value?.ToString() ?? "",
-                        });
-                    }
-                    else
-                    {
-                        _selectedItem.RemoveAll(impId => impId.Import_ID == importId);
-                    }
-                }
-            };
-            gbHeader.Controls.Add(dgvStock);
+            //// 1. Khởi tạo ContextMenuStrip
+            //ContextMenuStrip menuStock = new ContextMenuStrip();
 
-            // 1. Khởi tạo ContextMenuStrip
-            ContextMenuStrip menuStock = new ContextMenuStrip();
+            //// 2. Thêm các mục (Items) vào menu
+            //ToolStripMenuItem itemXemChiTiet = new ToolStripMenuItem("📄 Chuyển vật tư");
+            ////ToolStripMenuItem itemSaoChep = new ToolStripMenuItem("📋 Sao chép mã");
+            ////ToolStripMenuItem itemXuatKho = new ToolStripMenuItem("📤 Xuất kho");
 
-            // 2. Thêm các mục (Items) vào menu
-            ToolStripMenuItem itemXemChiTiet = new ToolStripMenuItem("📄 Chuyển vật tư");
-            //ToolStripMenuItem itemSaoChep = new ToolStripMenuItem("📋 Sao chép mã");
-            //ToolStripMenuItem itemXuatKho = new ToolStripMenuItem("📤 Xuất kho");
+            //menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet/*, itemSaoChep, new ToolStripSeparator(), itemXuatKho*/ });
 
-            menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet/*, itemSaoChep, new ToolStripSeparator(), itemXuatKho*/ });
+            //// 3. Gắn menu vào DataGridView
+            //if (AppSession.CurrentUser.Role_ID == 1)
+            //{
+            //    dgvStock.ContextMenuStrip = menuStock;
+            //}
 
-            // 3. Gắn menu vào DataGridView
-            if (AppSession.CurrentUser.Role_ID == 1)
-            {
-                dgvStock.ContextMenuStrip = menuStock;
-            }
+            //// 4. Sự kiện khi click vào một mục trong menu
+            //itemXemChiTiet.Click += (s, e) =>
+            //{
+            //    if (dgvStock.CurrentRow != null)
+            //    {
+            //        // Lấy dữ liệu từ dòng đang chọn
+            //        var row = dgvStock.CurrentRow;
+            //        string id = row.Cells["Import_ID"].Value?.ToString();
+            //        var importId = Convert.ToInt32(row.Cells["Import_ID"].Value.ToString());
+            //        var maxQty = Common.Common.ParseDecimalRaw(row.Cells["SL_Nhap"].Value.ToString());
+            //        frmProjectMaterialTransform frmProjectMaterialTransform = new frmProjectMaterialTransform(_dtProject, importId, maxQty);
+            //        frmProjectMaterialTransform.ShowDialog();
+            //        btnSearch.PerformClick();
+            //    }
+            //};
 
-            // 4. Sự kiện khi click vào một mục trong menu
-            itemXemChiTiet.Click += (s, e) =>
-            {
-                if (dgvStock.CurrentRow != null)
-                {
-                    // Lấy dữ liệu từ dòng đang chọn
-                    var row = dgvStock.CurrentRow;
-                    string id = row.Cells["Import_ID"].Value?.ToString();
-                    var importId = Convert.ToInt32(row.Cells["Import_ID"].Value.ToString());
-                    var maxQty = Common.Common.ParseDecimalRaw(row.Cells["SL_Nhap"].Value.ToString());
-                    frmProjectMaterialTransform frmProjectMaterialTransform = new frmProjectMaterialTransform(_dtProject, importId, maxQty);
-                    frmProjectMaterialTransform.ShowDialog();
-                    btnSearch.PerformClick();
-                }
-            };
+            //// 5. QUAN TRỌNG: Xử lý để chuột phải vào dòng nào thì chọn dòng đó (thay vì chỉ hiện menu)
+            //dgvStock.MouseDown += (s, e) =>
+            //{
+            //    if (e.Button == MouseButtons.Right)
+            //    {
+            //        var hit = dgvStock.HitTest(e.X, e.Y);
+            //        if (hit.RowIndex >= 0)
+            //        {
+            //            // Xóa các lựa chọn cũ và chọn dòng vừa click chuột phải
+            //            dgvStock.ClearSelection();
+            //            dgvStock.Rows[hit.RowIndex].Selected = true;
+            //            dgvStock.CurrentCell = dgvStock.Rows[hit.RowIndex].Cells[hit.ColumnIndex];
+            //        }
+            //    }
+            //};
 
-            // 5. QUAN TRỌNG: Xử lý để chuột phải vào dòng nào thì chọn dòng đó (thay vì chỉ hiện menu)
-            dgvStock.MouseDown += (s, e) =>
-            {
-                if (e.Button == MouseButtons.Right)
-                {
-                    var hit = dgvStock.HitTest(e.X, e.Y);
-                    if (hit.RowIndex >= 0)
-                    {
-                        // Xóa các lựa chọn cũ và chọn dòng vừa click chuột phải
-                        dgvStock.ClearSelection();
-                        dgvStock.Rows[hit.RowIndex].Selected = true;
-                        dgvStock.CurrentCell = dgvStock.Rows[hit.RowIndex].Cells[hit.ColumnIndex];
-                    }
-                }
-            };
+            //GroupBox gbAction = new GroupBox();
+            //gbAction.Text = "";
+            //gbAction.Dock = DockStyle.Top;
+            //gbAction.Height = 50;
+            //gbAction.Location = new Point(10, 115);
+            //container.Controls.Add(gbAction);
 
-            GroupBox gbAction = new GroupBox();
-            gbAction.Text = "";
-            gbAction.Dock = DockStyle.Top;
-            gbAction.Height = 50;
-            gbAction.Location = new Point(10, 115);
-            container.Controls.Add(gbAction);
+            //int fy = 20;
+            //gbAction.Controls.Add(new Label { Text = "Tìm kiếm:", Location = new Point(10, fy + 3), Size = new Size(70, 20), Font = new Font("Segoe UI", 9) });
+            //txtSearchStock = new TextBox { Location = new Point(83, fy), Size = new Size(200, 25), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm tên, ID Code, PO No..." };
+            //gbAction.Controls.Add(txtSearchStock);
+            //txtSearchStock.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await LoadStock(); };
+            //gbAction.Controls.Add(new Label { Text = "Dự án:", Location = new Point(295, fy + 3), Size = new Size(50, 20), Font = new Font("Segoe UI", 9) });
+            //cboProjectFilter = new ComboBox { Location = new Point(347, fy), Size = new Size(180, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
+            //cboProjectFilter.Items.Add("Tất cả dự án");
+            //cboProjectFilter.SelectedIndex = 0;
+            //cboProjectFilter.SelectedIndexChanged += async (s, e) => await LoadStock();
+            //gbAction.Controls.Add(cboProjectFilter);
 
-            int fy = 20;
-            gbAction.Controls.Add(new Label { Text = "Tìm kiếm:", Location = new Point(10, fy + 3), Size = new Size(70, 20), Font = new Font("Segoe UI", 9) });
-            txtSearchStock = new TextBox { Location = new Point(83, fy), Size = new Size(200, 25), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm tên, ID Code, PO No..." };
-            gbAction.Controls.Add(txtSearchStock);
-            txtSearchStock.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await LoadStock(); };
-            gbAction.Controls.Add(new Label { Text = "Dự án:", Location = new Point(295, fy + 3), Size = new Size(50, 20), Font = new Font("Segoe UI", 9) });
-            cboProjectFilter = new ComboBox { Location = new Point(347, fy), Size = new Size(180, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
-            cboProjectFilter.Items.Add("Tất cả dự án");
-            cboProjectFilter.SelectedIndex = 0;
-            cboProjectFilter.SelectedIndexChanged += async (s, e) => await LoadStock();
-            gbAction.Controls.Add(cboProjectFilter);
+            //var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(537, fy - 3), 80, 28);
+            //var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(627, fy - 3), 130, 28);
+            //var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(767, fy - 3), 100, 28);
+            //var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(86, 56, 103), new Point(915, fy - 3), 200, 28);
+            //var b5 = CreateBtn("📝 Cập nhật chi tiết vật tư", Color.FromArgb(0, 176, 80), new Point(1120, fy - 3), 200, 28);
+            //b1.Click += async (s, e) => await LoadStock();
+            //b2.Click += (s, e) => LoadStockOnly();
+            //b3.Click += async (s, e) => await LoadStock(true);
+            //b4.Click += (s, e) => btnLayDuLieu_Click();
+            //gbAction.Controls.Add(b1);
+            //gbAction.Controls.Add(b2);
+            //gbAction.Controls.Add(b3);
+            //gbAction.Controls.Add(b4);
 
-            var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(537, fy - 3), 80, 28);
-            var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(627, fy - 3), 130, 28);
-            var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(767, fy - 3), 100, 28);
-            var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(86, 56, 103), new Point(915, fy - 3), 200, 28);
-            var b5 = CreateBtn("📝 Cập nhật chi tiết vật tư", Color.FromArgb(0, 176, 80), new Point(1120, fy - 3), 200, 28);
-            b1.Click += async (s, e) => await LoadStock();
-            b2.Click += (s, e) => LoadStockOnly();
-            b3.Click += async (s, e) => await LoadStock(true);
-            b4.Click += (s, e) => btnLayDuLieu_Click();
-            gbAction.Controls.Add(b1);
-            gbAction.Controls.Add(b2);
-            gbAction.Controls.Add(b3);
-            gbAction.Controls.Add(b4);
+            //if (AppSession.CurrentUser.Role_ID == 1)
+            //{
+            //    b5.Click += (s, ev) =>
+            //    {
+            //        frmCreateItemCode frmCreateItemCode = new frmCreateItemCode("Cập nhật");
+            //        frmCreateItemCode.ShowDialog();
+            //    };
+            //    gbAction.Controls.Add(b5);
+            //}
 
-            if (AppSession.CurrentUser.Role_ID == 1)
-            {
-                b5.Click += (s, ev) =>
-                {
-                    frmCreateItemCode frmCreateItemCode = new frmCreateItemCode("Cập nhật");
-                    frmCreateItemCode.ShowDialog();
-                };
-                gbAction.Controls.Add(b5);
-            }
+            //panelStockSummary = new Panel
+            //{
+            //    Location = new Point(10, 10),
+            //    //Size = new Size(1200, 60),
+            //    BackColor = Color.White,
+            //    BorderStyle = BorderStyle.FixedSingle,
+            //    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            //};
+            //panelStockSummary.Dock = DockStyle.Top;
+            //panelStockSummary.Height = 60;
+            //panelStockSummary.BringToFront();
+            //container.Controls.Add(panelStockSummary);
 
-            panelStockSummary = new Panel
-            {
-                Location = new Point(10, 10),
-                //Size = new Size(1200, 60),
-                BackColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-            };
-            panelStockSummary.Dock = DockStyle.Top;
-            panelStockSummary.Height = 60;
-            panelStockSummary.BringToFront();
-            container.Controls.Add(panelStockSummary);
-
-            lblStockTotal = AddStatLbl(panelStockSummary, "Tổng mục:", "0 mục", Color.FromArgb(0, 120, 212), 10);
-            lblStockQty = AddStatLbl(panelStockSummary, "Tổng SL tồn:", "0", Color.FromArgb(40, 167, 69), 250);
-            lblStockWeight = AddStatLbl(panelStockSummary, "Tổng KG tồn:", "0 kg", Color.FromArgb(255, 140, 0), 490);
-            lblStatus = AddStatLbl(panelStockSummary, "Số lượng:", "0 kg", Color.FromArgb(254, 0, 51), 730);
+            //lblStockTotal = AddStatLbl(panelStockSummary, "Tổng mục:", "0 mục", Color.FromArgb(0, 120, 212), 10);
+            //lblStockQty = AddStatLbl(panelStockSummary, "Tổng SL tồn:", "0", Color.FromArgb(40, 167, 69), 250);
+            //lblStockWeight = AddStatLbl(panelStockSummary, "Tổng KG tồn:", "0 kg", Color.FromArgb(255, 140, 0), 490);
+            //lblStatus = AddStatLbl(panelStockSummary, "Số lượng:", "0 kg", Color.FromArgb(254, 0, 51), 730);
         }
 
         private void SyncDataGridViewWithList(DataGridView dgv, List<SelectedItemModel> selectedItem)
@@ -2593,7 +2598,7 @@ namespace MPR_Managerment.Forms
         private void LoadAll()
         {
             LoadProjectImportFilter();
-            LoadProjectFilter();
+            //LoadProjectFilter();
         }
 
         private void LoadProjectFilter()

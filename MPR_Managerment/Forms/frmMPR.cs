@@ -1937,12 +1937,13 @@ namespace MPR_Managerment.Forms
                         MPR_No = tMPRNo.Text.Trim(),
                         Project_Name = tProjName.Text.Trim(),
                         Project_Code = tProjCode.Text.Trim(),
-                        Department = tDept.Text.Trim(),
-                        Requestor = tReq.Text.Trim(),
+                        Department = AppSession.CurrentUser.Department ?? txtDepartment.Text.Trim(),
+                        Requestor = AppSession.CurrentUser.Username ?? txtRequestor.Text.Trim(),
                         Required_Date = dtp.Value,
                         Rev = 0,
                         Status = "Mới",
-                        Notes = tNotes.Text.Trim()
+                        Notes = tNotes.Text.Trim(),
+                        Created_By = AppSession.CurrentUser.Username
                     };
                     int newId = _service.InsertHeader(header, _currentUser);
 

@@ -78,7 +78,7 @@ namespace MPR_Managerment.Services
                     ? (object)m.Required_Date.Value : DBNull.Value);
                 cmd.Parameters.AddWithValue("@Status", m.Status ?? "Mới");
                 cmd.Parameters.AddWithValue("@Notes", m.Notes ?? "");
-                cmd.Parameters.AddWithValue("@Created_By", createdBy);
+                cmd.Parameters.AddWithValue("@Created_By", m.Created_By ?? "admin");
 
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
