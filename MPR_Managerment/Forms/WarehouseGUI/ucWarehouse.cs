@@ -72,6 +72,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
         {
             LoadProjectImportFilter();
             //LoadProjectFilter();
+            PopulateTreeView(_service.GetTranformHistory());
         }
 
         private void LoadProjectImportFilter()
@@ -258,11 +259,11 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             gbAction.Controls.Add(cboProjectFilter);
 
             fy += 35;
-            var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(20, fy - 3), 80, 28);
-            var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(110, fy - 3), 130, 28);
-            var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(250, fy - 3), 100, 28);
-            var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(86, 56, 103), new Point(360, fy - 3), 200, 28);
-            var b5 = CreateBtn("📝 Cập nhật chi tiết vật tư", Color.FromArgb(0, 176, 80), new Point(570, fy - 3), 195, 28);
+            var b1 = CreateBtn("🔍 Tìm", Color.FromArgb(0, 120, 212), new Point(10, fy - 3), 80, 28);
+            var b2 = CreateBtn("📦 Chỉ còn tồn", Color.FromArgb(40, 167, 69), new Point(100, fy - 3), 130, 28);
+            var b3 = CreateBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(240, fy - 3), 100, 28);
+            var b4 = CreateBtn("🔄 Yêu cầu xuất kho", Color.FromArgb(86, 56, 103), new Point(350, fy - 3), 200, 28);
+            var b5 = CreateBtn("📝 Cập nhật chi tiết vật tư", Color.FromArgb(0, 176, 80), new Point(560, fy - 3), 195, 28);
             b1.Click += async (s, e) => await LoadStock();
             b2.Click += (s, e) => LoadStockOnly();
             b3.Click += async (s, e) => await LoadStock(true);
@@ -577,7 +578,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
 
         private void LoadStockOnly()
         {
-            try { if (cboProject.Items.Count <= 0) return; if (dgvStock != null) BindStockGrid(_service.GetStockWithRemaining(cboProject.SelectedText ?? "")); }
+            try { if (cboProjectFilter.Items.Count <= 0) return; if (dgvStock != null) BindStockGrid(_service.GetStockWithRemaining(cboProjectFilter.SelectedText ?? "")); }
             catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
@@ -594,20 +595,6 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                 string kw = txtSearchStock?.Text.Trim() ?? "";
                 string project = (cboProjectFilter != null && cboProjectFilter.SelectedIndex > 0) ? cboProjectFilter.SelectedItem.ToString() : "";
                 BindStockGrid(_service.GetStock(project, kw));
-                //if (!string.IsNullOrEmpty(project))
-                //{
-                //    BindStockGrid(_service.GetStock(project, kw));
-                //    //DataTable stocks = await _service.GetStock_V2(project, kw);
-                //    //dgvStock.DataSource = stocks;
-                //    //if (dgvStock.Columns.Contains("Import_ID")) dgvStock.Columns["Import_ID"].Visible = false;
-                //    //decimal tQ = 0, tW = 0;
-                //    //foreach (DataRow s in stocks.Rows) {
-                //    //    var qt = Common.Common.ParseDecimalRaw(s["Qty (SUM)"].ToString());
-                //    //    tQ += qt;
-                //    //}
-                //    //if (lblStockTotal != null) lblStockTotal.Text = $"{stocks.Rows.Count} mục";
-                //    //if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
-                //}
             }
             catch (Exception ex) { MessageBox.Show("Lỗi tải tồn kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
@@ -888,5 +875,148 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             }
         }
 
+        private void PopulateTreeView(List<TransferLog> logList)
+        {
+            // 1. Validation kiểm tra đầu vào
+            if (logList == null || logList.Count == 0)
+            {
+                MessageBox.Show("Không có dữ liệu để hiển thị.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // 2. Tối ưu UI: Dừng vẽ giao diện trong lúc thêm hàng loạt Node
+            tvLocations.BeginUpdate();
+
+            try
+            {
+                tvLocations.Nodes.Clear();
+
+                // Sử dụng Dictionary để kiểm tra và quản lý các Root Node (New_Value_Location) không bị trùng lặp
+                Dictionary<string, TreeNode> rootNodesDict = new Dictionary<string, TreeNode>();
+
+                foreach (var item in logList)
+                {
+                    string rootKey = item.NewValueLocation;
+
+                    // Nếu Root Node (New_Value_Location) chưa tồn tại trong Dictionary, tiến hành tạo mới
+                    if (!rootNodesDict.ContainsKey(rootKey))
+                    {
+                        TreeNode newRoot = new TreeNode(rootKey);
+                        newRoot.Tag = "ROOT"; // Đánh dấu đây là Node cha
+
+                        // Thêm vào TreeView và lưu lại vào Dictionary để tái sử dụng ở các dòng sau
+                        tvLocations.Nodes.Add(newRoot);
+                        rootNodesDict.Add(rootKey, newRoot);
+                    }
+
+                    // Lấy ra Node cha tương ứng (dù là mới tạo hay đã tồn tại trước đó)
+                    TreeNode targetRootNode = rootNodesDict[rootKey];
+
+                    // Kết hợp tất cả thông tin các cột còn lại thành 1 chuỗi làm nội dung cho Child Node
+                    // Định dạng mẫu: [Tên mặt hàng] - Size: [Kích thước] - SL: [Số lượng] (Từ vị trí: [Vị trí cũ])
+                    string childText = $"{item.ItemName} | Size: {item.Size} | SL: {item.NumberTransform} | Mượn: {item.OldValueLocation}";
+
+                    TreeNode childNode = new TreeNode(childText);
+                    childNode.Tag = item; // Gán toàn bộ Object vào Tag để khi cần click chọn có thể lấy lại toàn bộ data gốc
+
+                    // Thêm Child Node vào Root Node tương ứng
+                    targetRootNode.Nodes.Add(childNode);
+                }
+
+                // Tùy chọn: Tự động mở rộng (bung) tất cả các nhánh sau khi nạp xong dữ liệu
+                tvLocations.ExpandAll();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Đã xảy ra lỗi khi dựng cây dữ liệu: {ex.Message}", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                // Bắt buộc phải gọi EndUpdate để giao diện TreeView cập nhật lại bình thường
+                tvLocations.EndUpdate();
+            }
+        }
+
+        private void tvLocations_DrawNode(object sender, DrawTreeNodeEventArgs e)
+        {
+            // 1. Kiểm tra Validation, nếu node không hiển thị thì bỏ qua để tối ưu hiệu năng
+            if (e.Node == null || !e.Bounds.IntersectsWith(tvLocations.ClientRectangle))
+                return;
+
+            // 2. Xác định trạng thái Node (Có đang được chọn hay không)
+            bool isSelected = (e.State & TreeNodeStates.Selected) != 0;
+
+            // 3. XỬ LÝ NỀN: Luôn vẽ nền trắng (hoặc màu nền mặc định của TreeView) 
+            // Bỏ hoàn toàn phần tô nền màu xanh dương cũ để đáp ứng yêu cầu của bạn
+            e.Graphics.FillRectangle(SystemBrushes.Window, e.Bounds);
+
+            // Chuẩn bị tọa độ vẽ chữ để căn chỉnh lề cho đẹp
+            float currentX = e.Bounds.X + 2;
+            float currentY = e.Bounds.Y + 4;
+
+            // 4. TIẾN HÀNH VẼ TEXT THEO TỪNG LOẠI NODE
+            if (e.Node.Tag != null && e.Node.Tag.ToString() == "ROOT")
+            {
+                // --- VẼ NODE CHA (NEW_VALUE_LOCATION) ---
+                // Xác định kiểu chữ cho Node Cha: Mặc định là In đậm (Bold)
+                FontStyle style = FontStyle.Bold;
+
+                // Nếu Node Cha này đang được chọn, kết hợp thêm Gạch chân (Underline)
+                if (isSelected)
+                {
+                    style |= FontStyle.Underline;
+                }
+
+                using (Font rootFont = new Font(e.Node.TreeView.Font, style))
+                {
+                    // Sử dụng màu xanh đen công nghiệp cho Node cha
+                    Brush rootColor = Brushes.DarkSlateBlue;
+                    e.Graphics.DrawString(e.Node.Text, rootFont, rootColor, currentX, currentY);
+                }
+            }
+            else if (e.Node.Tag is TransferLog item)
+            {
+                // --- VẼ NODE CON (CÓ PHÂN TÁCH MÀU SẮC) ---
+                Font defaultFont = e.Node.TreeView.Font;
+
+                // Định nghĩa các kiểu chữ tùy biến
+                Font nameFont = isSelected ? new Font(defaultFont, FontStyle.Underline) : defaultFont;
+                Font sizeFont = isSelected ? new Font(defaultFont, FontStyle.Underline) : defaultFont;
+                Font qtyFont = isSelected ? new Font(defaultFont, FontStyle.Underline) : defaultFont;
+                Font italicFont = isSelected ? new Font(defaultFont, FontStyle.Italic | FontStyle.Underline) : new Font(defaultFont, FontStyle.Italic);
+
+                // Đoạn 1: Tên mặt hàng (Màu đen)
+                string part1 = $"{item.ItemName}  ";
+                e.Graphics.DrawString(part1, nameFont, Brushes.Black, currentX, currentY);
+                currentX += e.Graphics.MeasureString(part1, nameFont).Width;
+
+                // Đoạn 2: Size (Màu xanh xám)
+                string part2 = $"[Size: {item.Size}]  ";
+                e.Graphics.DrawString(part2, sizeFont, Brushes.DimGray, currentX, currentY);
+                currentX += e.Graphics.MeasureString(part2, sizeFont).Width;
+
+                // Đoạn 3: Số lượng (Màu xanh lá nổi bật)
+                string part3 = $"|  SL: {item.NumberTransform}  ";
+                e.Graphics.DrawString(part3, qtyFont, Brushes.ForestGreen, currentX, currentY);
+                currentX += e.Graphics.MeasureString(part3, qtyFont).Width;
+
+                // Đoạn 4: Vị trí gốc (Chữ nghiêng màu xám)
+                string part4 = $"|  Gốc: {item.OldValueLocation}";
+                e.Graphics.DrawString(part4, italicFont, Brushes.Gray, currentX, currentY);
+
+                // Giải phóng bộ nhớ cho các Font tự tạo để tránh rò rỉ bộ nhớ (Memory Leak)
+                if (isSelected)
+                {
+                    nameFont.Dispose();
+                    sizeFont.Dispose();
+                    qtyFont.Dispose();
+                    italicFont.Dispose();
+                }
+                else
+                {
+                    italicFont.Dispose(); // Font này luôn được tạo mới ở nhánh else nên phải giải phóng
+                }
+            }
+        }
     }
 }

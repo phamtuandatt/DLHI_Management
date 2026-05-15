@@ -649,5 +649,32 @@ namespace MPR_Managerment.Services
                 Remarks = r["Remarks"]?.ToString() ?? ""
             };
         }
+
+        public List<TransferLog> GetTranformHistory()
+        {
+            var list = new List<TransferLog>();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = "SELECT New_Value_Location, Item_Name, Size, Number_Tranform, Old_Value_Location FROM ProjectMaterialTransformTransaction ORDER BY New_Value_Location ASC";
+                var cmd = new SqlCommand(sql, conn);
+                var r = cmd.ExecuteReader();
+                while (r.Read()) list.Add(MapTranferLog(r));
+            }
+            return list;
+        }
+
+
+        private TransferLog MapTranferLog(SqlDataReader r)
+        {
+            return new TransferLog
+            {
+                NewValueLocation = r["New_Value_Location"].ToString() ?? "",
+                ItemName = r["Item_Name"].ToString() ?? "",
+                Size= r["Size"].ToString() ?? "",
+                NumberTransform = r["Number_Tranform"].ToString() ?? "",
+                OldValueLocation = r["Old_Value_Location"].ToString() ?? ""
+            };
+        }
     }
 }

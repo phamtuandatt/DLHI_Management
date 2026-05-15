@@ -35,10 +35,12 @@
             pnHeader = new Panel();
             pnAction = new Panel();
             pnHisTransfer = new Panel();
+            tvLocations = new TreeView();
             panel1.SuspendLayout();
             pnContent.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
+            pnHisTransfer.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
@@ -115,11 +117,24 @@
             // 
             // pnHisTransfer
             // 
+            pnHisTransfer.Controls.Add(tvLocations);
             pnHisTransfer.Dock = DockStyle.Fill;
             pnHisTransfer.Location = new Point(783, 3);
             pnHisTransfer.Name = "pnHisTransfer";
             pnHisTransfer.Size = new Size(561, 164);
             pnHisTransfer.TabIndex = 1;
+            // 
+            // tvLocations
+            // 
+            tvLocations.BorderStyle = BorderStyle.FixedSingle;
+            tvLocations.Dock = DockStyle.Fill;
+            tvLocations.DrawMode = TreeViewDrawMode.OwnerDrawText;
+            tvLocations.LineColor = Color.LightGray;
+            tvLocations.Location = new Point(0, 0);
+            tvLocations.Name = "tvLocations";
+            tvLocations.Size = new Size(561, 164);
+            tvLocations.TabIndex = 0;
+            tvLocations.DrawNode += tvLocations_DrawNode;
             // 
             // ucWarehouse
             // 
@@ -133,6 +148,7 @@
             pnContent.ResumeLayout(false);
             tableLayoutPanel2.ResumeLayout(false);
             tableLayoutPanel3.ResumeLayout(false);
+            pnHisTransfer.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -145,5 +161,6 @@
         private Panel pnHeader;
         private Panel pnAction;
         private Panel pnHisTransfer;
+        private TreeView tvLocations;
     }
 }
