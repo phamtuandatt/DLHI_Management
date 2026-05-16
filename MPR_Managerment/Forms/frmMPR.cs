@@ -4367,6 +4367,123 @@ namespace MPR_Managerment.Forms
                 CopyGridToClipboard(e.Shift); // Shift = kem header
                 e.Handled = true;
             }
+
+            if (e.Control && e.KeyCode == Keys.V)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                PasteFromExcelToDetails();
+            }
+        }
+
+        private void PasteFromExcelToDetails()
+        {
+            if (_selectedMPR_ID == 0)
+            {
+                MessageBox.Show("Vui lòng chọn phiếu MPR trước khi dán dữ liệu!",
+                    "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string clip = Clipboard.GetText();
+            if (string.IsNullOrEmpty(clip)) return;
+
+            // Tách dòng — bỏ dòng rỗng cuối (Excel luôn thêm \r\n)
+            string[] rows = clip.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            if (rows.Length > 0 && string.IsNullOrEmpty(rows[rows.Length - 1]))
+                rows = rows.Take(rows.Length - 1).ToArray();
+            if (rows.Length == 0) return;
+
+            // Các cột có thể paste (bỏ ẩn, bỏ ReadOnly)
+            var pastableCols = dgvDetails.Columns
+                .Cast<DataGridViewColumn>()
+                .Where(c => c.Visible
+                         && c.Name != "Detail_ID"
+                         && c.Name != "Item_No"
+                         && c.Name != "PO_No")
+                .OrderBy(c => c.DisplayIndex)
+                .ToList();
+
+            // Cột bắt đầu paste = cột hiện tại (hoặc cột đầu tiên có thể paste)
+            int startColDisplayIdx = dgvDetails.CurrentCell?.ColumnIndex >= 0
+                ? dgvDetails.CurrentCell.ColumnIndex : 0;
+
+            // Lọc cột paste từ vị trí bắt đầu trở đi
+            var targetCols = pastableCols
+                .Where(c => c.Index >= startColDisplayIdx)
+                .ToList();
+
+            if (targetCols.Count == 0) targetCols = pastableCols;
+
+            // Dòng bắt đầu paste
+            int startRowIdx = dgvDetails.CurrentCell?.RowIndex >= 0
+                ? dgvDetails.CurrentCell.RowIndex : 0;
+
+            // Cần thêm dòng mới nếu không đủ
+            int rowsNeeded = (startRowIdx + rows.Length) - dgvDetails.Rows.Count;
+            for (int i = 0; i < rowsNeeded; i++)
+            {
+                int newIdx = dgvDetails.Rows.Add();
+                var nr = dgvDetails.Rows[newIdx];
+                nr.Cells["Detail_ID"].Value = 0;
+                nr.Cells["Item_No"].Value = newIdx + 1;
+                nr.Cells["Thickness_mm"].Value = 0;
+                nr.Cells["Depth_mm"].Value = 0;
+                nr.Cells["C_Width_mm"].Value = 0;
+                nr.Cells["D_Web_mm"].Value = 0;
+                nr.Cells["E_Flange_mm"].Value = 0;
+                nr.Cells["F_Length_mm"].Value = 0;
+                nr.Cells["Qty"].Value = 0;
+                nr.Cells["Weight"].Value = 0;
+                nr.Cells["REV"].Value = "0";
+                nr.Cells["UNIT"].Value = "cái";
+            }
+
+            // Ghi dữ liệu
+            dgvDetails.SuspendLayout();
+            for (int ri = 0; ri < rows.Length; ri++)
+            {
+                int targetRowIdx = startRowIdx + ri;
+                if (targetRowIdx >= dgvDetails.Rows.Count) break;
+                var row = dgvDetails.Rows[targetRowIdx];
+                if (row.IsNewRow) break;
+
+                string[] cells = rows[ri].Split('\t');
+                for (int ci = 0; ci < cells.Length && ci < targetCols.Count; ci++)
+                {
+                    string colName = targetCols[ci].Name;
+                    string val = cells[ci].Trim();
+
+                    // Cột số: parse linh hoạt (bỏ dấu ngàn, đổi dấu thập phân)
+                    bool isNumCol = colName is "Thickness_mm" or "Depth_mm" or "C_Width_mm"
+                                             or "D_Web_mm" or "E_Flange_mm" or "F_Length_mm"
+                                             or "Qty" or "Weight";
+                    if (isNumCol)
+                    {
+                        string num = val.Replace(",", ".").Replace(" ", "");
+                        // Xử lý dấu ngàn: "1.234.567" → "1234567"
+                        int dotCount = num.Count(c => c == '.');
+                        if (dotCount > 1) num = num.Replace(".", "");
+                        row.Cells[colName].Value = decimal.TryParse(num,
+                            System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out decimal d) ? d : 0m;
+                    }
+                    else
+                    {
+                        row.Cells[colName].Value = val;
+                    }
+                }
+
+                // Cập nhật lại STT
+                row.Cells["Item_No"].Value = targetRowIdx + 1;
+            }
+            dgvDetails.ResumeLayout();
+            dgvDetails.Refresh();
+
+            MessageBox.Show(
+                $"✅ Đã dán {rows.Length} dòng thành công!\n\nNhấn '💾 Lưu chi tiết' để lưu vào database.",
+                "Dán dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void CopyGridToClipboard(bool withHeader)
