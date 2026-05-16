@@ -55,6 +55,7 @@ namespace MPR_Managerment.Forms
         private Panel panelPrintHistory;   // Danh sách PO đã in Request
         private DataGridView dgvPrintHistory;
         private DateTimePicker _phDateFrom, _phDateTo; // Bộ lọc thời gian
+        private TextBox _txtPhNCC; // Bộ lọc NCC
         private DateTimePicker _schedDtp;              // DTP overlay cho cột Đến hạn
         private int _schedDtpRow = -1;                 // Row đang được DTP overlay
         private ProgressBar progressPO;
@@ -310,11 +311,25 @@ namespace MPR_Managerment.Forms
             {
                 _phDateFrom.Value = DateTime.Today.AddYears(-2);
                 _phDateTo.Value = DateTime.Today;
+                _txtPhNCC.Text = "";
                 LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1).AddSeconds(-1));
             };
             panelPrintHistory.Controls.Add(btnPhReset);
 
-            var btnPhDel = Btn("🗑 Xóa dòng", Color.FromArgb(220, 53, 69), 551, 26, 100, 26);
+            // ── Bộ lọc NCC ──
+            Lbl(panelPrintHistory, "NCC:", 553, 30, 30, 20);
+            _txtPhNCC = new TextBox
+            {
+                Location = new Point(583, 27),
+                Size = new Size(160, 24),
+                Font = new Font("Segoe UI", 9),
+                PlaceholderText = "Tìm theo NCC..."
+            };
+            _txtPhNCC.TextChanged += (s, ev) =>
+                LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1).AddSeconds(-1));
+            panelPrintHistory.Controls.Add(_txtPhNCC);
+
+            var btnPhDel = Btn("🗑 Xóa dòng", Color.FromArgb(220, 53, 69), 751, 26, 100, 26);
             btnPhDel.Click += BtnDeletePrintHistory_Click;
             panelPrintHistory.Controls.Add(btnPhDel);
 
@@ -2128,8 +2143,22 @@ namespace MPR_Managerment.Forms
 
         private void BtnDelPayment_Click(object sender, EventArgs e)
         {
-            if (_selectedHistID == 0) { Warn("Vui lòng chọn bản ghi!"); return; }
-            if (!Ask("Xóa dòng này khỏi Payment Request Progressing?\n(Lịch sử in Request gốc vẫn được giữ lại)")) return;
+            // Lấy Print_ID trực tiếp từ dòng đang chọn — tránh lỗi khi dòng bị ẩn bởi filter
+            int printId = 0;
+            DataGridViewRow targetRow = null;
+
+            if (dgvHistory.SelectedRows.Count > 0)
+                targetRow = dgvHistory.SelectedRows[0];
+            else if (dgvHistory.CurrentRow != null)
+                targetRow = dgvHistory.CurrentRow;
+
+            if (targetRow != null)
+                printId = Convert.ToInt32(targetRow.Cells["H_ID"].Value ?? 0);
+
+            if (printId == 0) { Warn("Vui lòng chọn bản ghi cần xóa!"); return; }
+
+            string poNo = targetRow?.Cells["H_PONo"].Value?.ToString() ?? "";
+            if (!Ask($"Xóa dòng này khỏi Payment Request Progressing?\n\nPO: {poNo}\n(Lịch sử in Request gốc vẫn được giữ lại)")) return;
             if (!VerifyAdminPassword()) return;
             try
             {
@@ -2137,9 +2166,12 @@ namespace MPR_Managerment.Forms
                 conn.Open();
                 var cmd = new Microsoft.Data.SqlClient.SqlCommand(
                     "DELETE FROM PO_PaymentProgress WHERE Print_ID = @id", conn);
-                cmd.Parameters.AddWithValue("@id", _selectedHistID);
-                cmd.ExecuteNonQuery();
-                LoadPaymentProgress();
+                cmd.Parameters.AddWithValue("@id", printId);
+                int affected = cmd.ExecuteNonQuery();
+                if (affected == 0)
+                    Warn("Không tìm thấy bản ghi trong DB. Có thể đã bị xóa trước đó.");
+                else
+                    LoadPaymentProgress();
             }
             catch (Exception ex) { Err(ex.Message); }
         }
@@ -2589,7 +2621,7 @@ namespace MPR_Managerment.Forms
             MessageBox.Show(msg, "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
 
         // Được gọi từ frmPrintPreview khi user chọn OK cập nhật lịch sử
-        public void AddPrintHistory(string poNo, string project, List<PaymentSchedule> scheds, decimal vatRate = 0.1m)
+        public void AddPrintHistory(string poNo, string project, List<PaymentSchedule> scheds)
         {
             if (dgvPrintHistory == null) return;
             string dateStr = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
@@ -2597,7 +2629,7 @@ namespace MPR_Managerment.Forms
             foreach (var s in scheds)
             {
                 decimal net = s.Amount_Plan;
-                decimal vat = Math.Round(net * vatRate, 2); // dùng VAT thực tế từ PO
+                decimal vat = Math.Round(net * 0.1m, 2);
                 decimal total = net + vat;
                 string dot = s.Dot_TT == 1 ? "1st" : s.Dot_TT == 2 ? "2nd" :
                                 s.Dot_TT == 3 ? "3rd" : $"{s.Dot_TT}th";
@@ -2669,6 +2701,10 @@ namespace MPR_Managerment.Forms
             dgvPrintHistory.Rows.Clear();
             DateTime dtFrom = from ?? DateTime.Today.AddYears(-2);
             DateTime dtTo = to ?? DateTime.Today.AddDays(1).AddSeconds(-1);
+
+            // Từ khoá lọc NCC (không phân biệt hoa/thường)
+            string nccFilter = _txtPhNCC?.Text.Trim() ?? "";
+
             try
             {
                 using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
@@ -2709,6 +2745,11 @@ namespace MPR_Managerment.Forms
                             suppShort = suppObj?.Short_Name ?? suppObj?.Company_Name ?? suppObj?.Supplier_Name ?? "";
                         }
                     }
+
+                    // ── Lọc theo NCC ──
+                    if (!string.IsNullOrEmpty(nccFilter) &&
+                        !suppShort.Contains(nccFilter, StringComparison.OrdinalIgnoreCase))
+                        continue;
 
                     int i = dgvPrintHistory.Rows.Add();
                     dgvPrintHistory.Rows[i].Cells["PH_ID"].Value = reader["Print_ID"];
@@ -2856,17 +2897,6 @@ namespace MPR_Managerment.Forms
                     $"PaymentRequest_{po.PONo}_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
                 System.IO.File.Copy(templatePath, tempPath, true);
 
-                // Lấy VAT rate thực tế từ chi tiết PO — khai báo NGOÀI using block
-                // để dùng được khi mở frmPrintPreview (sau khi pkg đã đóng)
-                var poDetails = _poSvc.GetDetails(_selectedPO_ID);
-                decimal actualVatRate = 0.1m; // fallback 10%
-                if (poDetails != null && poDetails.Count > 0)
-                {
-                    decimal maxVat = poDetails.Max(d => d.VAT);
-                    if (maxVat > 0)
-                        actualVatRate = maxVat / 100m;
-                }
-
                 OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
                 using (var pkg = new OfficeOpenXml.ExcelPackage(new System.IO.FileInfo(tempPath)))
                 {
@@ -2876,7 +2906,6 @@ namespace MPR_Managerment.Forms
                     decimal totalBeforeVat = po.Total_PO_Amount;
                     decimal totalPaid = po.Total_Paid;
                     int dotCount = scheds.Count;
-
 
                     // A1 — (N)th Payment Request
                     int paidDots = scheds.Count(s => s.Status == "Đã TT đủ");
@@ -2941,7 +2970,7 @@ namespace MPR_Managerment.Forms
                         {
                             var s = scheds[i];
                             decimal net = s.Amount_Plan;
-                            decimal vat = Math.Round(net * actualVatRate, 2); // dùng VAT thực tế từ PO
+                            decimal vat = Math.Round(net * 0.1m, 2);
                             decimal tot = net + vat;
                             sumNet += net;
                             sumVat += vat;
@@ -2997,7 +3026,7 @@ namespace MPR_Managerment.Forms
 
                     // Row 19 — Balance
                     decimal balNet = Math.Max(totalBeforeVat - sumNet, 0);
-                    decimal balTotal = Math.Max(totalBeforeVat * (1 + actualVatRate) - sumTotal - totalPaid, 0); // dùng VAT thực tế từ PO
+                    decimal balTotal = Math.Max(totalBeforeVat * 1.1m - sumTotal - totalPaid, 0);
                     ReplaceCell(ws, "<<Tổng số tiền trước thuế còn lại>>", FormatAmt(balNet));
                     ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", FormatAmt(balTotal));
 
@@ -3014,7 +3043,7 @@ namespace MPR_Managerment.Forms
                 }
 
                 // ── Mở Print Preview ──
-                var dlg = new frmPrintPreview(tempPath, po.PONo, po.Project_Name, scheds, this, actualVatRate);
+                var dlg = new frmPrintPreview(tempPath, po.PONo, po.Project_Name, scheds, this);
                 dlg.ShowDialog(this);
 
                 // Dọn file tạm sau khi đóng
@@ -3236,17 +3265,15 @@ public class frmPrintPreview : Form
     private readonly string _project;
     private readonly List<PaymentSchedule> _scheds;
     private readonly frmPayment _owner;
-    private readonly decimal _vatRate; // VAT rate thực tế từ PO (vd: 0.1m = 10%)
 
     public frmPrintPreview(string filePath, string poNo, string project,
-        List<PaymentSchedule> scheds, frmPayment owner, decimal vatRate = 0.1m)
+        List<PaymentSchedule> scheds, frmPayment owner)
     {
         _filePath = filePath;
         _poNo = poNo;
         _project = project ?? "";
         _scheds = scheds ?? new List<PaymentSchedule>();
         _owner = owner;
-        _vatRate = vatRate;
         BuildUI();
         // Hỏi cập nhật lịch sử khi form đóng
         this.FormClosing += FrmPrintPreview_FormClosing;
@@ -3267,7 +3294,7 @@ public class frmPrintPreview : Form
 
         if (ans == DialogResult.OK)
         {
-            _owner.AddPrintHistory(_poNo, _project, _scheds, _vatRate);
+            _owner.AddPrintHistory(_poNo, _project, _scheds);
             _historyUpdated = true;
         }
     }
