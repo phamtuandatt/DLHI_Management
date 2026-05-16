@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Reflection.Emit;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -648,6 +649,170 @@ namespace MPR_Managerment.Services
                 QC_Status = r["QC_Status"]?.ToString() ?? "",
                 Remarks = r["Remarks"]?.ToString() ?? ""
             };
+        }
+
+        /// <summary>
+        /// Save QC Code for Item and update Quantiy of Warehouse Import by HEAT/LOT
+        /// </summary>
+        public async Task<bool> SaveQCCodeForItemOfWarehouseImportTable(int po_detail_id, decimal newQty, decimal weight_kg, string mtrNo, string heatNo, string qc_code, string qc_status, List<WarehouseImport> lstItemUpdate)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var wi = new WarehouseImport();
+                
+                // Get row
+                string sql = $"SELECT *FROM Warehouse_Import WHERE PO_Detail_ID = {po_detail_id}";
+                var cmd = new SqlCommand(sql, conn);
+                var r = cmd.ExecuteReader();
+                while (r.Read()) wi = MapImport_V2(r);
+
+                // Update Row using transaction to ensure data correct
+                DataTable dtInsertList = CreateWarehouseImportStructure();
+                foreach (var item_r in lstItemUpdate)
+                {
+                    DataRow dr = dtInsertList.NewRow();
+                    dr["Import_No"] = wi.Import_No;
+                    dr["Import_Date"] = wi.Import_Date;
+                    dr["PO_ID"] = wi.PO_ID;
+                    dr["PO_Detail_ID"] = wi.PO_Detail_ID;
+                    dr["RIR_ID"] = wi.RIR_ID;
+                    dr["Item_Name"] = wi.Item_Name;
+                    dr["Material"] = wi.Material;
+                    dr["Size"] = wi.Size;
+                    dr["Qty_Import"] = item_r.Qty_Import; // New
+                    dr["Weight_kg"] = item_r.Weight_kg; // New
+                    dr["ID_Code"] = wi.ID_Code;
+                    dr["MTRno"] = item_r.MTRno; // New
+                    dr["Heatno"] = item_r.Heatno; // New
+                    dr["Project_Code"] = wi.Project_Code;
+                    dr["WorkorderNo"] = wi.WorkorderNo;
+                    dr["Location"] = wi.Location;
+                    dr["Notes"] = wi.Notes;
+                    dr["Created_By"] = wi.Created_By;
+                    dr["Created_Date"] = wi.Created_Date;
+                    dr["InvoiceNo"] = wi.InvoiceNo;
+                    dr["InvoiceDate"] = wi.InvoiceDate;
+                    dr["QC_Code"] = item_r.QC_Code; // New
+                    dr["QC_Status"] = item_r.QC_Status; // New
+                    dr["IsPrint"] = wi.Import_No;
+                    
+                    dtInsertList.Rows.Add(dr);
+                }
+
+                bool isSuccess = await ExecuteSaveChangeProcedureAsync(po_detail_id, newQty, weight_kg, mtrNo, heatNo, qc_code, qc_status, dtInsertList);
+                return isSuccess;
+            }
+        }
+
+        private WarehouseImport MapImport_V2(SqlDataReader r)
+        {
+            var isPrint = !string.IsNullOrEmpty(r["Is_Printed"].ToString()) ? r["Is_Printed"] : "0";
+            return new WarehouseImport
+            {
+                Import_ID = Convert.ToInt32(r["Import_ID"]),
+                Import_No = r["Import_No"]?.ToString() ?? "",
+                Import_Date = r["Import_Date"] != DBNull.Value ? Convert.ToDateTime(r["Import_Date"]) : null,
+                PO_ID = r["PO_ID"] != DBNull.Value ? Convert.ToInt32(r["PO_ID"]) : null,
+                PO_Detail_ID = r["PO_Detail_ID"] != DBNull.Value ? Convert.ToInt32(r["PO_Detail_ID"]) : null,
+                RIR_ID = r["RIR_ID"] != DBNull.Value ? Convert.ToInt32(r["RIR_ID"]) : null,
+                Item_Name = r["Item_Name"]?.ToString() ?? "",
+                Material = r["Material"]?.ToString() ?? "",
+                Size = r["Size"]?.ToString() ?? "",
+                UNIT = r["UNIT"]?.ToString() ?? "",
+                Qty_Import = r["Qty_Import"] != DBNull.Value ? Convert.ToDecimal(r["Qty_Import"]) : 0,
+                Weight_kg = r["Weight_kg"] != DBNull.Value ? Convert.ToDecimal(r["Weight_kg"]) : 0,
+                ID_Code = r["ID_Code"]?.ToString() ?? "",
+                MTRno = r["MTRno"]?.ToString() ?? "",
+                Heatno = r["Heatno"]?.ToString() ?? "",
+                Project_Code = r["Project_Code"]?.ToString() ?? "",
+                WorkorderNo = r["WorkorderNo"]?.ToString() ?? "",
+                Location = r["Location"]?.ToString() ?? "",
+                Notes = r["Notes"]?.ToString() ?? "",
+                Created_By = r["Created_By"]?.ToString() ?? "",
+                Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
+
+                InvoiceNo = r["InvoiceNo"]?.ToString() ?? "",
+                InvoiceDate = r["InvoiceDate"].ToString() ?? "",
+                QC_Code = r["QC_Code"].ToString() ?? "",
+                QC_Status = r["QC_Status"].ToString() ?? "",
+
+                IsPrint = (isPrint == "0") ? false : true
+            };
+        }
+
+        /// <summary>
+        /// Hàm khởi tạo cấu trúc DataTable mô phỏng khớp 100% với SQL User-Defined Table Type: WarehouseImportType
+        /// </summary>
+        private DataTable CreateWarehouseImportStructure()
+        {
+            DataTable dt = new DataTable();
+
+            // Định nghĩa các cột chính xác như trong file gemini-code-1778942575877.sql
+            dt.Columns.Add("Import_No", typeof(string));
+            dt.Columns.Add("Import_Date", typeof(DateTime));
+            dt.Columns.Add("PO_ID", typeof(int));
+            dt.Columns.Add("PO_Detail_ID", typeof(int));
+            dt.Columns.Add("RIR_ID", typeof(int));
+            dt.Columns.Add("Item_ID", typeof(int));
+            dt.Columns.Add("Item_Name", typeof(string));
+            dt.Columns.Add("Material", typeof(string));
+            dt.Columns.Add("Size", typeof(string));
+            dt.Columns.Add("UNIT", typeof(string));
+            dt.Columns.Add("Qty_Import", typeof(decimal));
+            dt.Columns.Add("Weight_kg", typeof(decimal));
+            dt.Columns.Add("ID_Code", typeof(string));
+            dt.Columns.Add("MTRno", typeof(string));
+            dt.Columns.Add("Heatno", typeof(string));
+            dt.Columns.Add("Project_Code", typeof(string));
+            dt.Columns.Add("WorkorderNo", typeof(string));
+            dt.Columns.Add("Location", typeof(string));
+            dt.Columns.Add("Notes", typeof(string));
+            dt.Columns.Add("Created_By", typeof(string));
+            dt.Columns.Add("Warehouse_ID", typeof(int));
+            dt.Columns.Add("Item_Code", typeof(string));
+            dt.Columns.Add("InvoiceNo", typeof(string));
+            dt.Columns.Add("InvoiceDate", typeof(DateTime));
+            dt.Columns.Add("QC_Code", typeof(string));
+            dt.Columns.Add("QC_Status", typeof(string));
+            dt.Columns.Add("Is_Printed", typeof(bool));
+
+            return dt;
+        }
+
+        /// <summary>
+        /// Hàm thực thi gọi Stored Procedure xuống SQL Server bằng ADO.NET
+        /// </summary>
+        private async Task<bool> ExecuteSaveChangeProcedureAsync(int po_detail_id_update, decimal newQty, decimal weight_kg, string mtrNo, string heatNo, string qc_code, string qc_status, DataTable dtItems)
+        {
+            // Sử dụng từ khóa 'using' để tự động giải phóng tài nguyên kết nối (đóng Connection tự động)
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand("sp_Warehouse_Import_SaveChange", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    // Thêm các tham số đơn lẻ (Cột đơn)
+                    cmd.Parameters.Add("@Update_Import_ID", SqlDbType.Int).Value = po_detail_id_update;
+                    cmd.Parameters.Add("@New_Qty_Import", SqlDbType.Decimal).Value = newQty;
+                    cmd.Parameters.Add("@New_Weight_kg", SqlDbType.Decimal).Value = weight_kg;
+                    cmd.Parameters.Add("@New_MTRno", SqlDbType.Decimal).Value = mtrNo;
+                    cmd.Parameters.Add("@@New_Heatno", SqlDbType.Decimal).Value = heatNo;
+                    cmd.Parameters.Add("@New_QC_Code", SqlDbType.NVarChar, 50).Value = qc_code;
+                    cmd.Parameters.Add("@New_QC_Status", SqlDbType.NVarChar, 50).Value = qc_status;
+
+                    // QUAN TRỌNG: Thêm tham số dạng Bảng (Table-Valued Parameter)
+                    SqlParameter tvpParam = cmd.Parameters.AddWithValue("@InsertItemsList", dtItems);
+                    tvpParam.SqlDbType = SqlDbType.Structured; // Chỉ định kiểu dữ liệu là Structured
+                    tvpParam.TypeName = "dbo.WarehouseImportType"; // Chỉ định chính xác tên Type trong cơ sở dữ liệu
+
+                    // Mở kết nối và thực thi bất đồng bộ
+                    await conn.OpenAsync();
+                    await cmd.ExecuteNonQueryAsync();
+
+                    return true;
+                }
+            }
         }
 
         public List<TransferLog> GetTranformHistory()

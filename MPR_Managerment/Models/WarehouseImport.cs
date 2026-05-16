@@ -38,5 +38,8 @@ namespace MPR_Managerment.Models
 
         // Just use to show recevied qty
         public decimal Received_Qty { get; set; }
+
+        public string QC_Code { get; set; }
+        public string QC_Status { get; set; }
     }
 }

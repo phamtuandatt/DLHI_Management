@@ -49,6 +49,95 @@ namespace MPR_Managerment.Forms.RIRGUI
 
             txtSearch.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { btnSearch.PerformClick(); ev.SuppressKeyPress = true; } };
 
+            CreateContextMenuStripForGrid();
+
+        }
+
+        private void CreateContextMenuStripForGrid()
+        {
+            // 1. Khởi tạo ContextMenuStrip
+            ContextMenuStrip menuStock = new ContextMenuStrip();
+
+            // 2. Thêm các mục (Items) vào menu
+            ToolStripMenuItem itemXemChiTiet = new ToolStripMenuItem("📄 Thêm dòng cho vật tư");
+            //ToolStripMenuItem itemSaoChep = new ToolStripMenuItem("📋 Sao chép mã");
+            //ToolStripMenuItem itemXuatKho = new ToolStripMenuItem("📤 Xuất kho");
+
+            menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet/*, itemSaoChep, new ToolStripSeparator(), itemXuatKho*/ });
+
+            // 3. Gắn menu vào DataGridView
+            if (AppSession.CurrentUser.Role_ID == 1)
+            {
+                dgvRIR.ContextMenuStrip = menuStock;
+            }
+
+            // 4. Sự kiện khi click vào một mục trong menu
+            itemXemChiTiet.Click += (s, e) =>
+            {
+                if (dgvRIR.CurrentRow != null)
+                {
+                    // Lấy dữ liệu từ dòng đang chọn
+                    var currentR = dgvRIR.CurrentRow;
+                    var po_detail_id = currentR.Cells["PO_Detail_ID"].Value?.ToString();
+
+                    // Nếu số lượng = 1 thì không cho tách
+                    if (Convert.ToDecimal(currentR.Cells["Qty_Required"].Value.ToString()) == 1)
+                    {
+                        return;
+                    }
+
+                    // Tạo form cho nhập heat / MTR / SỐ lượng / QC_Code
+                    frmAddHeatForItem frmAddHeatForItem = new frmAddHeatForItem(currentR.Cells["MTRno"].Value.ToString() ?? "");
+                    frmAddHeatForItem.ShowDialog();
+                    var qty = frmAddHeatForItem.Quantity;
+                    var mtr = frmAddHeatForItem.MTRNo;
+                    var heat = frmAddHeatForItem.HeatNo;
+                    var qc_code = frmAddHeatForItem.ID_Code;
+
+                    // Cập nhật số lượng sau khi tách cho dòng cũ
+                    currentR.Cells["Qty_Required"].Value = Convert.ToDecimal(currentR.Cells["Qty_Required"].Value) - qty;
+
+                    // Ghi nhận dữ liệu mới -> Tạo dòng mới
+                    int idx = dgvRIR.Rows.Add();
+                    var row = dgvRIR.Rows[idx];
+                    
+
+                    row.Cells["RIR_Detail_ID"].Value = currentR.Cells["RIR_Detail_ID"].Value;
+                    row.Cells["Item_No"].Value = currentR.Cells["Item_No"].Value;
+                    row.Cells["Item_Name"].Value = currentR.Cells["Item_Name"].Value;
+                    row.Cells["Material"].Value = currentR.Cells["Material"].Value;
+                    row.Cells["Size"].Value = currentR.Cells["Size"].Value;
+                    row.Cells["UNIT"].Value = currentR.Cells["UNIT"].Value;
+                    row.Cells["Qty_Required"].Value = qty;
+                    row.Cells["Qty_Received"].Value = 0;
+                    row.Cells["MTRno"].Value = mtr;
+                    row.Cells["Heatno"].Value = heat;
+                    row.Cells["ID_Code"].Value = qc_code;
+                    row.Cells["Inspect_Result"].Value = "";
+                    row.Cells["Remarks"].Value = currentR.Cells["Remarks"].Value ?? "";
+
+                    row.Cells["PO_Detail_ID"].Value = currentR.Cells["PO_Detail_ID"].Value;
+
+                    // Tạo list lưu trữ thông tin dòng đã tách
+
+                }
+            };
+
+            // 5. QUAN TRỌNG: Xử lý để chuột phải vào dòng nào thì chọn dòng đó (thay vì chỉ hiện menu)
+            dgvRIR.MouseDown += (s, e) =>
+            {
+                if (e.Button == MouseButtons.Right)
+                {
+                    var hit = dgvRIR.HitTest(e.X, e.Y);
+                    if (hit.RowIndex >= 0)
+                    {
+                        // Xóa các lựa chọn cũ và chọn dòng vừa click chuột phải
+                        dgvRIR.ClearSelection();
+                        dgvRIR.Rows[hit.RowIndex].Selected = true;
+                        dgvRIR.CurrentCell = dgvRIR.Rows[hit.RowIndex].Cells[hit.ColumnIndex];
+                    }
+                }
+            };
         }
 
         private void BuildDetailColumns()

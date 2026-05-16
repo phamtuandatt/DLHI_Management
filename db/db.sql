@@ -638,33 +638,144 @@ SELECT InvoiceNo, InvoiceNo, ID_Code, Item_Name, Size, Project_Code, Company_Nam
 
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
- --=========================XÓA MPR================================
---SELECT *FROM MPR_Header WHERE MPR_No = 'DV-FT-2506 SAM-MPR-PD-102'
---SELECT *FROM MPR_Details WHERE MPR_ID = 132
+-- Kiểm tra nếu Type đã tồn tại thì xóa (Cần cẩn trọng nếu có Object khác đang dùng)
+-- Tạo Kiểu dữ liệu bảng (Table Type) để truyền danh sách dòng cần Insert
+IF EXISTS (SELECT * FROM sys.types WHERE name = 'WarehouseImportType' AND is_table_type = 1)
+    DROP TYPE WarehouseImportType;
+GO
 
---DELETE FROM MPR_Header WHERE MPR_ID = 132
+CREATE TYPE WarehouseImportType AS TABLE
+(
+    [Import_No] NVARCHAR(50),
+    [Import_Date] DATETIME2,
+    [PO_ID] INT,
+    [PO_Detail_ID] INT,
+    [RIR_ID] INT,
+    [Item_ID] INT,
+    [Item_Name] NVARCHAR(255),
+    [Material] NVARCHAR(100),
+    [Size] NVARCHAR(50),
+    [UNIT] NVARCHAR(20),
+    [Qty_Import] DECIMAL(18, 2),
+    [Weight_kg] DECIMAL(18, 2),
+    [ID_Code] NVARCHAR(50),
+    [MTRno] NVARCHAR(50),
+    [Heatno] NVARCHAR(50),
+    [Project_Code] NVARCHAR(50),
+    [WorkorderNo] NVARCHAR(50),
+    [Location] NVARCHAR(100),
+    [Notes] NVARCHAR(MAX),
+    [Created_By] NVARCHAR(50),
+    [Warehouse_ID] INT,
+    [Item_Code] NVARCHAR(50),
+    [InvoiceNo] NVARCHAR(50),
+    [InvoiceDate] DATETIME2,
+    [QC_Code] NVARCHAR(50),
+    [QC_Status] NVARCHAR(50),
+    [Is_Printed] BIT
+);
+GO
 
---DELETE FROM MPR_Details WHERE Detail_ID = 1161
---DELETE FROM MPR_Details WHERE Detail_ID = 1162
---DELETE FROM MPR_Details WHERE Detail_ID = 1163
---DELETE FROM MPR_Details WHERE Detail_ID = 1164
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 
---SELECT *FROM PO_head WHERE PONo = 'DV-SAM-PC-018'
---SELECT *FROM PO_Detail WHERE PO_ID = 356
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
 
---DELETE FROM PO_head WHERE PO_ID = 356
+CREATE OR ALTER PROCEDURE dbo.sp_Warehouse_Import_SaveChange
+    -- Các tham số dùng để UPDATE dòng cũ
+    @Update_Import_ID INT,
+    @New_Qty_Import   DECIMAL(18, 2),
+    @New_Weight_kg    DECIMAL(18, 2),
+    @New_MTRno        NVARCHAR(50),
+    @New_Heatno       NVARCHAR(50),
+    @New_QC_Code      NVARCHAR(50),
+    @New_QC_Status    NVARCHAR(50),
+    
+    -- Tham số bảng dùng để INSERT một hoặc nhiều dòng mới
+    @InsertItemsList  dbo.WarehouseImportType READONLY 
+AS
+BEGIN
+    -- Tối ưu hóa đường truyền, chặn các thông báo phụ như "(1 row affected)"
+    SET NOCOUNT ON;
 
---DELETE FROM PO_Detail WHERE PO_Detail_ID = 2446
---DELETE FROM PO_Detail WHERE PO_Detail_ID = 2447
---DELETE FROM PO_Detail WHERE PO_Detail_ID = 2448
---DELETE FROM PO_Detail WHERE PO_Detail_ID = 2449
+    -- Tự động ROLLBACK toàn bộ giao dịch ngay lập tức nếu xảy ra lỗi phần cứng hoặc lỗi nghiêm trọng
+    SET XACT_ABORT ON;
 
-----SELECT *FROM PO_Revise_Transactions WHERE PO_ID = 356
-----DELETE FROM PO_Revise_Transactions WHERE PO_ID = 356
+    BEGIN TRY
+        -- =================================================================
+        -- BẮT ĐẦU GIAO DỊCH (TRANSACTION) - ĐẢM BẢO TÍNH TOÀN VẸN TUYỆT ĐỐI
+        -- =================================================================
+        BEGIN TRANSACTION;
 
-----SELECT *FROM PO_Payment_Schedule WHERE PO_ID = 356
-----DELETE FROM PO_Payment_Schedule WHERE Schedule_ID = 71
---=========================XÓA MPR================================
+        -------------------------------------------------------------------
+        -- THAO TÁC 1: Cập nhật đồng thời các thuộc tính mới cho dòng cũ
+        -------------------------------------------------------------------
+        UPDATE [dbo].[Warehouse_Import]
+        SET 
+            [Qty_Import]   = @New_Qty_Import,
+            [Weight_kg]    = @New_Weight_kg,
+            [MTRno]        = @New_MTRno,
+            [Heatno]       = @New_Heatno,
+            [QC_Code]      = @New_QC_Code,
+            [QC_Status]    = @New_QC_Status,
+            [Created_Date] = GETDATE() -- Ghi nhận lại mốc thời gian cập nhật hệ thống
+        WHERE 
+            [Import_ID]    = @Update_Import_ID;
+
+        -------------------------------------------------------------------
+        -- THAO TÁC 2: Chèn một hoặc nhiều dòng mới từ Tham số Bảng (TVP)
+        -------------------------------------------------------------------
+        INSERT INTO [dbo].[Warehouse_Import]
+        (
+            [Import_No], [Import_Date], [PO_ID], [PO_Detail_ID], [RIR_ID], 
+            [Item_ID], [Item_Name], [Material], [Size], [UNIT], 
+            [Qty_Import], [Weight_kg], [ID_Code], [MTRno], [Heatno], 
+            [Project_Code], [WorkorderNo], [Location], [Notes], [Created_By], 
+            [Created_Date], [Warehouse_ID], [Item_Code], [InvoiceNo], [InvoiceDate], 
+            [QC_Code], [QC_Status], [Is_Printed]
+        )
+        SELECT 
+            [Import_No], [Import_Date], [PO_ID], [PO_Detail_ID], [RIR_ID], 
+            [Item_ID], [Item_Name], [Material], [Size], [UNIT], 
+            [Qty_Import], [Weight_kg], [ID_Code], [MTRno], [Heatno], 
+            [Project_Code], [WorkorderNo], [Location], [Notes], [Created_By], 
+            GETDATE(), -- Khởi tạo ngày tạo cho dòng mới
+            [Warehouse_ID], [Item_Code], [InvoiceNo], [InvoiceDate], 
+            [QC_Code], [QC_Status], [Is_Printed]
+        FROM 
+            @InsertItemsList;
+
+        -- =================================================================
+        -- XÁC NHẬN GIAO DỊCH (COMMIT) - GHI DỮ LIỆU XUỐNG ĐĨA CỨNG
+        -- =================================================================
+        COMMIT TRANSACTION;
+        
+        PRINT N'Xử lý dữ liệu thành công: Đã cập nhật dòng cũ và chèn các dòng mới!';
+
+    END TRY
+    BEGIN CATCH
+        -- =================================================================
+        -- XỬ LÝ LỖI VÀ HOÀN TÁC (ROLLBACK) ĐỂ TRÁNH SAI LỆCH DỮ LIỆU
+        -- =================================================================
+        IF (XACT_STATE()) <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END
+
+        -- Thu thập thông tin lỗi chi tiết để trả về cho hệ thống phần mềm (C#, Java...)
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT           = ERROR_SEVERITY();
+        DECLARE @ErrorState INT              = ERROR_STATE();
+
+        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END;
+GO
 
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------------------------------------------------------------------------------------------
