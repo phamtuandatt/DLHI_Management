@@ -235,6 +235,7 @@
             btnCancel.TabIndex = 0;
             btnCancel.Text = "THOÁT";
             btnCancel.UseVisualStyleBackColor = true;
+            btnCancel.Click += btnCancel_Click;
             // 
             // btnSave
             // 

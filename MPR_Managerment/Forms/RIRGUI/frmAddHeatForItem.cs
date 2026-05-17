@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.IdentityModel.Tokens;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -17,6 +18,8 @@ namespace MPR_Managerment.Forms.RIRGUI
         public string HeatNo { get; set; }
         public string ID_Code { get; set; }
 
+        public bool IsClose { get; set; } = false;
+
         public frmAddHeatForItem(string MRTNo)
         {
             InitializeComponent();
@@ -29,12 +32,18 @@ namespace MPR_Managerment.Forms.RIRGUI
             MTRNo = txtMTR.Text;
             HeatNo = txtHeat.Text;
             ID_Code = txtIDCode.Text;
+            IsClose = true;
             this.Close();
         }
 
         private void txtQty_KeyPress(object sender, KeyPressEventArgs e)
         {
             Common.Common.Column_KeyPress_Digital(sender, e);
+        }
+
+        private void btnCancel_Click(object sender, EventArgs e)
+        {
+            IsClose = false;
         }
     }
 }

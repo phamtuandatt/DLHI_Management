@@ -1,6 +1,7 @@
 ﻿using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using Syncfusion.XlsIO.Parser.Biff_Records.ObjRecords;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -27,6 +28,8 @@ namespace MPR_Managerment.Forms.RIRGUI
         private bool _isSearching = false;
         private int _selectedRIR_ID = 0;
 
+        private List<WarehouseImport> lstItemAdd = new List<WarehouseImport>();
+        private List<int> lstRootItem = new List<int>();
 
         public ucRIRForQC()
         {
@@ -89,10 +92,22 @@ namespace MPR_Managerment.Forms.RIRGUI
                     // Tạo form cho nhập heat / MTR / SỐ lượng / QC_Code
                     frmAddHeatForItem frmAddHeatForItem = new frmAddHeatForItem(currentR.Cells["MTRno"].Value.ToString() ?? "");
                     frmAddHeatForItem.ShowDialog();
+                    if (!frmAddHeatForItem.IsClose) return;
                     var qty = frmAddHeatForItem.Quantity;
                     var mtr = frmAddHeatForItem.MTRNo;
                     var heat = frmAddHeatForItem.HeatNo;
                     var qc_code = frmAddHeatForItem.ID_Code;
+
+                    // Lưu thông tin dòng đã được tách
+                    var wI = new WarehouseImport
+                    {
+                        PO_Detail_ID = Convert.ToInt32(po_detail_id),
+                        Qty_Import = qty,
+                        MTRno = mtr,
+                        Heatno = heat,
+                        QC_Code = qc_code, 
+                    };
+                    lstItemAdd.Add(wI);
 
                     // Cập nhật số lượng sau khi tách cho dòng cũ
                     currentR.Cells["Qty_Required"].Value = Convert.ToDecimal(currentR.Cells["Qty_Required"].Value) - qty;
@@ -118,8 +133,7 @@ namespace MPR_Managerment.Forms.RIRGUI
 
                     row.Cells["PO_Detail_ID"].Value = currentR.Cells["PO_Detail_ID"].Value;
 
-                    // Tạo list lưu trữ thông tin dòng đã tách
-
+                    row.Cells["IsAdded"].Value = "true";
                 }
             };
 
@@ -168,6 +182,8 @@ namespace MPR_Managerment.Forms.RIRGUI
             dgvRIR.Columns.Add(cboResult);
 
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú", FillWeight = 100 });
+
+            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "IsAdded", HeaderText = "Dòng mới", FillWeight = 100, ReadOnly = true });
         }
 
 
@@ -244,13 +260,36 @@ namespace MPR_Managerment.Forms.RIRGUI
                         ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "",
                         Inspect_Result = row.Cells["Inspect_Result"].Value?.ToString() ?? "",
                         Remarks = row.Cells["Remarks"].Value?.ToString() ?? "",
-                        PO_Detail_ID = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value?.ToString() ?? "")
+                        PO_Detail_ID = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value?.ToString() ?? ""),
+
+                        IsNewRow = row.Cells["IsAdded"].Value?.ToString() ?? ""
                     };
 
                     await _service.UpdateDetailForQC(d);
 
                     saved++;
                 }
+
+                foreach (DataGridViewRow row in dgvRIR.Rows)
+                {
+                    int po_d_id = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value?.ToString());
+                    var Qty_Required = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0));
+                    var MTRno = row.Cells["MTRno"].Value?.ToString() ?? "";
+                    var Heatno = row.Cells["Heatno"].Value?.ToString() ?? "";
+                    var ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "";
+                    var Inspect_Result = row.Cells["Inspect_Result"].Value?.ToString() ?? "";
+                    var isNewRow = row.Cells["IsAdded"].Value?.ToString() ?? "";
+
+                    if (lstRootItem.Contains(po_d_id) && string.IsNullOrEmpty(isNewRow))
+                    {
+                        var lstAdd = lstItemAdd.Where(i => i.PO_Detail_ID == po_d_id).ToList();
+                        bool rs = await _warehouseServies.SaveQCCodeForItemOfWarehouseImportTable(po_d_id, Qty_Required, 0, MTRno, Heatno, ID_Code, Inspect_Result, lstAdd);
+                    }
+                }
+
+                // Kiểm tra nội dung khi truyền vào Procedure SQL
+                // Tính số Weight sau khi tách
+
                 MessageBox.Show($"Đã lưu {saved} dòng thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadDetails(_selectedRIR_ID);
             }

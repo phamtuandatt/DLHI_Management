@@ -656,19 +656,23 @@ namespace MPR_Managerment.Services
         /// </summary>
         public async Task<bool> SaveQCCodeForItemOfWarehouseImportTable(int po_detail_id, decimal newQty, decimal weight_kg, string mtrNo, string heatNo, string qc_code, string qc_status, List<WarehouseImport> lstItemUpdate)
         {
+                var wi = new WarehouseImport();
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                var wi = new WarehouseImport();
                 
                 // Get row
                 string sql = $"SELECT *FROM Warehouse_Import WHERE PO_Detail_ID = {po_detail_id}";
                 var cmd = new SqlCommand(sql, conn);
                 var r = cmd.ExecuteReader();
-                while (r.Read()) wi = MapImport_V2(r);
+                while (r.Read())
+                {
+                    wi = MapImport_V2(r);
+                };
 
                 // Update Row using transaction to ensure data correct
                 DataTable dtInsertList = CreateWarehouseImportStructure();
+                wi.RIR_ID = 103;
                 foreach (var item_r in lstItemUpdate)
                 {
                     DataRow dr = dtInsertList.NewRow();
@@ -676,12 +680,12 @@ namespace MPR_Managerment.Services
                     dr["Import_Date"] = wi.Import_Date;
                     dr["PO_ID"] = wi.PO_ID;
                     dr["PO_Detail_ID"] = wi.PO_Detail_ID;
-                    dr["RIR_ID"] = wi.RIR_ID;
+                    dr["RIR_ID"] = wi.RIR_ID != null ? Convert.ToInt32(wi.RIR_ID) : null;
                     dr["Item_Name"] = wi.Item_Name;
                     dr["Material"] = wi.Material;
                     dr["Size"] = wi.Size;
                     dr["Qty_Import"] = item_r.Qty_Import; // New
-                    dr["Weight_kg"] = item_r.Weight_kg; // New
+                    dr["Weight_kg"] = (item_r.Weight_kg == 0) ? wi.Weight_kg : item_r.Weight_kg; // New
                     dr["ID_Code"] = wi.ID_Code;
                     dr["MTRno"] = item_r.MTRno; // New
                     dr["Heatno"] = item_r.Heatno; // New
@@ -690,13 +694,13 @@ namespace MPR_Managerment.Services
                     dr["Location"] = wi.Location;
                     dr["Notes"] = wi.Notes;
                     dr["Created_By"] = wi.Created_By;
-                    dr["Created_Date"] = wi.Created_Date;
+                    //dr["Created_Date"] = DateTime.UtcNow;
                     dr["InvoiceNo"] = wi.InvoiceNo;
                     dr["InvoiceDate"] = wi.InvoiceDate;
                     dr["QC_Code"] = item_r.QC_Code; // New
                     dr["QC_Status"] = item_r.QC_Status; // New
-                    dr["IsPrint"] = wi.Import_No;
-                    
+                    dr["Is_Printed"] = true;
+
                     dtInsertList.Rows.Add(dr);
                 }
 
@@ -796,8 +800,8 @@ namespace MPR_Managerment.Services
                     cmd.Parameters.Add("@Update_Import_ID", SqlDbType.Int).Value = po_detail_id_update;
                     cmd.Parameters.Add("@New_Qty_Import", SqlDbType.Decimal).Value = newQty;
                     cmd.Parameters.Add("@New_Weight_kg", SqlDbType.Decimal).Value = weight_kg;
-                    cmd.Parameters.Add("@New_MTRno", SqlDbType.Decimal).Value = mtrNo;
-                    cmd.Parameters.Add("@@New_Heatno", SqlDbType.Decimal).Value = heatNo;
+                    cmd.Parameters.Add("@New_MTRno", SqlDbType.NVarChar, 50).Value = mtrNo;
+                    cmd.Parameters.Add("@New_Heatno", SqlDbType.NVarChar, 50).Value = heatNo;
                     cmd.Parameters.Add("@New_QC_Code", SqlDbType.NVarChar, 50).Value = qc_code;
                     cmd.Parameters.Add("@New_QC_Status", SqlDbType.NVarChar, 50).Value = qc_status;
 
@@ -806,9 +810,17 @@ namespace MPR_Managerment.Services
                     tvpParam.SqlDbType = SqlDbType.Structured; // Chỉ định kiểu dữ liệu là Structured
                     tvpParam.TypeName = "dbo.WarehouseImportType"; // Chỉ định chính xác tên Type trong cơ sở dữ liệu
 
+                    try
+                    {
+                        await conn.OpenAsync();
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                    catch (SqlException ex)
+                    {
+
+                        throw new Exception(ex.Message);
+                    }
                     // Mở kết nối và thực thi bất đồng bộ
-                    await conn.OpenAsync();
-                    await cmd.ExecuteNonQueryAsync();
 
                     return true;
                 }

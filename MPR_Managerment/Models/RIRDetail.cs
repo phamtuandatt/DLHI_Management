@@ -23,5 +23,7 @@ namespace MPR_Managerment.Models
         public decimal Qty_Per_Sheet { get; set; }
 
         public DateTime? Updated_Date { get; set; }
+
+        public string IsNewRow { get; set; }
     }
 }
