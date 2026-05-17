@@ -440,8 +440,24 @@ namespace MPR_Managerment.Forms
                     {
                         _rtbChat.AppendText("\n\n");
                         _rtbChat.ScrollToCaret();
-                        // Hiện nút Export nếu có dữ liệu bảng
+                        // Hiện nút Export nếu có dữ liệu bảng (xuất thủ công)
                         _btnExport.Visible = _ai.HasExportableData;
+
+                        // Tự động mở file Excel nếu AI vừa tạo tự động
+                        if (_ai._pendingExcelPath != null)
+                        {
+                            try
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = _ai._pendingExcelPath,
+                                    UseShellExecute = true
+                                });
+                            }
+                            catch { }
+                            _ai._pendingExcelPath = null;
+                            _btnExport.Visible = false; // đã xuất tự động rồi
+                        }
                     }));
             }
             catch (Exception ex)

@@ -171,12 +171,21 @@ Lịch sử:{historyCtx}
 
 Câu hỏi: ""{userQuestion}""
 
-Trả về JSON (không markdown):
-- Cần DB: {{""need_sql"":true,""sql"":""SELECT TOP 100 ...""}}
-- Không cần DB: {{""need_sql"":false,""answer"":""trả lời ngắn gọn""}}
+Trả về JSON (không markdown), 1 trong 3 dạng:
 
-Quy tắc SQL: CHỈ SELECT, TOP 100, Is_Latest=1, Is_Deleted=0.
-Yêu cầu xóa/sửa: need_sql=false, giải thích AI chỉ đọc.
+1. Cần DB, KHÔNG xuất Excel:
+{{""need_sql"":true,""export_excel"":false,""sql"":""SELECT TOP 100 ...""}}
+
+2. Cần DB, CÓ xuất Excel (khi user dùng từ: xuất, export, tạo file, báo cáo, danh sách, tổng hợp):
+{{""need_sql"":true,""export_excel"":true,""report_name"":""Tên báo cáo ngắn gọn"",""sql"":""SELECT TOP 5000 ...""}}
+
+3. Không cần DB:
+{{""need_sql"":false,""export_excel"":false,""answer"":""trả lời ngắn gọn""}}
+
+Quy tắc:
+- SQL chỉ SELECT, Is_Latest=1, Is_Deleted=0, không giới hạn TOP khi xuất Excel.
+- export_excel=true khi câu hỏi có: xuất/export/tạo file/báo cáo/danh sách/tổng hợp/thống kê.
+- Yêu cầu xóa/sửa: need_sql=false, giải thích AI chỉ đọc.
 
 JSON:";
 
@@ -189,7 +198,9 @@ JSON:";
                 raw = raw.Substring(4).Trim();
 
             bool needSql = false;
+            bool exportExcel = false;
             string sql = "";
+            string reportName = "";
             string directAnswer = "";
 
             try
@@ -197,6 +208,8 @@ JSON:";
                 using var doc = JsonDocument.Parse(raw);
                 var root = doc.RootElement;
                 needSql = root.TryGetProperty("need_sql", out var ns) && ns.GetBoolean();
+                exportExcel = root.TryGetProperty("export_excel", out var ex) && ex.GetBoolean();
+                reportName = root.TryGetProperty("report_name", out var rn) ? rn.GetString() ?? "" : userQuestion;
 
                 if (needSql)
                     sql = root.TryGetProperty("sql", out var s) ? s.GetString() ?? "" : "";
@@ -206,7 +219,6 @@ JSON:";
             }
             catch
             {
-                // Nếu parse JSON lỗi → coi như trả lời trực tiếp
                 directAnswer = raw;
             }
 
@@ -221,26 +233,162 @@ JSON:";
             }
             else
             {
-                // Cần DB → chạy SQL → nếu lỗi tên cột thì tự sửa và thử lại 1 lần
-                string dbContext = await RunSQLAsync(sql);
+                // Cần DB → chạy SQL
+                var (dbContext, dt) = await RunSQLWithTableAsync(sql);
 
                 if (dbContext.StartsWith("[Lỗi truy vấn DB:"))
                 {
                     // Tự động sửa SQL khi gặp lỗi tên cột
                     string fixedSql = await FixSQLAsync(sql, dbContext);
                     if (!string.IsNullOrEmpty(fixedSql) && fixedSql != sql)
-                        dbContext = await RunSQLAsync(fixedSql);
+                    {
+                        var (dbContext2, dt2) = await RunSQLWithTableAsync(fixedSql);
+                        dbContext = dbContext2;
+                        dt = dt2;
+                    }
                 }
 
-                answer = await GenerateAnswerAsync(userQuestion, dbContext, onChunk);
+                if (exportExcel && dt != null && dt.Rows.Count > 0)
+                {
+                    // ── Tự động xuất Excel ngay, không cần user bấm nút ──
+                    string filePath = ExportToExcelFile(dt, reportName, userQuestion);
+                    if (filePath != null)
+                    {
+                        answer = $"✅ Đã tạo báo cáo Excel: **{System.IO.Path.GetFileName(filePath)}**\n" +
+                                 $"📊 {dt.Rows.Count} dòng dữ liệu • {dt.Columns.Count} cột\n" +
+                                 $"📁 {filePath}";
+                        onChunk?.Invoke(answer);
+                        // Mở file tự động
+                        _pendingExcelPath = filePath;
+                    }
+                    else
+                    {
+                        answer = "[Lỗi tạo file Excel]";
+                        onChunk?.Invoke(answer);
+                    }
+                }
+                else
+                {
+                    answer = await GenerateAnswerAsync(userQuestion, dbContext, onChunk);
+                }
             }
 
-            // Lưu lịch sử
+            // Lưu lịch sử in-memory
             _history.Add(("user", userQuestion));
             _history.Add(("model", answer));
 
             return answer;
         }
+
+        // ── Path file Excel vừa tạo — frmAIChat đọc để mở file ──────────
+        public string _pendingExcelPath = null;
+
+        /// <summary>Xuất DataTable ra file Excel với format đẹp.</summary>
+        private string ExportToExcelFile(DataTable dt, string reportName, string question)
+        {
+            try
+            {
+                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                using var pkg = new OfficeOpenXml.ExcelPackage();
+                var ws = pkg.Workbook.Worksheets.Add(reportName.Length > 30
+                    ? reportName.Substring(0, 30) : reportName);
+
+                // ── Tiêu đề báo cáo ──
+                ws.Cells[1, 1].Value = reportName;
+                ws.Cells[1, 1, 1, dt.Columns.Count].Merge = true;
+                ws.Cells[1, 1].Style.Font.Bold = true;
+                ws.Cells[1, 1].Style.Font.Size = 14;
+                ws.Cells[1, 1].Style.HorizontalAlignment =
+                    OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                ws.Cells[1, 1].Style.Fill.PatternType =
+                    OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                ws.Cells[1, 1].Style.Fill.BackgroundColor
+                    .SetColor(System.Drawing.Color.FromArgb(0, 70, 127));
+                ws.Cells[1, 1].Style.Font.Color
+                    .SetColor(System.Drawing.Color.White);
+
+                // ── Dòng thông tin xuất ──
+                ws.Cells[2, 1].Value =
+                    $"Câu hỏi: {question}   |   Xuất lúc: {DateTime.Now:dd/MM/yyyy HH:mm}   |   Tổng: {dt.Rows.Count} dòng";
+                ws.Cells[2, 1, 2, dt.Columns.Count].Merge = true;
+                ws.Cells[2, 1].Style.Font.Italic = true;
+                ws.Cells[2, 1].Style.Font.Size = 9;
+                ws.Cells[2, 1].Style.Font.Color
+                    .SetColor(System.Drawing.Color.FromArgb(80, 80, 80));
+
+                // ── Header cột ──
+                var headerColor = System.Drawing.Color.FromArgb(0, 120, 212);
+                for (int c = 0; c < dt.Columns.Count; c++)
+                {
+                    var cell = ws.Cells[4, c + 1];
+                    cell.Value = dt.Columns[c].ColumnName;
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                    cell.Style.Fill.BackgroundColor.SetColor(headerColor);
+                    cell.Style.Font.Color.SetColor(System.Drawing.Color.White);
+                    cell.Style.HorizontalAlignment =
+                        OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                    cell.Style.Border.Bottom.Style =
+                        OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                }
+
+                // ── Dữ liệu ──
+                for (int r = 0; r < dt.Rows.Count; r++)
+                {
+                    for (int c = 0; c < dt.Columns.Count; c++)
+                    {
+                        var cell = ws.Cells[r + 5, c + 1];
+                        var val = dt.Rows[r][c];
+                        cell.Value = val == DBNull.Value ? "" : val;
+
+                        // Zebra stripe
+                        if (r % 2 == 1)
+                        {
+                            cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            cell.Style.Fill.BackgroundColor
+                                .SetColor(System.Drawing.Color.FromArgb(240, 246, 255));
+                        }
+                    }
+                }
+
+                // ── Border toàn bảng ──
+                if (dt.Rows.Count > 0)
+                {
+                    var tableRange = ws.Cells[4, 1, dt.Rows.Count + 4, dt.Columns.Count];
+                    tableRange.Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                    tableRange.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                    tableRange.Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                    tableRange.Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                }
+
+                ws.Cells[ws.Dimension.Address].AutoFitColumns(8, 60);
+
+                // ── Freeze panes (cố định header) ──
+                ws.View.FreezePanes(5, 1);
+
+                // ── Lưu file ──
+                string safeFileName = string.Concat(reportName
+                    .Replace("/", "-").Replace("\\", "-")
+                    .Replace(":", "").Replace("*", "").Replace("?", "")
+                    .Replace("\"", "").Replace("<", "").Replace(">", "")
+                    .Replace("|", "").Take(50));
+                string path = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(),
+                    $"AI_{safeFileName}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
+
+                pkg.SaveAs(new System.IO.FileInfo(path));
+                _lastQueryResult = null; // reset sau khi xuất tự động
+                return path;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("ExportToExcel error: " + ex.Message);
+                return null;
+            }
+        }
+
+        // ── Placeholder để không break code cũ ───────────────────────────
+        private async Task<string> AskAsync_unused() => "";
 
         // ── Tự động sửa SQL khi gặp lỗi tên cột ─────────────────────────
         private async Task<string> FixSQLAsync(string badSql, string errorMsg)
