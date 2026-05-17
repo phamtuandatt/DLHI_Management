@@ -418,91 +418,21 @@ SQL đã sửa:";
             {
                 try
                 {
-                    string sqlTrimmed = sql.Trim();
-                    string sqlUpper = sqlTrimmed.ToUpperInvariant();
+                    string err = ValidateSQL(sql);
+                    if (err != null) return err;
 
-                    // ── Tầng 1: Chỉ cho phép bắt đầu bằng SELECT hoặc WITH (CTE) ──
-                    // WITH phải luôn kết thúc bằng SELECT, không phải DML
-                    if (!sqlUpper.StartsWith("SELECT") && !sqlUpper.StartsWith("WITH"))
-                        return "[Từ chối: Chỉ cho phép câu lệnh SELECT.]";
-
-                    // ── Tầng 2: Blacklist toàn diện — bắt mọi biến thể viết tắt ──
-                    // Tách thành words để tránh false positive (VD: "SELECTED" chứa "SELECT")
-                    // Dùng regex-style: từ khóa phải đứng sau khoảng trắng, tab, newline,
-                    // ngoặc, dấu chấm phẩy, hoặc ở đầu chuỗi
-                    string[] dangerousKeywords = {
-                        "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE",
-                        "ALTER",  "CREATE", "RENAME", "REPLACE",
-                        "EXEC",   "EXECUTE", "SP_",   "XP_",
-                        "GRANT",  "REVOKE",  "DENY",
-                        "MERGE",  "UPSERT",
-                        "OPENROWSET", "OPENQUERY", "OPENDATASOURCE",
-                        "BULK INSERT", "INTO",      // INTO có thể xuất hiện trong SELECT INTO
-                        "SHUTDOWN",   "DBCC"
-                    };
-
-                    // Các ký tự có thể đứng trước từ khóa nguy hiểm
-                    char[] delimiters = { ' ', '\t', '\r', '\n', '(', ')', ';', ',', '\'' };
-
-                    foreach (string kw in dangerousKeywords)
-                    {
-                        int idx = 0;
-                        while ((idx = sqlUpper.IndexOf(kw, idx, StringComparison.Ordinal)) >= 0)
-                        {
-                            // Kiểm tra ký tự trước từ khóa (phải là delimiter hoặc ở đầu)
-                            bool beforeOk = idx == 0 || delimiters.Contains(sqlUpper[idx - 1]);
-                            // Kiểm tra ký tự sau từ khóa (phải là delimiter hoặc ở cuối)
-                            int afterIdx = idx + kw.Length;
-                            bool afterOk = afterIdx >= sqlUpper.Length
-                                         || delimiters.Contains(sqlUpper[afterIdx]);
-
-                            if (beforeOk && afterOk)
-                                return $"[Từ chối: Câu lệnh chứa '{kw}' — chỉ được phép SELECT dữ liệu.]";
-
-                            idx += kw.Length;
-                        }
-                    }
-
-                    // ── Tầng 3: Kiểm tra WITH...CTE phải kết thúc bằng SELECT ──
-                    if (sqlUpper.StartsWith("WITH"))
-                    {
-                        // Tìm SELECT cuối cùng ngoài CTE definition
-                        int lastSelect = sqlUpper.LastIndexOf("SELECT");
-                        if (lastSelect < 0)
-                            return "[Từ chối: Mệnh đề WITH không có SELECT cuối cùng.]";
-                    }
-
-                    // ── Tầng 4: Thực thi trong Transaction READ ONLY ──────────
-                    // Ngay cả nếu vượt qua các tầng trên, transaction READ ONLY
-                    // đảm bảo DB rollback mọi thay đổi (nếu có)
-                    using var conn = DatabaseHelper.GetConnection();
+                    // Dùng connection AI riêng + SqlDataAdapter để load toàn bộ vào memory
+                    // trước khi đóng — tránh lỗi "open DataReader"
+                    using var conn = CreateAIConnection();
                     conn.Open();
+                    var dt = new DataTable();
+                    using (var adapter = new SqlDataAdapter(
+                        new SqlCommand(sql.Trim(), conn) { CommandTimeout = 60 }))
+                        adapter.Fill(dt);
 
-                    using var tran = conn.BeginTransaction(
-                        System.Data.IsolationLevel.ReadCommitted);
-                    try
-                    {
-                        var cmd = new SqlCommand(sqlTrimmed, conn, tran)
-                        {
-                            CommandTimeout = 30
-                        };
-
-                        var dt = new DataTable();
-                        dt.Load(cmd.ExecuteReader());
-
-                        // Rollback ngay sau khi đọc — đảm bảo không có gì được commit
-                        tran.Rollback();
-
-                        if (dt.Rows.Count == 0)
-                            return "[Không tìm thấy dữ liệu phù hợp]";
-
-                        return DataTableToText(dt, maxRows: 150);
-                    }
-                    catch
-                    {
-                        try { tran.Rollback(); } catch { }
-                        throw;
-                    }
+                    if (dt.Rows.Count == 0)
+                        return "[Không tìm thấy dữ liệu phù hợp]";
+                    return DataTableToText(dt, maxRows: 150);
                 }
                 catch (Exception ex)
                 {
@@ -722,7 +652,8 @@ Trả lời:";
             {
                 try
                 {
-                    using var conn = DatabaseHelper.GetConnection();
+                    // Dùng connection riêng với MARS=true để chạy nhiều query liên tiếp
+                    using var conn = CreateAIConnection();
                     conn.Open();
 
                     string today = DateTime.Today.ToString("dd/MM/yyyy");
@@ -803,33 +734,93 @@ Trả lời:";
         public bool HasExportableData => _lastQueryResult != null && _lastQueryResult.Rows.Count > 0;
 
         /// <summary>Chạy SQL và lưu DataTable để xuất Excel sau.</summary>
+        // ── Tạo connection mới độc lập cho AI — tránh conflict với app ───
+        // Thêm MARS=True để cho phép nhiều DataReader cùng lúc trên 1 connection
+        private SqlConnection CreateAIConnection()
+        {
+            var builder = new SqlConnectionStringBuilder(
+                DatabaseHelper.GetConnection().ConnectionString)
+            {
+                MultipleActiveResultSets = true,
+                // Tạo connection pool riêng cho AI — không tranh chấp với app chính
+                ApplicationName = "MPR_AI_Query"
+            };
+            return new SqlConnection(builder.ConnectionString);
+        }
+
+        // ── Validate SQL safety (dùng chung cho 2 hàm RunSQL) ────────────
+        private string ValidateSQL(string sql)
+        {
+            string sqlTrimmed = sql.Trim();
+            string sqlUpper = sqlTrimmed.ToUpperInvariant();
+
+            if (!sqlUpper.StartsWith("SELECT") && !sqlUpper.StartsWith("WITH"))
+                return "[Từ chối: Chỉ cho phép câu lệnh SELECT.]";
+
+            char[] delimiters = { ' ', '\t', '\r', '\n', '(', ')', ';', ',', '\'' };
+            string[] dangerousKeywords = {
+                "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE",
+                "ALTER", "CREATE", "RENAME", "REPLACE",
+                "EXEC", "EXECUTE", "SP_", "XP_",
+                "GRANT", "REVOKE", "DENY",
+                "MERGE", "UPSERT",
+                "OPENROWSET", "OPENQUERY", "OPENDATASOURCE",
+                "BULK INSERT", "SHUTDOWN", "DBCC"
+            };
+            foreach (string kw in dangerousKeywords)
+            {
+                int idx = 0;
+                while ((idx = sqlUpper.IndexOf(kw, idx, StringComparison.Ordinal)) >= 0)
+                {
+                    bool beforeOk = idx == 0 || delimiters.Contains(sqlUpper[idx - 1]);
+                    int afterIdx = idx + kw.Length;
+                    bool afterOk = afterIdx >= sqlUpper.Length
+                                 || delimiters.Contains(sqlUpper[afterIdx]);
+                    if (beforeOk && afterOk)
+                        return $"[Từ chối: Câu lệnh chứa '{kw}' — chỉ được phép SELECT.]";
+                    idx += kw.Length;
+                }
+            }
+            // Kiểm tra SELECT INTO
+            if (sqlUpper.Contains("SELECT") && sqlUpper.Contains("INTO "))
+                return "[Từ chối: Không cho phép SELECT INTO.]";
+
+            return null; // null = hợp lệ
+        }
+
         public async Task<(string text, DataTable dt)> RunSQLWithTableAsync(string sql)
         {
             return await Task.Run(() =>
             {
                 try
                 {
-                    string sqlUpper = sql.Trim().ToUpperInvariant();
-                    if (!sqlUpper.StartsWith("SELECT") && !sqlUpper.StartsWith("WITH"))
-                        return ("[Từ chối: Chỉ cho phép SELECT]", null as DataTable);
+                    string err = ValidateSQL(sql);
+                    if (err != null) return (err, null as DataTable);
 
-                    using var conn = DatabaseHelper.GetConnection();
+                    // Dùng connection MỚI hoàn toàn — không dùng chung với app
+                    using var conn = CreateAIConnection();
                     conn.Open();
-                    using var tran = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
-                    try
+
+                    var cmd = new SqlCommand(sql.Trim(), conn)
                     {
-                        var cmd = new SqlCommand(sql.Trim(), conn, tran) { CommandTimeout = 30 };
-                        var dt = new DataTable();
-                        dt.Load(cmd.ExecuteReader());
-                        tran.Rollback();
-                        _lastQueryResult = dt.Rows.Count > 0 ? dt : null;
-                        return (DataTableToText(dt, 150), dt);
+                        CommandTimeout = 60
+                    };
+
+                    var dt = new DataTable();
+                    // Dùng SqlDataAdapter thay vì dt.Load() — load toàn bộ vào memory
+                    // trước khi đóng reader, tránh lỗi "open DataReader"
+                    using (var adapter = new SqlDataAdapter(cmd))
+                    {
+                        adapter.Fill(dt);
                     }
-                    catch { tran.Rollback(); throw; }
+                    // conn tự đóng khi ra khỏi using
+
+                    _lastQueryResult = dt.Rows.Count > 0 ? dt : null;
+                    return (DataTableToText(dt, 150), dt);
                 }
                 catch (Exception ex)
                 {
-                    return ($"[Lỗi: {ex.Message}]", null as DataTable);
+                    return ($"[Lỗi truy vấn DB: {ex.Message}]", null as DataTable);
                 }
             });
         }
