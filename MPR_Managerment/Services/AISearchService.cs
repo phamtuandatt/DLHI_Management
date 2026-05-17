@@ -1,0 +1,742 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
+using MPR_Managerment.Helpers;
+
+namespace MPR_Managerment.Services
+{
+    /// <summary>
+    /// Dịch vụ AI tìm kiếm toàn hệ thống — dùng Deepseek API + truy vấn DB thông minh.
+    /// Deepseek tương thích OpenAI format, rất rẻ (~$0.14/1M token), hỗ trợ tiếng Việt tốt.
+    /// </summary>
+    public class AISearchService
+    {
+        // ── Cấu hình Deepseek API ─────────────────────────────────────────
+        // Lấy API key tại: https://platform.deepseek.com/api_keys
+        private const string DS_API_URL = "https://api.deepseek.com/chat/completions";
+        private const string DS_MODEL = "deepseek-chat";
+        // Models hiện tại:
+        // "deepseek-chat"     — nhanh, rẻ, dùng hàng ngày ✅
+        // "deepseek-reasoner" — suy luận sâu, dùng cho câu hỏi phức tạp
+
+        // ⚠ Thay bằng API key thực từ https://platform.deepseek.com/api_keys
+        private const string DS_API_KEY = "sk-419f6cb2d61240cda8d4db6fb93cd2ff";
+
+        private static readonly HttpClient _http = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(120)
+        };
+
+        public AISearchService(string apiKey = "") { }
+
+        /// <summary>Warm-up không cần thiết với API online.</summary>
+        public Task WarmUpAsync() => Task.CompletedTask;
+
+        // ── Lịch sử hội thoại (multi-turn) ────────────────────────────────
+        private readonly List<(string role, string text)> _history = new();
+
+        public void ClearHistory() => _history.Clear();
+
+        // ── Schema DB thực tế — tên bảng và cột chính xác từ DB ──────────
+        private const string DB_SCHEMA = @"
+Database schema (SQL Server) của phần mềm quản lý vật tư MPR_Management:
+
+=== BẢNG CHÍNH ===
+
+MPR_Header(MPR_ID int PK, MPR_No nvarchar(50), Project_Name nvarchar(255), Project_Code nvarchar(50),
+  Department nvarchar(100), Requestor nvarchar(100), Rev nvarchar(50) [VARCHAR — dùng TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) khi so sánh số],
+  Required_Date date, Status nvarchar(50), Notes nvarchar(500), Is_Latest bit, Created_Date datetime)
+
+MPR_Details(Detail_ID int PK, MPR_ID int FK→MPR_Header, Item_No nvarchar(50) [VARCHAR],
+  item_name nvarchar(500), Description nvarchar(500) [tên cột: Description_Line1/Description_Line2],
+  Material nvarchar(200), Thickness_mm decimal, Depth_mm decimal, C_Width_mm decimal,
+  D_Web_mm decimal, E_Flange_mm decimal, F_Length_mm decimal, Usage_Location nvarchar(200),
+  MPS_Info nvarchar(100), REV nvarchar(50), DWG_BOQ_Receive_Date date, Issue_Date date,
+  UNIT nvarchar(50), Qty_Per_Sheet int, Weight_kg decimal, Remarks nvarchar(500),
+  Is_Deleted bit [0=còn hiệu lực])
+
+PO_head(PO_ID int PK, PONo nvarchar(50) UNIQUE, Project_Name nvarchar(255), MPR_No nvarchar(50),
+  Supplier_ID int FK→Suppliers, PO_Date date, Total_Amount decimal, Status nvarchar(50),
+  Expected_Delivery datetime, Payment_Term nvarchar(200), ProjectCode varchar(50),
+  Notes nvarchar(500), Created_Date datetime, Created_By nvarchar(100))
+
+PO_Detail(PO_Detail_ID int PK, PO_ID int FK→PO_head, Item_No int, item_name nvarchar(500),
+  Material nvarchar(200), Qty_Per_Sheet decimal, UNIT nvarchar(50), Weight_kg decimal,
+  Price decimal, Amount decimal, VAT decimal, Received int, Received_Qty decimal,
+  Status_Delivery bit, MPR_Detail_ID int FK→MPR_Details, Supplier_ID int,
+  RequestDay date, DeliveryLocation nvarchar(500))
+
+Suppliers(Supplier_ID int PK, Company_Name nvarchar(255), Short_Name nvarchar(100),
+  Supplier_Type nvarchar(100), Email nvarchar(255), Contact_Person nvarchar(200),
+  Contact_Phone nvarchar(50), Tax_Code nvarchar(50), IsActive bit)
+
+RIR_head(RIR_ID int PK, RIR_No nvarchar(50) UNIQUE, Issue_Date date, Project_Name nvarchar(255),
+  PONo nvarchar(50) FK→PO_head, MPR_No nvarchar(50), Status nvarchar(50),
+  Created_Date datetime, Created_By nvarchar(100))
+
+RIR_detail(RIR_Detail_ID int PK, RIR_ID int FK→RIR_head, PO_Detail_ID int,
+  Item_No int, item_name nvarchar(500), Material nvarchar(200), UNIT nvarchar(50),
+  Qty_Required decimal, Qty_Received decimal, Inspect_Result nvarchar(20), Remarks nvarchar(max))
+
+PO_PrintRequestHistory(Print_ID int PK, PONo nvarchar(100), Project_Name nvarchar(200),
+  Dot_TT int, Dot_Label nvarchar(10), Amount_Net decimal, Amount_VAT decimal,
+  Amount_Total decimal, Printed_By nvarchar(100), Printed_Date datetime,
+  Supplier_Short nvarchar(100))
+
+PO_PaymentProgress(Progress_ID int PK, Print_ID int FK→PO_PrintRequestHistory,
+  PONo nvarchar(100), PR_Status nvarchar(50), PR_Paid bit, Amount_Total decimal,
+  Dot_TT nvarchar(50), EC_Status nvarchar(50), PR_Note nvarchar(500), Updated_At datetime)
+
+PO_HistoryPaid(HP_ID int PK, Print_ID int, PONo nvarchar(100), Amount_Total decimal,
+  PR_Note nvarchar(500))
+
+PO_DeliveryTracking(TrackID int PK, PONo nvarchar(100), ExpDelivery date,
+  Status nvarchar(50), GhiChu nvarchar(500), ReceiverNote nvarchar(500), Created_Date datetime)
+
+Warehouse_Import(Import_ID int PK, Import_No nvarchar(50), Import_Date date,
+  PO_ID int, PO_Detail_ID int, RIR_ID int, Item_Name nvarchar(500),
+  Material nvarchar(200), UNIT nvarchar(50), Qty_Import decimal, Weight_kg decimal,
+  Project_Code nvarchar(50), Location nvarchar(200), Created_By nvarchar(100), Created_Date datetime)
+
+ProjectInfo(Project_Code varchar(50) PK, Project_Name nvarchar(255), ...)
+
+=== VIEW HỮU ÍCH ===
+vw_PO_FullInfo          — thông tin PO đầy đủ kèm Supplier
+vw_MPR_Full_Info        — thông tin MPR đầy đủ
+vw_Supplier_FullInfo    — Supplier kèm contacts, certificates, bank accounts
+vw_PO_Payment_Summary   — tổng hợp thanh toán PO
+vw_Supplier_Debt_Summary — công nợ nhà cung cấp
+vw_Warehouse_Stock_V2   — tồn kho hiện tại
+
+=== LƯU Ý QUAN TRỌNG ===
+- NCC = Nhà cung cấp = bảng [Suppliers] (KHÔNG phải 'Supplier')
+- Bảng MPR: Is_Latest=1 là bản mới nhất; Is_Deleted=0 trong MPR_Details là còn hiệu lực
+- Rev và Item_No trong MPR là VARCHAR → dùng TRY_CAST(TRY_CAST(col AS DECIMAL(10,2)) AS INT)
+- JOIN PO với NCC: PO_head.Supplier_ID = Suppliers.Supplier_ID
+- Lịch sử thanh toán: PO_PrintRequestHistory JOIN PO_PaymentProgress ON Print_ID
+- Tiến độ giao hàng: PO_DeliveryTracking.PONo = PO_head.PONo
+";
+
+        // ── Schema rút gọn — dùng trong prompt để giảm token ─────────────
+        private const string DB_SCHEMA_SHORT = @"
+Bảng SQL Server (chỉ SELECT):
+MPR_Header: MPR_ID, MPR_No, Project_Name, Project_Code, Rev(varchar), Required_Date, Status, Is_Latest, Created_Date
+MPR_Details: Detail_ID, MPR_ID, Item_No(varchar), item_name, Material, Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm, UNIT, Qty_Per_Sheet, Weight_kg, REV, Is_Deleted, Remarks
+PO_head: PO_ID, PONo, MPR_No, Supplier_ID, PO_Date, Total_Amount, Status, Expected_Delivery, Payment_Term, Project_Name
+PO_Detail: PO_Detail_ID, PO_ID, item_name, Qty_Per_Sheet, Weight_kg, Price, Amount, VAT, Received_Qty, MPR_Detail_ID, Status_Delivery, RequestDay
+Suppliers: Supplier_ID, Company_Name, Short_Name, Contact_Person, Contact_Phone, IsActive
+RIR_head: RIR_ID, RIR_No, Issue_Date, PONo, MPR_No, Status, Project_Name
+RIR_detail: RIR_Detail_ID, RIR_ID, item_name, Qty_Required, Qty_Received, Inspect_Result
+PO_PrintRequestHistory: Print_ID, PONo, Project_Name, Amount_Net, Amount_VAT, Amount_Total, Printed_By, Printed_Date, Supplier_Short
+PO_PaymentProgress: Progress_ID, Print_ID, PONo, PR_Status, PR_Paid, Amount_Total, EC_Status, Updated_At
+PO_DeliveryTracking: TrackID, PONo, ExpDelivery, Status, GhiChu
+Warehouse_Import: Import_ID, Import_Date, PO_ID, Item_Name, Qty_Import, Weight_kg, Project_Code
+Views: vw_PO_FullInfo, vw_MPR_Full_Info, vw_Supplier_FullInfo, vw_PO_Payment_Summary, vw_Supplier_Debt_Summary
+
+⚠ TÊN CỘT QUAN TRỌNG — PHẢI DÙNG ĐÚNG:
+- PO_head: cột số PO là [PONo] KHÔNG phải PO_No hay PO_Number
+- RIR_head: cột số RIR là [RIR_No] KHÔNG phải RIR_Number
+- MPR_Details: cột tên vật tư là [item_name] KHÔNG phải Item_Name
+- PO_head: cột ngày giao là [Expected_Delivery] KHÔNG phải Delivery_Date
+- Suppliers: KHÔNG có bảng Supplier (phải có chữ 's' cuối)
+- Is_Latest=1 → MPR bản mới nhất; Is_Deleted=0 → MPR_Details còn hiệu lực
+- JOIN NCC: PO_head.Supplier_ID = Suppliers.Supplier_ID
+- Lịch sử thanh toán: PO_PrintRequestHistory JOIN PO_PaymentProgress ON Print_ID
+- Rev/Item_No là VARCHAR → dùng TRY_CAST(TRY_CAST(col AS DECIMAL(10,2)) AS INT)
+";
+
+
+        // ── Hàm chính: 1 lần gọi Gemini duy nhất ─────────────────────────
+        // Luồng thông minh:
+        //   Câu thường (chào hỏi, hỏi chung) → Gemini trả lời thẳng, 0 truy vấn DB
+        //   Câu hỏi dữ liệu → Gemini sinh SQL → chạy DB → Gemini trả lời có dữ liệu
+        public async Task<string> AskAsync(string userQuestion,
+            Action<string> onChunk = null)
+        {
+            string historyCtx = BuildHistoryContext(4);
+
+            // ── Prompt all-in-one: Ollama quyết định có cần DB không ──────
+            // Dùng schema rút gọn để giảm token, tăng tốc độ phản hồi
+            string prompt = $@"Bạn là trợ lý AI của phần mềm quản lý vật tư MPR_Management.
+Trả lời tiếng Việt. Trò chuyện bình thường VÀ tra cứu DB khi cần.
+
+{DB_SCHEMA_SHORT}
+
+Lịch sử:{historyCtx}
+
+Câu hỏi: ""{userQuestion}""
+
+Trả về JSON (không markdown):
+- Cần DB: {{""need_sql"":true,""sql"":""SELECT TOP 100 ...""}}
+- Không cần DB: {{""need_sql"":false,""answer"":""trả lời ngắn gọn""}}
+
+Quy tắc SQL: CHỈ SELECT, TOP 100, Is_Latest=1, Is_Deleted=0.
+Yêu cầu xóa/sửa: need_sql=false, giải thích AI chỉ đọc.
+
+JSON:";
+
+            // Gọi Gemini 1 lần để lấy intent
+            string raw = await CallDeepseekAsync(prompt, temperature: 0.1f);
+
+            // Parse JSON response
+            raw = raw.Trim().TrimStart('`').TrimEnd('`');
+            if (raw.StartsWith("json", StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring(4).Trim();
+
+            bool needSql = false;
+            string sql = "";
+            string directAnswer = "";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+                needSql = root.TryGetProperty("need_sql", out var ns) && ns.GetBoolean();
+
+                if (needSql)
+                    sql = root.TryGetProperty("sql", out var s) ? s.GetString() ?? "" : "";
+                else
+                    directAnswer = root.TryGetProperty("answer", out var a)
+                        ? a.GetString() ?? "" : raw;
+            }
+            catch
+            {
+                // Nếu parse JSON lỗi → coi như trả lời trực tiếp
+                directAnswer = raw;
+            }
+
+            string answer;
+
+            if (!needSql || string.IsNullOrWhiteSpace(sql))
+            {
+                answer = string.IsNullOrEmpty(directAnswer)
+                    ? "Xin lỗi, tôi chưa hiểu rõ câu hỏi. Bạn có thể hỏi lại được không?"
+                    : directAnswer;
+                onChunk?.Invoke(answer);
+            }
+            else
+            {
+                // Cần DB → chạy SQL → nếu lỗi tên cột thì tự sửa và thử lại 1 lần
+                string dbContext = await RunSQLAsync(sql);
+
+                if (dbContext.StartsWith("[Lỗi truy vấn DB:"))
+                {
+                    // Tự động sửa SQL khi gặp lỗi tên cột
+                    string fixedSql = await FixSQLAsync(sql, dbContext);
+                    if (!string.IsNullOrEmpty(fixedSql) && fixedSql != sql)
+                        dbContext = await RunSQLAsync(fixedSql);
+                }
+
+                answer = await GenerateAnswerAsync(userQuestion, dbContext, onChunk);
+            }
+
+            // Lưu lịch sử
+            _history.Add(("user", userQuestion));
+            _history.Add(("model", answer));
+
+            return answer;
+        }
+
+        // ── Tự động sửa SQL khi gặp lỗi tên cột ─────────────────────────
+        private async Task<string> FixSQLAsync(string badSql, string errorMsg)
+        {
+            try
+            {
+                string fixPrompt = $@"SQL sau gặp lỗi: {errorMsg}
+
+SQL lỗi:
+{badSql}
+
+Schema đúng:
+{DB_SCHEMA_SHORT}
+
+Hãy sửa lại SQL cho đúng tên bảng/cột. Chỉ trả về SQL đã sửa, không giải thích.
+SQL đã sửa:";
+
+                return await CallDeepseekAsync(fixPrompt, temperature: 0.1f);
+            }
+            catch { return badSql; }
+        }
+
+        // ── Bước 2: Chạy SQL an toàn ──────────────────────────────────────
+        private async Task<string> RunSQLAsync(string sql)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    string sqlTrimmed = sql.Trim();
+                    string sqlUpper = sqlTrimmed.ToUpperInvariant();
+
+                    // ── Tầng 1: Chỉ cho phép bắt đầu bằng SELECT hoặc WITH (CTE) ──
+                    // WITH phải luôn kết thúc bằng SELECT, không phải DML
+                    if (!sqlUpper.StartsWith("SELECT") && !sqlUpper.StartsWith("WITH"))
+                        return "[Từ chối: Chỉ cho phép câu lệnh SELECT.]";
+
+                    // ── Tầng 2: Blacklist toàn diện — bắt mọi biến thể viết tắt ──
+                    // Tách thành words để tránh false positive (VD: "SELECTED" chứa "SELECT")
+                    // Dùng regex-style: từ khóa phải đứng sau khoảng trắng, tab, newline,
+                    // ngoặc, dấu chấm phẩy, hoặc ở đầu chuỗi
+                    string[] dangerousKeywords = {
+                        "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE",
+                        "ALTER",  "CREATE", "RENAME", "REPLACE",
+                        "EXEC",   "EXECUTE", "SP_",   "XP_",
+                        "GRANT",  "REVOKE",  "DENY",
+                        "MERGE",  "UPSERT",
+                        "OPENROWSET", "OPENQUERY", "OPENDATASOURCE",
+                        "BULK INSERT", "INTO",      // INTO có thể xuất hiện trong SELECT INTO
+                        "SHUTDOWN",   "DBCC"
+                    };
+
+                    // Các ký tự có thể đứng trước từ khóa nguy hiểm
+                    char[] delimiters = { ' ', '\t', '\r', '\n', '(', ')', ';', ',', '\'' };
+
+                    foreach (string kw in dangerousKeywords)
+                    {
+                        int idx = 0;
+                        while ((idx = sqlUpper.IndexOf(kw, idx, StringComparison.Ordinal)) >= 0)
+                        {
+                            // Kiểm tra ký tự trước từ khóa (phải là delimiter hoặc ở đầu)
+                            bool beforeOk = idx == 0 || delimiters.Contains(sqlUpper[idx - 1]);
+                            // Kiểm tra ký tự sau từ khóa (phải là delimiter hoặc ở cuối)
+                            int afterIdx = idx + kw.Length;
+                            bool afterOk = afterIdx >= sqlUpper.Length
+                                         || delimiters.Contains(sqlUpper[afterIdx]);
+
+                            if (beforeOk && afterOk)
+                                return $"[Từ chối: Câu lệnh chứa '{kw}' — chỉ được phép SELECT dữ liệu.]";
+
+                            idx += kw.Length;
+                        }
+                    }
+
+                    // ── Tầng 3: Kiểm tra WITH...CTE phải kết thúc bằng SELECT ──
+                    if (sqlUpper.StartsWith("WITH"))
+                    {
+                        // Tìm SELECT cuối cùng ngoài CTE definition
+                        int lastSelect = sqlUpper.LastIndexOf("SELECT");
+                        if (lastSelect < 0)
+                            return "[Từ chối: Mệnh đề WITH không có SELECT cuối cùng.]";
+                    }
+
+                    // ── Tầng 4: Thực thi trong Transaction READ ONLY ──────────
+                    // Ngay cả nếu vượt qua các tầng trên, transaction READ ONLY
+                    // đảm bảo DB rollback mọi thay đổi (nếu có)
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+
+                    using var tran = conn.BeginTransaction(
+                        System.Data.IsolationLevel.ReadCommitted);
+                    try
+                    {
+                        var cmd = new SqlCommand(sqlTrimmed, conn, tran)
+                        {
+                            CommandTimeout = 30
+                        };
+
+                        var dt = new DataTable();
+                        dt.Load(cmd.ExecuteReader());
+
+                        // Rollback ngay sau khi đọc — đảm bảo không có gì được commit
+                        tran.Rollback();
+
+                        if (dt.Rows.Count == 0)
+                            return "[Không tìm thấy dữ liệu phù hợp]";
+
+                        return DataTableToText(dt, maxRows: 150);
+                    }
+                    catch
+                    {
+                        try { tran.Rollback(); } catch { }
+                        throw;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return $"[Lỗi truy vấn DB: {ex.Message}]";
+                }
+            });
+        }
+
+        // ── Bước 3: Gemini tổng hợp câu trả lời ──────────────────────────
+        private async Task<string> GenerateAnswerAsync(string question,
+            string dbContext, Action<string> onChunk)
+        {
+            string historyCtx = BuildHistoryContext(4);
+
+            string dataSection = string.IsNullOrEmpty(dbContext)
+                ? ""
+                : $"\nDữ liệu lấy từ database:\n{dbContext}\n";
+
+            string prompt = $@"Bạn là trợ lý AI của phần mềm quản lý vật tư MPR_Management. Trả lời tiếng Việt.
+
+Lịch sử:{historyCtx}
+{dataSection}
+Câu hỏi: ""{question}""
+
+Hướng dẫn: Phân tích dữ liệu DB ở trên và trả lời ngắn gọn, chính xác.
+Số tiền: định dạng ngàn (1.234.567 VNĐ). Ngày: dd/MM/yyyy. KHÔNG bịa số liệu.
+
+Trả lời:";
+
+            // Streaming response nếu có callback
+            if (onChunk != null)
+                return await CallDeepseekStreamAsync(prompt, onChunk);
+            else
+                return await CallDeepseekAsync(prompt, temperature: 0.7f);
+        }
+
+        // ── Groq API call (non-stream) ────────────────────────────────────
+        private async Task<string> CallDeepseekAsync(string prompt, float temperature = 0.5f)
+        {
+            try
+            {
+                var body = new
+                {
+                    model = DS_MODEL,
+                    messages = new[] { new { role = "user", content = prompt } },
+                    temperature,
+                    max_tokens = 2048,
+                    stream = false
+                };
+
+                string json = JsonSerializer.Serialize(body);
+                var request = new HttpRequestMessage(HttpMethod.Post, DS_API_URL)
+                {
+                    Content = new StringContent(json, Encoding.UTF8, "application/json")
+                };
+                request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
+
+                var resp = await _http.SendAsync(request);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    string err = await resp.Content.ReadAsStringAsync();
+                    return $"[Lỗi Deepseek {resp.StatusCode}: {err.Substring(0, Math.Min(200, err.Length))}]";
+                }
+
+                string raw = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(raw);
+                return doc.RootElement
+                    .GetProperty("choices")[0]
+                    .GetProperty("message")
+                    .GetProperty("content")
+                    .GetString() ?? "";
+            }
+            catch (Exception ex)
+            {
+                return $"[Lỗi Deepseek: {ex.Message}]";
+            }
+        }
+
+        // ── Groq API call (streaming) ─────────────────────────────────────
+        // Groq hỗ trợ SSE streaming — format giống OpenAI/Deepseek
+        private async Task<string> CallDeepseekStreamAsync(string prompt, Action<string> onChunk)
+        {
+            var sb = new StringBuilder();
+            try
+            {
+                var body = new
+                {
+                    model = DS_MODEL,
+                    messages = new[] { new { role = "user", content = prompt } },
+                    temperature = 0.7,
+                    max_tokens = 2048,
+                    stream = true
+                };
+
+                string json = JsonSerializer.Serialize(body);
+                var request = new HttpRequestMessage(HttpMethod.Post, DS_API_URL)
+                {
+                    Content = new StringContent(json, Encoding.UTF8, "application/json")
+                };
+                request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
+
+                using var resp = await _http.SendAsync(request,
+                    HttpCompletionOption.ResponseHeadersRead);
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    string fallback = await CallDeepseekAsync(prompt, 0.7f);
+                    onChunk?.Invoke(fallback);
+                    return fallback;
+                }
+
+                using var stream = await resp.Content.ReadAsStreamAsync();
+                using var reader = new System.IO.StreamReader(stream);
+
+                while (!reader.EndOfStream)
+                {
+                    string line = await reader.ReadLineAsync();
+                    if (string.IsNullOrEmpty(line) || !line.StartsWith("data: ")) continue;
+
+                    string data = line.Substring(6).Trim();
+                    if (data == "[DONE]") break;
+
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(data);
+                        var delta = doc.RootElement
+                            .GetProperty("choices")[0]
+                            .GetProperty("delta");
+
+                        if (delta.TryGetProperty("content", out var c))
+                        {
+                            string chunk = c.GetString() ?? "";
+                            if (!string.IsNullOrEmpty(chunk))
+                            {
+                                sb.Append(chunk);
+                                onChunk?.Invoke(chunk);
+                            }
+                        }
+                    }
+                    catch { /* bỏ qua dòng parse lỗi */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                string errMsg = $"\n[Lỗi Deepseek: {ex.Message}]";
+                onChunk?.Invoke(errMsg);
+                sb.Append(errMsg);
+            }
+
+            return sb.ToString();
+        }
+
+        // ── DataTable → chuỗi text gọn cho Gemini ─────────────────────────
+        private string DataTableToText(DataTable dt, int maxRows = 150)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Kết quả: {Math.Min(dt.Rows.Count, maxRows)} dòng / " +
+                          $"{dt.Columns.Count} cột");
+
+            // Header
+            var cols = new List<string>();
+            foreach (DataColumn col in dt.Columns) cols.Add(col.ColumnName);
+            sb.AppendLine(string.Join(" | ", cols));
+            sb.AppendLine(new string('-', Math.Min(cols.Count * 15, 120)));
+
+            // Data rows
+            int count = 0;
+            foreach (DataRow row in dt.Rows)
+            {
+                if (count++ >= maxRows) break;
+                var vals = new List<string>();
+                foreach (DataColumn col in dt.Columns)
+                {
+                    string v = row[col] == DBNull.Value ? "" : row[col].ToString();
+                    // Cắt ngắn giá trị quá dài
+                    if (v.Length > 60) v = v.Substring(0, 57) + "...";
+                    vals.Add(v);
+                }
+                sb.AppendLine(string.Join(" | ", vals));
+            }
+
+            if (dt.Rows.Count > maxRows)
+                sb.AppendLine($"... (còn {dt.Rows.Count - maxRows} dòng nữa, chỉ hiển thị {maxRows})");
+
+            return sb.ToString();
+        }
+
+        // ── Build context lịch sử hội thoại ──────────────────────────────
+        private string BuildHistoryContext(int lastN)
+        {
+            if (_history.Count == 0) return "(chưa có lịch sử)";
+            int start = Math.Max(0, _history.Count - lastN * 2);
+            var sb = new StringBuilder();
+            for (int i = start; i < _history.Count; i++)
+            {
+                var (role, text) = _history[i];
+                string label = role == "user" ? "Người dùng" : "AI";
+                string truncated = text.Length > 300
+                    ? text.Substring(0, 297) + "..."
+                    : text;
+                sb.AppendLine($"{label}: {truncated}");
+            }
+            return sb.ToString();
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // TÍNH NĂNG 1 — Báo cáo tóm tắt khi mở app
+        // ════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Tạo báo cáo tóm tắt tình hình hiện tại — gọi khi mở chatbox lần đầu.
+        /// Truy vấn trực tiếp DB (không qua Gemini) để tiết kiệm quota.
+        /// </summary>
+        public async Task<string> GetDailySummaryAsync()
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+
+                    string today = DateTime.Today.ToString("dd/MM/yyyy");
+                    var sb = new StringBuilder();
+                    sb.AppendLine($"📊 **Tóm tắt hôm nay — {today}**\n");
+
+                    // 1. PO sắp hết hạn giao hàng (7 ngày tới)
+                    var cmdPO = new SqlCommand(@"
+                        SELECT COUNT(*) FROM PO_head
+                        WHERE Expected_Delivery BETWEEN GETDATE() AND DATEADD(DAY,7,GETDATE())
+                          AND Status NOT IN ('Completed','Closed','Cancelled')", conn);
+                    int poSoon = Convert.ToInt32(cmdPO.ExecuteScalar());
+
+                    // 2. PO đã quá hạn
+                    var cmdOverdue = new SqlCommand(@"
+                        SELECT COUNT(*) FROM PO_head
+                        WHERE Expected_Delivery < GETDATE()
+                          AND Status NOT IN ('Completed','Closed','Cancelled')", conn);
+                    int poOverdue = Convert.ToInt32(cmdOverdue.ExecuteScalar());
+
+                    // 3. MPR mới nhất chưa có PO
+                    var cmdMPR = new SqlCommand(@"
+                        SELECT COUNT(*) FROM MPR_Header h
+                        WHERE h.Is_Latest = 1
+                          AND h.Status NOT IN ('Cancelled','Closed')
+                          AND NOT EXISTS (
+                              SELECT 1 FROM PO_head p WHERE p.MPR_No = h.MPR_No
+                          )", conn);
+                    int mprNoPO = Convert.ToInt32(cmdMPR.ExecuteScalar());
+
+                    // 4. PO chờ thanh toán
+                    var cmdPay = new SqlCommand(@"
+                        SELECT COUNT(DISTINCT PONo) FROM PO_PaymentProgress
+                        WHERE PR_Paid = 0 OR PR_Paid IS NULL", conn);
+                    int payPending = Convert.ToInt32(cmdPay.ExecuteScalar());
+
+                    // 5. RIR mới trong tuần
+                    var cmdRIR = new SqlCommand(@"
+                        SELECT COUNT(*) FROM RIR_head
+                        WHERE Created_Date >= DATEADD(DAY,-7,GETDATE())", conn);
+                    int rirWeek = Convert.ToInt32(cmdRIR.ExecuteScalar());
+
+                    // Format báo cáo
+                    sb.AppendLine(poOverdue > 0
+                        ? $"🔴 **{poOverdue} PO** đã quá hạn giao hàng"
+                        : "✅ Không có PO nào quá hạn");
+
+                    sb.AppendLine(poSoon > 0
+                        ? $"⚠️ **{poSoon} PO** sắp đến hạn giao trong 7 ngày tới"
+                        : "✅ Không có PO nào sắp đến hạn");
+
+                    sb.AppendLine(mprNoPO > 0
+                        ? $"📋 **{mprNoPO} MPR** chưa có PO"
+                        : "✅ Tất cả MPR đã có PO");
+
+                    sb.AppendLine(payPending > 0
+                        ? $"💰 **{payPending} đợt thanh toán** đang chờ xử lý"
+                        : "✅ Không có khoản thanh toán nào chờ");
+
+                    sb.AppendLine($"📦 **{rirWeek} RIR** mới trong 7 ngày qua");
+
+                    sb.AppendLine("\n_Hỏi tôi để xem chi tiết bất kỳ mục nào ở trên._");
+                    return sb.ToString();
+                }
+                catch (Exception ex)
+                {
+                    return $"[Không thể tải báo cáo: {ex.Message}]";
+                }
+            });
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // TÍNH NĂNG 3 — Xuất Excel từ kết quả truy vấn
+        // Lưu DataTable cuối cùng để frmAIChat có thể gọi ExportToExcel
+        // ════════════════════════════════════════════════════════════════════
+
+        private DataTable _lastQueryResult = null;
+        public bool HasExportableData => _lastQueryResult != null && _lastQueryResult.Rows.Count > 0;
+
+        /// <summary>Chạy SQL và lưu DataTable để xuất Excel sau.</summary>
+        public async Task<(string text, DataTable dt)> RunSQLWithTableAsync(string sql)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    string sqlUpper = sql.Trim().ToUpperInvariant();
+                    if (!sqlUpper.StartsWith("SELECT") && !sqlUpper.StartsWith("WITH"))
+                        return ("[Từ chối: Chỉ cho phép SELECT]", null as DataTable);
+
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+                    using var tran = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
+                    try
+                    {
+                        var cmd = new SqlCommand(sql.Trim(), conn, tran) { CommandTimeout = 30 };
+                        var dt = new DataTable();
+                        dt.Load(cmd.ExecuteReader());
+                        tran.Rollback();
+                        _lastQueryResult = dt.Rows.Count > 0 ? dt : null;
+                        return (DataTableToText(dt, 150), dt);
+                    }
+                    catch { tran.Rollback(); throw; }
+                }
+                catch (Exception ex)
+                {
+                    return ($"[Lỗi: {ex.Message}]", null as DataTable);
+                }
+            });
+        }
+
+        /// <summary>Xuất DataTable cuối cùng ra file Excel.</summary>
+        public string ExportLastResultToExcel(string question)
+        {
+            if (_lastQueryResult == null || _lastQueryResult.Rows.Count == 0)
+                return null;
+            try
+            {
+                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                using var pkg = new OfficeOpenXml.ExcelPackage();
+                var ws = pkg.Workbook.Worksheets.Add("Kết quả AI");
+
+                // Tiêu đề
+                ws.Cells[1, 1].Value = $"Kết quả: {question}";
+                ws.Cells[1, 1, 1, _lastQueryResult.Columns.Count].Merge = true;
+                ws.Cells[1, 1].Style.Font.Bold = true;
+                ws.Cells[1, 1].Style.Font.Size = 12;
+                ws.Cells[2, 1].Value = $"Xuất lúc: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                ws.Cells[2, 1, 2, _lastQueryResult.Columns.Count].Merge = true;
+
+                // Header
+                for (int c = 0; c < _lastQueryResult.Columns.Count; c++)
+                {
+                    var cell = ws.Cells[4, c + 1];
+                    cell.Value = _lastQueryResult.Columns[c].ColumnName;
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                    cell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(0, 120, 212));
+                    cell.Style.Font.Color.SetColor(System.Drawing.Color.White);
+                }
+
+                // Data
+                for (int r = 0; r < _lastQueryResult.Rows.Count; r++)
+                    for (int c = 0; c < _lastQueryResult.Columns.Count; c++)
+                    {
+                        var val = _lastQueryResult.Rows[r][c];
+                        ws.Cells[r + 5, c + 1].Value = val == DBNull.Value ? "" : val;
+                    }
+
+                ws.Cells[ws.Dimension.Address].AutoFitColumns();
+
+                string path = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(),
+                    $"AI_Export_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
+                pkg.SaveAs(new System.IO.FileInfo(path));
+                _lastQueryResult = null; // reset sau khi xuất
+                return path;
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
+        }
+    }
+}

@@ -77,6 +77,7 @@ namespace MPR_Managerment.Forms
             BuildUI();
             LoadData();
             this.Resize += (s, e) => ResizeAll();
+            frmAIChat.Attach(this);
         }
 
         // Mở với filter sẵn theo PO No (gọi từ frmPO)

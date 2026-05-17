@@ -65,6 +65,7 @@ namespace MPR_Managerment.Forms
 
             // Ép form gọi sự kiện Resize lần đầu để chia tỷ lệ ngay khi mở
             this.OnResize(EventArgs.Empty);
+            frmAIChat.Attach(this);
         }
 
         private void BuildUI()

@@ -131,6 +131,7 @@ namespace MPR_Managerment.Forms
             {
                 SelectMPRById(_targetMprId);
             }
+            frmAIChat.Attach(this);
         }
 
         private void SelectMPRById(int id)

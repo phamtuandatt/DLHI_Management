@@ -72,6 +72,7 @@ namespace MPR_Managerment.Forms
             this.Resize += FrmPO_Resize;
             if (!string.IsNullOrEmpty(_targetPoNo))
                 SelectPOByNo(_targetPoNo);
+            frmAIChat.Attach(this);
         }
 
         public frmPO(string mprNo, bool importMode)
