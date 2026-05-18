@@ -13,7 +13,7 @@ namespace MPR_Managerment.Forms
     // ════════════════════════════════════════════════════════════════════════
     public class frmAIToggleBtn : Form
     {
-        private const int BTN_SIZE = 52;
+        private const int BTN_SIZE = 58;
         private const int MARGIN = 20;
 
         private static readonly Color C_BTN = Color.FromArgb(99, 102, 241);
@@ -27,51 +27,69 @@ namespace MPR_Managerment.Forms
             _onToggle = onToggle;
 
             FormBorderStyle = FormBorderStyle.None;
-            BackColor = C_BTN;
+            BackColor = Color.Magenta;     // màu sẽ bị transparent
+            TransparencyKey = Color.Magenta;     // phần ngoài vòng tròn = trong suốt
             ShowInTaskbar = false;
             TopMost = true;
             StartPosition = FormStartPosition.Manual;
             Size = new Size(BTN_SIZE, BTN_SIZE);
-            Opacity = 0.95;
 
-            // Bo tròn form
-            Region = Region.FromHrgn(
-                CreateRoundRectRgn(0, 0, BTN_SIZE, BTN_SIZE, 26, 26));
-
-            _btn = new Button
+            // Vẽ trực tiếp lên Form — không dùng Region, không dùng Label/Button
+            this.Paint += (s, pe) =>
             {
-                Dock = DockStyle.Fill,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = C_BTN,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI Emoji", 20),
-                Text = "✦",
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            _btn.FlatAppearance.BorderSize = 0;
-            _btn.FlatAppearance.MouseOverBackColor = C_HOV;
-            _btn.Click += (s, e) => _onToggle?.Invoke();
+                var g = pe.Graphics;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
 
-            // Kéo nút để đổi vị trí
+                // Xóa nền = TransparencyKey → phần ngoài vòng tròn trong suốt
+                g.Clear(Color.Magenta);
+
+                // Vẽ nền tròn indigo
+                using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new Point(0, 0), new Point(BTN_SIZE, BTN_SIZE),
+                    Color.FromArgb(99, 102, 241), Color.FromArgb(67, 56, 202));
+                g.FillEllipse(bg, 1, 1, BTN_SIZE - 2, BTN_SIZE - 2);
+
+                // Emoji căn giữa
+                string icon = _isOpen ? "✕" : "🤖";
+                float fs = _isOpen ? BTN_SIZE * 0.36f : BTN_SIZE * 0.42f;
+                using var f = new Font("Segoe UI Emoji", fs, GraphicsUnit.Pixel);
+                using var sf = new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+                g.DrawString(icon, f, Brushes.White,
+                    new RectangleF(0, 0, BTN_SIZE, BTN_SIZE), sf);
+            };
+
+            // Click
+            this.MouseClick += (s, e) => _onToggle?.Invoke();
+
+            // Kéo form
             bool dragging = false;
             Point dragStart = Point.Empty;
-            _btn.MouseDown += (s, e) =>
+            this.MouseDown += (s, e) =>
             {
                 if (e.Button == MouseButtons.Left) { dragging = true; dragStart = e.Location; }
             };
-            _btn.MouseMove += (s, e) =>
+            this.MouseMove += (s, e) =>
             {
                 if (dragging)
                     Location = new Point(Location.X + e.X - dragStart.X,
                                          Location.Y + e.Y - dragStart.Y);
             };
-            _btn.MouseUp += (s, e) => dragging = false;
-
-            Controls.Add(_btn);
+            this.MouseUp += (s, e) => dragging = false;
         }
 
-        public void SetIcon(bool chatOpen) => _btn.Text = chatOpen ? "✕" : "✦";
+        private bool _isOpen = false;
+
+        // ── Vẽ icon hình tròn cam với chữ "Ai" ───────────────────────────
+        public void SetIcon(bool chatOpen)
+        {
+            _isOpen = chatOpen;
+            this.Invalidate(); // trigger Paint
+        }
 
         public void SnapToCorner()
         {
@@ -143,7 +161,7 @@ namespace MPR_Managerment.Forms
 
         private const int PANEL_W = 420;
         private const int PANEL_H = 580;
-        private const int BTN_SIZE = 52;
+        private const int BTN_SIZE = 58;
         private const int MARGIN = 20;
 
         // ── Màu ──────────────────────────────────────────────────────────
@@ -685,4 +703,24 @@ namespace MPR_Managerment.Forms
             }
         }
     }
+}
+
+internal static class GraphicsRoundedExt
+{
+    private static System.Drawing.Drawing2D.GraphicsPath MakeRoundedPath(RectangleF r, float radius)
+    {
+        float d = Math.Min(radius * 2, Math.Min(r.Width, r.Height));
+        var path = new System.Drawing.Drawing2D.GraphicsPath();
+        if (d <= 0) { path.AddRectangle(r); return path; }
+        path.AddArc(r.X, r.Y, d, d, 180, 90);
+        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+    public static void FillRoundedRect(this Graphics g, Brush b, RectangleF r, float radius)
+    { using var p = MakeRoundedPath(r, radius); g.FillPath(b, p); }
+    public static void DrawRoundedRect(this Graphics g, Pen pen, RectangleF r, float radius)
+    { using var p = MakeRoundedPath(r, radius); g.DrawPath(pen, p); }
 }

@@ -1003,6 +1003,7 @@ namespace MPR_Managerment.Forms
             dgvDetails.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
             dgvDetails.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvDetails.CellEndEdit += DgvDetails_CellEndEdit; dgvDetails.KeyDown += DgvDetails_KeyDown;
+            dgvDetails.CellBeginEdit += (s, e) => { if (dgvDetails.Columns[e.ColumnIndex].Name == "NhapKho") e.Cancel = true; };
             dgvDetails.CellParsing += DgvDetails_CellParsing;
             dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
             dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
@@ -1620,6 +1621,15 @@ namespace MPR_Managerment.Forms
             if (e.RowIndex < 0) return;
             string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
+            if (colName == "NhapKho")
+            {
+                e.CellStyle.BackColor = Color.FromArgb(220, 252, 231);
+                e.CellStyle.ForeColor = Color.FromArgb(22, 101, 52);
+                e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                e.FormattingApplied = true;
+            }
+
             // Cột Đơn giá và Thành tiền — định dạng số theo Windows system culture
             if (colName == "Price" || colName == "SubAmount")
             {
@@ -2221,6 +2231,7 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(colCalc);
 
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ordered_PO", HeaderText = "Đã lên PO", ReadOnly = true });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "NhapKho", HeaderText = "Nhập kho" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPR_Detail_ID", HeaderText = "MPR_Detail_ID", Visible = false });
             foreach (DataGridViewColumn col in dgvDetails.Columns) col.Width = 60;
@@ -2567,6 +2578,32 @@ namespace MPR_Managerment.Forms
                 }
                 dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
                 UpdateTotal(); AutoAdjustColumnWidths();
+                int _poId = poId;
+                this.BeginInvoke(new Action(() =>
+                {
+                    using var c = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                    c.Open();
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                        SELECT d.PO_Detail_ID, ISNULL(SUM(wi.Qty_Import),0) AS Total
+                        FROM PO_Detail d
+                        LEFT JOIN Warehouse_Import wi ON wi.PO_Detail_ID = d.PO_Detail_ID
+                        WHERE d.PO_ID = @pid
+                        GROUP BY d.PO_Detail_ID", c);
+                    cmd.Parameters.AddWithValue("@pid", _poId);
+                    var dt = new System.Data.DataTable();
+                    new Microsoft.Data.SqlClient.SqlDataAdapter(cmd).Fill(dt);
+                    var map = dt.Rows.Cast<System.Data.DataRow>()
+                        .ToDictionary(r => Convert.ToInt32(r[0]), r => Convert.ToDecimal(r[1]));
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    {
+                        if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
+                        var v = row.Cells["PO_Detail_ID"].Value;
+                        if (v == null || v == DBNull.Value) continue;
+                        int id = Convert.ToInt32(v);
+                        row.Cells["NhapKho"].Value = map.TryGetValue(id, out var q) ? q : 0m;
+                    }
+                    dgvDetails.InvalidateColumn(dgvDetails.Columns["NhapKho"].Index);
+                }));
             }
             catch (Exception ex)
             {
@@ -3354,11 +3391,11 @@ namespace MPR_Managerment.Forms
                 string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
                 remarks = remarks.Replace("[CALC:KG]", "").Replace("[CALC:SL]", "").Trim();
                 decimal dbPrice = p;
-                if (calcMethod == "Theo KG") 
-                { 
-                    remarks += " [CALC:KG]"; 
-                    if (q > 0 && wk > 0) 
-                        dbPrice = (wk * p) / q; 
+                if (calcMethod == "Theo KG")
+                {
+                    remarks += " [CALC:KG]";
+                    if (q > 0 && wk > 0)
+                        dbPrice = (wk * p) / q;
                 }
                 else remarks += " [CALC:SL]";
                 int? mprDetailId = null;
