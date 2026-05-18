@@ -438,7 +438,7 @@ namespace MPR_Managerment.Forms
                 string memList = mems.Count == 0
                     ? "Chưa có quy tắc nào. Nói \"nhớ: [quy tắc]\" để thêm."
                     : $"📋 Có {mems.Count} quy tắc:\n" +
-                      string.Join("\n", mems.Select((m, i) => $"  {i + 1}. {m}"));
+                      string.Join("\n", mems.Select(m => $"  #{m.Id}. {m.Rule}"));
                 AppendMsg("🧠 Bộ nhớ", memList, Color.FromArgb(168, 85, 247));
                 return;
             }
@@ -584,7 +584,7 @@ namespace MPR_Managerment.Forms
         private void ShowMemoryMenu()
         {
             var menu = new ContextMenuStrip();
-            var mems = AISearchService.GetMemories();
+            var mems = AISearchService.GetMemories(); // List<(int Id, string Rule)>
 
             if (mems.Count == 0)
             {
@@ -594,15 +594,16 @@ namespace MPR_Managerment.Forms
             {
                 menu.Items.Add(new ToolStripMenuItem($"📋 {mems.Count} quy tắc đang hoạt động:") { Enabled = false });
                 menu.Items.Add(new ToolStripSeparator());
-                for (int i = 0; i < mems.Count; i++)
+                foreach (var mem in mems)
                 {
-                    int idx = i;
-                    string label = mems[i].Length > 50 ? mems[i].Substring(0, 47) + "..." : mems[i];
-                    var item = new ToolStripMenuItem($"  {idx + 1}. {label}");
+                    int memId = mem.Id;
+                    string rule = mem.Rule;
+                    string label = rule.Length > 50 ? rule.Substring(0, 47) + "..." : rule;
+                    var item = new ToolStripMenuItem($"  #{memId}. {label}");
                     var delItem = new ToolStripMenuItem("🗑 Xóa quy tắc này");
                     delItem.Click += (s, e) =>
                     {
-                        string result = AISearchService.RemoveMemory(idx);
+                        string result = AISearchService.RemoveMemory(memId);
                         AppendMsg("🧠 Bộ nhớ", result, Color.FromArgb(168, 85, 247));
                     };
                     item.DropDownItems.Add(delItem);
@@ -612,16 +613,14 @@ namespace MPR_Managerment.Forms
                 var clearAll = new ToolStripMenuItem("🗑 Xóa tất cả quy tắc");
                 clearAll.Click += (s, e) =>
                 {
-                    AISearchService.ClearMemories();
-                    AppendMsg("🧠 Bộ nhớ", "✅ Đã xóa toàn bộ quy tắc.", Color.FromArgb(168, 85, 247));
+                    string result = AISearchService.ClearMemories();
+                    AppendMsg("🧠 Bộ nhớ", result, Color.FromArgb(168, 85, 247));
                 };
                 menu.Items.Add(clearAll);
             }
 
             menu.Items.Add(new ToolStripSeparator());
-            var hint = new ToolStripMenuItem("💡 Nói \"nhớ: [quy tắc]\" để thêm") { Enabled = false };
-            menu.Items.Add(hint);
-
+            menu.Items.Add(new ToolStripMenuItem("💡 Nói \"nhớ: [quy tắc]\" để thêm") { Enabled = false });
             menu.Show(this, new Point(PANEL_W - 160, 54));
         }
 

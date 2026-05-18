@@ -25,7 +25,7 @@ namespace MPR_Managerment.Services
         // "deepseek-reasoner" — suy luận sâu, dùng cho câu hỏi phức tạp
 
         // ⚠ Thay bằng API key thực từ https://platform.deepseek.com/api_keys
-        private const string DS_API_KEY = "sk-419f6cb2d61240cda8d4db6fb93cd2ff";
+        private const string DS_API_KEY = "YOUR_DEEPSEEK_API_KEY_HERE";
 
         private static readonly HttpClient _http = new HttpClient
         {
@@ -123,87 +123,98 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
 ";
 
         // ════════════════════════════════════════════════════════════════════
-        // BỘ NHỚ AI — lưu quy tắc truy xuất dữ liệu vào file JSON
+        // BỘ NHỚ AI — lưu quy tắc truy xuất dữ liệu vào bảng AI_Memory (DB)
         // ════════════════════════════════════════════════════════════════════
 
-        private static readonly string MEMORY_FILE = System.IO.Path.Combine(
-            System.IO.Path.GetDirectoryName(
-                System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
-            "ai_memory.json");
-
-        private static List<string> _memories = null;
-
-        /// <summary>Tải bộ nhớ từ file JSON khi khởi động.</summary>
-        private static List<string> LoadMemories()
+        /// <summary>Lấy tất cả quy tắc đang hoạt động từ DB.</summary>
+        public static List<(int Id, string Rule)> GetMemories()
         {
-            if (_memories != null) return _memories;
+            var result = new List<(int, string)>();
             try
             {
-                if (System.IO.File.Exists(MEMORY_FILE))
-                {
-                    string json = System.IO.File.ReadAllText(MEMORY_FILE, Encoding.UTF8);
-                    _memories = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
-                }
-                else _memories = new List<string>();
-            }
-            catch { _memories = new List<string>(); }
-            return _memories;
-        }
-
-        /// <summary>Lưu bộ nhớ ra file JSON.</summary>
-        private static void SaveMemories()
-        {
-            try
-            {
-                string json = JsonSerializer.Serialize(_memories,
-                    new JsonSerializerOptions { WriteIndented = true });
-                System.IO.File.WriteAllText(MEMORY_FILE, json, Encoding.UTF8);
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                var cmd = new SqlCommand(
+                    "SELECT Memory_ID, Rule_Text FROM AI_Memory WHERE Is_Active = 1 ORDER BY Memory_ID",
+                    conn);
+                var dt = new System.Data.DataTable();
+                new SqlDataAdapter(cmd).Fill(dt);
+                foreach (System.Data.DataRow r in dt.Rows)
+                    result.Add((Convert.ToInt32(r["Memory_ID"]), r["Rule_Text"].ToString()));
             }
             catch { }
+            return result;
         }
 
-        /// <summary>Thêm quy tắc mới vào bộ nhớ (gọi từ frmAIChat khi user nói "nhớ...").</summary>
-        public static string AddMemory(string rule)
+        /// <summary>Thêm quy tắc mới vào DB.</summary>
+        public static string AddMemory(string rule, string createdBy = "User")
         {
-            var mems = LoadMemories();
-            rule = rule.Trim();
-            if (string.IsNullOrEmpty(rule)) return "Quy tắc trống, không lưu.";
-            if (mems.Contains(rule)) return $"✅ Quy tắc đã tồn tại trong bộ nhớ.";
-            mems.Add(rule);
-            SaveMemories();
-            return $"✅ Đã ghi nhớ: \"{rule}\"";
+            rule = rule?.Trim() ?? "";
+            if (string.IsNullOrEmpty(rule)) return "⚠️ Quy tắc trống, không lưu.";
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                // Kiểm tra trùng
+                var chk = new SqlCommand(
+                    "SELECT COUNT(*) FROM AI_Memory WHERE Rule_Text = @r AND Is_Active = 1", conn);
+                chk.Parameters.AddWithValue("@r", rule);
+                if (Convert.ToInt32(chk.ExecuteScalar()) > 0)
+                    return "✅ Quy tắc đã tồn tại trong bộ nhớ.";
+
+                var ins = new SqlCommand(
+                    "INSERT INTO AI_Memory (Rule_Text, Created_By) VALUES (@r, @u)", conn);
+                ins.Parameters.AddWithValue("@r", rule);
+                ins.Parameters.AddWithValue("@u", createdBy);
+                ins.ExecuteNonQuery();
+                return $"✅ Đã ghi nhớ: \"{rule}\"";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi lưu bộ nhớ: {ex.Message}"; }
         }
 
-        /// <summary>Xóa quy tắc khỏi bộ nhớ theo index.</summary>
-        public static string RemoveMemory(int index)
+        /// <summary>Vô hiệu hóa quy tắc theo ID.</summary>
+        public static string RemoveMemory(int memoryId)
         {
-            var mems = LoadMemories();
-            if (index < 0 || index >= mems.Count) return "⚠️ Index không hợp lệ.";
-            string removed = mems[index];
-            mems.RemoveAt(index);
-            SaveMemories();
-            return $"✅ Đã xóa: \"{removed}\"";
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                var get = new SqlCommand(
+                    "SELECT Rule_Text FROM AI_Memory WHERE Memory_ID = @id", conn);
+                get.Parameters.AddWithValue("@id", memoryId);
+                string rule = get.ExecuteScalar()?.ToString() ?? "";
+
+                var del = new SqlCommand(
+                    "UPDATE AI_Memory SET Is_Active = 0 WHERE Memory_ID = @id", conn);
+                del.Parameters.AddWithValue("@id", memoryId);
+                del.ExecuteNonQuery();
+                return $"✅ Đã xóa: \"{rule}\"";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi xóa: {ex.Message}"; }
         }
 
-        /// <summary>Trả về danh sách tất cả quy tắc đã nhớ.</summary>
-        public static List<string> GetMemories() => LoadMemories();
-
-        /// <summary>Xóa toàn bộ bộ nhớ.</summary>
-        public static void ClearMemories()
+        /// <summary>Vô hiệu hóa tất cả quy tắc.</summary>
+        public static string ClearMemories()
         {
-            _memories = new List<string>();
-            SaveMemories();
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                new SqlCommand("UPDATE AI_Memory SET Is_Active = 0", conn).ExecuteNonQuery();
+                return "✅ Đã xóa toàn bộ quy tắc.";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi: {ex.Message}"; }
         }
 
-        /// <summary>Build đoạn text quy tắc để inject vào prompt.</summary>
+        /// <summary>Inject quy tắc vào prompt AI.</summary>
         private static string BuildMemoryContext()
         {
-            var mems = LoadMemories();
+            var mems = GetMemories();
             if (mems.Count == 0) return "";
             var sb = new StringBuilder();
             sb.AppendLine("=== QUY TẮC TRUY XUẤT DỮ LIỆU (bắt buộc tuân theo) ===");
-            for (int i = 0; i < mems.Count; i++)
-                sb.AppendLine($"{i + 1}. {mems[i]}");
+            foreach (var (_, rule) in mems)
+                sb.AppendLine($"- {rule}");
             sb.AppendLine("===");
             return sb.ToString();
         }
