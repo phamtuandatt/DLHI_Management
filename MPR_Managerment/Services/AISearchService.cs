@@ -122,7 +122,93 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
 - Tiến độ giao hàng: PO_DeliveryTracking.PONo = PO_head.PONo
 ";
 
-        // ── Schema rút gọn — dùng trong prompt để giảm token ─────────────
+        // ════════════════════════════════════════════════════════════════════
+        // BỘ NHỚ AI — lưu quy tắc truy xuất dữ liệu vào file JSON
+        // ════════════════════════════════════════════════════════════════════
+
+        private static readonly string MEMORY_FILE = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
+            "ai_memory.json");
+
+        private static List<string> _memories = null;
+
+        /// <summary>Tải bộ nhớ từ file JSON khi khởi động.</summary>
+        private static List<string> LoadMemories()
+        {
+            if (_memories != null) return _memories;
+            try
+            {
+                if (System.IO.File.Exists(MEMORY_FILE))
+                {
+                    string json = System.IO.File.ReadAllText(MEMORY_FILE, Encoding.UTF8);
+                    _memories = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+                }
+                else _memories = new List<string>();
+            }
+            catch { _memories = new List<string>(); }
+            return _memories;
+        }
+
+        /// <summary>Lưu bộ nhớ ra file JSON.</summary>
+        private static void SaveMemories()
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(_memories,
+                    new JsonSerializerOptions { WriteIndented = true });
+                System.IO.File.WriteAllText(MEMORY_FILE, json, Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        /// <summary>Thêm quy tắc mới vào bộ nhớ (gọi từ frmAIChat khi user nói "nhớ...").</summary>
+        public static string AddMemory(string rule)
+        {
+            var mems = LoadMemories();
+            rule = rule.Trim();
+            if (string.IsNullOrEmpty(rule)) return "Quy tắc trống, không lưu.";
+            if (mems.Contains(rule)) return $"✅ Quy tắc đã tồn tại trong bộ nhớ.";
+            mems.Add(rule);
+            SaveMemories();
+            return $"✅ Đã ghi nhớ: \"{rule}\"";
+        }
+
+        /// <summary>Xóa quy tắc khỏi bộ nhớ theo index.</summary>
+        public static string RemoveMemory(int index)
+        {
+            var mems = LoadMemories();
+            if (index < 0 || index >= mems.Count) return "⚠️ Index không hợp lệ.";
+            string removed = mems[index];
+            mems.RemoveAt(index);
+            SaveMemories();
+            return $"✅ Đã xóa: \"{removed}\"";
+        }
+
+        /// <summary>Trả về danh sách tất cả quy tắc đã nhớ.</summary>
+        public static List<string> GetMemories() => LoadMemories();
+
+        /// <summary>Xóa toàn bộ bộ nhớ.</summary>
+        public static void ClearMemories()
+        {
+            _memories = new List<string>();
+            SaveMemories();
+        }
+
+        /// <summary>Build đoạn text quy tắc để inject vào prompt.</summary>
+        private static string BuildMemoryContext()
+        {
+            var mems = LoadMemories();
+            if (mems.Count == 0) return "";
+            var sb = new StringBuilder();
+            sb.AppendLine("=== QUY TẮC TRUY XUẤT DỮ LIỆU (bắt buộc tuân theo) ===");
+            for (int i = 0; i < mems.Count; i++)
+                sb.AppendLine($"{i + 1}. {mems[i]}");
+            sb.AppendLine("===");
+            return sb.ToString();
+        }
+
+
         private const string DB_SCHEMA_SHORT = @"
 Bảng SQL Server (chỉ SELECT):
 MPR_Header: MPR_ID, MPR_No, Project_Name, Project_Code, Rev(varchar), Required_Date, Status, Is_Latest, Created_Date
@@ -166,7 +252,7 @@ Views: vw_PO_FullInfo, vw_MPR_Full_Info, vw_Supplier_FullInfo, vw_PO_Payment_Sum
 Trả lời tiếng Việt. Trò chuyện bình thường VÀ tra cứu DB khi cần.
 
 {DB_SCHEMA_SHORT}
-
+{BuildMemoryContext()}
 Lịch sử:{historyCtx}
 
 Câu hỏi: ""{userQuestion}""
@@ -453,12 +539,19 @@ SQL đã sửa:";
 
             string prompt = $@"Bạn là trợ lý AI của phần mềm quản lý vật tư MPR_Management. Trả lời tiếng Việt.
 
+{BuildMemoryContext()}
 Lịch sử:{historyCtx}
 {dataSection}
 Câu hỏi: ""{question}""
 
-Hướng dẫn: Phân tích dữ liệu DB ở trên và trả lời ngắn gọn, chính xác.
-Số tiền: định dạng ngàn (1.234.567 VNĐ). Ngày: dd/MM/yyyy. KHÔNG bịa số liệu.
+Hướng dẫn:
+- Phân tích dữ liệu DB ở trên và trả lời ngắn gọn, chính xác.
+- Số tiền: định dạng ngàn (1.234.567 VNĐ). Ngày: dd/MM/yyyy. KHÔNG bịa số liệu.
+- QUAN TRỌNG: Với mỗi MPR_No, PONo, RIR_No, Supplier_ID xuất hiện trong câu trả lời,
+  hãy tạo deep-link theo định dạng: [Tên hiển thị](prefix://key)
+  Prefix: mpr:// cho MPR_No | po:// cho PONo | rir:// cho RIR_No | ncc:// cho Supplier_ID
+  Ví dụ: [DV-FT-2505-MPR-001](mpr://DV-FT-2505-MPR-001) hoặc [PO-2025-001](po://PO-2025-001)
+  Người dùng có thể click vào link để mở thẳng record đó trong phần mềm.
 
 Trả lời:";
 

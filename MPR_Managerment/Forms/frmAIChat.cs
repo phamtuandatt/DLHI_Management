@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using MPR_Managerment.Services;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Threading.Tasks;
@@ -13,7 +15,7 @@ namespace MPR_Managerment.Forms
     // ════════════════════════════════════════════════════════════════════════
     public class frmAIToggleBtn : Form
     {
-        private const int BTN_SIZE = 58;
+        private const int BTN_SIZE = 52;
         private const int MARGIN = 20;
 
         private static readonly Color C_BTN = Color.FromArgb(99, 102, 241);
@@ -27,69 +29,51 @@ namespace MPR_Managerment.Forms
             _onToggle = onToggle;
 
             FormBorderStyle = FormBorderStyle.None;
-            BackColor = Color.Magenta;     // màu sẽ bị transparent
-            TransparencyKey = Color.Magenta;     // phần ngoài vòng tròn = trong suốt
+            BackColor = C_BTN;
             ShowInTaskbar = false;
             TopMost = true;
             StartPosition = FormStartPosition.Manual;
             Size = new Size(BTN_SIZE, BTN_SIZE);
+            Opacity = 0.95;
 
-            // Vẽ trực tiếp lên Form — không dùng Region, không dùng Label/Button
-            this.Paint += (s, pe) =>
+            // Bo tròn form
+            Region = Region.FromHrgn(
+                CreateRoundRectRgn(0, 0, BTN_SIZE, BTN_SIZE, 26, 26));
+
+            _btn = new Button
             {
-                var g = pe.Graphics;
-                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-
-                // Xóa nền = TransparencyKey → phần ngoài vòng tròn trong suốt
-                g.Clear(Color.Magenta);
-
-                // Vẽ nền tròn indigo
-                using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(
-                    new Point(0, 0), new Point(BTN_SIZE, BTN_SIZE),
-                    Color.FromArgb(99, 102, 241), Color.FromArgb(67, 56, 202));
-                g.FillEllipse(bg, 1, 1, BTN_SIZE - 2, BTN_SIZE - 2);
-
-                // Emoji căn giữa
-                string icon = _isOpen ? "✕" : "🤖";
-                float fs = _isOpen ? BTN_SIZE * 0.36f : BTN_SIZE * 0.42f;
-                using var f = new Font("Segoe UI Emoji", fs, GraphicsUnit.Pixel);
-                using var sf = new StringFormat
-                {
-                    Alignment = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Center
-                };
-                g.DrawString(icon, f, Brushes.White,
-                    new RectangleF(0, 0, BTN_SIZE, BTN_SIZE), sf);
+                Dock = DockStyle.Fill,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = C_BTN,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI Emoji", 20),
+                Text = "✦",
+                Cursor = Cursors.Hand,
+                TabStop = false
             };
+            _btn.FlatAppearance.BorderSize = 0;
+            _btn.FlatAppearance.MouseOverBackColor = C_HOV;
+            _btn.Click += (s, e) => _onToggle?.Invoke();
 
-            // Click
-            this.MouseClick += (s, e) => _onToggle?.Invoke();
-
-            // Kéo form
+            // Kéo nút để đổi vị trí
             bool dragging = false;
             Point dragStart = Point.Empty;
-            this.MouseDown += (s, e) =>
+            _btn.MouseDown += (s, e) =>
             {
                 if (e.Button == MouseButtons.Left) { dragging = true; dragStart = e.Location; }
             };
-            this.MouseMove += (s, e) =>
+            _btn.MouseMove += (s, e) =>
             {
                 if (dragging)
                     Location = new Point(Location.X + e.X - dragStart.X,
                                          Location.Y + e.Y - dragStart.Y);
             };
-            this.MouseUp += (s, e) => dragging = false;
+            _btn.MouseUp += (s, e) => dragging = false;
+
+            Controls.Add(_btn);
         }
 
-        private bool _isOpen = false;
-
-        // ── Vẽ icon hình tròn cam với chữ "Ai" ───────────────────────────
-        public void SetIcon(bool chatOpen)
-        {
-            _isOpen = chatOpen;
-            this.Invalidate(); // trigger Paint
-        }
+        public void SetIcon(bool chatOpen) => _btn.Text = chatOpen ? "✕" : "✦";
 
         public void SnapToCorner()
         {
@@ -161,7 +145,7 @@ namespace MPR_Managerment.Forms
 
         private const int PANEL_W = 420;
         private const int PANEL_H = 580;
-        private const int BTN_SIZE = 58;
+        private const int BTN_SIZE = 52;
         private const int MARGIN = 20;
 
         // ── Màu ──────────────────────────────────────────────────────────
@@ -275,13 +259,18 @@ namespace MPR_Managerment.Forms
             new ToolTip().SetToolTip(btnBookmark, "Bookmark & tra cứu nhanh");
             btnBookmark.Click += (s, e) => ShowBookmarkMenu();
 
+            // Nút bộ nhớ AI
+            var btnMemory = HeaderBtn("🧠", PANEL_W - 152);
+            new ToolTip().SetToolTip(btnMemory, "Xem / quản lý bộ nhớ AI");
+            btnMemory.Click += (s, e) => ShowMemoryMenu();
+
             // Nút đóng
             var btnClose = HeaderBtn("×", PANEL_W - 44);
             btnClose.Font = new Font("Segoe UI", 14);
             new ToolTip().SetToolTip(btnClose, "Đóng  (Ctrl+Space)");
             btnClose.Click += (s, e) => ToggleChat();
 
-            header.Controls.AddRange(new Control[] { btnClear, btnClose });
+            header.Controls.AddRange(new Control[] { btnClear, btnMemory, btnBookmark, btnClose });
 
             // Kéo panel qua header
             bool drag = false; Point dragPt = default;
@@ -418,10 +407,43 @@ namespace MPR_Managerment.Forms
             _lastQuestion = q;
             _txtInput.Clear();
             _txtInput.Focus();
-            _btnExport.Visible = false; // ẩn nút Export khi bắt đầu câu hỏi mới
+            _btnExport.Visible = false;
             AppendMsg("Bạn", q, C_USER_MSG);
-            SetThinking(true);
 
+            // ── Xử lý lệnh ghi nhớ: "nhớ: ..." hoặc "remember: ..." ──
+            string qLower = q.ToLower().TrimStart();
+            string memPrefix = null;
+            if (qLower.StartsWith("nhớ:")) memPrefix = "nhớ:";
+            else if (qLower.StartsWith("nhớ ")) memPrefix = "nhớ ";
+            else if (qLower.StartsWith("remember:")) memPrefix = "remember:";
+            else if (qLower.StartsWith("ghi nhớ:")) memPrefix = "ghi nhớ:";
+
+            if (memPrefix != null)
+            {
+                // Lấy phần quy tắc sau prefix
+                int prefixIdx = q.IndexOf(memPrefix[0] == 'n' ? ':' : ':', StringComparison.OrdinalIgnoreCase);
+                string rule = prefixIdx >= 0 ? q.Substring(prefixIdx + 1).Trim() : q.Substring(memPrefix.Length).Trim();
+                if (!string.IsNullOrEmpty(rule))
+                {
+                    string result = AISearchService.AddMemory(rule);
+                    AppendMsg("🧠 Bộ nhớ", result + "\n\nTôi sẽ áp dụng quy tắc này vào tất cả các câu hỏi tiếp theo.", Color.FromArgb(168, 85, 247));
+                }
+                return;
+            }
+
+            // ── Lệnh quản lý bộ nhớ ──
+            if (qLower == "xem bộ nhớ" || qLower == "bộ nhớ" || qLower == "memory")
+            {
+                var mems = AISearchService.GetMemories();
+                string memList = mems.Count == 0
+                    ? "Chưa có quy tắc nào. Nói \"nhớ: [quy tắc]\" để thêm."
+                    : $"📋 Có {mems.Count} quy tắc:\n" +
+                      string.Join("\n", mems.Select((m, i) => $"  {i + 1}. {m}"));
+                AppendMsg("🧠 Bộ nhớ", memList, Color.FromArgb(168, 85, 247));
+                return;
+            }
+
+            SetThinking(true);
             int thinkStart = _rtbChat.TextLength;
             AppendThinking();
 
@@ -558,6 +580,51 @@ namespace MPR_Managerment.Forms
         }
 
         // ── Tính năng 2: Bookmark ────────────────────────────────────────
+        // ── Bộ nhớ AI ────────────────────────────────────────────────────
+        private void ShowMemoryMenu()
+        {
+            var menu = new ContextMenuStrip();
+            var mems = AISearchService.GetMemories();
+
+            if (mems.Count == 0)
+            {
+                menu.Items.Add(new ToolStripMenuItem("(Chưa có quy tắc nào)") { Enabled = false });
+            }
+            else
+            {
+                menu.Items.Add(new ToolStripMenuItem($"📋 {mems.Count} quy tắc đang hoạt động:") { Enabled = false });
+                menu.Items.Add(new ToolStripSeparator());
+                for (int i = 0; i < mems.Count; i++)
+                {
+                    int idx = i;
+                    string label = mems[i].Length > 50 ? mems[i].Substring(0, 47) + "..." : mems[i];
+                    var item = new ToolStripMenuItem($"  {idx + 1}. {label}");
+                    var delItem = new ToolStripMenuItem("🗑 Xóa quy tắc này");
+                    delItem.Click += (s, e) =>
+                    {
+                        string result = AISearchService.RemoveMemory(idx);
+                        AppendMsg("🧠 Bộ nhớ", result, Color.FromArgb(168, 85, 247));
+                    };
+                    item.DropDownItems.Add(delItem);
+                    menu.Items.Add(item);
+                }
+                menu.Items.Add(new ToolStripSeparator());
+                var clearAll = new ToolStripMenuItem("🗑 Xóa tất cả quy tắc");
+                clearAll.Click += (s, e) =>
+                {
+                    AISearchService.ClearMemories();
+                    AppendMsg("🧠 Bộ nhớ", "✅ Đã xóa toàn bộ quy tắc.", Color.FromArgb(168, 85, 247));
+                };
+                menu.Items.Add(clearAll);
+            }
+
+            menu.Items.Add(new ToolStripSeparator());
+            var hint = new ToolStripMenuItem("💡 Nói \"nhớ: [quy tắc]\" để thêm") { Enabled = false };
+            menu.Items.Add(hint);
+
+            menu.Show(this, new Point(PANEL_W - 160, 54));
+        }
+
         private void ShowBookmarkMenu()
         {
             var menu = new ContextMenuStrip();
@@ -703,24 +770,4 @@ namespace MPR_Managerment.Forms
             }
         }
     }
-}
-
-internal static class GraphicsRoundedExt
-{
-    private static System.Drawing.Drawing2D.GraphicsPath MakeRoundedPath(RectangleF r, float radius)
-    {
-        float d = Math.Min(radius * 2, Math.Min(r.Width, r.Height));
-        var path = new System.Drawing.Drawing2D.GraphicsPath();
-        if (d <= 0) { path.AddRectangle(r); return path; }
-        path.AddArc(r.X, r.Y, d, d, 180, 90);
-        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
-    public static void FillRoundedRect(this Graphics g, Brush b, RectangleF r, float radius)
-    { using var p = MakeRoundedPath(r, radius); g.FillPath(b, p); }
-    public static void DrawRoundedRect(this Graphics g, Pen pen, RectangleF r, float radius)
-    { using var p = MakeRoundedPath(r, radius); g.DrawPath(pen, p); }
 }
