@@ -28,12 +28,14 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmMPR_V2));
             panel1 = new Panel();
             groupBox2 = new GroupBox();
             dgvItems = new DataGridView();
             groupBox1 = new GroupBox();
             panel2 = new Panel();
             tableLayoutPanel2 = new TableLayoutPanel();
+            btnPrint = new Button();
             btnSave = new Button();
             btnCancel = new Button();
             btnDeleteRow = new Button();
@@ -52,7 +54,6 @@
             dateTimePicker1 = new DateTimePicker();
             comboBox1 = new ComboBox();
             comboBox2 = new ComboBox();
-            btnPrint = new Button();
             panel1.SuspendLayout();
             groupBox2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvItems).BeginInit();
@@ -139,6 +140,16 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel2.Size = new Size(1245, 37);
             tableLayoutPanel2.TabIndex = 5;
+            // 
+            // btnPrint
+            // 
+            btnPrint.Dock = DockStyle.Fill;
+            btnPrint.Location = new Point(3, 3);
+            btnPrint.Name = "btnPrint";
+            btnPrint.Size = new Size(144, 31);
+            btnPrint.TabIndex = 2;
+            btnPrint.Text = "Xuất File";
+            btnPrint.UseVisualStyleBackColor = true;
             // 
             // btnSave
             // 
@@ -363,22 +374,13 @@
             comboBox2.Size = new Size(243, 23);
             comboBox2.TabIndex = 4;
             // 
-            // btnPrint
-            // 
-            btnPrint.Dock = DockStyle.Fill;
-            btnPrint.Location = new Point(3, 3);
-            btnPrint.Name = "btnPrint";
-            btnPrint.Size = new Size(144, 31);
-            btnPrint.TabIndex = 2;
-            btnPrint.Text = "Xuất File";
-            btnPrint.UseVisualStyleBackColor = true;
-            // 
             // frmMPR_V2
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1271, 726);
             Controls.Add(panel1);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "frmMPR_V2";
             Text = "frmMPR_V2";
             panel1.ResumeLayout(false);

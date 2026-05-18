@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmCreateItemCode));
             panel1 = new Panel();
             groupBox1 = new GroupBox();
             tableLayoutPanel6 = new TableLayoutPanel();
@@ -541,6 +542,7 @@
             AutoSize = true;
             ClientSize = new Size(1240, 290);
             Controls.Add(panel1);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(3, 2, 3, 2);
             MaximumSize = new Size(1256, 500);
             MinimumSize = new Size(1256, 303);

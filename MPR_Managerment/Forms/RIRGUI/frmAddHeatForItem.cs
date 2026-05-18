@@ -1,4 +1,5 @@
 ﻿using Microsoft.IdentityModel.Tokens;
+using MPR_Managerment.Common;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -24,11 +25,15 @@ namespace MPR_Managerment.Forms.RIRGUI
         {
             InitializeComponent();
             txtMTR.Text = MRTNo;
+
+            Common.Common.CreateButtonSave(btnSave);
+            Common.Common.CreateButtonCancel(btnCancel, "Hủy");
+
         }
 
         private void btnSave_Click(object sender, EventArgs e)
         {
-            Quantity = Convert.ToInt32(txtQty.Text.Trim());
+            Quantity = Convert.ToInt32(txtQty.Text.Trim() ?? "0");
             MTRNo = txtMTR.Text;
             HeatNo = txtHeat.Text;
             ID_Code = txtIDCode.Text;

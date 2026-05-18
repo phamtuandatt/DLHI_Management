@@ -467,7 +467,7 @@ namespace MPR_Managerment.Services
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                string sql = "SELECT * FROM vw_Warehouse_Stock_V2 WHERE 1=1";
+                string sql = "SELECT * FROM vw_Warehouse_Stock_V3 WHERE 1=1";
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 if (!string.IsNullOrEmpty(keyword))
@@ -654,7 +654,7 @@ namespace MPR_Managerment.Services
         /// <summary>
         /// Save QC Code for Item and update Quantiy of Warehouse Import by HEAT/LOT
         /// </summary>
-        public async Task<bool> SaveQCCodeForItemOfWarehouseImportTable(int po_detail_id, decimal newQty, decimal weight_kg, string mtrNo, string heatNo, string qc_code, string qc_status, List<WarehouseImport> lstItemUpdate)
+        public async Task<bool> SaveQCCodeForItemOfWarehouseImportTable(int rir_id, int po_detail_id, decimal newQty, decimal weight_kg, string mtrNo, string heatNo, string qc_code, string qc_status, List<WarehouseImport> lstItemUpdate)
         {
                 var wi = new WarehouseImport();
             using (var conn = DatabaseHelper.GetConnection())
@@ -672,7 +672,7 @@ namespace MPR_Managerment.Services
 
                 // Update Row using transaction to ensure data correct
                 DataTable dtInsertList = CreateWarehouseImportStructure();
-                wi.RIR_ID = 103;
+                wi.RIR_ID = rir_id;
                 foreach (var item_r in lstItemUpdate)
                 {
                     DataRow dr = dtInsertList.NewRow();

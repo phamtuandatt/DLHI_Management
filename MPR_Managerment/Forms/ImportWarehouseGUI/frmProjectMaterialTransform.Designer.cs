@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmProjectMaterialTransform));
             panel1 = new Panel();
             tableLayoutPanel1 = new TableLayoutPanel();
             label1 = new Label();
@@ -182,6 +183,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(454, 135);
             Controls.Add(panel1);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "frmProjectMaterialTransform";
             Text = "frmProjectMaterialTransform";
             panel1.ResumeLayout(false);

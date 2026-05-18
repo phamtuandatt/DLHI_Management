@@ -255,6 +255,11 @@ namespace MPR_Managerment
             lblCount.Text = $"Hiển thị: {dt.Rows.Count} / {_dtFull.Rows.Count} bản ghi  —  PO: {_poNo}";
         }
 
+        private void InitializeComponent()
+        {
+
+        }
+
         private void SetColumnWidths()
         {
             var widths = new System.Collections.Generic.Dictionary<string, int>

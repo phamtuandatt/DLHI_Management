@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmAddMaterialDetail));
             lblName = new Label();
             tableLayoutPanel5 = new TableLayoutPanel();
             btnGenerate = new Button();
@@ -150,6 +151,7 @@
             Controls.Add(tableLayoutPanel3);
             Controls.Add(tableLayoutPanel5);
             Controls.Add(lblName);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "frmAddMaterialDetail";
             StartPosition = FormStartPosition.CenterParent;
             Text = "Thêm vật tư";

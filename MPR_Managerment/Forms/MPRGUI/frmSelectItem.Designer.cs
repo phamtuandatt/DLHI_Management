@@ -29,6 +29,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmSelectItem));
             tableLayoutPanel1 = new TableLayoutPanel();
             tableLayoutPanel2 = new TableLayoutPanel();
             label2 = new Label();
@@ -313,6 +314,7 @@
             BackColor = Color.White;
             ClientSize = new Size(1207, 634);
             Controls.Add(tableLayoutPanel1);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             MinimumSize = new Size(900, 620);
             Name = "frmSelectItem";
             StartPosition = FormStartPosition.CenterScreen;

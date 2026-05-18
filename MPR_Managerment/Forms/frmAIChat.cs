@@ -82,6 +82,11 @@ namespace MPR_Managerment.Forms
                                  scr.Bottom - BTN_SIZE - MARGIN);
         }
 
+        private void InitializeComponent()
+        {
+
+        }
+
         [System.Runtime.InteropServices.DllImport("Gdi32.dll")]
         private static extern IntPtr CreateRoundRectRgn(
             int x1, int y1, int x2, int y2, int cx, int cy);

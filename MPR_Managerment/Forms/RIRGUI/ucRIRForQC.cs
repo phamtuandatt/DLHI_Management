@@ -1,4 +1,5 @@
-﻿using MPR_Managerment.Helpers;
+﻿using Microsoft.Data.SqlClient;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using Syncfusion.XlsIO.Parser.Biff_Records.ObjRecords;
@@ -30,6 +31,8 @@ namespace MPR_Managerment.Forms.RIRGUI
 
         private List<WarehouseImport> lstItemAdd = new List<WarehouseImport>();
         private List<int> lstRootItem = new List<int>();
+        private int _rirId = 0;
+        private List<int> lstRemoveItem = new List<int>();
 
         public ucRIRForQC()
         {
@@ -63,10 +66,10 @@ namespace MPR_Managerment.Forms.RIRGUI
 
             // 2. Thêm các mục (Items) vào menu
             ToolStripMenuItem itemXemChiTiet = new ToolStripMenuItem("📄 Thêm dòng cho vật tư");
-            //ToolStripMenuItem itemSaoChep = new ToolStripMenuItem("📋 Sao chép mã");
-            //ToolStripMenuItem itemXuatKho = new ToolStripMenuItem("📤 Xuất kho");
+            ToolStripMenuItem itemXoaVatTu = new ToolStripMenuItem("❌ Xóa vật tư"); // Thêm mục Xóa vật tư mới
 
-            menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet/*, itemSaoChep, new ToolStripSeparator(), itemXuatKho*/ });
+            // Thêm các mục vào menu chung (bao gồm cả nút xóa)
+            menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet, itemXoaVatTu });
 
             // 3. Gắn menu vào DataGridView
             if (AppSession.CurrentUser.Role_ID == 1)
@@ -77,7 +80,7 @@ namespace MPR_Managerment.Forms.RIRGUI
             // 4. Sự kiện khi click vào một mục trong menu
             itemXemChiTiet.Click += (s, e) =>
             {
-                if (dgvRIR.CurrentRow != null)
+                if (dgvRIR.CurrentRow != null && string.IsNullOrEmpty(dgvRIR.CurrentRow.Cells["IsAdded"].Value?.ToString() ?? ""))
                 {
                     // Lấy dữ liệu từ dòng đang chọn
                     var currentR = dgvRIR.CurrentRow;
@@ -133,7 +136,53 @@ namespace MPR_Managerment.Forms.RIRGUI
 
                     row.Cells["PO_Detail_ID"].Value = currentR.Cells["PO_Detail_ID"].Value;
 
-                    row.Cells["IsAdded"].Value = "true";
+                    row.Cells["IsAdded"].Value = "New";
+                }
+            };
+
+            // 4b. HÀNH ĐỘNG MỚI: Xử lý sự kiện khi click vào mục "❌ Xóa vật tư"
+            itemXoaVatTu.Click += (s, e) =>
+            {
+                try
+                {
+                    // Kiểm tra chắc chắn đang chọn một dòng hợp lệ và dòng đó không phải dòng trống cuối cùng phục vụ nhập liệu (NewRow)
+                    if (dgvRIR.CurrentRow != null && !dgvRIR.CurrentRow.IsNewRow)
+                    {
+                        // Hiển thị hộp thoại xác nhận trước khi xóa để tránh người dùng click nhầm
+                        DialogResult confirmResult = MessageBox.Show(
+                            "Bạn có chắc chắn muốn xóa vật tư thuộc dòng đang chọn này không?",
+                            "Xác nhận xóa",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question
+                        );
+
+                        if (confirmResult == DialogResult.Yes)
+                        {
+                            if (dgvRIR.CurrentRow.Cells["IsAdded"].Value == "New")
+                            {
+                                dgvRIR.Rows.Remove(dgvRIR.CurrentRow);
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    // Thực hiện xóa dòng trong database
+                                    int rir_detail_id = Convert.ToInt32(dgvRIR.CurrentRow.Cells["RIR_Detail_ID"].Value.ToString().Trim());
+                                    _service.DeleteDetail(rir_detail_id);
+                                    // Thực hiện xóa dòng hiện tại ra khỏi DataGridView
+                                    dgvRIR.Rows.Remove(dgvRIR.CurrentRow);
+                                }
+                                catch (SqlException ex)
+                                {
+                                    MessageBox.Show($"Không thể xóa dòng: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Không thể xóa dòng: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
 
@@ -163,10 +212,10 @@ namespace MPR_Managerment.Forms.RIRGUI
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material", HeaderText = "Vật liệu", Width = 90, ReadOnly = true, });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Size", HeaderText = "Kích thước", Width = 110, ReadOnly = true, });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT", Width = 55, ReadOnly = true, });
-            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Required", HeaderText = "SL Yêu cầu", Width = 80, ReadOnly = true, });
-            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Received", HeaderText = "SL Thực nhận", Width = 85 });
-            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "MTRno", HeaderText = "MTR No", Width = 100, ReadOnly = true, });
-            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Heatno", HeaderText = "Heat No", Width = 90, ReadOnly = true, });
+            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Required", HeaderText = "SL Yêu cầu", Width = 80, ReadOnly = false });
+            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Received", HeaderText = "SL Thực nhận", Width = 85 , Visible = false });
+            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "MTRno", HeaderText = "MTR No", Width = 100, ReadOnly = false, });
+            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Heatno", HeaderText = "Heat No", Width = 90, ReadOnly = false, });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100 });
 
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO Detail No", Width = 100, ReadOnly = true, Visible = false }); // Add column PO_Detail_ID
@@ -262,7 +311,7 @@ namespace MPR_Managerment.Forms.RIRGUI
                         Remarks = row.Cells["Remarks"].Value?.ToString() ?? "",
                         PO_Detail_ID = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value?.ToString() ?? ""),
 
-                        IsNewRow = row.Cells["IsAdded"].Value?.ToString() ?? ""
+                        IsNewRow = string.IsNullOrEmpty(row.Cells["IsAdded"].Value?.ToString()) ? "false" : "true",
                     };
 
                     await _service.UpdateDetailForQC(d);
@@ -270,22 +319,22 @@ namespace MPR_Managerment.Forms.RIRGUI
                     saved++;
                 }
 
-                foreach (DataGridViewRow row in dgvRIR.Rows)
-                {
-                    int po_d_id = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value?.ToString());
-                    var Qty_Required = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0));
-                    var MTRno = row.Cells["MTRno"].Value?.ToString() ?? "";
-                    var Heatno = row.Cells["Heatno"].Value?.ToString() ?? "";
-                    var ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "";
-                    var Inspect_Result = row.Cells["Inspect_Result"].Value?.ToString() ?? "";
-                    var isNewRow = row.Cells["IsAdded"].Value?.ToString() ?? "";
+                //foreach (DataGridViewRow row in dgvRIR.Rows)
+                //{
+                //    int po_d_id = Convert.ToInt32(row.Cells["PO_Detail_ID"].Value?.ToString());
+                //    var Qty_Required = (int)Math.Round(Convert.ToDecimal(row.Cells["Qty_Required"].Value ?? 0));
+                //    var MTRno = row.Cells["MTRno"].Value?.ToString() ?? "";
+                //    var Heatno = row.Cells["Heatno"].Value?.ToString() ?? "";
+                //    var ID_Code = row.Cells["ID_Code"].Value?.ToString() ?? "";
+                //    var Inspect_Result = row.Cells["Inspect_Result"].Value?.ToString() ?? "";
+                //    var isNewRow = row.Cells["IsAdded"].Value?.ToString() ?? "";
 
-                    if (lstRootItem.Contains(po_d_id) && string.IsNullOrEmpty(isNewRow))
-                    {
-                        var lstAdd = lstItemAdd.Where(i => i.PO_Detail_ID == po_d_id).ToList();
-                        bool rs = await _warehouseServies.SaveQCCodeForItemOfWarehouseImportTable(po_d_id, Qty_Required, 0, MTRno, Heatno, ID_Code, Inspect_Result, lstAdd);
-                    }
-                }
+                //    if (lstRootItem.Contains(po_d_id) && string.IsNullOrEmpty(isNewRow))
+                //    {
+                //        var lstAdd = lstItemAdd.Where(i => i.PO_Detail_ID == po_d_id).ToList();
+                //        bool rs = await _warehouseServies.SaveQCCodeForItemOfWarehouseImportTable(_rirId, po_d_id, Qty_Required, 0, MTRno, Heatno, ID_Code, Inspect_Result, lstAdd);
+                //    }
+                //}
 
                 // Kiểm tra nội dung khi truyền vào Procedure SQL
                 // Tính số Weight sau khi tách
@@ -337,6 +386,9 @@ namespace MPR_Managerment.Forms.RIRGUI
                     row.Cells["Remarks"].Value = d.Remarks ?? "";
 
                     row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID;
+
+                    lstRootItem.Add(Convert.ToInt32(d.PO_Detail_ID));
+                    _rirId = d.RIR_ID;
                 }
             }
             catch (Exception ex)
@@ -356,6 +408,14 @@ namespace MPR_Managerment.Forms.RIRGUI
                     val == "Fail" ? Color.FromArgb(220, 53, 69) :
                     val == "Hold" ? Color.FromArgb(255, 140, 0) :
                                     Color.Black;
+                e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
+
+            if (dgvRIR.Columns[e.ColumnIndex].Name == "IsAdded")
+            {
+                string val = e.Value?.ToString() ?? "";
+                e.CellStyle.ForeColor =
+                    val == "New" ? Color.FromArgb(40, 167, 69) : Color.Black;
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
 

@@ -65,7 +65,8 @@ namespace MPR_Managerment.Services
                 Role_ID = Convert.ToInt32(r["Role_ID"]),
                 Role_Name = r["Role_Name"]?.ToString() ?? "",
                 Username = username,
-                Must_Change_Password = Convert.ToBoolean(r["Must_Change_Password"])
+                Must_Change_Password = Convert.ToBoolean(r["Must_Change_Password"]),
+                Department = r["Department"].ToString() ?? "CHUA CO"
             };
             r.Close();
 

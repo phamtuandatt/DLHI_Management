@@ -13,13 +13,18 @@
 
         private void InitializeComponent()
         {
-            this.SuspendLayout();
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1400, 820);
-            this.Name = "frmMain";
-            this.Text = "MPR Management System";
-            this.ResumeLayout(false);
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmMain));
+            SuspendLayout();
+            // 
+            // frmMain
+            // 
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(1400, 820);
+            Icon = (Icon)resources.GetObject("$this.Icon");
+            Name = "frmMain";
+            Text = "MPR Management System";
+            ResumeLayout(false);
         }
     }
 }

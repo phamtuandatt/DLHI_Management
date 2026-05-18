@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmAddHeatForItem));
             tableLayoutPanel1 = new TableLayoutPanel();
             tableLayoutPanel2 = new TableLayoutPanel();
             label1 = new Label();
@@ -69,9 +70,9 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 47F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            tableLayoutPanel1.Size = new Size(312, 181);
+            tableLayoutPanel1.Size = new Size(312, 186);
             tableLayoutPanel1.TabIndex = 0;
             // 
             // tableLayoutPanel2
@@ -223,7 +224,7 @@
             tableLayoutPanel6.Name = "tableLayoutPanel6";
             tableLayoutPanel6.RowCount = 1;
             tableLayoutPanel6.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel6.Size = new Size(306, 29);
+            tableLayoutPanel6.Size = new Size(306, 41);
             tableLayoutPanel6.TabIndex = 5;
             // 
             // btnCancel
@@ -231,7 +232,7 @@
             btnCancel.Dock = DockStyle.Fill;
             btnCancel.Location = new Point(3, 3);
             btnCancel.Name = "btnCancel";
-            btnCancel.Size = new Size(147, 23);
+            btnCancel.Size = new Size(147, 35);
             btnCancel.TabIndex = 0;
             btnCancel.Text = "THOÁT";
             btnCancel.UseVisualStyleBackColor = true;
@@ -242,7 +243,7 @@
             btnSave.Dock = DockStyle.Fill;
             btnSave.Location = new Point(156, 3);
             btnSave.Name = "btnSave";
-            btnSave.Size = new Size(147, 23);
+            btnSave.Size = new Size(147, 35);
             btnSave.TabIndex = 1;
             btnSave.Text = "XÁC NHẬN";
             btnSave.UseVisualStyleBackColor = true;
@@ -252,10 +253,11 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(312, 181);
+            ClientSize = new Size(312, 186);
             Controls.Add(tableLayoutPanel1);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "frmAddHeatForItem";
-            Text = "frmAddHeatForItem";
+            Text = "Thêm dòng cho vật tư";
             tableLayoutPanel1.ResumeLayout(false);
             tableLayoutPanel2.ResumeLayout(false);
             tableLayoutPanel2.PerformLayout();

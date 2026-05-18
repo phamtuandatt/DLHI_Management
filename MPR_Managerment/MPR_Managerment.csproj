@@ -47,6 +47,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Resources\icon.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Templates\mpr_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

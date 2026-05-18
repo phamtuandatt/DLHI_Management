@@ -1918,6 +1918,7 @@ namespace MPR_Managerment.Forms
                     ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
+                    ReplaceCell(ws, "<<USER_NAME>>", AppSession.CurrentUser.Full_Name);
 
                     // Payment Term — set trực tiếp vào O5 (merged O5:Q5)
                     ws.Cells[5, 15].Value = !string.IsNullOrEmpty(po.Payment_Term)

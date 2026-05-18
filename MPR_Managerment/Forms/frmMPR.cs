@@ -1906,15 +1906,46 @@ namespace MPR_Managerment.Forms
                     if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
                     if (IsRowEmpty(row)) continue; // Bỏ qua dòng trống
                     // Lấy giá trị từ 2 cột Qty và Weight
-                    var valQty = row.Cells["Qty_Per_Sheet"].Value;
+                    object valQty = row.Cells["Qty_Per_Sheet"].Value;
+                    string strSoLuong = valQty != null ? valQty.ToString() : "";
+
                     var valWeight = row.Cells["Weight_kg"].Value;
 
-                    if (!decimal.TryParse(valQty.ToString(), out decimal qty_result) || (qty_result) == 0)
+                    if (string.IsNullOrWhiteSpace(strSoLuong))
                     {
-                        MessageBox.Show($"Dòng {row.Index + 1}: Vui lòng nhập Số lượng (Qty)!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show("Cảnh báo: Ô 'Số lượng' đang để trống hoặc chứa khoảng trắng!\nVui lòng nhập giá trị số vào ô này.",
+                                        "Yêu cầu nhập liệu",
+                                        MessageBoxButtons.OK,
+                                        MessageBoxIcon.Warning);
+
+                        // Đưa con trỏ chuột và kích hoạt chế độ chỉnh sửa ngay tại ô Số lượng đó cho người dùng tiện nhập liệu
                         dgvDet.CurrentCell = row.Cells["Qty_Per_Sheet"]; // Focus vào ô lỗi
                         dgvDet.BeginEdit(true); // Mở chế độ nhập liệu ngay
                         return;
+                    }
+                    // Trường hợp 2: Có dữ liệu, tiến hành dùng decimal.TryParse để kiểm tra xem có parse sang số được không
+                    decimal parsedQty;
+                    bool isNumeric = decimal.TryParse(strSoLuong.Trim(), out parsedQty);
+
+                    if (isNumeric)
+                    {
+                        // GIAI ĐOẠN PARSE THÀNH CÔNG: Lúc này biến 'parsedQty' đã mang giá trị kiểu decimal
+                        // Bạn có thể đem biến 'parsedQty' này đi tính toán hoặc truyền vào Stored Procedure
+                        System.Diagnostics.Debug.WriteLine($"Parse thành công số lượng: {parsedQty}");
+
+                        // Ví dụ một thông báo nhỏ dưới thanh trạng thái hoặc thông báo kiểm tra (tùy nhu cầu UX của bạn)
+                        // MessageBox.Show($"Số lượng hợp lệ: {parsedQty}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        // Trường hợp ô nhập chữ hoặc ký tự đặc biệt không thể chuyển thành số (Ví dụ: "ABC", "12a3")
+                        MessageBox.Show($"Giá trị '{strSoLuong}' tại ô 'Số lượng' không phải là số hợp lệ!\nVui lòng nhập lại.",
+                                        "Sai định dạng số",
+                                        MessageBoxButtons.OK,
+                                        MessageBoxIcon.Error);
+
+                        dgvDet.CurrentCell = row.Cells["SoLuong"];
+                        dgvDet.BeginEdit(true);
                     }
                 }
 
@@ -1938,13 +1969,13 @@ namespace MPR_Managerment.Forms
                         MPR_No = tMPRNo.Text.Trim(),
                         Project_Name = tProjName.Text.Trim(),
                         Project_Code = tProjCode.Text.Trim(),
-                        Department = AppSession.CurrentUser.Department ?? txtDepartment.Text.Trim(),
-                        Requestor = AppSession.CurrentUser.Username ?? txtRequestor.Text.Trim(),
+                        Department = AppSession.CurrentUser.Department.Split("||")[0] ?? txtDepartment.Text.Trim(),
+                        Requestor = AppSession.CurrentUser.Full_Name ?? txtRequestor.Text.Trim(),
                         Required_Date = dtp.Value,
                         Rev = 0,
                         Status = "Mới",
                         Notes = tNotes.Text.Trim(),
-                        Created_By = AppSession.CurrentUser.Username
+                        Created_By = AppSession.CurrentUser.Full_Name
                     };
                     int newId = _service.InsertHeader(header, _currentUser);
 
