@@ -69,8 +69,9 @@ namespace MPR_Managerment.Forms
         {
             public string WorkorderNo { get; set; }
             public string ProjectName { get; set; }
-            public string POCode { get; set; } // khớp với file PO:  DV-{POCode}-PC-{số}
-            public string MPRCode { get; set; } // khớp với file MPR: DV-{MPRCode}-MPR-{số}
+            public string ProjectCode { get; set; } // mã dự án dùng để tìm đường dẫn
+            public string POCode { get; set; }
+            public string MPRCode { get; set; }
             public string POLink { get; set; }
             public string MPRLink { get; set; }
         }
@@ -176,12 +177,12 @@ namespace MPR_Managerment.Forms
 
             var cols = new[]
             {
-                ("FileName",       "Tên file gốc",    22),
-                ("FileType",       "Loại",             5),
-                ("ExtractedCode",  "Mã trích xuất",   11),
-                ("TargetFolder",   "Thư mục đích",    27),
-                ("FinalName",      "Tên lưu",         13),
-                ("Status",         "Trạng thái",      10),
+                ("FileName",       "Tên file gốc (double-click để mở)", 22),
+                ("FileType",       "Loại",                               5),
+                ("ExtractedCode",  "Mã trích xuất",                     11),
+                ("TargetFolder",   "Thư mục đích",                      27),
+                ("FinalName",      "Tên lưu",                           13),
+                ("Status",         "Trạng thái",                        10),
             };
             foreach (var (n, h, w) in cols)
                 _dgv.Columns.Add(new DataGridViewTextBoxColumn
@@ -210,6 +211,20 @@ namespace MPR_Managerment.Forms
                 if (e.RowIndex < 0) return;
                 if (_dgv.Columns[e.ColumnIndex].Name != "MatchedProject") return;
                 ShowProjectDropdown(e.RowIndex);
+            };
+
+            // Double-click vào tên file → mở file gốc
+            _dgv.CellDoubleClick += (s, e) =>
+            {
+                if (e.RowIndex < 0 || e.RowIndex >= _items.Count) return;
+                if (_dgv.Columns[e.ColumnIndex].Name != "FileName") return;
+                string path = _items[e.RowIndex].SourcePath;
+                if (File.Exists(path))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    { FileName = path, UseShellExecute = true });
+                else
+                    MessageBox.Show($"File không còn tồn tại:\n{path}",
+                        "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             };
 
             _dgv.CellFormatting += DgvFormat;
@@ -399,8 +414,10 @@ namespace MPR_Managerment.Forms
                 return item;
             }
 
-            string matchCode = isMPR ? proj.MPRCode : proj.POCode;
-            item.MatchedProject = $"{matchCode}  —  {proj.ProjectName}";
+            string poCode2 = isMPR
+                ? (!string.IsNullOrEmpty(proj.MPRCode) ? proj.MPRCode : proj.WorkorderNo)
+                : (!string.IsNullOrEmpty(proj.POCode) ? proj.POCode : proj.WorkorderNo);
+            item.MatchedProject = $"{poCode2} - {proj.ProjectCode}";
 
             string targetFolder = isMPR ? proj.MPRLink : proj.POLink;
 
@@ -544,11 +561,12 @@ namespace MPR_Managerment.Forms
                 var dt = new DataTable();
                 new SqlDataAdapter(new SqlCommand(@"
                     SELECT WorkorderNo,
-                           ISNULL(ProjectName,'') AS ProjectName,
-                           ISNULL(POCode,'')      AS POCode,
-                           ISNULL(MPRCode,'')     AS MPRCode,
-                           ISNULL(PO_Link,'')     AS PO_Link,
-                           ISNULL(MPR_link,'')    AS MPR_Link
+                           ISNULL(ProjectName,'')  AS ProjectName,
+                           ISNULL(ProjectCode,'')  AS ProjectCode,
+                           ISNULL(POCode,'')       AS POCode,
+                           ISNULL(MPRCode,'')      AS MPRCode,
+                           ISNULL(PO_Link,'')      AS PO_Link,
+                           ISNULL(MPR_link,'')     AS MPR_Link
                     FROM   ProjectInfo
                     WHERE  (POCode IS NOT NULL AND POCode <> '')
                         OR (MPRCode IS NOT NULL AND MPRCode <> '')
@@ -559,6 +577,7 @@ namespace MPR_Managerment.Forms
                     {
                         WorkorderNo = r["WorkorderNo"].ToString(),
                         ProjectName = r["ProjectName"].ToString(),
+                        ProjectCode = r["ProjectCode"].ToString(),
                         POCode = r["POCode"].ToString(),
                         MPRCode = r["MPRCode"].ToString(),
                         POLink = r["PO_Link"].ToString(),
@@ -616,9 +635,10 @@ namespace MPR_Managerment.Forms
 
             foreach (var p in _projects)
             {
-                string code = !string.IsNullOrEmpty(p.POCode) ? p.POCode :
+                // Hiển thị: "POCode - ProjectCode" (dùng ProjectCode để tìm đường dẫn)
+                string poCode = !string.IsNullOrEmpty(p.POCode) ? p.POCode :
                                  !string.IsNullOrEmpty(p.MPRCode) ? p.MPRCode : p.WorkorderNo;
-                string display = $"{code}  —  {p.ProjectName}";
+                string display = $"{poCode} - {p.ProjectCode}";
                 var mi = new ToolStripMenuItem(display) { Tag = p };
                 menu.Items.Add(mi);
             }
@@ -651,9 +671,9 @@ namespace MPR_Managerment.Forms
             }
 
             bool isMPR = item.FileType == "MPR";
-            string code = !string.IsNullOrEmpty(proj.POCode) ? proj.POCode :
-                                !string.IsNullOrEmpty(proj.MPRCode) ? proj.MPRCode : proj.WorkorderNo;
-            item.MatchedProject = $"{code}  —  {proj.ProjectName}";
+            string poCode = !string.IsNullOrEmpty(proj.POCode) ? proj.POCode :
+                               !string.IsNullOrEmpty(proj.MPRCode) ? proj.MPRCode : proj.WorkorderNo;
+            item.MatchedProject = $"{poCode} - {proj.ProjectCode}";
 
             string targetFolder = isMPR ? proj.MPRLink : proj.POLink;
 
