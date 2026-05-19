@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Linq;
-using MPR_Managerment.Services;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Threading.Tasks;
@@ -80,11 +78,6 @@ namespace MPR_Managerment.Forms
             var scr = Screen.PrimaryScreen.WorkingArea;
             Location = new Point(scr.Right - BTN_SIZE - MARGIN,
                                  scr.Bottom - BTN_SIZE - MARGIN);
-        }
-
-        private void InitializeComponent()
-        {
-
         }
 
         [System.Runtime.InteropServices.DllImport("Gdi32.dll")]
@@ -173,9 +166,12 @@ namespace MPR_Managerment.Forms
         private Label _lblStatus;
 
         // ── Service ──────────────────────────────────────────────────────
-        internal readonly AISearchService _ai = new AISearchService(); // Ollama local, không cần API key
+        internal readonly AISearchService _ai = new AISearchService();
         private bool _isThinking = false;
+        private bool _isDbMode = true;
         private string _lastQuestion = "";
+        private Microsoft.Web.WebView2.WinForms.WebView2 _webView;
+        private Panel _inputPanel; // field để toggle mode có thể truy cập
 
         // ── Tính năng 2: Bookmark query ───────────────────────────────────
         private static readonly List<string> _bookmarks = new List<string>();
@@ -259,10 +255,12 @@ namespace MPR_Managerment.Forms
                 ShowGreeting();
             };
 
-            // Nút Bookmark — lưu câu hỏi yêu thích
+            // Nút Bookmark
             var btnBookmark = HeaderBtn("⭐", PANEL_W - 116);
             new ToolTip().SetToolTip(btnBookmark, "Bookmark & tra cứu nhanh");
             btnBookmark.Click += (s, e) => ShowBookmarkMenu();
+
+
 
             // Nút bộ nhớ AI
             var btnMemory = HeaderBtn("🧠", PANEL_W - 152);
@@ -287,6 +285,85 @@ namespace MPR_Managerment.Forms
             };
             header.MouseUp += (s, e) => drag = false;
 
+            // ── Mode selector — Tab to rõ ràng ngay dưới header ─────────
+            var modePanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 38,
+                BackColor = Color.FromArgb(22, 27, 42),
+                Padding = new Padding(8, 5, 8, 5)
+            };
+
+            var btnDbMode = new Button
+            {
+                Location = new Point(8, 5),
+                Size = new Size(188, 28),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI Semibold", 9.5f),
+                Text = "🗄  Truy xuất dữ liệu",
+                Cursor = Cursors.Hand,
+                TabStop = false,
+                Name = "btnDbMode"
+            };
+            btnDbMode.FlatAppearance.BorderSize = 0;
+            btnDbMode.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 190);
+
+            var btnChatMode = new Button
+            {
+                Location = new Point(202, 5),
+                Size = new Size(188, 28),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(40, 46, 66),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                Font = new Font("Segoe UI Semibold", 9.5f),
+                Text = "💬  Chat tự do",
+                Cursor = Cursors.Hand,
+                TabStop = false,
+                Name = "btnChatMode"
+            };
+            btnChatMode.FlatAppearance.BorderSize = 0;
+            btnChatMode.FlatAppearance.MouseOverBackColor = Color.FromArgb(55, 60, 82);
+
+            // Toggle logic
+            btnDbMode.Click += (s, e) =>
+            {
+                if (_isDbMode) return;
+                _isDbMode = true;
+                btnDbMode.BackColor = Color.FromArgb(0, 120, 212);
+                btnDbMode.ForeColor = Color.White;
+                btnChatMode.BackColor = Color.FromArgb(40, 46, 66);
+                btnChatMode.ForeColor = Color.FromArgb(148, 163, 184);
+                _lblStatus.Text = "DB Mode  •  Truy xuất MPR, PO, NCC, thanh toán...";
+                _txtInput.PlaceholderText = "Hỏi về MPR, PO, NCC... (Enter gửi | Shift+Enter xuống dòng)";
+                _webView.Visible = false;
+                _rtbChat.Visible = true;
+                if (_inputPanel != null) _inputPanel.Visible = true;
+                AppendMsg("Hệ thống",
+                    "🗄 Đã chuyển sang **DB Mode** — tôi truy vấn dữ liệu thực từ hệ thống.",
+                    Color.FromArgb(148, 163, 184));
+                _ai.ClearHistory();
+                _txtInput.Focus();
+            };
+
+            btnChatMode.Click += (s, e) =>
+            {
+                if (!_isDbMode) return;
+                _isDbMode = false;
+                btnChatMode.BackColor = Color.FromArgb(16, 163, 127);
+                btnChatMode.ForeColor = Color.White;
+                btnDbMode.BackColor = Color.FromArgb(40, 46, 66);
+                btnDbMode.ForeColor = Color.FromArgb(148, 163, 184);
+                _lblStatus.Text = "Chat Mode  •  ChatGPT (chat.openai.com)";
+                _rtbChat.Visible = false;
+                if (_inputPanel != null) _inputPanel.Visible = false;
+                _webView.Visible = true;
+                _webView.BringToFront();
+            };
+
+            modePanel.Controls.AddRange(new Control[] { btnDbMode, btnChatMode });
+
             // ── Chat area ────────────────────────────────────────────────
             _rtbChat = new RichTextBox
             {
@@ -309,7 +386,7 @@ namespace MPR_Managerment.Forms
             chatWrap.Controls.Add(_rtbChat);
 
             // ── Input area ───────────────────────────────────────────────
-            var inputPanel = new Panel
+            _inputPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Height = 104,
@@ -372,12 +449,26 @@ namespace MPR_Managerment.Forms
             _btnExport.FlatAppearance.MouseOverBackColor = Color.FromArgb(22, 163, 74);
             _btnExport.Click += (s, e) => ExportToExcel();
 
-            inputPanel.Controls.AddRange(new Control[] { _txtInput, _btnSend, _btnExport });
+            _inputPanel.Controls.AddRange(new Control[] { _txtInput, _btnSend, _btnExport });
 
             // ── Ghép lại ────────────────────────────────────────────────
             Controls.Add(chatWrap);
-            Controls.Add(inputPanel);
+            Controls.Add(_inputPanel);
+            Controls.Add(modePanel);
             Controls.Add(header);
+
+            // ── WebView2 — hiển thị ChatGPT khi ở Chat Mode ──────────────
+            _webView = new Microsoft.Web.WebView2.WinForms.WebView2
+            {
+                Dock = DockStyle.Fill,
+                Visible = false
+            };
+            // Chèn WebView vào chatWrap (cùng vị trí với _rtbChat)
+            chatWrap.Controls.Add(_webView);
+            _webView.BringToFront();
+
+            // Khởi tạo WebView2 async — không block UI
+            _ = InitWebViewAsync();
         }
 
         private Button HeaderBtn(string text, int x)
@@ -412,72 +503,61 @@ namespace MPR_Managerment.Forms
             _lastQuestion = q;
             _txtInput.Clear();
             _txtInput.Focus();
-            _btnExport.Visible = false;
+            _btnExport.Visible = false; // ẩn nút Export khi bắt đầu câu hỏi mới
             AppendMsg("Bạn", q, C_USER_MSG);
-
-            // ── Xử lý lệnh ghi nhớ: "nhớ: ..." hoặc "remember: ..." ──
-            string qLower = q.ToLower().TrimStart();
-            string memPrefix = null;
-            if (qLower.StartsWith("nhớ:")) memPrefix = "nhớ:";
-            else if (qLower.StartsWith("nhớ ")) memPrefix = "nhớ ";
-            else if (qLower.StartsWith("remember:")) memPrefix = "remember:";
-            else if (qLower.StartsWith("ghi nhớ:")) memPrefix = "ghi nhớ:";
-
-            if (memPrefix != null)
-            {
-                // Lấy phần quy tắc sau prefix
-                int prefixIdx = q.IndexOf(memPrefix[0] == 'n' ? ':' : ':', StringComparison.OrdinalIgnoreCase);
-                string rule = prefixIdx >= 0 ? q.Substring(prefixIdx + 1).Trim() : q.Substring(memPrefix.Length).Trim();
-                if (!string.IsNullOrEmpty(rule))
-                {
-                    string result = AISearchService.AddMemory(rule);
-                    AppendMsg("🧠 Bộ nhớ", result + "\n\nTôi sẽ áp dụng quy tắc này vào tất cả các câu hỏi tiếp theo.", Color.FromArgb(168, 85, 247));
-                }
-                return;
-            }
-
-            // ── Lệnh quản lý bộ nhớ ──
-            if (qLower == "xem bộ nhớ" || qLower == "bộ nhớ" || qLower == "memory")
-            {
-                var mems = AISearchService.GetMemories();
-                string memList = mems.Count == 0
-                    ? "Chưa có quy tắc nào. Nói \"nhớ: [quy tắc]\" để thêm."
-                    : $"📋 Có {mems.Count} quy tắc:\n" +
-                      string.Join("\n", mems.Select(m => $"  #{m.Id}. {m.Rule}"));
-                AppendMsg("🧠 Bộ nhớ", memList, Color.FromArgb(168, 85, 247));
-                return;
-            }
-
             SetThinking(true);
+
             int thinkStart = _rtbChat.TextLength;
             AppendThinking();
 
             try
             {
                 bool firstChunk = true;
+                bool isDb = _isDbMode; // snapshot mode tại thời điểm gửi
 
                 await Task.Run(async () =>
                 {
-                    await _ai.AskAsync(q, chunk =>
-                    {
-                        if (IsDisposed) return;
-                        Invoke((Action)(() =>
+                    // Gọi đúng method theo chế độ hiện tại
+                    if (isDb)
+                        await _ai.AskAsync(q, chunk =>
                         {
-                            if (firstChunk)
+                            if (IsDisposed) return;
+                            Invoke((Action)(() =>
                             {
-                                _rtbChat.Select(thinkStart,
-                                    _rtbChat.TextLength - thinkStart);
-                                _rtbChat.SelectedText = "";
-                                AppendPrefix("AI", C_AI_MSG);
-                                firstChunk = false;
-                            }
-                            _rtbChat.Select(_rtbChat.TextLength, 0);
-                            _rtbChat.SelectionColor = C_TEXT;
-                            _rtbChat.SelectionFont = new Font("Segoe UI", 10);
-                            _rtbChat.AppendText(chunk);
-                            _rtbChat.ScrollToCaret();
-                        }));
-                    });
+                                if (firstChunk)
+                                {
+                                    _rtbChat.Select(thinkStart, _rtbChat.TextLength - thinkStart);
+                                    _rtbChat.SelectedText = "";
+                                    AppendPrefix("AI", C_AI_MSG);
+                                    firstChunk = false;
+                                }
+                                _rtbChat.Select(_rtbChat.TextLength, 0);
+                                _rtbChat.SelectionColor = C_TEXT;
+                                _rtbChat.SelectionFont = new Font("Segoe UI", 10);
+                                _rtbChat.AppendText(chunk);
+                                _rtbChat.ScrollToCaret();
+                            }));
+                        });
+                    else
+                        await _ai.AskFreeAsync(q, chunk =>
+                        {
+                            if (IsDisposed) return;
+                            Invoke((Action)(() =>
+                            {
+                                if (firstChunk)
+                                {
+                                    _rtbChat.Select(thinkStart, _rtbChat.TextLength - thinkStart);
+                                    _rtbChat.SelectedText = "";
+                                    AppendPrefix("AI", Color.FromArgb(167, 139, 250)); // tím nhạt cho chat mode
+                                    firstChunk = false;
+                                }
+                                _rtbChat.Select(_rtbChat.TextLength, 0);
+                                _rtbChat.SelectionColor = C_TEXT;
+                                _rtbChat.SelectionFont = new Font("Segoe UI", 10);
+                                _rtbChat.AppendText(chunk);
+                                _rtbChat.ScrollToCaret();
+                            }));
+                        });
                 });
 
                 if (!IsDisposed)
@@ -485,8 +565,8 @@ namespace MPR_Managerment.Forms
                     {
                         _rtbChat.AppendText("\n\n");
                         _rtbChat.ScrollToCaret();
-                        // Hiện nút Export nếu có dữ liệu bảng (xuất thủ công)
-                        _btnExport.Visible = _ai.HasExportableData;
+                        // Nút Export chỉ hiện ở DB Mode
+                        _btnExport.Visible = _isDbMode && _ai.HasExportableData;
 
                         // Tự động mở file Excel nếu AI vừa tạo tự động
                         if (_ai._pendingExcelPath != null)
@@ -549,7 +629,7 @@ namespace MPR_Managerment.Forms
             _rtbChat.Select(_rtbChat.TextLength, 0);
             _rtbChat.SelectionColor = C_SUBTEXT;
             _rtbChat.SelectionFont = new Font("Segoe UI", 9, FontStyle.Italic);
-            _rtbChat.AppendText("AI đang truy vấn dữ liệu...\n");
+            _rtbChat.AppendText(_isDbMode ? "AI đang truy vấn dữ liệu...\n" : "AI đang suy nghĩ...\n");
             _rtbChat.SelectionFont = new Font("Segoe UI", 10);
             _rtbChat.ScrollToCaret();
         }
@@ -585,11 +665,20 @@ namespace MPR_Managerment.Forms
         }
 
         // ── Tính năng 2: Bookmark ────────────────────────────────────────
-        // ── Bộ nhớ AI ────────────────────────────────────────────────────
+        private async System.Threading.Tasks.Task InitWebViewAsync()
+        {
+            try
+            {
+                await _webView.EnsureCoreWebView2Async();
+                _webView.Source = new Uri("https://chat.openai.com");
+            }
+            catch { /* WebView2 runtime chưa cài — bỏ qua */ }
+        }
+
         private void ShowMemoryMenu()
         {
             var menu = new ContextMenuStrip();
-            var mems = AISearchService.GetMemories(); // List<(int Id, string Rule)>
+            var mems = AISearchService.GetMemories();
 
             if (mems.Count == 0)
             {

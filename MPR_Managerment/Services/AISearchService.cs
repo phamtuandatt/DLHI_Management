@@ -25,7 +25,7 @@ namespace MPR_Managerment.Services
         // "deepseek-reasoner" — suy luận sâu, dùng cho câu hỏi phức tạp
 
         // ⚠ Thay bằng API key thực từ https://platform.deepseek.com/api_keys
-        private const string DS_API_KEY = "YOUR_DEEPSEEK_API_KEY_HERE";
+        private const string DS_API_KEY = "sk-419f6cb2d61240cda8d4db6fb93cd2ff";
 
         private static readonly HttpClient _http = new HttpClient
         {
@@ -724,7 +724,38 @@ Trả lời:";
             return sb.ToString();
         }
 
-        // ── Build context lịch sử hội thoại ──────────────────────────────
+        // ════════════════════════════════════════════════════════════════════
+        // CHẾ ĐỘ CHAT TỰ DO — không truy vấn DB, AI trả lời như chatbot thường
+        // ════════════════════════════════════════════════════════════════════
+
+        public async Task<string> AskFreeAsync(string userQuestion, Action<string> onChunk = null)
+        {
+            string historyCtx = BuildHistoryContext(4);
+            string memCtx = BuildMemoryContext();
+
+            string prompt = $@"Bạn là trợ lý AI thông minh, hữu ích và thân thiện.
+Trả lời tiếng Việt trừ khi người dùng hỏi bằng ngôn ngữ khác.
+Bạn có thể: giải thích khái niệm, phân tích vấn đề, viết nội dung,
+tư vấn, lập kế hoạch, dịch thuật, và mọi tác vụ của một AI tổng quát.
+{memCtx}
+Lịch sử:{historyCtx}
+
+Câu hỏi: ""{userQuestion}""
+
+Trả lời:";
+
+            string answer;
+            if (onChunk != null)
+                answer = await CallDeepseekStreamAsync(prompt, onChunk);
+            else
+                answer = await CallDeepseekAsync(prompt, temperature: 0.8f);
+
+            _history.Add(("user", userQuestion));
+            _history.Add(("model", answer));
+            return answer;
+        }
+
+
         private string BuildHistoryContext(int lastN)
         {
             if (_history.Count == 0) return "(chưa có lịch sử)";

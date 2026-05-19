@@ -2928,7 +2928,34 @@ namespace MPR_Managerment.Forms
             if (h.PO_Date.HasValue) dtpPODate.Value = h.PO_Date.Value;
             var ptIdx = cboPaymentTerm.Items.IndexOf(h.Payment_Term ?? "");
             cboPaymentTerm.SelectedIndex = ptIdx > 0 ? ptIdx : 0;
-            var idx = cboStatus.Items.IndexOf(h.Status); cboStatus.SelectedIndex = idx >= 0 ? idx : 0;
+
+            // Đọc trạng thái trực tiếp từ DB — đảm bảo luôn hiển thị đúng
+            string currentStatus = h.Status ?? "";
+            try
+            {
+                using var connSt = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                connSt.Open();
+                var cmdSt = new Microsoft.Data.SqlClient.SqlCommand(
+                    "SELECT Status FROM PO_head WHERE PO_ID = @id", connSt);
+                cmdSt.Parameters.AddWithValue("@id", _selectedPO_ID);
+                var dbStatus = cmdSt.ExecuteScalar()?.ToString();
+                if (!string.IsNullOrEmpty(dbStatus)) currentStatus = dbStatus;
+            }
+            catch { }
+
+            // Gán vào cboStatus — so sánh không phân biệt hoa thường
+            cboStatus.SelectedIndex = 0;
+            for (int i = 0; i < cboStatus.Items.Count; i++)
+            {
+                if (string.Equals(cboStatus.Items[i]?.ToString(), currentStatus,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    cboStatus.SelectedIndex = i;
+                    break;
+                }
+            }
+            // Đồng bộ lại _poList
+            if (h.Status != currentStatus) h.Status = currentStatus;
 
             // Khôi phục nhà cung cấp
             if (h.Supplier_ID > 0)
@@ -2949,6 +2976,9 @@ namespace MPR_Managerment.Forms
             LoadFiles(h.WorkorderNo, h.Project_Name);
             LoadDeliveries();
             LoadDocumentsPO();
+
+            // Kiểm tra tự động khi mở PO — không thông báo, chỉ cập nhật UI/DB lặng lẽ
+            CheckAndAutoCompleteStatus(_selectedPO_ID, silent: true);
         }
 
         private void BtnNewPO_Click(object sender, EventArgs e)
@@ -2962,6 +2992,81 @@ namespace MPR_Managerment.Forms
         // =========================================================================
         // LƯU TOÀN BỘ PO (Header + Detail)
         // =========================================================================
+        /// <summary>
+        /// Tự động chuyển trạng thái PO thành "Complete" khi tiến độ nhập kho >= 100%.
+        /// Tiến độ = SUM(Qty_Import) / SUM(Qty_Per_Sheet) từ Warehouse_Import và PO_Detail.
+        /// </summary>
+        private void CheckAndAutoCompleteStatus(int poId, bool silent = false)
+        {
+            if (poId <= 0) return;
+            try
+            {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    SELECT
+                        ISNULL(SUM(d.Qty_Per_Sheet), 0)  AS TotalOrdered,
+                        ISNULL(SUM(wi.Imported), 0)      AS TotalImported
+                    FROM PO_Detail d
+                    LEFT JOIN (
+                        SELECT PO_Detail_ID, SUM(Qty_Import) AS Imported
+                        FROM Warehouse_Import
+                        GROUP BY PO_Detail_ID
+                    ) wi ON wi.PO_Detail_ID = d.PO_Detail_ID
+                    WHERE d.PO_ID = @poId", conn);
+                cmd.Parameters.AddWithValue("@poId", poId);
+
+                var dt = new System.Data.DataTable();
+                new Microsoft.Data.SqlClient.SqlDataAdapter(cmd).Fill(dt);
+                if (dt.Rows.Count == 0) return;
+
+                decimal totalOrdered = Convert.ToDecimal(dt.Rows[0]["TotalOrdered"]);
+                decimal totalImported = Convert.ToDecimal(dt.Rows[0]["TotalImported"]);
+                if (totalOrdered <= 0) return;
+
+                decimal progress = totalImported / totalOrdered * 100;
+                if (progress < 100m) return;
+
+                // Kiểm tra trạng thái hiện tại
+                var cmdStatus = new Microsoft.Data.SqlClient.SqlCommand(
+                    "SELECT Status FROM PO_head WHERE PO_ID = @poId", conn);
+                cmdStatus.Parameters.AddWithValue("@poId", poId);
+                string currentStatus = cmdStatus.ExecuteScalar()?.ToString() ?? "";
+                if (currentStatus == "Completed" || currentStatus == "Cancelled") return;
+
+                // Cập nhật DB
+                var cmdUpdate = new Microsoft.Data.SqlClient.SqlCommand(
+                    "UPDATE PO_head SET Status = 'Completed' WHERE PO_ID = @poId", conn);
+                cmdUpdate.Parameters.AddWithValue("@poId", poId);
+                cmdUpdate.ExecuteNonQuery();
+
+                // Cập nhật UI
+                var cboIdx = cboStatus.Items.IndexOf("Completed");
+                if (cboIdx >= 0) cboStatus.SelectedIndex = cboIdx;
+
+                // Cập nhật _poList
+                var po = _poList.Find(p => p.PO_ID == poId);
+                if (po != null) po.Status = "Completed";
+
+                // Cập nhật dòng trong dgvPO
+                if (dgvPO.Columns.Contains("Status"))
+                    foreach (DataGridViewRow row in dgvPO.Rows)
+                        if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == poId)
+                        { row.Cells["Status"].Value = "Completed"; break; }
+
+                if (!silent)
+                    MessageBox.Show(
+                        $"✅ Tiến độ nhập kho đạt {progress:F1}%\n" +
+                        "Trạng thái PO đã tự động chuyển sang \"Completed\".",
+                        "Hoàn tất giao hàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"CheckAndAutoCompleteStatus: {ex.Message}");
+            }
+        }
+
         private void BtnSavePO_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("PO", "Lưu PO", "Lưu PO")) return;
@@ -3039,6 +3144,9 @@ namespace MPR_Managerment.Forms
                 txtPONo.Text = finalPONo;
                 SaveDetailsToDb();
                 RefreshMPRDetailLinks(_selectedPO_ID);
+
+                // Tự động chuyển trạng thái "Complete" nếu tiến độ giao hàng >= 100%
+                CheckAndAutoCompleteStatus(_selectedPO_ID);
                 MessageBox.Show($"Đã lưu toàn bộ PO thành công!\n- Số PO: {finalPONo}\n- Số dòng vật tư: {dgvDetails.Rows.Count}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 // Tự động xuất Excel vào thư mục PO Link của dự án
