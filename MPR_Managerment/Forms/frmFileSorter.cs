@@ -160,7 +160,7 @@ namespace MPR_Managerment.Forms
             _dgv = new DataGridView
             {
                 Dock = DockStyle.Fill,
-                ReadOnly = true,
+                ReadOnly = false,  // cho phép edit cột FinalName
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -177,16 +177,16 @@ namespace MPR_Managerment.Forms
 
             var cols = new[]
             {
-                ("FileName",       "Tên file gốc (double-click để mở)", 22),
-                ("FileType",       "Loại",                               5),
-                ("ExtractedCode",  "Mã trích xuất",                     11),
-                ("TargetFolder",   "Thư mục đích",                      27),
-                ("FinalName",      "Tên lưu",                           13),
-                ("Status",         "Trạng thái",                        10),
+                ("FileName",       "Tên file gốc (double-click để mở)", 22, true),
+                ("FileType",       "Loại",                               5, true),
+                ("ExtractedCode",  "Mã trích xuất",                     11, true),
+                ("TargetFolder",   "Thư mục đích",                      27, true),
+                ("FinalName",      "Tên lưu (click để sửa)",            13, false), // cho phép edit
+                ("Status",         "Trạng thái",                        10, true),
             };
-            foreach (var (n, h, w) in cols)
+            foreach (var (n, h, w, ro) in cols)
                 _dgv.Columns.Add(new DataGridViewTextBoxColumn
-                { Name = n, HeaderText = h, FillWeight = w });
+                { Name = n, HeaderText = h, FillWeight = w, ReadOnly = ro });
 
             // Cột "Dự án khớp" — dùng TextBox + EditingControlShowing để inject ComboBox
             var colProject = new DataGridViewTextBoxColumn
@@ -209,11 +209,11 @@ namespace MPR_Managerment.Forms
             _dgv.CellClick += (s, e) =>
             {
                 if (e.RowIndex < 0) return;
-                if (_dgv.Columns[e.ColumnIndex].Name != "MatchedProject") return;
-                ShowProjectDropdown(e.RowIndex);
+                if (_dgv.Columns[e.ColumnIndex].Name == "MatchedProject")
+                    ShowProjectDropdown(e.RowIndex);
             };
 
-            // Double-click vào tên file → mở file gốc
+            // Double-click cột FileName → mở file gốc
             _dgv.CellDoubleClick += (s, e) =>
             {
                 if (e.RowIndex < 0 || e.RowIndex >= _items.Count) return;
@@ -225,6 +225,63 @@ namespace MPR_Managerment.Forms
                 else
                     MessageBox.Show($"File không còn tồn tại:\n{path}",
                         "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            };
+
+            // Cho phép sửa tên trực tiếp tại cột FinalName
+            _dgv.CellEndEdit += (s, e) =>
+            {
+                if (e.RowIndex < 0 || e.RowIndex >= _items.Count) return;
+                if (_dgv.Columns[e.ColumnIndex].Name != "FinalName") return;
+
+                string newName = _dgv.Rows[e.RowIndex]
+                    .Cells["FinalName"].Value?.ToString()?.Trim() ?? "";
+                var item = _items[e.RowIndex];
+
+                if (string.IsNullOrEmpty(newName) || newName == item.FinalName) return;
+
+                // Kiểm tra tên hợp lệ
+                if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                {
+                    MessageBox.Show("Tên file chứa ký tự không hợp lệ.",
+                        "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
+                    return;
+                }
+
+                // Đổi tên file gốc ngay trên disk
+                if (!File.Exists(item.SourcePath))
+                {
+                    MessageBox.Show($"File gốc không còn tồn tại:\n{item.SourcePath}",
+                        "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
+                    return;
+                }
+
+                string dir = Path.GetDirectoryName(item.SourcePath)!;
+                string newPath = Path.Combine(dir, newName);
+
+                if (File.Exists(newPath))
+                {
+                    MessageBox.Show($"File \"{newName}\" đã tồn tại trong thư mục nguồn.",
+                        "Trùng tên", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
+                    return;
+                }
+
+                try
+                {
+                    File.Move(item.SourcePath, newPath);
+                    item.SourcePath = newPath;
+                    item.FileName = newName;
+                    item.FinalName = newName;
+                    _dgv.Rows[e.RowIndex].Cells["FileName"].Value = newName;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Không thể đổi tên:\n{ex.Message}",
+                        "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
+                }
             };
 
             _dgv.CellFormatting += DgvFormat;
@@ -275,6 +332,42 @@ namespace MPR_Managerment.Forms
                 MessageBox.Show($"Thư mục không tồn tại:\n{src}",
                     "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
+            }
+
+            // ── Chạy lệnh: python test_po_ocr.py ────────────────────────
+            SetStatus("⏳ Đang chạy OCR...");
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c python test_po_ocr.py",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = @"C:\Users\PCPV"
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                string stderr = proc.StandardError.ReadToEnd();
+                proc.WaitForExit();
+
+                if (proc.ExitCode != 0)
+                {
+                    var res = MessageBox.Show(
+                        $"Script OCR kết thúc với lỗi:\n{stderr}\n\nBạn có muốn tiếp tục quét không?",
+                        "Cảnh báo OCR", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                    if (res != DialogResult.Yes) { SetStatus("Đã hủy."); return; }
+                }
+                else
+                    SetStatus("✅ OCR hoàn thành. Tiếp tục quét file...");
+            }
+            catch (Exception ex)
+            {
+                var res = MessageBox.Show(
+                    $"Không thể chạy OCR:\n{ex.Message}\n\nBạn có muốn tiếp tục quét không?",
+                    "Cảnh báo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (res != DialogResult.Yes) { SetStatus("Đã hủy."); return; }
             }
 
             SetStatus("⏳ Đang tải dữ liệu dự án từ DB...");
@@ -446,10 +539,22 @@ namespace MPR_Managerment.Forms
             }
 
             item.TargetFolder = targetFolder;
-            item.FinalName = ResolveFileName(targetFolder, fileName);
-            item.Status = item.FinalName != fileName
-                ? "⚠️ Đổi tên"
-                : "✅ Sẵn sàng";
+
+            // PO: preview tên mới = {FinalName_không_ext}_{ShortName}.ext
+            string previewFileName = item.FileName;
+            if (!isMPR)
+            {
+                // Lấy PONo từ tên file hiện tại (bỏ extension)
+                string poNo = Path.GetFileNameWithoutExtension(item.FileName);
+                string shortName = GetSupplierShortName(poNo);
+                if (!string.IsNullOrEmpty(shortName))
+                {
+                    string ext = Path.GetExtension(item.FileName);
+                    previewFileName = $"{poNo}_{shortName}{ext}";
+                }
+            }
+            item.FinalName = ResolveFileName(targetFolder, previewFileName);
+            item.Status = "✅ Sẵn sàng";
             return item;
         }
 
@@ -493,14 +598,30 @@ namespace MPR_Managerment.Forms
             {
                 try
                 {
-                    // Tính lại FinalName tại thời điểm thực hiện (tránh race condition)
-                    string finalName = ResolveFileName(item.TargetFolder, item.FileName);
-                    string dest = Path.Combine(item.TargetFolder, finalName);
+                    string destFileName = item.FinalName ?? item.FileName;
+
+                    // ── File PO: lấy PONo từ FinalName (bỏ extension) → tìm NCC ──
+                    if (item.FileType == "PO")
+                    {
+                        // PONo = FinalName không có extension
+                        // VD: "DV-GHA-PC-067.pdf" → "DV-GHA-PC-067"
+                        string poNo = Path.GetFileNameWithoutExtension(item.FinalName ?? item.FileName);
+                        string shortName = GetSupplierShortName(poNo);
+
+                        if (!string.IsNullOrEmpty(shortName))
+                        {
+                            string ext = Path.GetExtension(item.FileName);
+                            destFileName = $"{poNo}_{shortName}{ext}";
+                        }
+                    }
+
+                    destFileName = ResolveFileName(item.TargetFolder, destFileName);
+                    string dest = Path.Combine(item.TargetFolder, destFileName);
 
                     if (!preview)
                         File.Move(item.SourcePath, dest);
 
-                    item.FinalName = finalName;
+                    item.FinalName = destFileName;
                     item.Status = preview ? "🔍 Preview OK" : "✅ Đã di chuyển";
                     log.AppendLine($"OK  | {item.FileType,-3} | {item.FileName}");
                     log.AppendLine($"      → {dest}");
@@ -599,6 +720,57 @@ namespace MPR_Managerment.Forms
         /// <summary>
         /// Nếu file đã tồn tại trong thư mục đích → thêm _1, _2... cho đến khi không trùng.
         /// </summary>
+        /// <summary>
+        /// Trích PONo từ tên file PO.
+        /// VD: "DV-GHA-PC-067_scan.pdf" → "DV-GHA-PC-067"
+        /// </summary>
+        private string ExtractPONo(string fileName)
+        {
+            // PONo dạng DV-{POCode}-PC-{số} — lấy phần này từ tên file
+            var m = RexPO.Match(fileName);
+            if (!m.Success) return null;
+
+            // Reconstruct PONo = DV-{group1}-PC-{số}
+            // Lấy toàn bộ match trước dấu _ hoặc khoảng trắng hoặc hết
+            string raw = Path.GetFileNameWithoutExtension(fileName);
+            // Tìm vị trí match và lấy đúng độ dài
+            int start = m.Index;
+            // Tìm ký tự kết thúc PONo (dấu _ hoặc khoảng trắng hoặc hết chuỗi)
+            int end = m.Index + m.Length;
+            // m.Length bao gồm cả số PO → đây chính là PONo đầy đủ
+            return raw.Substring(start, Math.Min(end, raw.Length) - start);
+        }
+
+        /// <summary>
+        /// Lấy Short_Name của NCC từ DB theo PONo.
+        /// Query: PO_head JOIN Suppliers WHERE PONo = @poNo
+        /// </summary>
+        private string GetSupplierShortName(string poNo)
+        {
+            if (string.IsNullOrEmpty(poNo)) return null;
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    SELECT TOP 1 ISNULL(s.Short_Name, s.Company_Name)
+                    FROM   PO_head   h
+                    JOIN   Suppliers s ON s.Supplier_ID = h.Supplier_ID
+                    WHERE  h.PONo = @poNo
+                    ORDER  BY h.Revise DESC", conn);
+                cmd.Parameters.AddWithValue("@poNo", poNo);
+                string result = cmd.ExecuteScalar()?.ToString();
+
+                // Loại bỏ ký tự không hợp lệ trong tên file
+                if (!string.IsNullOrEmpty(result))
+                    result = string.Concat(result
+                        .Split(Path.GetInvalidFileNameChars()))
+                        .Trim();
+                return result;
+            }
+            catch { return null; }
+        }
+
         private static string ResolveFileName(string folder, string fileName)
         {
             if (!File.Exists(Path.Combine(folder, fileName)))
