@@ -2,6 +2,8 @@
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using OfficeOpenXml;
+using Syncfusion.XlsIO;
 using Syncfusion.XlsIO.Parser.Biff_Records.ObjRecords;
 using System;
 using System.Collections.Generic;
@@ -9,6 +11,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Net.WebSockets;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -23,6 +26,7 @@ namespace MPR_Managerment.Forms.RIRGUI
 
         private WarehouseService _warehouseServies = new WarehouseService();
         private RIRService _service = new RIRService();
+        private ProjectService _projectServices = new ProjectService();
 
         private List<RIRDetail> _details = new List<RIRDetail>();
 
@@ -33,6 +37,11 @@ namespace MPR_Managerment.Forms.RIRGUI
         private List<int> lstRootItem = new List<int>();
         private int _rirId = 0;
         private List<int> lstRemoveItem = new List<int>();
+
+        private DataTable _dtProjectMaterial = new DataTable();
+        private DataTable _dtProjectPaint = new DataTable();
+        private DataTable _dtProjectWelding = new DataTable();
+        private bool _isLoaded = false;
 
         public ucRIRForQC()
         {
@@ -46,17 +55,26 @@ namespace MPR_Managerment.Forms.RIRGUI
             dgvRIR.Font = new Font("Segoe UI", 9);
             dgvRIR.AllowUserToAddRows = false;
             dgvRIR.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvRIR.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            //dgvRIR.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            dgvRIR.Dock = DockStyle.Fill;
             dgvRIR.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
             dgvRIR.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvRIR.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvRIR.EnableHeadersVisualStyles = false;
             dgvRIR.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
 
-            txtSearch.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { btnSearch.PerformClick(); ev.SuppressKeyPress = true; } };
+            //txtSearch.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { btnSearch.PerformClick(); ev.SuppressKeyPress = true; } };
 
             CreateContextMenuStripForGrid();
+        }
 
+        private async void ucRIRForQC_Load(object sender, EventArgs e)
+        {
+            var dt = await _projectServices.GetProjects();
+            cboProjectMaterial.DisplayMember = "ProjectCode";
+            cboProjectMaterial.ValueMember = "Id";
+            cboProjectMaterial.DataSource = dt.Copy();
+            _isLoaded = true;
         }
 
         private void CreateContextMenuStripForGrid()
@@ -108,7 +126,7 @@ namespace MPR_Managerment.Forms.RIRGUI
                         Qty_Import = qty,
                         MTRno = mtr,
                         Heatno = heat,
-                        QC_Code = qc_code, 
+                        QC_Code = qc_code,
                     };
                     lstItemAdd.Add(wI);
 
@@ -118,7 +136,7 @@ namespace MPR_Managerment.Forms.RIRGUI
                     // Ghi nhận dữ liệu mới -> Tạo dòng mới
                     int idx = dgvRIR.Rows.Add();
                     var row = dgvRIR.Rows[idx];
-                    
+
 
                     row.Cells["RIR_Detail_ID"].Value = currentR.Cells["RIR_Detail_ID"].Value;
                     row.Cells["Item_No"].Value = currentR.Cells["Item_No"].Value;
@@ -213,7 +231,7 @@ namespace MPR_Managerment.Forms.RIRGUI
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Size", HeaderText = "Kích thước", Width = 110, ReadOnly = true, });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT", Width = 55, ReadOnly = true, });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Required", HeaderText = "SL Yêu cầu", Width = 80, ReadOnly = false });
-            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Received", HeaderText = "SL Thực nhận", Width = 85 , Visible = false });
+            dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Received", HeaderText = "SL Thực nhận", Width = 85, Visible = false });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "MTRno", HeaderText = "MTR No", Width = 100, ReadOnly = false, });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "Heatno", HeaderText = "Heat No", Width = 90, ReadOnly = false, });
             dgvRIR.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100 });
@@ -263,7 +281,7 @@ namespace MPR_Managerment.Forms.RIRGUI
         {
             try
             {
-                string kw = txtSearch.Text.Trim();
+                string kw = cboProjectMaterial.Text.Trim();
                 _dtRIRs = await _warehouseServies.GetRIROfProject(kw);
 
                 cboRIRs.DisplayMember = "RIR_No";
@@ -454,11 +472,114 @@ namespace MPR_Managerment.Forms.RIRGUI
 
         private void btnClear_Click(object sender, EventArgs e)
         {
-            txtSearch.Clear();
-            txtSearch.Focus();
             cboRIRs.DataSource = null;
             _details.Clear();
             dgvRIR.Refresh();
+        }
+
+        private void dgvRIR_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+
+        }
+
+        public async void ExportIdCodeListFromDatabase(DataTable dtDetails)
+        {
+            // 1. Kiểm tra file Template
+            string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "raw_material_id_code_template.xlsx");
+            if (!File.Exists(templatePath))
+            {
+                MessageBox.Show("Không tìm thấy file template [2. Raw Material ID Code List.xlsx!]", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // 2. Lấy dữ liệu từ SQL Server
+            // Lấy thông tin Header ra biến để sử dụng
+            string projectName = cboProjectMaterial.Text.Trim().ToUpper();
+
+            if (dtDetails.Rows.Count == 0)
+            {
+                MessageBox.Show("Không tìm thấy thông tin dự án tương ứng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+
+            // 3. Mở hộp thoại lưu file Excel mới
+            SaveFileDialog saveDialog = new SaveFileDialog
+            {
+                Filter = "Excel Files|*.xlsx",
+                FileName = $"ID_Code_List_{projectName}_{DateTime.Now:ddMMyyyy_HHmm}.xlsx",
+                Title = "Lưu file ID Code List"
+            };
+
+            if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                // Sao chép từ template sang vị trí đích mới
+                File.Copy(templatePath, saveDialog.FileName, true);
+                ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
+                using (var package = new ExcelPackage(new FileInfo(saveDialog.FileName)))
+                {
+                    var ws = package.Workbook.Worksheets[0]; // Lấy sheet đầu tiên
+
+                    // --- PHẦN 2: ĐỔ DỮ LIỆU CHI TIẾT VÀO BẢNG ---
+                    int startRow = 6; // Dòng bắt đầu điền item dữ liệu đầu tiên (Dưới hàng tiêu đề)
+                    int detailCount = dtDetails.Rows.Count;
+
+                    // Nếu số dòng dữ liệu nhiều hơn 1 dòng mẫu thiết kế sẵn, tiến hành chèn dòng hàng loạt
+                    if (detailCount > 1)
+                    {
+                        // Chèn thêm (detailCount - 1) dòng bên dưới dòng mẫu, kế thừa định dạng (style) của startRow
+                        ws.InsertRow(startRow + 1, detailCount - 1, startRow);
+                    }
+
+                    // Duyệt danh sách điền dữ liệu vào từng ô tương ứng theo cấu trúc cột của template
+                    for (int i = 0; i < detailCount; i++)
+                    {
+                        DataRow row = dtDetails.Rows[i];
+                        int currentRow = startRow + i;
+                        ws.Cells[currentRow, 2].Value = "";
+                        ws.Cells[currentRow, 3].Value = row["Qty_Per_Sheet"]?.ToString();
+                        ws.Cells[currentRow, 4].Value = row["Size"]?.ToString();
+                        ws.Cells[currentRow, 5].Value = "";
+                        ws.Cells[currentRow, 6].Value = row["Material"]?.ToString();
+                        ws.Cells[currentRow, 7].Value = row["Heatno"]?.ToString();
+                        ws.Cells[currentRow, 8].Value = row["MTRno"]?.ToString();
+                        ws.Cells[currentRow, 9].Value = row["ID_Code"]?.ToString();
+                    }
+                    ws.Cells[startRow, 1, detailCount + startRow - 1, 1].Merge = true;
+                    ws.Cells[startRow, 1].Value = projectName;
+
+                    // Lưu dữ liệu lại vào file
+                    package.Save();
+                }
+                if (MessageBox.Show($"✅ Xuất báo cáo dữ liệu thành công!\nTổng số dòng vật tư: {dtDetails.Rows.Count}\nXuất Excel thành công! Bạn có muốn mở file?", "Thành công", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveDialog.FileName, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi trong quá trình xử lý hoặc ghi file Excel: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async void btnExport_Click(object sender, EventArgs e)
+        {
+            if (!Common.Common.IsComboBoxValid(cboProjectMaterial)) return;
+            var dt = await _service.GetMaterialIDCodeListOfRIRForQC(Convert.ToInt32(cboRIRs.SelectedValue?.ToString()));
+            ExportIdCodeListFromDatabase(dt);
+        }
+
+        private void cboProjectMaterial_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!_isLoaded) return;
+            btnSearch.PerformClick();
+        }
+
+        private async void btnPrintReportMaterial_Click(object sender, EventArgs e)
+        {
+            var dt = await _service.GetMaterialIDCodeListOfProjectForQC(cboProjectMaterial.Text);
+            ExportIdCodeListFromDatabase(dt);
         }
     }
 }

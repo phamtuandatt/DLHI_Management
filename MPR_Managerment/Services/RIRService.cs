@@ -146,6 +146,22 @@ namespace MPR_Managerment.Services
 
         public async Task<DataTable> GetDetailsToExport(int rirId)
         {
+            //using (SqlConnection conn = new SqlConnection(connectionString))
+            //{
+            //    conn.Open();
+            //    // Lấy thông tin dự án (Header)
+            //    using (SqlCommand cmd = new SqlCommand(headerQuery, conn))
+            //    {
+            //        cmd.Parameters.AddWithValue("@ProjectId", projectId);
+            //        using (SqlDataAdapter da = new SqlDataAdapter(cmd)) { da.Fill(dtHeader); }
+            //    }
+            //    // Lấy danh sách vật tư chi tiết (Details)
+            //    using (SqlCommand cmd = new SqlCommand(detailsQuery, conn))
+            //    {
+            //        cmd.Parameters.AddWithValue("@ProjectId", projectId);
+            //        using (SqlDataAdapter da = new SqlDataAdapter(cmd)) { da.Fill(dtDetails); }
+            //    }
+            //}
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
                 var cmd = new SqlCommand(@"
@@ -157,6 +173,45 @@ namespace MPR_Managerment.Services
                     ORDER BY Item_No", conn);
                 cmd.Parameters.AddWithValue("@rirId", rirId);
                 //cmd.Parameters.AddWithValue("@catId", cateId);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetMaterialIDCodeListOfProjectForQC(string project_code = "")
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                string sql = "SELECT Qty_Per_Sheet, Size, Material, Heatno, MTRno, ID_Code FROM RIR_detail INNER JOIN RIR_head on RIR_detail.RIR_ID = RIR_head.RIR_ID WHERE 1=1";
+                if (!string.IsNullOrEmpty(project_code))
+                    sql += $"AND RIR_head.Project_Name LIKE '%{project_code}%' OR RIR_head.WorkorderNo LIKE '%{project_code}%' OR RIR_head.MPR_No LIKE '%{project_code}%' ";
+
+                var cmd = new SqlCommand(sql, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetMaterialIDCodeListOfRIRForQC(int rir_id)
+        {
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                string sql = $"SELECT Qty_Per_Sheet, Size, Material, Heatno, MTRno, ID_Code FROM RIR_detail INNER JOIN RIR_head on RIR_detail.RIR_ID = RIR_head.RIR_ID WHERE RIR_detail.RIR_ID = {rir_id}";
+                var cmd = new SqlCommand(sql, conn);
 
                 DataTable dt = new DataTable();
                 await conn.OpenAsync(); // Mở kết nối ngầm

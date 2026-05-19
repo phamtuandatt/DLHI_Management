@@ -68,6 +68,9 @@
     <None Update="Templates\pxk_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Templates\raw_material_id_code_template.xlsx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Templates\rir_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

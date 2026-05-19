@@ -29,32 +29,47 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
-            txtSearch = new TextBox();
+            cboProjectMaterial = new ComboBox();
             btnSearch = new Button();
+            btnPrintReportMaterial = new Button();
             cboRIRs = new ComboBox();
             lblCountRIR = new Label();
             label1 = new Label();
             label2 = new Label();
             groupBox2 = new GroupBox();
             panel3 = new Panel();
+            tableLayoutPanel1 = new TableLayoutPanel();
             dgvRIR = new DataGridView();
+            tableLayoutPanel2 = new TableLayoutPanel();
+            groupBox1 = new GroupBox();
+            dgvPaint = new DataGridView();
+            groupBox3 = new GroupBox();
+            dgvWelding = new DataGridView();
             panel2 = new Panel();
             btnSave = new Button();
             label5 = new Label();
+            btnExport = new Button();
             btnClear = new Button();
             lblStatus = new Label();
             btnXoaRow = new Button();
             panel1.SuspendLayout();
             groupBox2.SuspendLayout();
             panel3.SuspendLayout();
+            tableLayoutPanel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvRIR).BeginInit();
+            tableLayoutPanel2.SuspendLayout();
+            groupBox1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvPaint).BeginInit();
+            groupBox3.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvWelding).BeginInit();
             panel2.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
             // 
-            panel1.Controls.Add(txtSearch);
+            panel1.Controls.Add(cboProjectMaterial);
             panel1.Controls.Add(btnSearch);
+            panel1.Controls.Add(btnPrintReportMaterial);
             panel1.Controls.Add(cboRIRs);
             panel1.Controls.Add(lblCountRIR);
             panel1.Controls.Add(label1);
@@ -65,13 +80,17 @@
             panel1.Size = new Size(1220, 38);
             panel1.TabIndex = 0;
             // 
-            // txtSearch
+            // cboProjectMaterial
             // 
-            txtSearch.Location = new Point(70, 8);
-            txtSearch.Margin = new Padding(3, 2, 3, 2);
-            txtSearch.Name = "txtSearch";
-            txtSearch.Size = new Size(236, 23);
-            txtSearch.TabIndex = 8;
+            cboProjectMaterial.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            cboProjectMaterial.AutoCompleteSource = AutoCompleteSource.ListItems;
+            cboProjectMaterial.FormattingEnabled = true;
+            cboProjectMaterial.Location = new Point(71, 8);
+            cboProjectMaterial.Margin = new Padding(3, 2, 3, 2);
+            cboProjectMaterial.Name = "cboProjectMaterial";
+            cboProjectMaterial.Size = new Size(243, 23);
+            cboProjectMaterial.TabIndex = 8;
+            cboProjectMaterial.SelectedIndexChanged += cboProjectMaterial_SelectedIndexChanged;
             // 
             // btnSearch
             // 
@@ -87,6 +106,21 @@
             btnSearch.Text = "🔍 Tìm kiếm";
             btnSearch.UseVisualStyleBackColor = false;
             btnSearch.Click += btnSearch_Click;
+            // 
+            // btnPrintReportMaterial
+            // 
+            btnPrintReportMaterial.BackColor = Color.ForestGreen;
+            btnPrintReportMaterial.FlatStyle = FlatStyle.Flat;
+            btnPrintReportMaterial.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnPrintReportMaterial.ForeColor = Color.White;
+            btnPrintReportMaterial.Location = new Point(902, 5);
+            btnPrintReportMaterial.Margin = new Padding(3, 2, 3, 2);
+            btnPrintReportMaterial.Name = "btnPrintReportMaterial";
+            btnPrintReportMaterial.Size = new Size(159, 29);
+            btnPrintReportMaterial.TabIndex = 4;
+            btnPrintReportMaterial.Text = "📄 In báo cáo vật tư";
+            btnPrintReportMaterial.UseVisualStyleBackColor = false;
+            btnPrintReportMaterial.Click += btnPrintReportMaterial_Click;
             // 
             // cboRIRs
             // 
@@ -146,12 +180,27 @@
             // 
             // panel3
             // 
-            panel3.Controls.Add(dgvRIR);
+            panel3.Controls.Add(tableLayoutPanel1);
             panel3.Dock = DockStyle.Fill;
             panel3.Location = new Point(3, 56);
             panel3.Name = "panel3";
             panel3.Size = new Size(1214, 575);
             panel3.TabIndex = 7;
+            // 
+            // tableLayoutPanel1
+            // 
+            tableLayoutPanel1.ColumnCount = 1;
+            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel1.Controls.Add(dgvRIR, 0, 0);
+            tableLayoutPanel1.Controls.Add(tableLayoutPanel2, 0, 1);
+            tableLayoutPanel1.Dock = DockStyle.Fill;
+            tableLayoutPanel1.Location = new Point(0, 0);
+            tableLayoutPanel1.Name = "tableLayoutPanel1";
+            tableLayoutPanel1.RowCount = 2;
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 39.47826F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 60.52174F));
+            tableLayoutPanel1.Size = new Size(1214, 575);
+            tableLayoutPanel1.TabIndex = 6;
             // 
             // dgvRIR
             // 
@@ -163,20 +212,93 @@
             dgvRIR.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
             dgvRIR.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvRIR.Dock = DockStyle.Fill;
-            dgvRIR.Location = new Point(0, 0);
+            dgvRIR.Location = new Point(3, 2);
             dgvRIR.Margin = new Padding(3, 2, 3, 2);
             dgvRIR.Name = "dgvRIR";
             dgvRIR.RowHeadersWidth = 51;
-            dgvRIR.Size = new Size(1214, 575);
+            dgvRIR.Size = new Size(1208, 223);
             dgvRIR.TabIndex = 5;
+            dgvRIR.CellContentClick += dgvRIR_CellContentClick;
             dgvRIR.CellEndEdit += dgvRIR_CellEndEdit;
             dgvRIR.CellFormatting += dgvRIR_CellFormatting;
             dgvRIR.EditingControlShowing += dgvRIR_EditingControlShowing;
+            // 
+            // tableLayoutPanel2
+            // 
+            tableLayoutPanel2.ColumnCount = 2;
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel2.Controls.Add(groupBox1, 0, 0);
+            tableLayoutPanel2.Controls.Add(groupBox3, 1, 0);
+            tableLayoutPanel2.Dock = DockStyle.Fill;
+            tableLayoutPanel2.Location = new Point(3, 230);
+            tableLayoutPanel2.Name = "tableLayoutPanel2";
+            tableLayoutPanel2.RowCount = 1;
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tableLayoutPanel2.Size = new Size(1208, 342);
+            tableLayoutPanel2.TabIndex = 6;
+            // 
+            // groupBox1
+            // 
+            groupBox1.Controls.Add(dgvPaint);
+            groupBox1.Dock = DockStyle.Fill;
+            groupBox1.Location = new Point(3, 3);
+            groupBox1.Name = "groupBox1";
+            groupBox1.Size = new Size(598, 336);
+            groupBox1.TabIndex = 0;
+            groupBox1.TabStop = false;
+            groupBox1.Text = "Danh sách sơn";
+            // 
+            // dgvPaint
+            // 
+            dgvPaint.AllowUserToAddRows = false;
+            dgvPaint.AllowUserToDeleteRows = false;
+            dgvPaint.AllowUserToOrderColumns = true;
+            dgvPaint.BackgroundColor = Color.White;
+            dgvPaint.BorderStyle = BorderStyle.None;
+            dgvPaint.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
+            dgvPaint.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvPaint.Dock = DockStyle.Fill;
+            dgvPaint.Location = new Point(3, 19);
+            dgvPaint.Margin = new Padding(3, 2, 3, 2);
+            dgvPaint.Name = "dgvPaint";
+            dgvPaint.RowHeadersWidth = 51;
+            dgvPaint.Size = new Size(592, 314);
+            dgvPaint.TabIndex = 6;
+            // 
+            // groupBox3
+            // 
+            groupBox3.Controls.Add(dgvWelding);
+            groupBox3.Dock = DockStyle.Fill;
+            groupBox3.Location = new Point(607, 3);
+            groupBox3.Name = "groupBox3";
+            groupBox3.Size = new Size(598, 336);
+            groupBox3.TabIndex = 0;
+            groupBox3.TabStop = false;
+            groupBox3.Text = "Danh sách que hàn";
+            // 
+            // dgvWelding
+            // 
+            dgvWelding.AllowUserToAddRows = false;
+            dgvWelding.AllowUserToDeleteRows = false;
+            dgvWelding.AllowUserToOrderColumns = true;
+            dgvWelding.BackgroundColor = Color.White;
+            dgvWelding.BorderStyle = BorderStyle.None;
+            dgvWelding.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
+            dgvWelding.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvWelding.Dock = DockStyle.Fill;
+            dgvWelding.Location = new Point(3, 19);
+            dgvWelding.Margin = new Padding(3, 2, 3, 2);
+            dgvWelding.Name = "dgvWelding";
+            dgvWelding.RowHeadersWidth = 51;
+            dgvWelding.Size = new Size(592, 314);
+            dgvWelding.TabIndex = 6;
             // 
             // panel2
             // 
             panel2.Controls.Add(btnSave);
             panel2.Controls.Add(label5);
+            panel2.Controls.Add(btnExport);
             panel2.Controls.Add(btnClear);
             panel2.Controls.Add(lblStatus);
             panel2.Dock = DockStyle.Top;
@@ -211,6 +333,22 @@
             label5.Size = new Size(182, 21);
             label5.TabIndex = 0;
             label5.Text = "THÔNG TIN XUẤT KHO";
+            // 
+            // btnExport
+            // 
+            btnExport.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+            btnExport.BackColor = Color.ForestGreen;
+            btnExport.FlatStyle = FlatStyle.Flat;
+            btnExport.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnExport.ForeColor = Color.White;
+            btnExport.Location = new Point(1097, 4);
+            btnExport.Margin = new Padding(3, 2, 3, 2);
+            btnExport.Name = "btnExport";
+            btnExport.Size = new Size(109, 29);
+            btnExport.TabIndex = 4;
+            btnExport.Text = "📄 Xuất Excel";
+            btnExport.UseVisualStyleBackColor = false;
+            btnExport.Click += btnExport_Click;
             // 
             // btnClear
             // 
@@ -261,11 +399,18 @@
             Controls.Add(panel1);
             Name = "ucRIRForQC";
             Size = new Size(1220, 671);
+            Load += ucRIRForQC_Load;
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
             groupBox2.ResumeLayout(false);
             panel3.ResumeLayout(false);
+            tableLayoutPanel1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dgvRIR).EndInit();
+            tableLayoutPanel2.ResumeLayout(false);
+            groupBox1.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvPaint).EndInit();
+            groupBox3.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvWelding).EndInit();
             panel2.ResumeLayout(false);
             panel2.PerformLayout();
             ResumeLayout(false);
@@ -287,7 +432,15 @@
         private Label label5;
         private Panel panel3;
         private Panel panel2;
-        private TextBox txtSearch;
         private Label lblCountRIR;
+        private TableLayoutPanel tableLayoutPanel1;
+        private TableLayoutPanel tableLayoutPanel2;
+        private GroupBox groupBox1;
+        private DataGridView dgvPaint;
+        private GroupBox groupBox3;
+        private DataGridView dgvWelding;
+        private Button btnExport;
+        private ComboBox cboProjectMaterial;
+        private Button btnPrintReportMaterial;
     }
 }
