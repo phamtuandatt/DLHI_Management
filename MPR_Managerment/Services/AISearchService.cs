@@ -127,24 +127,52 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
         // ════════════════════════════════════════════════════════════════════
 
         /// <summary>Lấy tất cả quy tắc đang hoạt động từ DB.</summary>
-        public static List<(int Id, string Rule)> GetMemories()
+        // ── Cache memory để tránh query DB mỗi lần gọi prompt ────────────
+        private static List<(int Id, string Rule)> _memoryCache = null;
+        private static DateTime _memoryCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan CACHE_TTL = TimeSpan.FromMinutes(5);
+
+        public static List<(int Id, string Rule)> GetMemories(bool forceRefresh = false)
         {
+            // Trả cache nếu còn mới
+            if (!forceRefresh && _memoryCache != null
+                && DateTime.Now - _memoryCacheTime < CACHE_TTL)
+                return _memoryCache;
+
             var result = new List<(int, string)>();
             try
             {
-                using var conn = DatabaseHelper.GetConnection();
+                // Dùng connection string riêng với MARS=true
+                var builder = new SqlConnectionStringBuilder(
+                    DatabaseHelper.GetConnection().ConnectionString)
+                {
+                    MultipleActiveResultSets = true,
+                    ApplicationName = "MPR_AI_Memory"
+                };
+                using var conn = new SqlConnection(builder.ConnectionString);
                 conn.Open();
-                var cmd = new SqlCommand(
-                    "SELECT Memory_ID, Rule_Text FROM AI_Memory WHERE Is_Active = 1 ORDER BY Memory_ID",
-                    conn);
                 var dt = new System.Data.DataTable();
-                new SqlDataAdapter(cmd).Fill(dt);
+                new SqlDataAdapter(
+                    new SqlCommand(
+                        "SELECT Memory_ID, Rule_Text FROM AI_Memory " +
+                        "WHERE Is_Active = 1 ORDER BY Memory_ID", conn)).Fill(dt);
                 foreach (System.Data.DataRow r in dt.Rows)
                     result.Add((Convert.ToInt32(r["Memory_ID"]), r["Rule_Text"].ToString()));
+
+                // Cập nhật cache
+                _memoryCache = result;
+                _memoryCacheTime = DateTime.Now;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AI_Memory] GetMemories lỗi: {ex.Message}");
+                // Nếu bảng chưa tạo → trả rỗng, không crash
+            }
             return result;
         }
+
+        // Invalidate cache sau mỗi thao tác thêm/xóa
+        private static void InvalidateMemoryCache() => _memoryCache = null;
 
         /// <summary>Thêm quy tắc mới vào DB.</summary>
         public static string AddMemory(string rule, string createdBy = "User")
@@ -153,8 +181,12 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
             if (string.IsNullOrEmpty(rule)) return "⚠️ Quy tắc trống, không lưu.";
             try
             {
-                using var conn = DatabaseHelper.GetConnection();
+                var builder = new SqlConnectionStringBuilder(
+                    DatabaseHelper.GetConnection().ConnectionString)
+                { MultipleActiveResultSets = true, ApplicationName = "MPR_AI_Memory" };
+                using var conn = new SqlConnection(builder.ConnectionString);
                 conn.Open();
+
                 // Kiểm tra trùng
                 var chk = new SqlCommand(
                     "SELECT COUNT(*) FROM AI_Memory WHERE Rule_Text = @r AND Is_Active = 1", conn);
@@ -167,6 +199,8 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
                 ins.Parameters.AddWithValue("@r", rule);
                 ins.Parameters.AddWithValue("@u", createdBy);
                 ins.ExecuteNonQuery();
+
+                InvalidateMemoryCache(); // Xóa cache để lần sau lấy mới
                 return $"✅ Đã ghi nhớ: \"{rule}\"";
             }
             catch (Exception ex) { return $"⚠️ Lỗi lưu bộ nhớ: {ex.Message}"; }
@@ -177,8 +211,12 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
         {
             try
             {
-                using var conn = DatabaseHelper.GetConnection();
+                var builder = new SqlConnectionStringBuilder(
+                    DatabaseHelper.GetConnection().ConnectionString)
+                { MultipleActiveResultSets = true, ApplicationName = "MPR_AI_Memory" };
+                using var conn = new SqlConnection(builder.ConnectionString);
                 conn.Open();
+
                 var get = new SqlCommand(
                     "SELECT Rule_Text FROM AI_Memory WHERE Memory_ID = @id", conn);
                 get.Parameters.AddWithValue("@id", memoryId);
@@ -188,6 +226,8 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
                     "UPDATE AI_Memory SET Is_Active = 0 WHERE Memory_ID = @id", conn);
                 del.Parameters.AddWithValue("@id", memoryId);
                 del.ExecuteNonQuery();
+
+                InvalidateMemoryCache();
                 return $"✅ Đã xóa: \"{rule}\"";
             }
             catch (Exception ex) { return $"⚠️ Lỗi xóa: {ex.Message}"; }
@@ -198,9 +238,13 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
         {
             try
             {
-                using var conn = DatabaseHelper.GetConnection();
+                var builder = new SqlConnectionStringBuilder(
+                    DatabaseHelper.GetConnection().ConnectionString)
+                { MultipleActiveResultSets = true, ApplicationName = "MPR_AI_Memory" };
+                using var conn = new SqlConnection(builder.ConnectionString);
                 conn.Open();
                 new SqlCommand("UPDATE AI_Memory SET Is_Active = 0", conn).ExecuteNonQuery();
+                InvalidateMemoryCache();
                 return "✅ Đã xóa toàn bộ quy tắc.";
             }
             catch (Exception ex) { return $"⚠️ Lỗi: {ex.Message}"; }
@@ -212,10 +256,10 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
             var mems = GetMemories();
             if (mems.Count == 0) return "";
             var sb = new StringBuilder();
-            sb.AppendLine("=== QUY TẮC TRUY XUẤT DỮ LIỆU (bắt buộc tuân theo) ===");
+            sb.AppendLine("=== QUY TẮC TRUY XUẤT DỮ LIỆU (bắt buộc tuân theo khi viết SQL) ===");
             foreach (var (_, rule) in mems)
                 sb.AppendLine($"- {rule}");
-            sb.AppendLine("===");
+            sb.AppendLine("==========================================================");
             return sb.ToString();
         }
 
@@ -755,6 +799,90 @@ Trả lời:";
             return answer;
         }
 
+
+        // ════════════════════════════════════════════════════════════════════
+        // BOOKMARK — lưu câu hỏi yêu thích vào bảng AI_Bookmark (DB)
+        // ════════════════════════════════════════════════════════════════════
+
+        private static SqlConnection CreateBookmarkConn()
+        {
+            var b = new SqlConnectionStringBuilder(
+                DatabaseHelper.GetConnection().ConnectionString)
+            { MultipleActiveResultSets = true, ApplicationName = "MPR_AI_Bookmark" };
+            return new SqlConnection(b.ConnectionString);
+        }
+
+        public static List<(int Id, string Question)> GetBookmarks()
+        {
+            var result = new List<(int, string)>();
+            try
+            {
+                using var conn = CreateBookmarkConn();
+                conn.Open();
+                var dt = new System.Data.DataTable();
+                new SqlDataAdapter(new SqlCommand(
+                    "SELECT Bookmark_ID, Question FROM AI_Bookmark " +
+                    "WHERE Is_Active = 1 ORDER BY Created_Date DESC", conn)).Fill(dt);
+                foreach (System.Data.DataRow r in dt.Rows)
+                    result.Add((Convert.ToInt32(r["Bookmark_ID"]), r["Question"].ToString()));
+            }
+            catch (Exception ex)
+            { System.Diagnostics.Debug.WriteLine($"[AI_Bookmark] {ex.Message}"); }
+            return result;
+        }
+
+        public static string AddBookmark(string question)
+        {
+            question = question?.Trim() ?? "";
+            if (string.IsNullOrEmpty(question)) return "⚠️ Câu hỏi trống.";
+            try
+            {
+                using var conn = CreateBookmarkConn();
+                conn.Open();
+                var chk = new SqlCommand(
+                    "SELECT COUNT(*) FROM AI_Bookmark WHERE Question = @q AND Is_Active = 1", conn);
+                chk.Parameters.AddWithValue("@q", question);
+                if (Convert.ToInt32(chk.ExecuteScalar()) > 0)
+                    return "⭐ Câu hỏi đã có trong bookmark.";
+                var ins = new SqlCommand(
+                    "INSERT INTO AI_Bookmark (Question) VALUES (@q)", conn);
+                ins.Parameters.AddWithValue("@q", question);
+                ins.ExecuteNonQuery();
+                return $"⭐ Đã lưu bookmark: \"{question}\"";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi: {ex.Message}"; }
+        }
+
+        public static string RemoveBookmark(int bookmarkId)
+        {
+            try
+            {
+                using var conn = CreateBookmarkConn();
+                conn.Open();
+                var get = new SqlCommand(
+                    "SELECT Question FROM AI_Bookmark WHERE Bookmark_ID = @id", conn);
+                get.Parameters.AddWithValue("@id", bookmarkId);
+                string q = get.ExecuteScalar()?.ToString() ?? "";
+                var del = new SqlCommand(
+                    "UPDATE AI_Bookmark SET Is_Active = 0 WHERE Bookmark_ID = @id", conn);
+                del.Parameters.AddWithValue("@id", bookmarkId);
+                del.ExecuteNonQuery();
+                return $"✅ Đã xóa: \"{q}\"";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi: {ex.Message}"; }
+        }
+
+        public static string ClearBookmarks()
+        {
+            try
+            {
+                using var conn = CreateBookmarkConn();
+                conn.Open();
+                new SqlCommand("UPDATE AI_Bookmark SET Is_Active = 0", conn).ExecuteNonQuery();
+                return "✅ Đã xóa tất cả bookmark.";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi: {ex.Message}"; }
+        }
 
         private string BuildHistoryContext(int lastN)
         {

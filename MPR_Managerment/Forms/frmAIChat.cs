@@ -174,7 +174,6 @@ namespace MPR_Managerment.Forms
         private Panel _inputPanel; // field để toggle mode có thể truy cập
 
         // ── Tính năng 2: Bookmark query ───────────────────────────────────
-        private static readonly List<string> _bookmarks = new List<string>();
         private bool _summaryShown = false;
 
         // ─────────────────────────────────────────────────────────────────
@@ -503,10 +502,42 @@ namespace MPR_Managerment.Forms
             _lastQuestion = q;
             _txtInput.Clear();
             _txtInput.Focus();
-            _btnExport.Visible = false; // ẩn nút Export khi bắt đầu câu hỏi mới
+            _btnExport.Visible = false;
             AppendMsg("Bạn", q, C_USER_MSG);
-            SetThinking(true);
 
+            // ── Xử lý lệnh ghi nhớ: "nhớ: ..." ──────────────────────────
+            string qLower = q.ToLower();
+            string[] memPrefixes = { "nhớ:", "nhớ ", "ghi nhớ:", "remember:" };
+            foreach (string prefix in memPrefixes)
+            {
+                if (qLower.StartsWith(prefix))
+                {
+                    string rule = q.Substring(prefix.Length).Trim();
+                    if (!string.IsNullOrEmpty(rule))
+                    {
+                        string result = AISearchService.AddMemory(rule);
+                        AISearchService.GetMemories(forceRefresh: true); // refresh cache ngay
+                        AppendMsg("🧠 Bộ nhớ",
+                            result + "\n\nQuy tắc này sẽ được áp dụng vào tất cả câu hỏi tiếp theo.",
+                            Color.FromArgb(168, 85, 247));
+                    }
+                    return;
+                }
+            }
+
+            // ── Lệnh xem bộ nhớ ──────────────────────────────────────────
+            if (qLower == "bộ nhớ" || qLower == "xem bộ nhớ" || qLower == "memory")
+            {
+                var mems = AISearchService.GetMemories(forceRefresh: true);
+                string memList = mems.Count == 0
+                    ? "Chưa có quy tắc nào.\n💡 Nói \"nhớ: [quy tắc]\" để thêm."
+                    : $"📋 Có {mems.Count} quy tắc đang hoạt động:\n" +
+                      string.Join("\n", mems.Select(m => $"  #{m.Id}. {m.Rule}"));
+                AppendMsg("🧠 Bộ nhớ", memList, Color.FromArgb(168, 85, 247));
+                return;
+            }
+
+            SetThinking(true);
             int thinkStart = _rtbChat.TextLength;
             AppendThinking();
 
@@ -725,52 +756,66 @@ namespace MPR_Managerment.Forms
             menu.ForeColor = Color.FromArgb(226, 232, 240);
             menu.RenderMode = ToolStripRenderMode.System;
 
-            // Lưu câu hỏi hiện tại
+            // ── Lưu câu hỏi hiện tại ──
             if (!string.IsNullOrEmpty(_lastQuestion))
             {
-                var save = new ToolStripMenuItem($"⭐ Lưu: \"{_lastQuestion.Substring(0, Math.Min(40, _lastQuestion.Length))}...\"");
+                string q = _lastQuestion;
+                string label = q.Length > 45 ? q.Substring(0, 42) + "..." : q;
+                var save = new ToolStripMenuItem($"⭐ Lưu: \"{label}\"");
                 save.Click += (s, e) =>
                 {
-                    if (!_bookmarks.Contains(_lastQuestion))
-                    {
-                        _bookmarks.Add(_lastQuestion);
-                        AppendMsg("AI", $"✅ Đã lưu bookmark: \"{_lastQuestion}\"", C_SUBTEXT);
-                    }
-                    else
-                        AppendMsg("AI", "Câu hỏi này đã có trong bookmark rồi.", C_SUBTEXT);
+                    string result = AISearchService.AddBookmark(q);
+                    AppendMsg("⭐ Bookmark", result, Color.FromArgb(234, 179, 8));
                 };
                 menu.Items.Add(save);
                 menu.Items.Add(new ToolStripSeparator());
             }
 
-            // Hiện danh sách bookmark
-            if (_bookmarks.Count == 0)
+            // ── Danh sách bookmark từ DB ──
+            var bookmarks = AISearchService.GetBookmarks();
+            if (bookmarks.Count == 0)
             {
                 menu.Items.Add(new ToolStripMenuItem("(Chưa có bookmark nào)") { Enabled = false });
             }
             else
             {
-                menu.Items.Add(new ToolStripMenuItem("📌 Câu hỏi đã lưu:") { Enabled = false });
-                foreach (string bm in _bookmarks.ToList())
+                menu.Items.Add(new ToolStripMenuItem($"📌 {bookmarks.Count} câu hỏi đã lưu:") { Enabled = false });
+                menu.Items.Add(new ToolStripSeparator());
+                foreach (var (id, question) in bookmarks)
                 {
-                    string bmCopy = bm;
-                    string label = bmCopy.Length > 45 ? bmCopy.Substring(0, 42) + "..." : bmCopy;
-                    var item = new ToolStripMenuItem($"  {label}");
+                    int bmId = id;
+                    string bm = question;
+                    string lbl = bm.Length > 45 ? bm.Substring(0, 42) + "..." : bm;
+                    var item = new ToolStripMenuItem($"  {lbl}");
+
+                    // Click → điền vào input
                     item.Click += (s, e) =>
                     {
-                        _txtInput.Text = bmCopy;
+                        _txtInput.Text = bm;
                         _txtInput.Focus();
                         _txtInput.SelectAll();
                     };
+
+                    // Sub-menu xóa từng bookmark
+                    var del = new ToolStripMenuItem("🗑 Xóa bookmark này");
+                    del.Click += (s, e) =>
+                    {
+                        string result = AISearchService.RemoveBookmark(bmId);
+                        AppendMsg("⭐ Bookmark", result, Color.FromArgb(234, 179, 8));
+                    };
+                    item.DropDownItems.Add(del);
                     menu.Items.Add(item);
                 }
                 menu.Items.Add(new ToolStripSeparator());
-                var clearBm = new ToolStripMenuItem("🗑 Xóa tất cả bookmark");
-                clearBm.Click += (s, e) => { _bookmarks.Clear(); };
-                menu.Items.Add(clearBm);
+                var clearAll = new ToolStripMenuItem("🗑 Xóa tất cả bookmark");
+                clearAll.Click += (s, e) =>
+                {
+                    string result = AISearchService.ClearBookmarks();
+                    AppendMsg("⭐ Bookmark", result, Color.FromArgb(234, 179, 8));
+                };
+                menu.Items.Add(clearAll);
             }
 
-            // Hiện menu ngay dưới nút bookmark
             menu.Show(this, new Point(PANEL_W - 120, 54));
         }
 
