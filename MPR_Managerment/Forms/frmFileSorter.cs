@@ -179,7 +179,6 @@ namespace MPR_Managerment.Forms
                 ("FileName",       "Tên file gốc",    22),
                 ("FileType",       "Loại",             5),
                 ("ExtractedCode",  "Mã trích xuất",   11),
-                ("MatchedProject", "Dự án khớp",      18),
                 ("TargetFolder",   "Thư mục đích",    27),
                 ("FinalName",      "Tên lưu",         13),
                 ("Status",         "Trạng thái",      10),
@@ -187,6 +186,31 @@ namespace MPR_Managerment.Forms
             foreach (var (n, h, w) in cols)
                 _dgv.Columns.Add(new DataGridViewTextBoxColumn
                 { Name = n, HeaderText = h, FillWeight = w });
+
+            // Cột "Dự án khớp" — dùng TextBox + EditingControlShowing để inject ComboBox
+            var colProject = new DataGridViewTextBoxColumn
+            {
+                Name = "MatchedProject",
+                HeaderText = "Dự án khớp ▼",
+                FillWeight = 18,
+            };
+            _dgv.Columns.Insert(3, colProject);
+
+            // Inject ComboBox khi user click vào cột MatchedProject
+            _dgv.EditingControlShowing += (s, e) =>
+            {
+                if (_dgv.CurrentCell?.OwningColumn.Name != "MatchedProject") return;
+                if (e.Control is TextBox tb)
+                {
+                    tb.ReadOnly = true; // không gõ tay, chỉ chọn từ dropdown
+                }
+            };
+            _dgv.CellClick += (s, e) =>
+            {
+                if (e.RowIndex < 0) return;
+                if (_dgv.Columns[e.ColumnIndex].Name != "MatchedProject") return;
+                ShowProjectDropdown(e.RowIndex);
+            };
 
             _dgv.CellFormatting += DgvFormat;
 
@@ -251,6 +275,9 @@ namespace MPR_Managerment.Forms
                 return;
             }
 
+            // Populate ComboBox danh sách dự án cho user chọn tay
+            PopulateProjectCombo();
+
             // Đọc file
             SetStatus("⏳ Đang quét file...");
             string[] files;
@@ -312,21 +339,28 @@ namespace MPR_Managerment.Forms
             string extracted = null;
             bool isMPR = false;
 
-            // ── Thử PO trước: DV-{POCode}-PC-{số} ────────────────────────
-            var mPO = RexPO.Match(fileName);
-            if (mPO.Success)
+            // ── Phân loại theo nội dung tên file ─────────────────────────
+            bool hasMPR = fileName.IndexOf("-MPR-", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool hasPC = fileName.IndexOf("-PC-", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (hasPC && !hasMPR)
             {
-                extracted = mPO.Groups[1].Value; // VD: "GHA"
-                isMPR = false;
+                // ── PO: DV-{POCode}-PC-{số} → trích {POCode} ─────────────
+                var mPO = RexPO.Match(fileName);
+                if (mPO.Success)
+                {
+                    extracted = mPO.Groups[1].Value; // VD: "GHA"
+                    isMPR = false;
+                }
             }
-            else
+            else if (hasMPR)
             {
-                // ── Thử MPR: lấy tất cả trước dấu "-" cuối cùng (kể cả "-")
-                // VD: "DV-SL-2511-ABT-MPR-001" → "DV-SL-2511-ABT-MPR-"
+                // ── MPR: lấy tất cả trước dấu "-" cuối cùng (kể cả "-") ──
+                // VD: "DV-SL-2511-ABT-MPR-001.pdf" → "DV-SL-2511-ABT-MPR-"
                 var mMPR = RexMPR.Match(fileName);
                 if (mMPR.Success)
                 {
-                    extracted = mMPR.Groups[1].Value; // VD: "DV-SL-2511-ABT-MPR-"
+                    extracted = mMPR.Groups[1].Value;
                     isMPR = true;
                 }
             }
@@ -379,10 +413,18 @@ namespace MPR_Managerment.Forms
                 return item;
             }
 
+            item.TargetFolder = targetFolder;
+
+            // PO: đổi thư mục Excel → PDF (scan file lưu vào PDF, không ảnh hưởng DB)
+            if (!isMPR)
+                targetFolder = Regex.Replace(targetFolder,
+                    @"\\Excel$", @"\PDF",
+                    RegexOptions.IgnoreCase);
+
             if (!Directory.Exists(targetFolder))
             {
                 item.TargetFolder = targetFolder;
-                item.Status = "⚠️ Thư mục đích không tồn tại";
+                item.Status = "⚠️ Thư mục PDF không tồn tại";
                 return item;
             }
 
@@ -552,6 +594,107 @@ namespace MPR_Managerment.Forms
                     return candidate;
             }
             return $"{name}_{Guid.NewGuid():N}{ext}";
+        }
+
+        private void PopulateProjectCombo() { } // không còn dùng
+
+        /// <summary>
+        /// Hiện ContextMenuStrip danh sách dự án khi click vào cột "Dự án khớp".
+        /// Dùng ContextMenuStrip thay vì ComboBox — đáng tin cậy hơn trong DataGridView.
+        /// </summary>
+        private void ShowProjectDropdown(int rowIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= _items.Count) return;
+            var item = _items[rowIndex];
+
+            var menu = new ContextMenuStrip();
+            menu.Items.Add(new ToolStripMenuItem("— chưa chọn —")
+            {
+                Tag = (ProjectRec)null
+            });
+            menu.Items.Add(new ToolStripSeparator());
+
+            foreach (var p in _projects)
+            {
+                string code = !string.IsNullOrEmpty(p.POCode) ? p.POCode :
+                                 !string.IsNullOrEmpty(p.MPRCode) ? p.MPRCode : p.WorkorderNo;
+                string display = $"{code}  —  {p.ProjectName}";
+                var mi = new ToolStripMenuItem(display) { Tag = p };
+                menu.Items.Add(mi);
+            }
+
+            menu.ItemClicked += (s, e) =>
+            {
+                var proj = e.ClickedItem.Tag as ProjectRec;
+                ApplyProjectSelection(rowIndex, proj);
+            };
+
+            // Hiện menu tại vị trí cell
+            var cellRect = _dgv.GetCellDisplayRectangle(
+                _dgv.Columns["MatchedProject"].Index, rowIndex, false);
+            menu.Show(_dgv, new Point(cellRect.X, cellRect.Bottom));
+        }
+
+        private void ApplyProjectSelection(int rowIndex, ProjectRec proj)
+        {
+            if (rowIndex < 0 || rowIndex >= _items.Count) return;
+            var item = _items[rowIndex];
+
+            if (proj == null)
+            {
+                item.MatchedProject = "";
+                item.TargetFolder = "-";
+                item.FinalName = item.FileName;
+                item.Status = "❌ Không khớp";
+                RefreshRow(rowIndex);
+                return;
+            }
+
+            bool isMPR = item.FileType == "MPR";
+            string code = !string.IsNullOrEmpty(proj.POCode) ? proj.POCode :
+                                !string.IsNullOrEmpty(proj.MPRCode) ? proj.MPRCode : proj.WorkorderNo;
+            item.MatchedProject = $"{code}  —  {proj.ProjectName}";
+
+            string targetFolder = isMPR ? proj.MPRLink : proj.POLink;
+
+            // PO: đổi \Excel → \PDF
+            if (!isMPR && !string.IsNullOrEmpty(targetFolder))
+                targetFolder = Regex.Replace(targetFolder,
+                    @"\\Excel$", @"\PDF", RegexOptions.IgnoreCase);
+
+            if (string.IsNullOrWhiteSpace(targetFolder))
+            {
+                item.TargetFolder = "(Chưa có Link)";
+                item.Status = "⚠️ Chưa có Link";
+            }
+            else if (!Directory.Exists(targetFolder))
+            {
+                item.TargetFolder = targetFolder;
+                item.Status = "⚠️ Thư mục đích không tồn tại";
+            }
+            else
+            {
+                item.TargetFolder = targetFolder;
+                item.FinalName = ResolveFileName(targetFolder, item.FileName);
+                item.Status = item.FinalName != item.FileName
+                    ? "⚠️ Đổi tên" : "✅ Sẵn sàng";
+            }
+
+            RefreshRow(rowIndex);
+            _btnRun.Enabled = _items.Any(i =>
+                i.Status == "✅ Sẵn sàng" || i.Status == "⚠️ Đổi tên");
+        }
+
+        private void RefreshRow(int rowIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= _dgv.Rows.Count) return;
+            var item = _items[rowIndex];
+            var row = _dgv.Rows[rowIndex];
+            row.Cells["MatchedProject"].Value = item.MatchedProject ?? "-";
+            row.Cells["TargetFolder"].Value = item.TargetFolder ?? "-";
+            row.Cells["FinalName"].Value = item.FinalName ?? item.FileName;
+            row.Cells["Status"].Value = item.Status;
+            _dgv.InvalidateRow(rowIndex);
         }
 
         private void RefreshGrid()
