@@ -881,16 +881,24 @@ namespace MPR_Managerment.Forms
         {
             // Xác định MPR nào là "mới nhất" trong mỗi nhóm cùng MPR_No
             // Dùng decimal để sort Rev an toàn kể cả khi Rev lưu dạng "0.40", "01", "1"
+            // Build mapping baseKey -> max Rev and corresponding MPR_ID
             var latestIds = new HashSet<int>();
-            foreach (var g in list.GroupBy(m => m.MPR_No))
+            var groups = new Dictionary<string, (int MaxRev, int MprId)>();
+            foreach (var m in list)
             {
-                latestIds.Add(g.OrderByDescending(m =>
+                string baseNo = !string.IsNullOrEmpty(m.MPR_No) && m.MPR_No.Contains("_Rev.")
+                    ? m.MPR_No.Substring(0, m.MPR_No.IndexOf("_Rev."))
+                    : (m.MPR_No ?? "");
+                string key = (m.Project_Code ?? "") + "||" + baseNo;
+                int revVal = 0;
+                try { revVal = Convert.ToInt32(m.Rev); } catch { revVal = 0; }
+                if (!groups.TryGetValue(key, out var cur) || revVal > cur.MaxRev)
                 {
-                    // Rev có thể là int hoặc object từ DB varchar "0.40" → parse an toàn
-                    try { return Convert.ToDecimal(m.Rev); }
-                    catch { return 0m; }
-                }).First().MPR_ID);
+                    groups[key] = (revVal, m.MPR_ID);
+                }
             }
+            // collect latest ids
+            foreach (var kv in groups) latestIds.Add(kv.Value.MprId);
 
             dgvMPR.DataSource = list.ConvertAll(m => new
             {
@@ -911,12 +919,21 @@ namespace MPR_Managerment.Forms
             if (dgvMPR.Columns.Contains("_IsLatest"))
                 dgvMPR.Columns["_IsLatest"].Visible = false;
 
-            // Tô màu xám (chỉ đọc) dòng Rev cũ — vẫn hiển thị trong danh sách
+            // Tô màu xám (chỉ đọc) cho các bản nằm giữa (Rev > 1 && Rev < MaxRev) — vẫn hiển thị trong danh sách
             foreach (DataGridViewRow row in dgvMPR.Rows)
             {
                 if (row.IsNewRow) continue;
                 bool isLatest = Convert.ToInt32(row.Cells["_IsLatest"].Value) == 1;
-                if (!isLatest)
+                // Lấy Rev và base key để tra MaxRev
+                string mprNo = row.Cells["MPR_No"].Value?.ToString() ?? "";
+                string projCode = row.Cells["Ma_Du_An"].Value?.ToString() ?? "";
+                int revVal = 0; int.TryParse(row.Cells["Rev"].Value?.ToString(), out revVal);
+                string baseNo = !string.IsNullOrEmpty(mprNo) && mprNo.Contains("_Rev.") ? mprNo.Substring(0, mprNo.IndexOf("_Rev.")) : mprNo;
+                string key = projCode + "||" + baseNo;
+                int maxRev = groups.TryGetValue(key, out var gp) ? gp.MaxRev : revVal;
+
+                bool shouldGray = !isLatest && revVal > 1 && revVal < maxRev;
+                if (shouldGray)
                 {
                     row.ReadOnly = true;
                     foreach (DataGridViewCell cell in row.Cells)
@@ -924,6 +941,17 @@ namespace MPR_Managerment.Forms
                         cell.Style.ForeColor = Color.FromArgb(160, 160, 160);
                         cell.Style.BackColor = Color.FromArgb(245, 245, 245);
                         cell.Style.Font = new Font("Segoe UI", 9, FontStyle.Italic);
+                    }
+                }
+                else
+                {
+                    // ensure default style for rows that should be editable
+                    row.ReadOnly = false;
+                    foreach (DataGridViewCell cell in row.Cells)
+                    {
+                        cell.Style.ForeColor = Color.Black;
+                        cell.Style.BackColor = Color.White;
+                        cell.Style.Font = new Font("Segoe UI", 9, FontStyle.Regular);
                     }
                 }
             }
@@ -2237,27 +2265,58 @@ namespace MPR_Managerment.Forms
                     "ORDER BY ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) DESC, MPR_No", conn);
                 cmd.Parameters.AddWithValue("@code", projCode);
                 using var rdr = cmd.ExecuteReader();
-                int latestRowIdx = -1;
+                var temp = new List<(int Id, string No, int Rev)>();
                 while (rdr.Read())
                 {
+                    temp.Add((Convert.ToInt32(rdr["MPR_ID"]), rdr["MPR_No"]?.ToString() ?? "", Convert.ToInt32(rdr["Rev"])));
+                }
+                rdr.Close();
+
+                // Determine latest per (Project_Code, baseNo)
+                var groups = new Dictionary<string, (int MaxRev, int MprId)>();
+                foreach (var t in temp)
+                {
+                    string baseNo = !string.IsNullOrEmpty(t.No) && t.No.Contains("_Rev.")
+                        ? t.No.Substring(0, t.No.IndexOf("_Rev."))
+                        : t.No;
+                    string key = (projCode ?? "") + "||" + baseNo;
+                    if (!groups.TryGetValue(key, out var cur) || t.Rev > cur.MaxRev)
+                        groups[key] = (t.Rev, t.Id);
+                }
+                var latestIds = new HashSet<int>(groups.Values.Select(v => v.MprId));
+
+                int latestRowIdx = -1;
+                for (int i = 0; i < temp.Count; i++)
+                {
+                    var t = temp[i];
                     int r = dgvMPRList.Rows.Add();
-                    dgvMPRList.Rows[r].Cells["RMprId"].Value = rdr["MPR_ID"];
-                    dgvMPRList.Rows[r].Cells["RMprNo"].Value = rdr["MPR_No"];
-                    dgvMPRList.Rows[r].Cells["RMprRev"].Value = rdr["Rev"];
-                    bool isLatest = Convert.ToBoolean(rdr["Is_Latest"]);
+                    dgvMPRList.Rows[r].Cells["RMprId"].Value = t.Id;
+                    dgvMPRList.Rows[r].Cells["RMprNo"].Value = t.No;
+                    dgvMPRList.Rows[r].Cells["RMprRev"].Value = t.Rev;
+                    bool isLatest = latestIds.Contains(t.Id);
                     dgvMPRList.Rows[r].Cells["RIsLatest"].Value = isLatest ? "1" : "0";
+                    // Determine whether this row should be shown as gray: Rev > 1 and Rev < MaxRev within the same series
+                    string baseNo = !string.IsNullOrEmpty(t.No) && t.No.Contains("_Rev.") ? t.No.Substring(0, t.No.IndexOf("_Rev.")) : t.No;
+                    string key = (projCode ?? "") + "||" + baseNo;
+                    int maxRev = groups.TryGetValue(key, out var g) ? g.MaxRev : t.Rev;
+                    bool shouldGray = !isLatest && t.Rev > 1 && t.Rev < maxRev;
                     if (isLatest && latestRowIdx < 0)
                     {
                         dgvMPRList.Rows[r].DefaultCellStyle.ForeColor = Color.FromArgb(0, 120, 212);
                         dgvMPRList.Rows[r].DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                         latestRowIdx = r;
                     }
-                    else
+                    else if (shouldGray)
                     {
                         dgvMPRList.Rows[r].DefaultCellStyle.ForeColor = Color.FromArgb(160, 160, 160);
                     }
+                    else
+                    {
+                        // Normal display for Rev = 0, Rev = 1, or Rev == maxRev
+                        dgvMPRList.Rows[r].DefaultCellStyle.ForeColor = Color.Black;
+                    }
                 }
-                rdr.Close();
+
                 // Tự động chọn MPR mới nhất → load details ngay
                 if (latestRowIdx >= 0)
                 {
@@ -2323,6 +2382,9 @@ namespace MPR_Managerment.Forms
                 string clip = Clipboard.GetText();
                 if (string.IsNullOrEmpty(clip)) return;
 
+                // If grid was readonly (e.g., non-latest), temporarily allow edits for paste operation
+                bool prevReadOnly = dgvRevDet.ReadOnly;
+                if (prevReadOnly) dgvRevDet.ReadOnly = false;
                 dgvRevDet.EndEdit();
                 // Dùng None thay vì RemoveEmptyEntries để không bỏ dòng cuối có ô trống.
                 // Chỉ loại bỏ phần tử rỗng hoàn toàn ở CUỐI cùng (do Excel tự thêm \r\n).
@@ -2390,6 +2452,8 @@ namespace MPR_Managerment.Forms
                 }
                 dgvRevDet.ResumeLayout();
                 dgvRevDet.Refresh();
+                // Restore readonly state
+                if (prevReadOnly) dgvRevDet.ReadOnly = true;
             };
 
             // Hiệu ứng: dòng xóa mềm = xám gạch ngang
@@ -2401,81 +2465,6 @@ namespace MPR_Managerment.Forms
             };
 
             int selMprId = 0;
-            // Khi chọn MPR → load details (chỉ cho phép chọn bản mới nhất để Revise)
-            dgvMPRList.SelectionChanged += (s2, ev2) =>
-            {
-                if (dgvMPRList.SelectedRows.Count == 0) return;
-                var selectedRow = dgvMPRList.SelectedRows[0];
-
-                // Nếu chọn Rev cũ (không phải latest) → tự động chuyển sang bản mới nhất
-                bool isLatestRow = selectedRow.Cells["RIsLatest"].Value?.ToString() == "1";
-                if (!isLatestRow)
-                {
-                    // Tìm dòng latest trong danh sách và chọn lại
-                    foreach (DataGridViewRow r2 in dgvMPRList.Rows)
-                    {
-                        if (r2.Cells["RIsLatest"].Value?.ToString() == "1")
-                        {
-                            dgvMPRList.ClearSelection();
-                            r2.Selected = true;
-                            dgvMPRList.CurrentCell = r2.Cells["RMprNo"];
-                            return; // SelectionChanged sẽ fire lại với dòng đúng
-                        }
-                    }
-                    return;
-                }
-
-                selMprId = Convert.ToInt32(selectedRow.Cells["RMprId"].Value ?? 0);
-                dgvRevDet.Rows.Clear();
-                try
-                {
-                    using var conn = DatabaseHelper.GetConnection();
-                    conn.Open();
-                    var cmd = new SqlCommand("SELECT * FROM MPR_Details WHERE MPR_ID=@id ORDER BY Item_No", conn);
-                    cmd.Parameters.AddWithValue("@id", selMprId);
-                    using var rdr = cmd.ExecuteReader();
-                    while (rdr.Read())
-                    {
-                        int r = dgvRevDet.Rows.Add();
-                        dgvRevDet.Rows[r].Cells["RDetId"].Value = rdr["Detail_ID"];
-                        dgvRevDet.Rows[r].Cells["RDeleted"].Value = "";
-                        dgvRevDet.Rows[r].Cells["RItem_No"].Value = rdr["Item_No"];
-                        dgvRevDet.Rows[r].Cells["Ritem_name"].Value = rdr["item_name"];
-                        dgvRevDet.Rows[r].Cells["RDesc"].Value = rdr["Description"];
-                        dgvRevDet.Rows[r].Cells["RMaterial"].Value = rdr["Material"];
-                        dgvRevDet.Rows[r].Cells["RT_mm"].Value = rdr["Thickness_mm"];
-                        dgvRevDet.Rows[r].Cells["RD_mm"].Value = rdr["Depth_mm"];
-                        dgvRevDet.Rows[r].Cells["RW_mm"].Value = rdr["C_Width_mm"];
-                        dgvRevDet.Rows[r].Cells["RWeb_mm"].Value = rdr["D_Web_mm"];
-                        dgvRevDet.Rows[r].Cells["RFlange_mm"].Value = rdr["E_Flange_mm"];
-                        dgvRevDet.Rows[r].Cells["RL_mm"].Value = rdr["F_Length_mm"];
-                        dgvRevDet.Rows[r].Cells["RUsage"].Value = rdr["Usage_Location"];
-                        dgvRevDet.Rows[r].Cells["RMPS"].Value = rdr["MPS_Info"];
-                        dgvRevDet.Rows[r].Cells["RDWG"].Value = rdr["DWG_BOQ_Receive_Date"] != DBNull.Value
-                            ? Convert.ToDateTime(rdr["DWG_BOQ_Receive_Date"]).ToString("dd/MM/yyyy") : "";
-                        dgvRevDet.Rows[r].Cells["RIssue"].Value = rdr["Issue_Date"] != DBNull.Value
-                            ? Convert.ToDateTime(rdr["Issue_Date"]).ToString("dd/MM/yyyy") : "";
-                        dgvRevDet.Rows[r].Cells["RUNIT"].Value = rdr["UNIT"];
-                        dgvRevDet.Rows[r].Cells["RQty"].Value = rdr["Qty_Per_Sheet"];
-                        dgvRevDet.Rows[r].Cells["RKG"].Value = rdr["Weight_kg"];
-                        dgvRevDet.Rows[r].Cells["RRemarks"].Value = rdr["Remarks"];
-                        dgvRevDet.Rows[r].Cells["RREV"].Value = rdr["REV"];
-                        // Snapshot hash để detect thay đổi khi Lưu
-                        dgvRevDet.Rows[r].Cells["RIsNew"].Value = ""; // dòng từ DB
-                        // Chuẩn hóa về string trước khi hash để tránh mismatch type
-                        string Norm(object v) => (v == DBNull.Value || v == null) ? "" : v.ToString()!.Trim();
-                        // snap phải có cùng thứ tự/số field với curHash
-                        dgvRevDet.Rows[r].Cells["ROrigHash"].Value = string.Join("|",
-                            Norm(rdr["item_name"]), Norm(rdr["Description"]), Norm(rdr["Material"]),
-                            Norm(rdr["Thickness_mm"]), Norm(rdr["Depth_mm"]), Norm(rdr["C_Width_mm"]),
-                            Norm(rdr["D_Web_mm"]), Norm(rdr["E_Flange_mm"]), Norm(rdr["F_Length_mm"]),
-                            Norm(rdr["Usage_Location"]), Norm(rdr["MPS_Info"]),
-                            Norm(rdr["UNIT"]), Norm(rdr["Qty_Per_Sheet"]), Norm(rdr["Weight_kg"]),
-                            Norm(rdr["Remarks"]));
-                    }
-                }
-                catch { }
-            };
 
             // Buttons Thêm / Xóa vật tư
             var btnAddRow = new Button
@@ -2539,6 +2528,125 @@ namespace MPR_Managerment.Forms
             };
             btnSaveMPR.FlatAppearance.BorderSize = 0;
 
+            // Khi chọn MPR → load details (cho phép chọn bất kỳ MPR; chỉ Revise khi là bản mới nhất)
+            dgvMPRList.SelectionChanged += (s2, ev2) =>
+            {
+                if (dgvMPRList.SelectedRows.Count == 0) return;
+                var selectedRow = dgvMPRList.SelectedRows[0];
+
+                bool isLatestRow = selectedRow.Cells["RIsLatest"].Value?.ToString() == "1";
+                // Nếu người dùng là Admin thì luôn được phép lưu
+                btnSaveMPR.Enabled = isLatestRow || isAdmin;
+                dgvRevDet.ReadOnly = !(isLatestRow || isAdmin);
+
+                selMprId = Convert.ToInt32(selectedRow.Cells["RMprId"].Value ?? 0);
+                dgvRevDet.Rows.Clear();
+                try
+                {
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+                    var cmd = new SqlCommand("SELECT * FROM MPR_Details WHERE MPR_ID=@id ORDER BY Item_No", conn);
+                    cmd.Parameters.AddWithValue("@id", selMprId);
+                    using var rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
+                    {
+                        int r = dgvRevDet.Rows.Add();
+                        dgvRevDet.Rows[r].Cells["RDetId"].Value = rdr["Detail_ID"];
+                        dgvRevDet.Rows[r].Cells["RDeleted"].Value = "";
+                        dgvRevDet.Rows[r].Cells["RItem_No"].Value = rdr["Item_No"];
+                        dgvRevDet.Rows[r].Cells["Ritem_name"].Value = rdr["item_name"];
+                        dgvRevDet.Rows[r].Cells["RDesc"].Value = rdr["Description"];
+                        dgvRevDet.Rows[r].Cells["RMaterial"].Value = rdr["Material"];
+                        dgvRevDet.Rows[r].Cells["RT_mm"].Value = rdr["Thickness_mm"];
+                        dgvRevDet.Rows[r].Cells["RD_mm"].Value = rdr["Depth_mm"];
+                        dgvRevDet.Rows[r].Cells["RW_mm"].Value = rdr["C_Width_mm"];
+                        dgvRevDet.Rows[r].Cells["RWeb_mm"].Value = rdr["D_Web_mm"];
+                        dgvRevDet.Rows[r].Cells["RFlange_mm"].Value = rdr["E_Flange_mm"];
+                        dgvRevDet.Rows[r].Cells["RL_mm"].Value = rdr["F_Length_mm"];
+                        dgvRevDet.Rows[r].Cells["RUsage"].Value = rdr["Usage_Location"];
+                        dgvRevDet.Rows[r].Cells["RMPS"].Value = rdr["MPS_Info"];
+                        dgvRevDet.Rows[r].Cells["RDWG"].Value = rdr["DWG_BOQ_Receive_Date"] != DBNull.Value
+                            ? Convert.ToDateTime(rdr["DWG_BOQ_Receive_Date"]).ToString("dd/MM/yyyy") : "";
+                        dgvRevDet.Rows[r].Cells["RIssue"].Value = rdr["Issue_Date"] != DBNull.Value
+                            ? Convert.ToDateTime(rdr["Issue_Date"]).ToString("dd/MM/yyyy") : "";
+                        dgvRevDet.Rows[r].Cells["RUNIT"].Value = rdr["UNIT"];
+                        dgvRevDet.Rows[r].Cells["RQty"].Value = rdr["Qty_Per_Sheet"];
+                        dgvRevDet.Rows[r].Cells["RKG"].Value = rdr["Weight_kg"];
+                        dgvRevDet.Rows[r].Cells["RRemarks"].Value = rdr["Remarks"];
+                        dgvRevDet.Rows[r].Cells["RREV"].Value = rdr["REV"];
+                        // Snapshot hash để detect thay đổi khi Lưu
+                        dgvRevDet.Rows[r].Cells["RIsNew"].Value = ""; // dòng từ DB
+                        string Norm(object v) => (v == DBNull.Value || v == null) ? "" : v.ToString()!.Trim();
+                        dgvRevDet.Rows[r].Cells["ROrigHash"].Value = string.Join("|",
+                            Norm(rdr["item_name"]), Norm(rdr["Description"]), Norm(rdr["Material"]),
+                            Norm(rdr["Thickness_mm"]), Norm(rdr["Depth_mm"]), Norm(rdr["C_Width_mm"]),
+                            Norm(rdr["D_Web_mm"]), Norm(rdr["E_Flange_mm"]), Norm(rdr["F_Length_mm"]),
+                            Norm(rdr["Usage_Location"]), Norm(rdr["MPS_Info"]),
+                            Norm(rdr["UNIT"]), Norm(rdr["Qty_Per_Sheet"]), Norm(rdr["Weight_kg"]),
+                            Norm(rdr["Remarks"]));
+                    }
+                }
+                catch { }
+            };
+
+            // Nếu đã có row được chọn trước khi handler đăng ký (auto-select latest),
+            // thì khởi tạo trạng thái ban đầu tương tự để btnSaveMPR và selMprId có giá trị.
+            if (dgvMPRList.SelectedRows.Count > 0)
+            {
+                var selectedRow = dgvMPRList.SelectedRows[0];
+                bool isLatestRow = selectedRow.Cells["RIsLatest"].Value?.ToString() == "1";
+                btnSaveMPR.Enabled = isLatestRow || isAdmin;
+                dgvRevDet.ReadOnly = !(isLatestRow || isAdmin);
+                selMprId = Convert.ToInt32(selectedRow.Cells["RMprId"].Value ?? 0);
+                // Load details now (handler would have done this)
+                try
+                {
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+                    var cmd = new SqlCommand("SELECT * FROM MPR_Details WHERE MPR_ID=@id ORDER BY Item_No", conn);
+                    cmd.Parameters.AddWithValue("@id", selMprId);
+                    using var rdr = cmd.ExecuteReader();
+                    dgvRevDet.Rows.Clear();
+                    while (rdr.Read())
+                    {
+                        int r = dgvRevDet.Rows.Add();
+                        dgvRevDet.Rows[r].Cells["RDetId"].Value = rdr["Detail_ID"];
+                        dgvRevDet.Rows[r].Cells["RDeleted"].Value = "";
+                        dgvRevDet.Rows[r].Cells["RItem_No"].Value = rdr["Item_No"];
+                        dgvRevDet.Rows[r].Cells["Ritem_name"].Value = rdr["item_name"];
+                        dgvRevDet.Rows[r].Cells["RDesc"].Value = rdr["Description"];
+                        dgvRevDet.Rows[r].Cells["RMaterial"].Value = rdr["Material"];
+                        dgvRevDet.Rows[r].Cells["RT_mm"].Value = rdr["Thickness_mm"];
+                        dgvRevDet.Rows[r].Cells["RD_mm"].Value = rdr["Depth_mm"];
+                        dgvRevDet.Rows[r].Cells["RW_mm"].Value = rdr["C_Width_mm"];
+                        dgvRevDet.Rows[r].Cells["RWeb_mm"].Value = rdr["D_Web_mm"];
+                        dgvRevDet.Rows[r].Cells["RFlange_mm"].Value = rdr["E_Flange_mm"];
+                        dgvRevDet.Rows[r].Cells["RL_mm"].Value = rdr["F_Length_mm"];
+                        dgvRevDet.Rows[r].Cells["RUsage"].Value = rdr["Usage_Location"];
+                        dgvRevDet.Rows[r].Cells["RMPS"].Value = rdr["MPS_Info"];
+                        dgvRevDet.Rows[r].Cells["RDWG"].Value = rdr["DWG_BOQ_Receive_Date"] != DBNull.Value
+                            ? Convert.ToDateTime(rdr["DWG_BOQ_Receive_Date"]).ToString("dd/MM/yyyy") : "";
+                        dgvRevDet.Rows[r].Cells["RIssue"].Value = rdr["Issue_Date"] != DBNull.Value
+                            ? Convert.ToDateTime(rdr["Issue_Date"]).ToString("dd/MM/yyyy") : "";
+                        dgvRevDet.Rows[r].Cells["RUNIT"].Value = rdr["UNIT"];
+                        dgvRevDet.Rows[r].Cells["RQty"].Value = rdr["Qty_Per_Sheet"];
+                        dgvRevDet.Rows[r].Cells["RKG"].Value = rdr["Weight_kg"];
+                        dgvRevDet.Rows[r].Cells["RRemarks"].Value = rdr["Remarks"];
+                        dgvRevDet.Rows[r].Cells["RREV"].Value = rdr["REV"];
+                        dgvRevDet.Rows[r].Cells["RIsNew"].Value = "";
+                        string Norm(object v) => (v == DBNull.Value || v == null) ? "" : v.ToString()!.Trim();
+                        dgvRevDet.Rows[r].Cells["ROrigHash"].Value = string.Join("|",
+                            Norm(rdr["item_name"]), Norm(rdr["Description"]), Norm(rdr["Material"]),
+                            Norm(rdr["Thickness_mm"]), Norm(rdr["Depth_mm"]), Norm(rdr["C_Width_mm"]),
+                            Norm(rdr["D_Web_mm"]), Norm(rdr["E_Flange_mm"]), Norm(rdr["F_Length_mm"]),
+                            Norm(rdr["Usage_Location"]), Norm(rdr["MPS_Info"]),
+                            Norm(rdr["UNIT"]), Norm(rdr["Qty_Per_Sheet"]), Norm(rdr["Weight_kg"]),
+                            Norm(rdr["Remarks"]));
+                    }
+                }
+                catch { }
+            }
+
             var btnCloseRev = new Button
             {
                 Text = "Đóng",
@@ -2571,7 +2679,13 @@ namespace MPR_Managerment.Forms
             // Lưu MPR Revise
             btnSaveMPR.Click += (s2, ev2) =>
             {
+                // Basic validation
+                if (dgvMPRList.SelectedRows.Count == 0) { lblSave.Text = "⚠ Chọn MPR cần Revise!"; return; }
+                var selRow = dgvMPRList.SelectedRows[0];
+                bool isLatestRowNow = selRow.Cells["RIsLatest"].Value?.ToString() == "1";
                 if (selMprId == 0) { lblSave.Text = "⚠ Chọn MPR cần Revise!"; return; }
+                // Non-admin users may only revise from the latest revision
+                if (!isAdmin && !isLatestRowNow) { lblSave.Text = "⚠ Chỉ được Revise từ bản mới nhất!"; return; }
                 try
                 {
                     using var conn = DatabaseHelper.GetConnection();
