@@ -87,15 +87,35 @@ namespace MPR_Managerment.Forms
 
         private void SelectPOByNo(string poNo)
         {
+            // If the form or dgvPO handle is not yet created (called from ctor), defer selection until shown
+            if (!this.IsHandleCreated || dgvPO == null || !dgvPO.IsHandleCreated)
+            {
+                // attach one-time handler to perform selection after the form is shown
+                void OnShownOnce(object s, EventArgs e)
+                {
+                    this.Shown -= OnShownOnce;
+                    SelectPOByNo(poNo);
+                }
+                this.Shown += OnShownOnce;
+                return;
+            }
+
             var targetPO = _poList.Find(p => p.PONo == poNo);
             if (targetPO != null) { txtSearch.Text = targetPO.PONo; BtnSearch_Click(null, null); }
             foreach (DataGridViewRow row in dgvPO.Rows)
             {
                 if (row.Cells["PO_No"].Value?.ToString() == poNo)
                 {
-                    dgvPO.ClearSelection();
-                    row.Selected = true;
-                    if (row.Index >= 0) dgvPO.FirstDisplayedScrollingRowIndex = row.Index;
+                    try
+                    {
+                        dgvPO.ClearSelection();
+                        row.Selected = true;
+                        if (row.Index >= 0) dgvPO.FirstDisplayedScrollingRowIndex = row.Index;
+                    }
+                    catch
+                    {
+                        // ignore if UI not ready
+                    }
                     break;
                 }
             }
