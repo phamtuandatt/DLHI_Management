@@ -1641,7 +1641,7 @@ namespace MPR_Managerment.Forms
             if (e.RowIndex < 0) return;
             string colName = dgvDetails.Columns[e.ColumnIndex].Name;
 
-            if (colName == "NhapKho")
+            if (colName == "Nhập kho")
             {
                 e.CellStyle.BackColor = Color.FromArgb(220, 252, 231);
                 e.CellStyle.ForeColor = Color.FromArgb(22, 101, 52);
@@ -2256,6 +2256,13 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPR_Detail_ID", HeaderText = "MPR_Detail_ID", Visible = false });
             foreach (DataGridViewColumn col in dgvDetails.Columns) col.Width = 60;
+            // Nhập kho: căn giữa và hiển thị 2 chữ số thập phân
+            if (dgvDetails.Columns.Contains("NhapKho"))
+            {
+                dgvDetails.Columns["NhapKho"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dgvDetails.Columns["NhapKho"].DefaultCellStyle.Format = "N2";
+                dgvDetails.Columns["NhapKho"].DefaultCellStyle.NullValue = "";
+            }
             dgvDetails.Columns["Item_No"].Width = 40; dgvDetails.Columns["Item_Name"].Width = 150;
             AutoAdjustColumnWidths();
         }
@@ -2599,18 +2606,20 @@ namespace MPR_Managerment.Forms
                 }
                 dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
                 UpdateTotal(); AutoAdjustColumnWidths();
-                int _poId = poId;
-                this.BeginInvoke(new Action(() =>
+                // Query Warehouse_Import to get sum of Qty_Import per PO_Detail and populate Nhập kho column
+                using (var c = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
                 {
-                    using var c = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
                     c.Open();
+                    // Use PO_Detail_ID to aggregate imported qty. Some imports may store value in Qty_Import
+                    // or in Received_Qty — use COALESCE to prefer Qty_Import then Received_Qty.
                     var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
-                        SELECT d.PO_Detail_ID, ISNULL(SUM(wi.Qty_Import),0) AS Total
+                        SELECT d.PO_Detail_ID,
+                               ISNULL(SUM(ISNULL(wi.Qty_Import,0)), 0) AS Total
                         FROM PO_Detail d
                         LEFT JOIN Warehouse_Import wi ON wi.PO_Detail_ID = d.PO_Detail_ID
                         WHERE d.PO_ID = @pid
                         GROUP BY d.PO_Detail_ID", c);
-                    cmd.Parameters.AddWithValue("@pid", _poId);
+                    cmd.Parameters.AddWithValue("@pid", poId);
                     var dt = new System.Data.DataTable();
                     new Microsoft.Data.SqlClient.SqlDataAdapter(cmd).Fill(dt);
                     var map = dt.Rows.Cast<System.Data.DataRow>()
@@ -2620,11 +2629,20 @@ namespace MPR_Managerment.Forms
                         if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
                         var v = row.Cells["PO_Detail_ID"].Value;
                         if (v == null || v == DBNull.Value) continue;
-                        int id = Convert.ToInt32(v);
-                        row.Cells["NhapKho"].Value = map.TryGetValue(id, out var q) ? q : 0m;
+                        if (!int.TryParse(v.ToString(), out int id)) continue;
+                        if (map.TryGetValue(id, out var q))
+                        {
+                            // If zero, show empty; otherwise show number
+                            row.Cells["NhapKho"].Value = (q == 0m) ? "" : (object)q;
+                        }
+                        else
+                        {
+                            row.Cells["NhapKho"].Value = "";
+                        }
                     }
-                    dgvDetails.InvalidateColumn(dgvDetails.Columns["NhapKho"].Index);
-                }));
+                    if (dgvDetails.Columns.Contains("NhapKho"))
+                        dgvDetails.InvalidateColumn(dgvDetails.Columns["NhapKho"].Index);
+                }
             }
             catch (Exception ex)
             {
