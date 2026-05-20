@@ -1352,6 +1352,7 @@ namespace MPR_Managerment.Forms
                 if (filter != "Tất cả")
                     where += $" AND h.Status = N'{filter}'";
 
+                // Adjusted to consider all revisions in the same MPR series (baseNo + _Rev.x)
                 string sql = $@"
                     SELECT
                         h.MPR_ID,
@@ -1366,21 +1367,29 @@ namespace MPR_Managerment.Forms
                             THEN N'✅ ' + CAST(COUNT(DISTINCT po.PO_ID) AS NVARCHAR(10)) + N' PO'
                             ELSE N'❌ Chưa có PO'
                         END                                AS [Tình trạng PO],
+
+                        -- % Item đặt hàng: ordered items across the whole MPR series / total items in the series
                         CASE
-                            WHEN COUNT(DISTINCT d.Detail_ID) = 0 THEN 0
+                            WHEN COUNT(DISTINCT series_d.Detail_ID) = 0 THEN 0
                             ELSE CAST(
                                 COUNT(DISTINCT pod.PO_Detail_ID) * 100.0
-                                / COUNT(DISTINCT d.Detail_ID)
+                                / COUNT(DISTINCT series_d.Detail_ID)
                                 AS DECIMAL(5,1))
                         END                                AS [% Item đặt hàng],
 
                         h.Created_Date                     AS [Ngày tạo]
                     FROM MPR_Header h
-                    LEFT JOIN MPR_Details d   ON d.MPR_ID = h.MPR_ID
-                    LEFT JOIN PO_Detail   pod ON pod.MPR_Detail_ID = d.Detail_ID
-                    -- Lấy PO qua 2 cách: qua MPR_Detail_ID HOẶC qua PO_head.MPR_No trực tiếp
-                    LEFT JOIN PO_head     po  ON po.PO_ID = pod.PO_ID
-                                              OR po.MPR_No = h.MPR_No
+                    -- compute baseNo: strip suffix _Rev.x if present
+                    CROSS APPLY (SELECT CASE WHEN CHARINDEX('_Rev.', h.MPR_No) > 0 THEN LEFT(h.MPR_No, CHARINDEX('_Rev.', h.MPR_No)-1) ELSE h.MPR_No END AS BaseNo) bn
+                    -- include all headers in same series (baseNo and its revisions)
+                    LEFT JOIN MPR_Header series_h ON (series_h.MPR_No = h.MPR_No OR series_h.MPR_No = bn.BaseNo OR series_h.MPR_No LIKE bn.BaseNo + '_Rev.%')
+                    LEFT JOIN MPR_Details series_d ON series_d.MPR_ID = series_h.MPR_ID
+                    LEFT JOIN PO_Detail pod ON pod.MPR_Detail_ID = series_d.Detail_ID
+                    -- consider PO linked either via PO_Detail or via PO_head.MPR_No referencing any name in series
+                    LEFT JOIN PO_head po ON po.PO_ID = pod.PO_ID
+                                          OR po.MPR_No = h.MPR_No
+                                          OR po.MPR_No = bn.BaseNo
+                                          OR po.MPR_No LIKE bn.BaseNo + '_Rev.%'
                     {where}
                     GROUP BY h.MPR_ID, h.MPR_No, h.Project_Name,
                              h.Required_Date, h.Status, h.Rev, h.Created_Date, h.Notes
@@ -1388,8 +1397,13 @@ namespace MPR_Managerment.Forms
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+
+                    // Call stored procedure that computes MPR dashboard summary on the server
+                    using var cmd = new SqlCommand("sp_GetMPRDashboardSummary", conn) { CommandType = System.Data.CommandType.StoredProcedure };
+                    cmd.Parameters.AddWithValue("@search", string.IsNullOrEmpty(search) ? (object)DBNull.Value : search);
+                    cmd.Parameters.AddWithValue("@status", (filter == "Tất cả") ? (object)DBNull.Value : filter);
                     var dt = new DataTable();
-                    dt.Load(new SqlCommand(sql, conn).ExecuteReader());
+                    dt.Load(cmd.ExecuteReader());
                     dgvMPR.DataSource = dt;
 
                     if (dgvMPR.Columns.Contains("MPR_ID"))
@@ -1400,6 +1414,41 @@ namespace MPR_Managerment.Forms
                     // Tat ca cot bound: ReadOnly
                     foreach (DataGridViewColumn col in dgvMPR.Columns)
                         col.ReadOnly = true;
+
+                    // Style older revisions (Rev < MaxRev) as read-only/gray using MaxRev returned by SP
+                    try
+                    {
+                        var grayStyle = new DataGridViewCellStyle
+                        {
+                            ForeColor = Color.FromArgb(160, 160, 160),
+                            BackColor = Color.FromArgb(245, 245, 245),
+                            Font = new Font("Segoe UI", 9, FontStyle.Italic)
+                        };
+                        var normalStyle = new DataGridViewCellStyle
+                        {
+                            ForeColor = Color.Black,
+                            BackColor = Color.White,
+                            Font = new Font("Segoe UI", 9, FontStyle.Regular)
+                        };
+
+                        foreach (DataGridViewRow row in dgvMPR.Rows)
+                        {
+                            if (row.IsNewRow) continue;
+                            int rev = 0; int.TryParse(row.Cells["Rev"].Value?.ToString() ?? "0", out rev);
+                            int maxRev = 0; int.TryParse(row.Cells["MaxRev"]?.Value?.ToString() ?? "0", out maxRev);
+                            if (maxRev > 0 && rev < maxRev)
+                            {
+                                row.ReadOnly = true;
+                                row.DefaultCellStyle = grayStyle;
+                            }
+                            else
+                            {
+                                row.ReadOnly = false;
+                                row.DefaultCellStyle = normalStyle;
+                            }
+                        }
+                    }
+                    catch { }
 
                     // Them unbound column Ghi chu neu chua co
                     if (!dgvMPR.Columns.Contains("Ghi chu"))
@@ -1446,6 +1495,27 @@ namespace MPR_Managerment.Forms
                     catch { }
 
                     AutoAdjustMPRColumns();
+
+                    // Mark older revisions (within same base MPR series) as read-only and gray
+                    try
+                    {
+                        // prepare reusable styles for performance
+                        var grayStyle = new DataGridViewCellStyle
+                        {
+                            ForeColor = Color.FromArgb(160, 160, 160),
+                            BackColor = Color.FromArgb(245, 245, 245),
+                            Font = new Font("Segoe UI", 9, FontStyle.Italic)
+                        };
+                        var normalStyle = new DataGridViewCellStyle
+                        {
+                            ForeColor = Color.Black,
+                            BackColor = Color.White,
+                            Font = new Font("Segoe UI", 9, FontStyle.Regular)
+                        };
+
+                        // (styling performed above using MaxRev returned by SP)
+                    }
+                    catch { }
 
                     dgvMPR.CellFormatting -= DgvMPR_CellFormatting;
                     dgvMPR.CellFormatting += DgvMPR_CellFormatting;
@@ -1686,6 +1756,12 @@ namespace MPR_Managerment.Forms
                     FROM MPR_Header  h
                     INNER JOIN MPR_Details d ON d.MPR_ID = h.MPR_ID
                     WHERE h.MPR_No IN (" + inClause + @")
+                      AND ISNULL(TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT),0) = (
+                          SELECT ISNULL(MAX(TRY_CAST(TRY_CAST(h2.Rev AS DECIMAL(10,2)) AS INT)),0)
+                          FROM MPR_Header h2
+                          WHERE (CASE WHEN CHARINDEX('_Rev.', h2.MPR_No) > 0 THEN LEFT(h2.MPR_No, CHARINDEX('_Rev.', h2.MPR_No)-1) ELSE h2.MPR_No END)
+                                = (CASE WHEN CHARINDEX('_Rev.', h.MPR_No) > 0 THEN LEFT(h.MPR_No, CHARINDEX('_Rev.', h.MPR_No)-1) ELSE h.MPR_No END)
+                      )
                     ORDER BY h.MPR_No,
                              ISNULL(TRY_CAST(TRY_CAST(d.Item_No AS DECIMAL(10,2)) AS INT), 0)";
 
