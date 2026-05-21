@@ -3301,6 +3301,7 @@ namespace MPR_Managerment.Forms
                     ReplaceCell(ws, "<<PO-NO>>", poHead.PONo ?? "");
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
+                    ReplaceCell(ws, "<<USER_NAME>>", AppSession.CurrentUser.Full_Name);
 
                     ws.Cells[5, 15].Value = !string.IsNullOrEmpty(poHead.Payment_Term)
                         ? poHead.Payment_Term : "Within 7 days after delivery";
