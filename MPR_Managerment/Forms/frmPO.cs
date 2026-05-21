@@ -344,6 +344,8 @@ namespace MPR_Managerment.Forms
             dgvFiles.Columns.Add("FullPath", "FullPath");
             dgvFiles.Columns["FullPath"].Visible = false;
             dgvFiles.CellDoubleClick += DgvFiles_CellDoubleClick;
+            dgvFiles.CellMouseEnter += DgvFiles_CellMouseEnter;
+            dgvFiles.CellMouseLeave += DgvFiles_CellMouseLeave;
             panelHeader.Controls.Add(dgvFiles);
             // Initialize preview handlers for file list
             EnsureFilePreview();
@@ -1164,17 +1166,9 @@ namespace MPR_Managerment.Forms
                 if (!string.IsNullOrEmpty(_previewPath) && _previewCell != null)
                 {
                     try { ShowFilePreview(_previewPath, Cursor.Position); }
-                    catch { /* ignore preview errors */ }
+                    catch { }
                 }
             };
-
-            if (dgvFiles != null)
-            {
-                dgvFiles.CellMouseEnter += DgvFiles_CellMouseEnter;
-                dgvFiles.CellMouseLeave += DgvFiles_CellMouseLeave;
-                dgvFiles.MouseLeave += (s, e) => StartPreviewCloseTimer();
-                dgvFiles.Scroll += (s, e) => StartPreviewCloseTimer();
-            }
         }
 
         private void DgvFiles_CellMouseEnter(object sender, DataGridViewCellEventArgs e)
@@ -1248,268 +1242,281 @@ namespace MPR_Managerment.Forms
             HideFilePreview();
             if (!File.Exists(filePath)) return;
 
-            var f = new Form();
-            // Allow resizing and larger initial size for review
-            f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
-            f.Size = new Size(1024, 768);
-            f.StartPosition = FormStartPosition.Manual;
-            f.ShowInTaskbar = false;
-            f.TopMost = true;
-            f.BackColor = Color.White;
-            f.Padding = new Padding(6);
-            int w = f.Width, h = f.Height;
-            // Center the preview window on the same screen as cursor
-            var screen = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0,0,800,600);
-            int x = screen.Left + (screen.Width - w) / 2;
-            int y = screen.Top + (screen.Height - h) / 2;
-            f.Bounds = new Rectangle(x, y, w, h);
-
-            // Toolbar: zoom & paging controls (visible when applicable)
-            var tool = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(250, 250, 250) };
-            var btnZoomIn = new Button { Text = "+", Width = 34, Height = 28, Left = 6, Top = 4 };
-            var btnZoomOut = new Button { Text = "-", Width = 34, Height = 28, Left = 46, Top = 4 };
-            var btnPrev = new Button { Text = "◀", Width = 40, Height = 28, Left = 96, Top = 4 };
-            var btnNext = new Button { Text = "▶", Width = 40, Height = 28, Left = 142, Top = 4 };
-            var btnClose = new Button { Text = "✖", Width = 34, Height = 28, Left = f.ClientSize.Width - 44, Top = 4, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            tool.Controls.AddRange(new Control[] { btnZoomIn, btnZoomOut, btnPrev, btnNext, btnClose });
-            f.Controls.Add(tool);
-
-            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-            var state = new PreviewState();
-            if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif")
+            var f = new Form
             {
-                state.Type = "image";
-                var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-                var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
-                try
-                {
-                    var img = Image.FromFile(filePath);
-                    state.OriginalImage = new Bitmap(img);
-                    pb.Image = new Bitmap(state.OriginalImage);
-                    pb.Size = state.OriginalImage.Size;
-                }
-                catch { pb.Image = null; }
-                container.Controls.Add(pb);
-                f.Controls.Add(container);
+                FormBorderStyle = FormBorderStyle.SizableToolWindow,
+                Size            = new Size(1024, 768),
+                StartPosition   = FormStartPosition.Manual,
+                ShowInTaskbar   = false,
+                TopMost         = true,
+                BackColor       = Color.FromArgb(38, 38, 38),
+                Text            = Path.GetFileName(filePath)
+            };
+            var scr = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0, 0, 1024, 768);
+            f.Bounds = new Rectangle(
+                scr.Left + (scr.Width  - f.Width)  / 2,
+                scr.Top  + (scr.Height - f.Height) / 2,
+                f.Width, f.Height);
 
-                // Zoom handlers: generate a high-quality resized image from original to avoid blurring
-                btnZoomIn.Click += (s, e) =>
-                {
-                    try
-                    {
-                        state.Scale *= 1.25;
-                        if (state.OriginalImage != null)
-                        {
-                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
-                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
-                            var resized = new Bitmap(newW, newH);
-                            using (var g = Graphics.FromImage(resized))
-                            {
-                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
-                            }
-                            // dispose previous image displayed
-                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
-                            pb.Image = resized;
-                            pb.Size = resized.Size;
-                        }
-                    }
-                    catch { }
-                };
+            // ── Toolbar ──────────────────────────────────────────────────────
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 38, BackColor = Color.FromArgb(45, 45, 48) };
+            var clrDark = Color.FromArgb(62, 62, 66);
+            var clrBlue = Color.FromArgb(0, 100, 180);
 
-                btnZoomOut.Click += (s, e) =>
+            Button MkBtn(string txt, int left, int w, Color bg)
+            {
+                var b = new Button
                 {
-                    try
-                    {
-                        state.Scale /= 1.25;
-                        if (state.OriginalImage != null)
-                        {
-                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
-                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
-                            var resized = new Bitmap(newW, newH);
-                            using (var g = Graphics.FromImage(resized))
-                            {
-                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
-                            }
-                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
-                            pb.Image = resized;
-                            pb.Size = resized.Size;
-                        }
-                    }
-                    catch { }
+                    Text = txt, Left = left, Top = 5, Width = w, Height = 28,
+                    FlatStyle = FlatStyle.Flat, BackColor = bg,
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Cursor = Cursors.Hand
                 };
-                btnPrev.Enabled = false; btnNext.Enabled = false;
-                btnClose.Click += (s, e) => { f.Close(); };
+                b.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
+                toolbar.Controls.Add(b);
+                return b;
             }
-            else if (ext == ".pdf")
+
+            var btnZoomIn  = MkBtn("＋",    8, 36, clrDark);
+            var btnZoomOut = MkBtn("－",   48, 36, clrDark);
+            var btnFit     = MkBtn("⊡ Fit", 88, 60, clrDark);
+            var btn100     = MkBtn("1:1",  152, 44, clrBlue);
+            var lblZoom    = new Label { Left = 202, Top = 11, Width = 58, Text = "—", ForeColor = Color.FromArgb(220, 220, 220), Font = new Font("Segoe UI", 9, FontStyle.Bold), BackColor = Color.Transparent };
+            var btnPrev    = MkBtn("◀",   268, 36, clrDark); btnPrev.Visible = false;
+            var btnNext    = MkBtn("▶",   308, 36, clrDark); btnNext.Visible = false;
+            var lblInfo    = new Label { Left = 352, Top = 11, Width = 440, Text = Path.GetFileName(filePath), ForeColor = Color.FromArgb(155, 155, 155), Font = new Font("Segoe UI", 8.5f), BackColor = Color.Transparent };
+            var btnOpen    = MkBtn("↗ Mở file", 870, 84, Color.FromArgb(0, 120, 60));
+            btnOpen.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var btnClose   = MkBtn("✖", 958, 36, Color.FromArgb(196, 43, 28));
+            btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            toolbar.Controls.Add(lblZoom);
+            toolbar.Controls.Add(lblInfo);
+            f.Controls.Add(toolbar);
+
+            btnOpen .Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+            btnClose.Click += (s, e) => f.Close();
+            f.KeyPreview = true;
+            f.KeyDown   += (s, e) => { if (e.KeyCode == Keys.Escape) f.Close(); };
+
+            // ── Content ──────────────────────────────────────────────────────
+            string ext      = Path.GetExtension(filePath).ToLowerInvariant();
+            bool   isImgExt = ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif";
+
+            if (isImgExt || ext == ".pdf")
             {
-                // Try to get high-quality shell thumbnail and allow zoom like images
+                // Load source image (PDF via shell thumbnail, images directly)
+                Bitmap origBmp = null;
                 try
                 {
-                    var thumb = GetShellThumbnail(filePath, Math.Max(800, f.Width - 12), Math.Max(800, f.Height - 48));
-                    if (thumb != null)
+                    Image src = null;
+                    if (ext == ".pdf") src = GetShellThumbnail(filePath, 1800, 2400);
+                    if (src == null && isImgExt) src = Image.FromFile(filePath);
+                    if (src != null)
                     {
-                        state.Type = "image";
-                        state.OriginalImage = new Bitmap(thumb);
-                        var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-                        var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
-                        pb.Image = new Bitmap(state.OriginalImage);
-                        pb.Size = state.OriginalImage.Size;
-                        container.Controls.Add(pb);
-                        f.Controls.Add(container);
-
-                        // wire zoom using same logic as images
-                        btnZoomIn.Click += (s, e) =>
-                        {
-                            try
-                            {
-                                state.Scale *= 1.25;
-                                int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
-                                int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
-                                var resized = new Bitmap(newW, newH);
-                                using (var g = Graphics.FromImage(resized))
-                                {
-                                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                                    g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-                                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                                    g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
-                                }
-                                try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
-                                pb.Image = resized;
-                                pb.Size = resized.Size;
-                            }
-                            catch { }
-                        };
-                        btnZoomOut.Click += (s, e) =>
-                        {
-                            try
-                            {
-                                state.Scale /= 1.25;
-                                int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
-                                int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
-                                var resized = new Bitmap(newW, newH);
-                                using (var g = Graphics.FromImage(resized))
-                                {
-                                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                                    g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-                                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                                    g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
-                                }
-                                try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
-                                pb.Image = resized;
-                                pb.Size = resized.Size;
-                            }
-                            catch { }
-                        };
-                        btnPrev.Enabled = false; btnNext.Enabled = false; btnClose.Click += (s, e) => { f.Close(); };
-                    }
-                    else
-                    {
-                        // fallback: associated icon (allow zoom)
-                        try
-                        {
-                            var icon = Icon.ExtractAssociatedIcon(filePath);
-                            if (icon != null)
-                            {
-                                var bmpIcon = icon.ToBitmap();
-                                state.Type = "image";
-                                state.OriginalImage = new Bitmap(bmpIcon);
-                                var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-                                var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
-                                pb.Image = new Bitmap(state.OriginalImage);
-                                pb.Size = state.OriginalImage.Size;
-                                container.Controls.Add(pb);
-                                f.Controls.Add(container);
-                                btnZoomIn.Click += (s, e) => { try { state.Scale *= 1.25; int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale)); int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale)); var resized = new Bitmap(newW, newH); using (var g = Graphics.FromImage(resized)) { g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic; g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality; g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality; g.DrawImage(state.OriginalImage, 0, 0, newW, newH); } try { var old = pb.Image; if (old != null) old.Dispose(); } catch { } pb.Image = resized; pb.Size = resized.Size; } catch { } };
-                                btnZoomOut.Click += (s, e) => { try { state.Scale /= 1.25; int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale)); int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale)); var resized = new Bitmap(newW, newH); using (var g = Graphics.FromImage(resized)) { g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic; g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality; g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality; g.DrawImage(state.OriginalImage, 0, 0, newW, newH); } try { var old = pb.Image; if (old != null) old.Dispose(); } catch { } pb.Image = resized; pb.Size = resized.Size; } catch { } };
-                                btnPrev.Enabled = false; btnNext.Enabled = false; btnClose.Click += (s, e) => { f.Close(); };
-                            }
-                            else
-                            {
-                                var pnl = new Panel { Dock = DockStyle.Fill };
-                                var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-                                var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
-                                var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
-                                btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
-                                pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
-                                f.Controls.Add(pnl);
-                            }
-                        }
-                        catch
-                        {
-                            var pnl = new Panel { Dock = DockStyle.Fill };
-                            var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-                            var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
-                            var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
-                            btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
-                            pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
-                            f.Controls.Add(pnl);
-                        }
+                        if (src is Bitmap bSrc) origBmp = bSrc;
+                        else { origBmp = new Bitmap(src); src.Dispose(); }
                     }
                 }
-                catch { }
+                catch { origBmp = null; }
+
+                if (origBmp != null)
+                {
+                    // ── Canvas-based rendering: no new Bitmap on every zoom ──
+                    double scale  = 1.0;
+                    float  offX   = 0, offY = 0;
+                    bool   fitted = false;
+                    bool   dragging = false;
+                    Point  dragStart = Point.Empty;
+                    float  dragOX = 0, dragOY = 0;
+
+                    var canvas = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(38, 38, 38) };
+                    // Enable double-buffering to eliminate flicker during redraws
+                    typeof(Panel).GetProperty("DoubleBuffered",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                        ?.SetValue(canvas, true);
+
+                    void CalcFit()
+                    {
+                        if (canvas.ClientSize.Width <= 0 || canvas.ClientSize.Height <= 0) return;
+                        double sx = (double)canvas.ClientSize.Width  / origBmp.Width;
+                        double sy = (double)canvas.ClientSize.Height / origBmp.Height;
+                        scale = Math.Min(sx, sy) * 0.97;
+                        offX  = (canvas.ClientSize.Width  - (float)(origBmp.Width  * scale)) / 2f;
+                        offY  = (canvas.ClientSize.Height - (float)(origBmp.Height * scale)) / 2f;
+                    }
+
+                    void ClampPan()
+                    {
+                        float dw = (float)(origBmp.Width  * scale);
+                        float dh = (float)(origBmp.Height * scale);
+                        if (dw <= canvas.ClientSize.Width)  offX = (canvas.ClientSize.Width  - dw) / 2f;
+                        else offX = Math.Max(canvas.ClientSize.Width  - dw, Math.Min(0, offX));
+                        if (dh <= canvas.ClientSize.Height) offY = (canvas.ClientSize.Height - dh) / 2f;
+                        else offY = Math.Max(canvas.ClientSize.Height - dh, Math.Min(0, offY));
+                    }
+
+                    void UpdateZoomLabel() => lblZoom.Text = $"{(int)(scale * 100)}%";
+
+                    // Zoom centered on a pixel coordinate in canvas space
+                    void ZoomAt(int px, int py, double factor)
+                    {
+                        double ns = Math.Max(0.03, Math.Min(30.0, scale * factor));
+                        float  r  = (float)(ns / scale);
+                        offX  = px - r * (px - offX);
+                        offY  = py - r * (py - offY);
+                        scale = ns;
+                        ClampPan();
+                        UpdateZoomLabel();
+                        canvas.Invalidate();
+                    }
+
+                    canvas.Paint += (s, e) =>
+                    {
+                        // First paint: fit image to canvas
+                        if (!fitted && canvas.ClientSize.Width > 0 && canvas.ClientSize.Height > 0)
+                        {
+                            CalcFit(); fitted = true; UpdateZoomLabel();
+                        }
+                        var g = e.Graphics;
+                        g.Clear(Color.FromArgb(38, 38, 38));
+                        g.InterpolationMode  = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                        g.SmoothingMode      = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                        g.PixelOffsetMode    = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                        g.DrawImage(origBmp, offX, offY,
+                            (float)(origBmp.Width * scale), (float)(origBmp.Height * scale));
+                    };
+
+                    // Mouse drag to pan
+                    canvas.MouseDown  += (s, e) =>
+                    {
+                        if (e.Button != MouseButtons.Left) return;
+                        dragging = true; dragStart = e.Location; dragOX = offX; dragOY = offY;
+                        canvas.Cursor = Cursors.SizeAll;
+                    };
+                    canvas.MouseMove  += (s, e) =>
+                    {
+                        if (!dragging) return;
+                        offX = dragOX + (e.X - dragStart.X);
+                        offY = dragOY + (e.Y - dragStart.Y);
+                        ClampPan();
+                        canvas.Invalidate();
+                    };
+                    canvas.MouseUp    += (s, e) => { dragging = false; canvas.Cursor = Cursors.Default; };
+                    canvas.MouseLeave += (s, e) => { dragging = false; canvas.Cursor = Cursors.Default; };
+
+                    // Mouse wheel zoom — centered on cursor position
+                    canvas.MouseWheel += (s, e) => ZoomAt(e.X, e.Y, e.Delta > 0 ? 1.15 : 1.0 / 1.15);
+                    canvas.MouseEnter += (s, e) => canvas.Focus();
+
+                    // Keyboard shortcuts
+                    canvas.KeyDown += (s, e) =>
+                    {
+                        int cx = canvas.Width / 2, cy = canvas.Height / 2;
+                        if      (e.KeyCode == Keys.Add      || e.KeyCode == Keys.Oemplus)   ZoomAt(cx, cy, 1.25);
+                        else if (e.KeyCode == Keys.Subtract || e.KeyCode == Keys.OemMinus)  ZoomAt(cx, cy, 0.8);
+                        else if (e.KeyCode == Keys.Home)  { CalcFit(); UpdateZoomLabel(); canvas.Invalidate(); }
+                        else if (e.KeyCode == Keys.Escape) f.Close();
+                    };
+
+                    // Toolbar buttons
+                    btnZoomIn .Click += (s, e) => ZoomAt(canvas.Width / 2, canvas.Height / 2, 1.25);
+                    btnZoomOut.Click += (s, e) => ZoomAt(canvas.Width / 2, canvas.Height / 2, 0.8);
+                    btnFit    .Click += (s, e) => { CalcFit(); UpdateZoomLabel(); canvas.Invalidate(); };
+                    btn100    .Click += (s, e) =>
+                    {
+                        scale = 1.0;
+                        offX  = (canvas.Width  - origBmp.Width)  / 2f;
+                        offY  = (canvas.Height - origBmp.Height) / 2f;
+                        ClampPan(); UpdateZoomLabel(); canvas.Invalidate();
+                    };
+
+                    f.Controls.Add(canvas);
+                    f.FormClosed += (s, e) => { try { origBmp.Dispose(); } catch { } };
+
+                    btnPrev.Visible = false; btnNext.Visible = false;
+                }
+                else
+                {
+                    BuildPreviewInfoPanel(f, filePath);
+                    btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                }
             }
             else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
             {
-                state.Type = "text";
-                var tb = new TextBox { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 9) };
+                var tb = new TextBox
+                {
+                    Multiline = true, ReadOnly = true, Dock = DockStyle.Fill,
+                    ScrollBars = ScrollBars.Both,
+                    Font       = new Font("Consolas", 9.5f),
+                    BackColor  = Color.FromArgb(30, 30, 30),
+                    ForeColor  = Color.FromArgb(212, 212, 212),
+                    BorderStyle = BorderStyle.None
+                };
+                var state = new PreviewState { Type = "text" };
                 try
                 {
                     var full = File.ReadAllText(filePath);
                     state.FullText = full.Replace("\r\n", "\n");
-                    state.Lines = state.FullText.Split(new[] { '\n' }, StringSplitOptions.None);
-                    state.TextOffset = 0;
-                    tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
+                    state.Lines    = state.FullText.Split('\n');
+                    tb.Text = string.Join(Environment.NewLine, state.Lines.Take(state.TextPageLines));
+                    lblInfo.Text = $"{Path.GetFileName(filePath)}  ({state.Lines.Length:N0} dòng)";
                 }
                 catch { tb.Text = "(Không thể đọc nội dung)"; }
                 f.Controls.Add(tb);
 
-                btnZoomIn.Enabled = false; btnZoomOut.Enabled = false;
-                btnPrev.Enabled = state.TextOffset > 0;
-                btnNext.Enabled = state.Lines != null && state.TextOffset + state.TextPageLines < (state.Lines?.Length ?? 0);
+                btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                btnPrev.Visible = btnNext.Visible = true;
+                btnPrev.Enabled = false;
+                btnNext.Enabled = state.Lines != null && state.Lines.Length > state.TextPageLines;
+
+                void UpdatePageInfo() => lblInfo.Text =
+                    $"{Path.GetFileName(filePath)}  — dòng {state.TextOffset + 1}–{Math.Min(state.Lines.Length, state.TextOffset + state.TextPageLines)} / {state.Lines.Length:N0}";
+
                 btnPrev.Click += (s, e) =>
                 {
                     state.TextOffset = Math.Max(0, state.TextOffset - state.TextPageLines);
                     tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
                     btnPrev.Enabled = state.TextOffset > 0;
                     btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
+                    UpdatePageInfo();
                 };
                 btnNext.Click += (s, e) =>
                 {
-                    state.TextOffset = Math.Min(state.Lines.Length - state.TextPageLines, state.TextOffset + state.TextPageLines);
+                    state.TextOffset = Math.Min(Math.Max(0, state.Lines.Length - state.TextPageLines), state.TextOffset + state.TextPageLines);
                     tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
                     btnPrev.Enabled = state.TextOffset > 0;
                     btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
+                    UpdatePageInfo();
                 };
-                btnClose.Click += (s, e) => { f.Close(); };
             }
             else
             {
-                // Unsupported preview: show basic info
-                var pnl = new Panel { Dock = DockStyle.Fill };
-                var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-                var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
-                var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
-                btn.Click += (s,e) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
-                pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
-                f.Controls.Add(pnl);
+                BuildPreviewInfoPanel(f, filePath);
+                btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                btnPrev.Visible = btnNext.Visible = false;
             }
 
-            // Attach mouse handlers so moving mouse into the preview keeps it open
-            try
-            {
-                StopPreviewCloseTimer();
-                AttachPreviewMouseHandlers(f);
-            }
-            catch { }
-
+            try { StopPreviewCloseTimer(); AttachPreviewMouseHandlers(f); } catch { }
             _filePreviewForm = f;
             f.Show();
+        }
+
+        private void BuildPreviewInfoPanel(Form f, string filePath)
+        {
+            f.BackColor = Color.FromArgb(45, 45, 48);
+            var pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(45, 45, 48) };
+            var pb  = new PictureBox { Left = 24, Top = 24, Width = 64, Height = 64, SizeMode = PictureBoxSizeMode.StretchImage };
+            try { pb.Image = Icon.ExtractAssociatedIcon(filePath)?.ToBitmap(); } catch { }
+            var lblName = new Label { Left = 24, Top = 96,  Width = 600, AutoSize = false, Height = 26, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Color.White };
+            var lblSize = new Label { Left = 24, Top = 126, Width = 400, AutoSize = false, Height = 20, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes",       Font = new Font("Segoe UI", 9), ForeColor = Color.FromArgb(170, 170, 170) };
+            var lblExt  = new Label { Left = 24, Top = 150, Width = 400, AutoSize = false, Height = 20, Text = $"Loại: {Path.GetExtension(filePath).ToUpperInvariant()}",     Font = new Font("Segoe UI", 9), ForeColor = Color.FromArgb(170, 170, 170) };
+            var btnOp   = new Button { Left = 24, Top = 186, Width = 120, Height = 30, Text = "Mở file", FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnOp.FlatAppearance.BorderSize = 0;
+            btnOp.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+            pnl.Controls.AddRange(new Control[] { pb, lblName, lblSize, lblExt, btnOp });
+            f.Controls.Add(pnl);
         }
 
         private void AttachPreviewMouseHandlers(Control ctl)
@@ -4287,7 +4294,34 @@ namespace MPR_Managerment.Forms
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    string sql = @"SELECT pod.MPR_Detail_ID, poh.PONo FROM PO_Detail pod INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID WHERE pod.MPR_Detail_ID IS NOT NULL AND pod.MPR_Detail_ID IN (SELECT Detail_ID FROM MPR_Details WHERE MPR_ID = @mprId) AND ISNULL(poh.Status,'') <> 'Cancelled'";
+                    // UNION: direct match (same revision) + cross-revision match by item_name
+                    // Cross-revision part also checks base MPR_No (strips _Rev.X suffix) so we
+                    // only match actual revisions of the same MPR, not unrelated MPRs in the project.
+                    string sql = @"
+SELECT md.Detail_ID AS CurDetailId, poh.PONo
+FROM PO_Detail pod
+INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID
+INNER JOIN MPR_Details md ON md.Detail_ID = pod.MPR_Detail_ID AND md.MPR_ID = @mprId
+WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'
+
+UNION
+
+SELECT md_new.Detail_ID AS CurDetailId, poh.PONo
+FROM PO_Detail pod
+INNER JOIN PO_head poh ON pod.PO_ID = poh.PO_ID
+INNER JOIN MPR_Details md_old ON md_old.Detail_ID = pod.MPR_Detail_ID AND md_old.MPR_ID <> @mprId
+INNER JOIN MPR_Header mh_old ON mh_old.MPR_ID = md_old.MPR_ID
+INNER JOIN MPR_Header mh_new ON mh_new.MPR_ID = @mprId
+    AND mh_new.Project_Code = mh_old.Project_Code
+    AND CASE WHEN CHARINDEX('_Rev.', mh_new.MPR_No) > 0
+             THEN LEFT(mh_new.MPR_No, CHARINDEX('_Rev.', mh_new.MPR_No) - 1)
+             ELSE mh_new.MPR_No END
+      = CASE WHEN CHARINDEX('_Rev.', mh_old.MPR_No) > 0
+             THEN LEFT(mh_old.MPR_No, CHARINDEX('_Rev.', mh_old.MPR_No) - 1)
+             ELSE mh_old.MPR_No END
+INNER JOIN MPR_Details md_new ON md_new.MPR_ID = @mprId
+    AND LTRIM(RTRIM(LOWER(md_new.Item_Name))) = LTRIM(RTRIM(LOWER(md_old.Item_Name)))
+WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@mprId", mprId);
@@ -4295,10 +4329,11 @@ namespace MPR_Managerment.Forms
                         {
                             while (reader.Read())
                             {
-                                if (reader["MPR_Detail_ID"] != DBNull.Value)
+                                if (reader["CurDetailId"] != DBNull.Value)
                                 {
-                                    int detailId = Convert.ToInt32(reader["MPR_Detail_ID"]);
-                                    string poNo = reader["PONo"]?.ToString() ?? ""; if (dict.ContainsKey(detailId))
+                                    int detailId = Convert.ToInt32(reader["CurDetailId"]);
+                                    string poNo = reader["PONo"]?.ToString() ?? "";
+                                    if (dict.ContainsKey(detailId))
                                     {
                                         if (!dict[detailId].Contains(poNo)) dict[detailId] += ", " + poNo;
                                     }
@@ -4342,8 +4377,11 @@ namespace MPR_Managerment.Forms
                     {
                         System.Diagnostics.Debug.WriteLine("Lỗi tìm project: " + ex.Message);
                     }
+                    // Bỏ qua các dòng bị đánh dấu chỉ đọc/đã xóa khi revise
+                    var activeDetails = details.Where(d => !d.Is_Deleted).ToList();
+                    int skipped = details.Count - activeDetails.Count;
                     int itemNo = 1;
-                    foreach (var d in details)
+                    foreach (var d in activeDetails)
                     {
                         string orderedPo = poMapping.ContainsKey(d.Detail_ID) ?
                         poMapping[d.Detail_ID] : "";
@@ -4358,7 +4396,8 @@ namespace MPR_Managerment.Forms
                     }
                     UpdateTotal();
                     AutoAdjustColumnWidths();
-                    MessageBox.Show($"✅ Đã import {details.Count} dòng từ MPR {mpr.MPR_No}!\nPO No dự kiến: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    string skipNote = skipped > 0 ? $"\n(Đã bỏ qua {skipped} dòng chỉ đọc)" : "";
+                    MessageBox.Show($"✅ Đã import {activeDetails.Count} dòng từ MPR {mpr.MPR_No}!\nPO No dự kiến: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}{skipNote}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
         }
@@ -4398,8 +4437,11 @@ namespace MPR_Managerment.Forms
                 {
                     System.Diagnostics.Debug.WriteLine("Lỗi tìm project: " + ex.Message);
                 }
+                // Bỏ qua các dòng bị đánh dấu chỉ đọc/đã xóa khi revise
+                var activeDetails = details.Where(d => !d.Is_Deleted).ToList();
+                int skipped = details.Count - activeDetails.Count;
                 int itemNo = 1;
-                foreach (var d in details)
+                foreach (var d in activeDetails)
                 {
                     string orderedPo = poMapping.ContainsKey(d.Detail_ID) ?
                     poMapping[d.Detail_ID] : "";
@@ -4413,7 +4455,8 @@ namespace MPR_Managerment.Forms
                     r.Cells["Calc_Method"].Value = "Theo KG"; r.Cells["Ordered_PO"].Value = orderedPo; r.Cells["PO_Detail_ID"].Value = 0; r.Cells["MPR_Detail_ID"].Value = d.Detail_ID;
                 }
                 UpdateTotal(); AutoAdjustColumnWidths();
-                MessageBox.Show($"✅ Đã import {details.Count} dòng từ MPR {mpr.MPR_No}!\nPO No: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string skipNote = skipped > 0 ? $"\n(Đã bỏ qua {skipped} dòng chỉ đọc)" : "";
+                MessageBox.Show($"✅ Đã import {activeDetails.Count} dòng từ MPR {mpr.MPR_No}!\nPO No: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}{skipNote}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {

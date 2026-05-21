@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
@@ -130,20 +131,38 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                _mprList = string.IsNullOrWhiteSpace(keyword)
+                var all = string.IsNullOrWhiteSpace(keyword)
                     ? _service.GetAll()
                     : _service.Search(keyword);
 
+                // Tìm revision mới nhất cho mỗi nhóm (Project_Code + base MPR_No)
+                var groups = new Dictionary<string, (int MaxRev, int MprId)>();
+                foreach (var m in all)
+                {
+                    string baseNo = !string.IsNullOrEmpty(m.MPR_No) && m.MPR_No.Contains("_Rev.")
+                        ? m.MPR_No.Substring(0, m.MPR_No.IndexOf("_Rev."))
+                        : (m.MPR_No ?? "");
+                    string key = (m.Project_Code ?? "") + "||" + baseNo;
+                    int revVal = 0;
+                    try { revVal = Convert.ToInt32(m.Rev); } catch { }
+                    if (!groups.TryGetValue(key, out var cur) || revVal > cur.MaxRev)
+                        groups[key] = (revVal, m.MPR_ID);
+                }
+                var latestIds = new HashSet<int>(groups.Values.Select(v => v.MprId));
+
+                // Chỉ hiển thị revision mới nhất của mỗi nhóm
+                _mprList = all.Where(m => latestIds.Contains(m.MPR_ID)).ToList();
+
                 dgvMPR.DataSource = _mprList.ConvertAll(h => new
                 {
-                    ID = h.MPR_ID,
-                    MPR_No = h.MPR_No,
-                    Du_An = h.Project_Name,
-                    Ma_DA = h.Project_Code,
-                    Nguoi_YC = h.Requestor,
-                    Ngay_Can = h.Required_Date.HasValue ? h.Required_Date.Value.ToString("dd/MM/yyyy") : "",
+                    ID        = h.MPR_ID,
+                    MPR_No    = h.MPR_No,
+                    Du_An     = h.Project_Name,
+                    Ma_DA     = h.Project_Code,
+                    Nguoi_YC  = h.Requestor,
+                    Ngay_Can  = h.Required_Date.HasValue ? h.Required_Date.Value.ToString("dd/MM/yyyy") : "",
                     Trang_Thai = h.Status,
-                    Rev = h.Rev
+                    Rev       = h.Rev
                 });
             }
             catch (Exception ex)

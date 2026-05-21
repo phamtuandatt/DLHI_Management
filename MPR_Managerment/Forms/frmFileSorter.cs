@@ -178,7 +178,7 @@ namespace MPR_Managerment.Forms
             var cols = new[]
             {
                 ("FileName",       "Tên file gốc (double-click để mở)", 22, true),
-                ("FileType",       "Loại",                               5, true),
+                ("FileType",       "Loại ▼",                             5, true),
                 ("ExtractedCode",  "Mã trích xuất",                     11, true),
                 ("TargetFolder",   "Thư mục đích",                      27, true),
                 ("FinalName",      "Tên lưu (click để sửa)",            13, false), // cho phép edit
@@ -211,6 +211,8 @@ namespace MPR_Managerment.Forms
                 if (e.RowIndex < 0) return;
                 if (_dgv.Columns[e.ColumnIndex].Name == "MatchedProject")
                     ShowProjectDropdown(e.RowIndex);
+                else if (_dgv.Columns[e.ColumnIndex].Name == "FileType")
+                    ShowFileTypeDropdown(e.RowIndex);
             };
 
             // Double-click cột FileName → mở file gốc
@@ -824,6 +826,45 @@ namespace MPR_Managerment.Forms
             // Hiện menu tại vị trí cell
             var cellRect = _dgv.GetCellDisplayRectangle(
                 _dgv.Columns["MatchedProject"].Index, rowIndex, false);
+            menu.Show(_dgv, new Point(cellRect.X, cellRect.Bottom));
+        }
+
+        private void ShowFileTypeDropdown(int rowIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= _items.Count) return;
+            var item = _items[rowIndex];
+
+            var menu = new ContextMenuStrip();
+            foreach (string type in new[] { "PO", "MPR", "-" })
+            {
+                var mi = new ToolStripMenuItem(type) { Tag = type };
+                if (item.FileType == type) mi.Checked = true;
+                menu.Items.Add(mi);
+            }
+
+            menu.ItemClicked += (s, e) =>
+            {
+                string newType = e.ClickedItem.Tag as string;
+                if (newType == item.FileType) return;
+                item.FileType = newType;
+                _dgv.Rows[rowIndex].Cells["FileType"].Value = newType;
+
+                // Re-resolve target folder using current matched project
+                ProjectRec proj = null;
+                string currentMatch = item.MatchedProject ?? "";
+                if (!string.IsNullOrEmpty(currentMatch) && currentMatch != "-")
+                    proj = _projects.FirstOrDefault(p =>
+                    {
+                        string code = !string.IsNullOrEmpty(p.POCode) ? p.POCode :
+                                      !string.IsNullOrEmpty(p.MPRCode) ? p.MPRCode : p.WorkorderNo;
+                        return $"{code} - {p.ProjectCode}" == currentMatch;
+                    });
+
+                ApplyProjectSelection(rowIndex, proj);
+            };
+
+            var cellRect = _dgv.GetCellDisplayRectangle(
+                _dgv.Columns["FileType"].Index, rowIndex, false);
             menu.Show(_dgv, new Point(cellRect.X, cellRect.Bottom));
         }
 
