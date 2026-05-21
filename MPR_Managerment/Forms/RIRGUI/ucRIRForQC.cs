@@ -25,7 +25,7 @@ namespace MPR_Managerment.Forms.RIRGUI
         private DataTable _dtRIRs = new DataTable();
 
         private WarehouseService _warehouseServies = new WarehouseService();
-        private RIRService _service = new RIRService();
+        private RIRService _rirServices = new RIRService();
         private ProjectService _projectServices = new ProjectService();
 
         private List<RIRDetail> _details = new List<RIRDetail>();
@@ -182,18 +182,18 @@ namespace MPR_Managerment.Forms.RIRGUI
                             }
                             else
                             {
-                                try
-                                {
-                                    // Thực hiện xóa dòng trong database
-                                    int rir_detail_id = Convert.ToInt32(dgvRIR.CurrentRow.Cells["RIR_Detail_ID"].Value.ToString().Trim());
-                                    _service.DeleteDetail(rir_detail_id);
-                                    // Thực hiện xóa dòng hiện tại ra khỏi DataGridView
-                                    dgvRIR.Rows.Remove(dgvRIR.CurrentRow);
-                                }
-                                catch (SqlException ex)
-                                {
-                                    MessageBox.Show($"Không thể xóa dòng: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                }
+                                //try
+                                //{
+                                //    // Thực hiện xóa dòng trong database
+                                //    int rir_detail_id = Convert.ToInt32(dgvRIR.CurrentRow.Cells["RIR_Detail_ID"].Value.ToString().Trim());
+                                //    _service.DeleteDetail(rir_detail_id);
+                                //    // Thực hiện xóa dòng hiện tại ra khỏi DataGridView
+                                //    dgvRIR.Rows.Remove(dgvRIR.CurrentRow);
+                                //}
+                                //catch (SqlException ex)
+                                //{
+                                //    MessageBox.Show($"Không thể xóa dòng: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                //}
                             }
                         }
                     }
@@ -332,7 +332,7 @@ namespace MPR_Managerment.Forms.RIRGUI
                         IsNewRow = string.IsNullOrEmpty(row.Cells["IsAdded"].Value?.ToString()) ? "false" : "true",
                     };
 
-                    await _service.UpdateDetailForQC(d);
+                    await _rirServices.UpdateDetailForQC(d);
 
                     saved++;
                 }
@@ -381,7 +381,7 @@ namespace MPR_Managerment.Forms.RIRGUI
         {
             try
             {
-                _details = _service.GetDetails(rirId);
+                _details = _rirServices.GetDetails(rirId);
                 dgvRIR.Rows.Clear();
 
                 foreach (var d in _details)
@@ -566,7 +566,7 @@ namespace MPR_Managerment.Forms.RIRGUI
         private async void btnExport_Click(object sender, EventArgs e)
         {
             if (!Common.Common.IsComboBoxValid(cboProjectMaterial)) return;
-            var dt = await _service.GetMaterialIDCodeListOfRIRForQC(Convert.ToInt32(cboRIRs.SelectedValue?.ToString()));
+            var dt = await _rirServices.GetMaterialIDCodeListOfRIRForQC(Convert.ToInt32(cboRIRs.SelectedValue?.ToString()));
             ExportIdCodeListFromDatabase(dt);
         }
 
@@ -578,8 +578,146 @@ namespace MPR_Managerment.Forms.RIRGUI
 
         private async void btnPrintReportMaterial_Click(object sender, EventArgs e)
         {
-            var dt = await _service.GetMaterialIDCodeListOfProjectForQC(cboProjectMaterial.Text);
+            var dt = await _rirServices.GetMaterialIDCodeListOfProjectForQC(cboProjectMaterial.Text);
             ExportIdCodeListFromDatabase(dt);
+        }
+
+        private async void btnExportListItem_Click(object sender, EventArgs e)
+        {
+            var rirId = Convert.ToInt32(cboRIRs.SelectedValue ?? 1);
+
+            var dtHeader = await _rirServices.GetRIRHeaderByRIRId(rirId);
+
+            var dtDetail = _rirServices.GetDetails(rirId);
+
+            ExportMaterialInspectionReport(dtHeader, dtDetail);
+        }
+
+        public void ExportMaterialInspectionReport(RIRHead dtHeader, List<RIRDetail> dtDetails)
+        {
+            // 1. Kiểm tra file Template
+            string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "material_receiving_inspection_report__material_template.xlsx");
+            if (!File.Exists(templatePath))
+            {
+                MessageBox.Show("Không tìm thấy file template báo cáo nghiệm thu!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // 2. Mở hộp thoại lưu file Excel mới
+            SaveFileDialog saveDialog = new SaveFileDialog
+            {
+                Filter = "Excel Files|*.xlsx",
+                FileName = $"MRI_Report_{DateTime.Now:ddMMyyyy_HHmm}.xlsx",
+                Title = "Lưu báo cáo nghiệm thu vật liệu"
+            };
+
+            if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                // Sao chép từ template sang vị trí đích mới
+                File.Copy(templatePath, saveDialog.FileName, true);
+                ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
+                using (var package = new ExcelPackage(new FileInfo(saveDialog.FileName)))
+                {
+                    var ws = package.Workbook.Worksheets[0]; // Lấy sheet báo cáo đầu tiên
+
+                    // --- PHẦN 1: THAY THẾ CÁC THẺ HEADER <<...>> ---
+                    // Quét vùng Header từ dòng 1 đến dòng 8 để tìm và thay thế chuỗi cấu hình mẫu
+                    if (dtHeader != null)
+                    {
+                        ReplaceCell(ws, "<<WO_NO>>", dtHeader.WorkorderNo ?? "");
+                        ReplaceCell(ws, "<<MPR_NO>>", dtHeader.MPR_No ?? "");
+                        ReplaceCell(ws, "<<PROJECT_NAME>>", dtHeader.Project_Name ?? "");
+                        ReplaceCell(ws, "<<CUSTOMER>>", dtHeader.Customer ?? "");
+                        ReplaceCell(ws, "<<PO_NO>>", dtHeader.PONo ?? "");
+                    }
+
+                    // --- PHẦN 2: ĐỔ DỮ LIỆU CHI TIẾT BẮT ĐẦU TỪ DÒNG 9 & ĐẨY FOOTER ---
+                    int startRow = 9; // Dòng bắt đầu điền dữ liệu (Dòng mẫu có STT 1)
+                    int detailCount = dtDetails != null ? dtDetails.Count : 0;
+
+                    if (detailCount > 0)
+                    {
+                        // Nếu số dòng dữ liệu nhiều hơn 1 dòng mẫu thiết kế sẵn, tiến hành chèn dòng hàng loạt.
+                        // Lệnh này tự động đẩy phần Note và Footer chữ ký xuống phía dưới mà không làm vỡ layout.
+                        if (detailCount > 1)
+                        {
+                            ws.InsertRow(startRow + 1, detailCount - 1, startRow);
+                        }
+
+                        // Duyệt danh sách điền dữ liệu dựa theo cấu trúc cột biểu mẫu nghiệm thu vật liệu hàn
+                        for (int i = 0; i < detailCount; i++)
+                        {
+                            var row = dtDetails[i];
+                            int currentRow = startRow + i;
+
+                            // Gán dữ liệu (Cột 1->A, 2->B, 3->C, ...)
+                            ws.Cells[currentRow, 1, currentRow, 2].Merge = true;
+                            ws.Cells[currentRow, 1].Value = i + 1;                                     // Cột A -> B: No.
+
+                            ws.Cells[currentRow, 3, currentRow, 7].Merge = true;
+                            ws.Cells[currentRow, 3].Value = row.Item_Name;  // Cột C -> G : Name
+
+                            ws.Cells[currentRow, 8, currentRow, 12].Merge = true;
+                            ws.Cells[currentRow, 8].Value = row.Material;                  // Cột H -> L: spec
+
+                            ws.Cells[currentRow, 13, currentRow, 19].Merge = true;
+                            ws.Cells[currentRow, 13].Value = row.Size;                  // Cột M -> S: Size
+
+                            ws.Cells[currentRow, 20, currentRow, 22].Merge = true;
+                            ws.Cells[currentRow, 20].Value = row.UNIT;              // Cột T -> V: UNIT
+
+                            ws.Cells[currentRow, 23, currentRow, 24].Merge = true;
+                            ws.Cells[currentRow, 23].Value = row.Qty_Required;              // Cột W -> X: Qty
+
+                            ws.Cells[currentRow, 25, currentRow, 30].Merge = true;
+                            ws.Cells[currentRow, 25].Value = row.MTRno;               // Cột Y -> AD: MTC No.
+
+                            ws.Cells[currentRow, 31, currentRow, 37].Merge = true;
+                            ws.Cells[currentRow, 31].Value = row.Heatno;               // Cột AE -> AK: Heat No.
+
+                            if (row.Inspect_Result.Equals("Pass"))
+                            {
+                                ws.Cells[currentRow, 38, currentRow, 44].Merge = true;
+                                ws.Cells[currentRow, 38].Value = "Accept";               // Cột AL -> AR: Result.
+                            } 
+                            else
+                            {
+                                ws.Cells[currentRow, 38, currentRow, 44].Merge = true;
+                                ws.Cells[currentRow, 38].Value = "Reject";               // Cột AL -> AR: Result.
+                            }
+
+                            ws.Cells[currentRow, 45, currentRow, 46].Merge = true;
+                            ws.Cells[currentRow, 45].Value = row.ID_Code;               // Cột Y -> AD: MTC No.
+
+                            ws.Cells[currentRow, 47].Value = "";               // Cột Y -> AD: MTC No.
+                            ws.Cells[currentRow, 48].Value = "";               // Cột Y -> AD: MTC No.
+
+                            ws.Row(currentRow).Height = 30;
+                        }
+                    }
+
+                    // Lưu dữ liệu lại vào file
+                    package.Save();
+                }
+
+                MessageBox.Show($"Xuất báo cáo nghiệm thu thành công!\nSố mục vật tư: {dtDetails?.Count ?? 0}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (MessageBox.Show($"✅ Xuất báo cáo nghiệm thu thành công!\nSố mục vật tư: {dtDetails?.Count ?? 0}\nXuất Excel thành công! Bạn có muốn mở file?", "Thành công", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveDialog.FileName, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi trong quá trình ghi file Excel: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        private void ReplaceCell(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string value)
+        {
+            for (int r = 1; r <= ws.Dimension.End.Row; r++) 
+                for (int c = 1; c <= ws.Dimension.End.Column; c++) 
+                    if (ws.Cells[r, c].Value?.ToString() == placeholder) 
+                        ws.Cells[r, c].Value = value; 
         }
     }
 }

@@ -185,6 +185,21 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public async Task<RIRHead> GetRIRHeaderByRIRId(int rirId)
+        {
+            var head = new RIRHead();
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                var cmd = new SqlCommand(@"SELECT TOP 1 *FROM RIR_head WHERE RIR_ID = @rirId", conn);
+                cmd.Parameters.AddWithValue("@rirId", rirId);
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (var r = cmd.ExecuteReader())
+                    while (r.Read()) head = MapHead(r);
+                return head;
+            }
+        }
+
         public async Task<DataTable> GetMaterialIDCodeListOfProjectForQC(string project_code = "")
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())

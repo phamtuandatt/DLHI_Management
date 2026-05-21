@@ -50,6 +50,9 @@
     <None Update="Resources\icon.ico">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Templates\material_receiving_inspection_report__material_template.xlsx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Templates\mpr_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

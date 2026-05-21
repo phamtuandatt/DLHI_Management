@@ -52,6 +52,7 @@
             btnClear = new Button();
             lblStatus = new Label();
             btnXoaRow = new Button();
+            btnExportListItem = new Button();
             panel1.SuspendLayout();
             groupBox2.SuspendLayout();
             panel3.SuspendLayout();
@@ -298,6 +299,7 @@
             // 
             panel2.Controls.Add(btnSave);
             panel2.Controls.Add(label5);
+            panel2.Controls.Add(btnExportListItem);
             panel2.Controls.Add(btnExport);
             panel2.Controls.Add(btnClear);
             panel2.Controls.Add(lblStatus);
@@ -391,6 +393,22 @@
             btnXoaRow.Text = "🗑 Xóa dòng";
             btnXoaRow.UseVisualStyleBackColor = false;
             // 
+            // btnExportListItem
+            // 
+            btnExportListItem.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+            btnExportListItem.BackColor = Color.ForestGreen;
+            btnExportListItem.FlatStyle = FlatStyle.Flat;
+            btnExportListItem.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnExportListItem.ForeColor = Color.White;
+            btnExportListItem.Location = new Point(982, 4);
+            btnExportListItem.Margin = new Padding(3, 2, 3, 2);
+            btnExportListItem.Name = "btnExportListItem";
+            btnExportListItem.Size = new Size(109, 29);
+            btnExportListItem.TabIndex = 4;
+            btnExportListItem.Text = "📄 In báo cáo";
+            btnExportListItem.UseVisualStyleBackColor = false;
+            btnExportListItem.Click += btnExportListItem_Click;
+            // 
             // ucRIRForQC
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -442,5 +460,6 @@
         private Button btnExport;
         private ComboBox cboProjectMaterial;
         private Button btnPrintReportMaterial;
+        private Button btnExportListItem;
     }
 }
