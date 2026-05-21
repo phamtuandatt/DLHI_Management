@@ -99,7 +99,270 @@ namespace MPR_Managerment.Forms
         // BẢNG MỚI: Danh sách file đính kèm
         private DataGridView dgvFiles;
 
+        // File preview popup for MPR files
+        private Form _filePreviewForm_MPR;
+        private System.Windows.Forms.Timer _previewTimer_MPR;
+        private string _previewPath_MPR = null;
+        private DataGridViewCell _previewCell_MPR = null;
+        private class PreviewStateMPR
+        {
+            public string Type;
+            public Image OriginalImage;
+            public double Scale = 1.0;
+            public string FullText;
+            public string[] Lines;
+            public int TextOffset = 0;
+            public int TextPageLines = 200;
+        }
+
         private DataGridView dgvDetails;
+
+        // Preview helpers for MPR files
+        private void EnsureFilePreview_MPR()
+        {
+            if (_previewTimer_MPR != null) return;
+            _previewTimer_MPR = new System.Windows.Forms.Timer { Interval = 300 };
+            _previewTimer_MPR.Tick += (s, e) =>
+            {
+                _previewTimer_MPR.Stop();
+                if (!string.IsNullOrEmpty(_previewPath_MPR) && _previewCell_MPR != null)
+                {
+                    try { ShowFilePreview_MPR(_previewPath_MPR, Cursor.Position); }
+                    catch { }
+                }
+            };
+
+            if (dgvFiles != null)
+            {
+                dgvFiles.CellMouseEnter += DgvFiles_CellMouseEnter_MPR;
+                dgvFiles.CellMouseLeave += DgvFiles_CellMouseLeave_MPR;
+                dgvFiles.MouseLeave += (s, e) => StartPreviewCloseTimer_MPR();
+                dgvFiles.Scroll += (s, e) => StartPreviewCloseTimer_MPR();
+            }
+        }
+
+        private void DgvFiles_CellMouseEnter_MPR(object sender, DataGridViewCellEventArgs e)
+        {
+            try
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+                var cell = dgvFiles.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                var fullPathCell = dgvFiles.Rows[e.RowIndex].Cells.Count > 1 ? dgvFiles.Rows[e.RowIndex].Cells[1] : null;
+                string path = fullPathCell?.Value?.ToString() ?? "";
+                if (string.IsNullOrEmpty(path)) { _previewPath_MPR = null; _previewCell_MPR = null; return; }
+                _previewPath_MPR = path;
+                _previewCell_MPR = cell;
+                _previewTimer_MPR?.Stop();
+                _previewTimer_MPR?.Start();
+            }
+            catch { }
+        }
+
+        private void DgvFiles_CellMouseLeave_MPR(object sender, DataGridViewCellEventArgs e)
+        {
+            _previewTimer_MPR?.Stop();
+            _previewPath_MPR = null; _previewCell_MPR = null;
+            StartPreviewCloseTimer_MPR();
+        }
+
+        private void HideFilePreview_MPR()
+        {
+            try
+            {
+                if (_filePreviewForm_MPR != null)
+                {
+                    if (!_filePreviewForm_MPR.IsDisposed) _filePreviewForm_MPR.Hide();
+                    _filePreviewForm_MPR.Dispose();
+                    _filePreviewForm_MPR = null;
+                }
+            }
+            catch { }
+        }
+
+        private System.Windows.Forms.Timer _previewCloseTimer_MPR;
+
+        private void StartPreviewCloseTimer_MPR()
+        {
+            try
+            {
+                if (_previewCloseTimer_MPR == null)
+                {
+                    _previewCloseTimer_MPR = new System.Windows.Forms.Timer { Interval = 800 };
+                    _previewCloseTimer_MPR.Tick += (s, e) =>
+                    {
+                        _previewCloseTimer_MPR.Stop();
+                        HideFilePreview_MPR();
+                    };
+                }
+                _previewCloseTimer_MPR.Stop();
+                _previewCloseTimer_MPR.Start();
+            }
+            catch { }
+        }
+
+        private void StopPreviewCloseTimer_MPR()
+        {
+            try { _previewCloseTimer_MPR?.Stop(); }
+            catch { }
+        }
+
+        private void ShowFilePreview_MPR(string filePath, Point screenPos)
+        {
+            HideFilePreview_MPR();
+            if (!File.Exists(filePath)) return;
+
+            var f = new Form();
+            f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+            f.Size = new Size(1024, 768);
+            f.StartPosition = FormStartPosition.Manual;
+            f.ShowInTaskbar = false;
+            f.TopMost = true;
+            f.BackColor = Color.White;
+            f.Padding = new Padding(6);
+
+            int w = f.Width, h = f.Height;
+            var screen = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0,0,800,600);
+            int x = screen.Left + (screen.Width - w) / 2;
+            int y = screen.Top + (screen.Height - h) / 2;
+            f.Bounds = new Rectangle(x, y, w, h);
+
+            // Toolbar
+            var tool = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(250, 250, 250) };
+            var btnZoomIn = new Button { Text = "+", Width = 34, Height = 28, Left = 6, Top = 4 };
+            var btnZoomOut = new Button { Text = "-", Width = 34, Height = 28, Left = 46, Top = 4 };
+            var btnPrev = new Button { Text = "◀", Width = 40, Height = 28, Left = 96, Top = 4 };
+            var btnNext = new Button { Text = "▶", Width = 40, Height = 28, Left = 142, Top = 4 };
+            var btnClose = new Button { Text = "✖", Width = 34, Height = 28, Left = f.ClientSize.Width - 44, Top = 4, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            tool.Controls.AddRange(new Control[] { btnZoomIn, btnZoomOut, btnPrev, btnNext, btnClose });
+            f.Controls.Add(tool);
+
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            var state = new PreviewStateMPR();
+            if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif")
+            {
+                state.Type = "image";
+                var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+                var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
+                try { var img = Image.FromFile(filePath); state.OriginalImage = new Bitmap(img); pb.Image = new Bitmap(state.OriginalImage); pb.Size = state.OriginalImage.Size; } catch { pb.Image = null; }
+                container.Controls.Add(pb);
+                f.Controls.Add(container);
+                btnZoomIn.Click += (s, e) =>
+                {
+                    try
+                    {
+                        state.Scale *= 1.25;
+                        if (state.OriginalImage != null)
+                        {
+                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
+                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
+                            var resized = new Bitmap(newW, newH);
+                            using (var g = Graphics.FromImage(resized))
+                            {
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
+                            }
+                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
+                            pb.Image = resized;
+                            pb.Size = resized.Size;
+                        }
+                    }
+                    catch { }
+                };
+                btnZoomOut.Click += (s, e) =>
+                {
+                    try
+                    {
+                        state.Scale /= 1.25;
+                        if (state.OriginalImage != null)
+                        {
+                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
+                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
+                            var resized = new Bitmap(newW, newH);
+                            using (var g = Graphics.FromImage(resized))
+                            {
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
+                            }
+                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
+                            pb.Image = resized;
+                            pb.Size = resized.Size;
+                        }
+                    }
+                    catch { }
+                };
+                btnPrev.Enabled = false; btnNext.Enabled = false; btnClose.Click += (s, e) => { f.Close(); };
+            }
+            else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
+            {
+                state.Type = "text";
+                var tb = new TextBox { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 9) };
+                try { var full = File.ReadAllText(filePath); state.FullText = full.Replace("\r\n", "\n"); state.Lines = state.FullText.Split(new[] { '\n' }, StringSplitOptions.None); state.TextOffset = 0; tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines)); } catch { tb.Text = "(Không thể đọc nội dung)"; }
+                f.Controls.Add(tb);
+                btnZoomIn.Enabled = false; btnZoomOut.Enabled = false; btnPrev.Enabled = state.TextOffset > 0; btnNext.Enabled = state.Lines != null && state.TextOffset + state.TextPageLines < (state.Lines?.Length ?? 0);
+                btnPrev.Click += (s, e) => { state.TextOffset = Math.Max(0, state.TextOffset - state.TextPageLines); tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines)); btnPrev.Enabled = state.TextOffset > 0; btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length; };
+                btnNext.Click += (s, e) => { state.TextOffset = Math.Min(state.Lines.Length - state.TextPageLines, state.TextOffset + state.TextPageLines); tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines)); btnPrev.Enabled = state.TextOffset > 0; btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length; };
+                btnClose.Click += (s, e) => { f.Close(); };
+            }
+            else
+            {
+                try
+                {
+                    var icon = Icon.ExtractAssociatedIcon(filePath);
+                    if (icon != null)
+                    {
+                        var bmp = icon.ToBitmap();
+                        var pb = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.CenterImage, Image = bmp };
+                        f.Controls.Add(pb);
+                    }
+                    else
+                    {
+                        var pnl = new Panel { Dock = DockStyle.Fill };
+                        var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+                        var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
+                        var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
+                        btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+                        pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
+                        f.Controls.Add(pnl);
+                    }
+                }
+                catch
+                {
+                    var pnl = new Panel { Dock = DockStyle.Fill };
+                    var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+                    var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
+                    var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
+                    btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+                    pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
+                    f.Controls.Add(pnl);
+                }
+            }
+
+            _filePreviewForm_MPR = f;
+            try
+            {
+                StopPreviewCloseTimer_MPR();
+                AttachPreviewMouseHandlers_MPR(f);
+            }
+            catch { }
+
+            f.Show();
+        }
+
+        private void AttachPreviewMouseHandlers_MPR(Control ctl)
+        {
+            try
+            {
+                ctl.MouseEnter += (s, e) => StopPreviewCloseTimer_MPR();
+                ctl.MouseLeave += (s, e) => StartPreviewCloseTimer_MPR();
+                foreach (Control c in ctl.Controls)
+                    AttachPreviewMouseHandlers_MPR(c);
+            }
+            catch { }
+        }
         private Button btnAddDetail, btnDeleteDetail, btnSaveDetail;
 
         // BẢNG: Tiến độ PO
@@ -307,6 +570,8 @@ namespace MPR_Managerment.Forms
             dgvFiles.Columns["FullPath"].Visible = false;
             dgvFiles.CellDoubleClick += DgvFiles_CellDoubleClick;
             panelHeader.Controls.Add(dgvFiles);
+            // Initialize preview handlers for MPR file list
+            EnsureFilePreview_MPR();
 
             // === CÁC CONTROL NHẬP LIỆU BÊN TRÁI ===
             int y = 38;

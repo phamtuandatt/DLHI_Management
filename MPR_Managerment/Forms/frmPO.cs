@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Diagnostics;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 namespace MPR_Managerment.Forms
 {
@@ -57,6 +58,23 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvMPRFiles; // Bảng file MPR Link bên phải chi tiết
         private ComboBox cboSupplier;
         private System.Data.DataTable _supplierTable;
+        // File preview popup
+        private Form _filePreviewForm;
+        private System.Windows.Forms.Timer _previewTimer;
+        private string _previewPath = null;
+        private DataGridViewCell _previewCell = null;
+        private System.Windows.Forms.Timer _previewCloseTimer;
+        // State for current preview
+        private class PreviewState
+        {
+            public string Type; // "image", "text", "pdf", "other"
+            public Image OriginalImage;
+            public double Scale = 1.0;
+            public string FullText;
+            public string[] Lines;
+            public int TextOffset = 0;
+            public int TextPageLines = 200;
+        }
         private bool _isSearching = false;
 
         private string _projectCodeImport = string.Empty;
@@ -327,6 +345,8 @@ namespace MPR_Managerment.Forms
             dgvFiles.Columns["FullPath"].Visible = false;
             dgvFiles.CellDoubleClick += DgvFiles_CellDoubleClick;
             panelHeader.Controls.Add(dgvFiles);
+            // Initialize preview handlers for file list
+            EnsureFilePreview();
 
             // BẢNG THEO DÕI GIAO HÀNG — bọc trong Panel con để tọa độ nội bộ luôn chính xác
             const int delivW = 600;
@@ -1094,23 +1114,463 @@ namespace MPR_Managerment.Forms
                     (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(projectName, StringComparison.OrdinalIgnoreCase))
                 );
 
-                if (prj != null && !string.IsNullOrEmpty(prj.PO_Link) && Directory.Exists(prj.PO_Link))
+                if (prj != null && !string.IsNullOrEmpty(prj.PO_Link))
                 {
-                    var files = Directory.GetFiles(prj.PO_Link);
-                    foreach (var f in files)
+                    // If the project's PO_Link ends with a folder named "Excel", prefer the sibling "PDF" folder
+                    string configured = prj.PO_Link.Trim();
+                    string useDir = configured;
+                    try
                     {
-                        dgvFiles.Rows.Add(Path.GetFileName(f), f);
+                        string trimmed = configured.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                        string last = Path.GetFileName(trimmed) ?? "";
+                        if (last.Equals("Excel", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string parent = Path.GetDirectoryName(trimmed) ?? trimmed;
+                            string alt = Path.Combine(parent, "PDF");
+                            if (Directory.Exists(alt)) useDir = alt;
+                            // if alt doesn't exist, fall back to configured
+                        }
                     }
-                }
-                else if (prj != null && !string.IsNullOrEmpty(prj.PO_Link))
-                {
-                    dgvFiles.Rows.Add("(Thư mục không tồn tại)", "");
+                    catch { /* ignore path parse errors and use configured path */ }
+
+                    if (Directory.Exists(useDir))
+                    {
+                        var files = Directory.GetFiles(useDir);
+                        foreach (var f in files)
+                        {
+                            dgvFiles.Rows.Add(Path.GetFileName(f), f);
+                        }
+                    }
+                    else
+                    {
+                        dgvFiles.Rows.Add("(Thư mục không tồn tại)", "");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("Lỗi load files: " + ex.Message);
             }
+        }
+
+        // Initialize preview timer and handlers for file grid — call once when form init
+        private void EnsureFilePreview()
+        {
+            if (_previewTimer != null) return;
+            _previewTimer = new System.Windows.Forms.Timer { Interval = 300 };
+            _previewTimer.Tick += (s, e) =>
+            {
+                _previewTimer.Stop();
+                if (!string.IsNullOrEmpty(_previewPath) && _previewCell != null)
+                {
+                    try { ShowFilePreview(_previewPath, Cursor.Position); }
+                    catch { /* ignore preview errors */ }
+                }
+            };
+
+            if (dgvFiles != null)
+            {
+                dgvFiles.CellMouseEnter += DgvFiles_CellMouseEnter;
+                dgvFiles.CellMouseLeave += DgvFiles_CellMouseLeave;
+                dgvFiles.MouseLeave += (s, e) => StartPreviewCloseTimer();
+                dgvFiles.Scroll += (s, e) => StartPreviewCloseTimer();
+            }
+        }
+
+        private void DgvFiles_CellMouseEnter(object sender, DataGridViewCellEventArgs e)
+        {
+            try
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+                var cell = dgvFiles.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                // assume second column contains full path (as added earlier)
+                var fullPathCell = dgvFiles.Rows[e.RowIndex].Cells.Count > 1 ? dgvFiles.Rows[e.RowIndex].Cells[1] : null;
+                string path = fullPathCell?.Value?.ToString() ?? "";
+                if (string.IsNullOrEmpty(path)) { _previewPath = null; _previewCell = null; return; }
+                _previewPath = path;
+                _previewCell = cell;
+                EnsureFilePreview();
+                _previewTimer.Stop();
+                _previewTimer.Start();
+            }
+            catch { }
+        }
+
+        private void DgvFiles_CellMouseLeave(object sender, DataGridViewCellEventArgs e)
+        {
+            // stop show timer and start close timer so user can move mouse into preview
+            _previewTimer?.Stop();
+            _previewPath = null; _previewCell = null;
+            StartPreviewCloseTimer();
+        }
+
+        private void HideFilePreview()
+        {
+            try
+            {
+                if (_filePreviewForm != null)
+                {
+                    if (!_filePreviewForm.IsDisposed) _filePreviewForm.Hide();
+                    _filePreviewForm.Dispose();
+                    _filePreviewForm = null;
+                }
+            }
+            catch { }
+        }
+
+        private void StartPreviewCloseTimer()
+        {
+            try
+            {
+                if (_previewCloseTimer == null)
+                {
+                    _previewCloseTimer = new System.Windows.Forms.Timer { Interval = 800 }; // ms
+                    _previewCloseTimer.Tick += (s, e) =>
+                    {
+                        _previewCloseTimer.Stop();
+                        HideFilePreview();
+                    };
+                }
+                _previewCloseTimer.Stop();
+                _previewCloseTimer.Start();
+            }
+            catch { }
+        }
+
+        private void StopPreviewCloseTimer()
+        {
+            try { _previewCloseTimer?.Stop(); }
+            catch { }
+        }
+
+        private void ShowFilePreview(string filePath, Point screenPos)
+        {
+            HideFilePreview();
+            if (!File.Exists(filePath)) return;
+
+            var f = new Form();
+            // Allow resizing and larger initial size for review
+            f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+            f.Size = new Size(1024, 768);
+            f.StartPosition = FormStartPosition.Manual;
+            f.ShowInTaskbar = false;
+            f.TopMost = true;
+            f.BackColor = Color.White;
+            f.Padding = new Padding(6);
+            int w = f.Width, h = f.Height;
+            // Center the preview window on the same screen as cursor
+            var screen = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0,0,800,600);
+            int x = screen.Left + (screen.Width - w) / 2;
+            int y = screen.Top + (screen.Height - h) / 2;
+            f.Bounds = new Rectangle(x, y, w, h);
+
+            // Toolbar: zoom & paging controls (visible when applicable)
+            var tool = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(250, 250, 250) };
+            var btnZoomIn = new Button { Text = "+", Width = 34, Height = 28, Left = 6, Top = 4 };
+            var btnZoomOut = new Button { Text = "-", Width = 34, Height = 28, Left = 46, Top = 4 };
+            var btnPrev = new Button { Text = "◀", Width = 40, Height = 28, Left = 96, Top = 4 };
+            var btnNext = new Button { Text = "▶", Width = 40, Height = 28, Left = 142, Top = 4 };
+            var btnClose = new Button { Text = "✖", Width = 34, Height = 28, Left = f.ClientSize.Width - 44, Top = 4, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            tool.Controls.AddRange(new Control[] { btnZoomIn, btnZoomOut, btnPrev, btnNext, btnClose });
+            f.Controls.Add(tool);
+
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            var state = new PreviewState();
+            if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif")
+            {
+                state.Type = "image";
+                var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+                var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
+                try
+                {
+                    var img = Image.FromFile(filePath);
+                    state.OriginalImage = new Bitmap(img);
+                    pb.Image = new Bitmap(state.OriginalImage);
+                    pb.Size = state.OriginalImage.Size;
+                }
+                catch { pb.Image = null; }
+                container.Controls.Add(pb);
+                f.Controls.Add(container);
+
+                // Zoom handlers: generate a high-quality resized image from original to avoid blurring
+                btnZoomIn.Click += (s, e) =>
+                {
+                    try
+                    {
+                        state.Scale *= 1.25;
+                        if (state.OriginalImage != null)
+                        {
+                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
+                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
+                            var resized = new Bitmap(newW, newH);
+                            using (var g = Graphics.FromImage(resized))
+                            {
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
+                            }
+                            // dispose previous image displayed
+                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
+                            pb.Image = resized;
+                            pb.Size = resized.Size;
+                        }
+                    }
+                    catch { }
+                };
+
+                btnZoomOut.Click += (s, e) =>
+                {
+                    try
+                    {
+                        state.Scale /= 1.25;
+                        if (state.OriginalImage != null)
+                        {
+                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
+                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
+                            var resized = new Bitmap(newW, newH);
+                            using (var g = Graphics.FromImage(resized))
+                            {
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
+                            }
+                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
+                            pb.Image = resized;
+                            pb.Size = resized.Size;
+                        }
+                    }
+                    catch { }
+                };
+                btnPrev.Enabled = false; btnNext.Enabled = false;
+                btnClose.Click += (s, e) => { f.Close(); };
+            }
+            else if (ext == ".pdf")
+            {
+                // Try to get high-quality shell thumbnail and allow zoom like images
+                try
+                {
+                    var thumb = GetShellThumbnail(filePath, Math.Max(800, f.Width - 12), Math.Max(800, f.Height - 48));
+                    if (thumb != null)
+                    {
+                        state.Type = "image";
+                        state.OriginalImage = new Bitmap(thumb);
+                        var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+                        var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
+                        pb.Image = new Bitmap(state.OriginalImage);
+                        pb.Size = state.OriginalImage.Size;
+                        container.Controls.Add(pb);
+                        f.Controls.Add(container);
+
+                        // wire zoom using same logic as images
+                        btnZoomIn.Click += (s, e) =>
+                        {
+                            try
+                            {
+                                state.Scale *= 1.25;
+                                int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
+                                int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
+                                var resized = new Bitmap(newW, newH);
+                                using (var g = Graphics.FromImage(resized))
+                                {
+                                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                    g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                                    g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
+                                }
+                                try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
+                                pb.Image = resized;
+                                pb.Size = resized.Size;
+                            }
+                            catch { }
+                        };
+                        btnZoomOut.Click += (s, e) =>
+                        {
+                            try
+                            {
+                                state.Scale /= 1.25;
+                                int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
+                                int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
+                                var resized = new Bitmap(newW, newH);
+                                using (var g = Graphics.FromImage(resized))
+                                {
+                                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                    g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                                    g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
+                                }
+                                try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
+                                pb.Image = resized;
+                                pb.Size = resized.Size;
+                            }
+                            catch { }
+                        };
+                        btnPrev.Enabled = false; btnNext.Enabled = false; btnClose.Click += (s, e) => { f.Close(); };
+                    }
+                    else
+                    {
+                        // fallback: associated icon (allow zoom)
+                        try
+                        {
+                            var icon = Icon.ExtractAssociatedIcon(filePath);
+                            if (icon != null)
+                            {
+                                var bmpIcon = icon.ToBitmap();
+                                state.Type = "image";
+                                state.OriginalImage = new Bitmap(bmpIcon);
+                                var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+                                var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
+                                pb.Image = new Bitmap(state.OriginalImage);
+                                pb.Size = state.OriginalImage.Size;
+                                container.Controls.Add(pb);
+                                f.Controls.Add(container);
+                                btnZoomIn.Click += (s, e) => { try { state.Scale *= 1.25; int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale)); int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale)); var resized = new Bitmap(newW, newH); using (var g = Graphics.FromImage(resized)) { g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic; g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality; g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality; g.DrawImage(state.OriginalImage, 0, 0, newW, newH); } try { var old = pb.Image; if (old != null) old.Dispose(); } catch { } pb.Image = resized; pb.Size = resized.Size; } catch { } };
+                                btnZoomOut.Click += (s, e) => { try { state.Scale /= 1.25; int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale)); int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale)); var resized = new Bitmap(newW, newH); using (var g = Graphics.FromImage(resized)) { g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic; g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality; g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality; g.DrawImage(state.OriginalImage, 0, 0, newW, newH); } try { var old = pb.Image; if (old != null) old.Dispose(); } catch { } pb.Image = resized; pb.Size = resized.Size; } catch { } };
+                                btnPrev.Enabled = false; btnNext.Enabled = false; btnClose.Click += (s, e) => { f.Close(); };
+                            }
+                            else
+                            {
+                                var pnl = new Panel { Dock = DockStyle.Fill };
+                                var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+                                var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
+                                var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
+                                btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+                                pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
+                                f.Controls.Add(pnl);
+                            }
+                        }
+                        catch
+                        {
+                            var pnl = new Panel { Dock = DockStyle.Fill };
+                            var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+                            var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
+                            var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
+                            btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+                            pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
+                            f.Controls.Add(pnl);
+                        }
+                    }
+                }
+                catch { }
+            }
+            else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
+            {
+                state.Type = "text";
+                var tb = new TextBox { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 9) };
+                try
+                {
+                    var full = File.ReadAllText(filePath);
+                    state.FullText = full.Replace("\r\n", "\n");
+                    state.Lines = state.FullText.Split(new[] { '\n' }, StringSplitOptions.None);
+                    state.TextOffset = 0;
+                    tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
+                }
+                catch { tb.Text = "(Không thể đọc nội dung)"; }
+                f.Controls.Add(tb);
+
+                btnZoomIn.Enabled = false; btnZoomOut.Enabled = false;
+                btnPrev.Enabled = state.TextOffset > 0;
+                btnNext.Enabled = state.Lines != null && state.TextOffset + state.TextPageLines < (state.Lines?.Length ?? 0);
+                btnPrev.Click += (s, e) =>
+                {
+                    state.TextOffset = Math.Max(0, state.TextOffset - state.TextPageLines);
+                    tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
+                    btnPrev.Enabled = state.TextOffset > 0;
+                    btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
+                };
+                btnNext.Click += (s, e) =>
+                {
+                    state.TextOffset = Math.Min(state.Lines.Length - state.TextPageLines, state.TextOffset + state.TextPageLines);
+                    tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
+                    btnPrev.Enabled = state.TextOffset > 0;
+                    btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
+                };
+                btnClose.Click += (s, e) => { f.Close(); };
+            }
+            else
+            {
+                // Unsupported preview: show basic info
+                var pnl = new Panel { Dock = DockStyle.Fill };
+                var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+                var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
+                var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
+                btn.Click += (s,e) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+                pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
+                f.Controls.Add(pnl);
+            }
+
+            // Attach mouse handlers so moving mouse into the preview keeps it open
+            try
+            {
+                StopPreviewCloseTimer();
+                AttachPreviewMouseHandlers(f);
+            }
+            catch { }
+
+            _filePreviewForm = f;
+            f.Show();
+        }
+
+        private void AttachPreviewMouseHandlers(Control ctl)
+        {
+            try
+            {
+                ctl.MouseEnter += (s, e) => StopPreviewCloseTimer();
+                ctl.MouseLeave += (s, e) => StartPreviewCloseTimer();
+                foreach (Control c in ctl.Controls)
+                    AttachPreviewMouseHandlers(c);
+            }
+            catch { }
+        }
+
+        // Shell thumbnail extraction for files (PDF, Office, images)
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+        private static extern void SHCreateItemFromParsingName([MarshalAs(UnmanagedType.LPWStr)] string pszPath, IntPtr pbc, [In] ref Guid riid, out IntPtr ppv);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr hObject);
+
+        [ComImport]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        [Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b")]
+        private interface IShellItemImageFactory
+        {
+            void GetImage([In] SIZE size, [In] SIIGBF flags, out IntPtr phbm);
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SIZE { public int cx; public int cy; public SIZE(int x, int y) { cx = x; cy = y; } }
+
+        [Flags]
+        private enum SIIGBF : uint
+        {
+            SIIGBF_RESIZETOFIT = 0x00,
+            SIIGBF_BIGGERSIZEOK = 0x01,
+            SIIGBF_MEMORYONLY = 0x02,
+            SIIGBF_ICONONLY = 0x04,
+            SIIGBF_THUMBNAILONLY = 0x08,
+            SIIGBF_INCACHEONLY = 0x10
+        }
+
+        private Image GetShellThumbnail(string path, int width, int height)
+        {
+            try
+            {
+                Guid guid = new Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b");
+                SHCreateItemFromParsingName(path, IntPtr.Zero, ref guid, out IntPtr ppv);
+                if (ppv == IntPtr.Zero) return null;
+                var factory = (IShellItemImageFactory)Marshal.GetObjectForIUnknown(ppv);
+                IntPtr hbm;
+                factory.GetImage(new SIZE(Math.Max(1, width), Math.Max(1, height)), SIIGBF.SIIGBF_RESIZETOFIT, out hbm);
+                Marshal.ReleaseComObject(factory);
+                Marshal.Release(ppv);
+                if (hbm == IntPtr.Zero) return null;
+                var img = Image.FromHbitmap(hbm);
+                DeleteObject(hbm);
+                return img;
+            }
+            catch { return null; }
         }
 
         // ĐÃ KHẮC PHỤC LỖI CS7036: Chèn đúng danh sách _poList
@@ -3301,7 +3761,6 @@ namespace MPR_Managerment.Forms
                     ReplaceCell(ws, "<<PO-NO>>", poHead.PONo ?? "");
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
-                    ReplaceCell(ws, "<<USER_NAME>>", AppSession.CurrentUser.Full_Name);
 
                     ws.Cells[5, 15].Value = !string.IsNullOrEmpty(poHead.Payment_Term)
                         ? poHead.Payment_Term : "Within 7 days after delivery";
