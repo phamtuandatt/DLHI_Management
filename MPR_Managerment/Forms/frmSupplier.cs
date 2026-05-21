@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using OfficeOpenXml;
+using OfficeOpenXml.Style;
 
 namespace MPR_Managerment.Forms
 {
@@ -25,7 +28,7 @@ namespace MPR_Managerment.Forms
         private TextBox txtBankAccount, txtBankName;
         private TextBox txtWebsite, txtCert, txtNotes;
         private CheckBox chkIsActive;
-        private Button btnSearch, btnNew, btnSave, btnDelete, btnClear;
+        private Button btnSearch, btnNew, btnSave, btnDelete, btnClear, btnExport, btnIso;
         private Label lblStatus;
         private Panel panelLeft, panelRight;
 
@@ -160,16 +163,22 @@ namespace MPR_Managerment.Forms
             btnSave = MkBtn("💾 Lưu", Color.FromArgb(0, 120, 212), new Point(140, y), 110, 34);
             btnDelete = MkBtn("🗑 Xóa", Color.FromArgb(220, 53, 69), new Point(260, y), 100, 34);
             btnClear = MkBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(370, y), 110, 34);
+            btnExport = MkBtn("📊 Xuất Excel", Color.FromArgb(33, 115, 70), new Point(490, y), 130, 34);
+            btnIso = MkBtn("📋 Xuất ISO", Color.FromArgb(142, 68, 173), new Point(630, y), 120, 34);
 
             btnNew.Click += BtnNew_Click;
             btnSave.Click += BtnSave_Click;
             btnDelete.Click += BtnDelete_Click;
+            btnExport.Click += (s, e) => ExportToExcel();
+            btnIso.Click += (s, e) => ExportISO();
             btnClear.Click += BtnClear_Click;
 
             panelRight.Controls.Add(btnNew);
             panelRight.Controls.Add(btnSave);
             panelRight.Controls.Add(btnDelete);
             panelRight.Controls.Add(btnClear);
+            panelRight.Controls.Add(btnExport);
+            panelRight.Controls.Add(btnIso);
 
             lblStatus = new Label
             {
@@ -465,5 +474,411 @@ namespace MPR_Managerment.Forms
             txtSearch.Text = "";
             lblStatus.Text = "";
         }
+        // =================================================================
+        // XUẤT EXCEL
+        // =================================================================
+        private void ExportToExcel()
+        {
+            if (_suppliers == null || _suppliers.Count == 0)
+            {
+                MessageBox.Show("Không có dữ liệu để xuất.", "Thông báo",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using var dlg = new SaveFileDialog
+            {
+                Title = "Lưu file Excel",
+                Filter = "Excel Files (*.xlsx)|*.xlsx",
+                FileName = $"DanhSachNCC_{DateTime.Now:yyyyMMdd_HHmm}.xlsx",
+                DefaultExt = "xlsx",
+                OverwritePrompt = true
+            };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                using var pkg = new ExcelPackage();
+                var ws = pkg.Workbook.Worksheets.Add("Nhà cung cấp");
+
+                string[] headers = { "STT", "Tên công ty", "Tên viết tắt", "Loại NCC",
+                    "Mã số thuế", "Người liên hệ", "Số điện thoại", "Email",
+                    "Địa chỉ", "Số tài khoản", "Ngân hàng",
+                    "Website", "Giấy chứng nhận", "Ghi chú", "Hoạt động" };
+
+                for (int c = 0; c < headers.Length; c++)
+                {
+                    var cell = ws.Cells[1, c + 1];
+                    cell.Value = headers[c];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Font.Color.SetColor(Color.White);
+                    cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212));
+                    cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+                }
+
+                int row = 2;
+                foreach (var s in _suppliers)
+                {
+                    Color rowBg = (row % 2 == 0)
+                        ? Color.FromArgb(240, 248, 255) : Color.White;
+                    object[] values = {
+                        row - 1,
+                        s.Company_Name    ?? "",
+                        s.Short_Name      ?? "",
+                        s.Supplier_Type   ?? "",
+                        s.Tax_Code        ?? "",
+                        s.Contact_Person  ?? "",
+                        s.Contact_Phone   ?? "",
+                        s.Email           ?? "",
+                        s.Company_Address ?? "",
+                        s.Bank_Account    ?? "",
+                        s.Bank_Name       ?? "",
+                        s.Website         ?? "",
+                        s.Cert            ?? "",
+                        s.Notes           ?? "",
+                        s.IsActive ? "Có" : "Không"
+                    };
+                    for (int c = 0; c < values.Length; c++)
+                    {
+                        var cell = ws.Cells[row, c + 1];
+                        cell.Value = values[c];
+                        cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                        cell.Style.Fill.BackgroundColor.SetColor(rowBg);
+                        cell.Style.Border.BorderAround(ExcelBorderStyle.Thin,
+                            Color.FromArgb(200, 200, 200));
+                    }
+                    ws.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    ws.Cells[row, 15].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    row++;
+                }
+
+                ws.Cells[ws.Dimension.Address].AutoFitColumns(8, 50);
+                ws.View.FreezePanes(2, 1);
+                pkg.SaveAs(new FileInfo(dlg.FileName));
+
+                MessageBox.Show(
+                    $"✅ Đã xuất {_suppliers.Count} nhà cung cấp.\nFile: {dlg.FileName}",
+                    "Hoàn thành", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                { FileName = dlg.FileName, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // =================================================================
+        // XUẤT ISO TEMPLATE
+        // =================================================================
+        // ── Helper: tìm file template ────────────────────────────────────
+        private string GetTemplatePath()
+        {
+            string[] candidates = {
+                Path.Combine(
+                    Path.GetDirectoryName(
+                        System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
+                    "ISO_template.xlsx"),
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ISO_template.xlsx")
+            };
+            foreach (var p in candidates)
+                if (File.Exists(p)) return p;
+            return null;
+        }
+
+        // ── Helper: điền thông tin NCC vào 1 worksheet ───────────────────
+        private void FillSupplierSheet(OfficeOpenXml.ExcelWorksheet ws, Supplier s)
+        {
+            void Fill(string coord, string placeholder, string value)
+            {
+                var cell = ws.Cells[coord];
+                if (cell.Value?.ToString()?.Contains(placeholder) == true)
+                    cell.Value = cell.Value.ToString().Replace(placeholder, value ?? "");
+            }
+            Fill("A2", "<<Tên công ty>>", s.Company_Name ?? "");
+            Fill("D3", "<<Địa chỉ>>", s.Company_Address ?? "");
+            Fill("D4", "<<Số điện thoại>>", s.Contact_Phone ?? "");
+            Fill("J4", "<<Email>>", s.Email ?? "");
+            Fill("D5", "<<Người liên hệ>>", s.Contact_Person ?? "");
+            Fill("J5", "<<Phone>>", s.Contact_Phone ?? "");
+        }
+
+        // ── Xuất ISO — chọn nhiều NCC + 2 chế độ ────────────────────────
+        private void ExportISO()
+        {
+            if (_suppliers == null || _suppliers.Count == 0)
+            {
+                MessageBox.Show("Không có dữ liệu nhà cung cấp.",
+                    "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // ── Bước 1: Chọn nhà cung cấp từ danh sách ──────────────────
+            var selected = ShowSupplierPickerDialog();
+            if (selected == null || selected.Count == 0) return;
+
+            // ── Bước 2: Kiểm tra template ────────────────────────────────
+            string templatePath = GetTemplatePath();
+            if (templatePath == null)
+            {
+                MessageBox.Show(
+                    "Không tìm thấy file ISO_template.xlsx.\n" +
+                    "Vui lòng đặt file vào:\n" +
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "Thiếu template", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // ── Bước 3: Chọn chế độ xuất ─────────────────────────────────
+            var modeResult = MessageBox.Show(
+                $"Đã chọn {selected.Count} nhà cung cấp.\n\n" +
+                "Chọn cách xuất:\n" +
+                "• YES  → 1 file duy nhất (mỗi NCC 1 sheet)\n" +
+                "• NO   → Nhiều file riêng lẻ (mỗi NCC 1 file)",
+                "Chọn chế độ xuất",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question);
+
+            if (modeResult == DialogResult.Cancel) return;
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+            if (modeResult == DialogResult.Yes)
+                ExportISOSingleFile(selected, templatePath);
+            else
+                ExportISOMultipleFiles(selected, templatePath);
+        }
+
+        // ── Xuất 1 file — mỗi NCC 1 sheet ───────────────────────────────
+        private void ExportISOSingleFile(List<Supplier> suppliers, string templatePath)
+        {
+            using var save = new SaveFileDialog
+            {
+                Title = "Lưu file ISO tổng hợp",
+                Filter = "Excel Files (*.xlsx)|*.xlsx",
+                FileName = $"ISO_TongHop_{DateTime.Now:yyyyMMdd_HHmm}.xlsx",
+                DefaultExt = "xlsx",
+                OverwritePrompt = true
+            };
+            if (save.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                // Dùng file đầu tiên làm base
+                File.Copy(templatePath, save.FileName, overwrite: true);
+
+                using var pkg = new ExcelPackage(new FileInfo(save.FileName));
+
+                // Sheet đầu tiên: rename theo NCC đầu tiên
+                var templateWs = pkg.Workbook.Worksheets[0];
+                string firstName = suppliers[0].Short_Name ?? suppliers[0].Company_Name ?? "NCC1";
+                templateWs.Name = firstName.Length > 31
+                    ? firstName.Substring(0, 31) : firstName;
+                FillSupplierSheet(templateWs, suppliers[0]);
+
+                // Các NCC còn lại: copy sheet template, đổi tên, điền thông tin
+                for (int i = 1; i < suppliers.Count; i++)
+                {
+                    var s = suppliers[i];
+                    string sheetName = (s.Short_Name ?? s.Company_Name ?? $"NCC{i + 1}");
+                    if (sheetName.Length > 31) sheetName = sheetName.Substring(0, 31);
+                    // Đảm bảo tên sheet không trùng
+                    int suffix = 1;
+                    string baseName = sheetName;
+                    while (pkg.Workbook.Worksheets[sheetName] != null)
+                        sheetName = $"{baseName}_{suffix++}";
+
+                    pkg.Workbook.Worksheets.Copy(templateWs.Name, sheetName);
+                    var newWs = pkg.Workbook.Worksheets[sheetName];
+
+                    // Reset về template rồi điền lại
+                    // (copy từ template đã điền NCC1 → cần reset placeholders trước)
+                    // Thay vì reset, load lại từ template gốc cho sheet mới
+                    // Cách đơn giản: copy từ file template gốc
+                    using var tplPkg = new ExcelPackage(new FileInfo(templatePath));
+                    var tplWs = tplPkg.Workbook.Worksheets[0];
+
+                    // Sao chép từng cell có placeholder từ template gốc
+                    foreach (var cell in tplWs.Cells)
+                        if (cell.Value?.ToString()?.Contains("<<") == true)
+                            newWs.Cells[cell.Address].Value = cell.Value;
+
+                    FillSupplierSheet(newWs, s);
+                }
+
+                pkg.Save();
+
+                MessageBox.Show(
+                    $"✅ Đã xuất {suppliers.Count} sheet vào 1 file:\n{save.FileName}",
+                    "Hoàn thành", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                { FileName = save.FileName, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi xuất file: " + ex.Message, "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // ── Xuất nhiều file riêng lẻ ─────────────────────────────────────
+        private void ExportISOMultipleFiles(List<Supplier> suppliers, string templatePath)
+        {
+            using var folderDlg = new FolderBrowserDialog
+            {
+                Description = "Chọn thư mục lưu các file ISO",
+                UseDescriptionForTitle = true
+            };
+            if (folderDlg.ShowDialog() != DialogResult.OK) return;
+
+            string outDir = folderDlg.SelectedPath;
+            int ok = 0, fail = 0;
+            var failList = new System.Text.StringBuilder();
+
+            foreach (var s in suppliers)
+            {
+                try
+                {
+                    string safeName = string.Concat(
+                        (s.Short_Name ?? s.Company_Name ?? "NCC")
+                        .Split(Path.GetInvalidFileNameChars()));
+                    string outPath = Path.Combine(outDir,
+                        $"ISO_{safeName}_{DateTime.Now:yyyyMMdd}.xlsx");
+
+                    // Tránh ghi đè — thêm số nếu trùng
+                    int idx = 1;
+                    while (File.Exists(outPath))
+                        outPath = Path.Combine(outDir,
+                            $"ISO_{safeName}_{DateTime.Now:yyyyMMdd}_{idx++}.xlsx");
+
+                    File.Copy(templatePath, outPath, overwrite: false);
+
+                    ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                    using var pkg = new ExcelPackage(new FileInfo(outPath));
+                    var ws = pkg.Workbook.Worksheets["Table 1"]
+                          ?? pkg.Workbook.Worksheets[0];
+                    FillSupplierSheet(ws, s);
+                    pkg.Save();
+                    ok++;
+                }
+                catch (Exception ex)
+                {
+                    fail++;
+                    failList.AppendLine($"• {s.Company_Name}: {ex.Message}");
+                }
+            }
+
+            string msg = $"✅ Đã xuất {ok} file vào:\n{outDir}";
+            if (fail > 0) msg += $"\n\n⚠️ {fail} file lỗi:\n{failList}";
+
+            MessageBox.Show(msg, "Hoàn thành", MessageBoxButtons.OK,
+                fail > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            { FileName = outDir, UseShellExecute = true });
+        }
+
+        // ── Dialog chọn nhiều nhà cung cấp ───────────────────────────────
+        private List<Supplier> ShowSupplierPickerDialog()
+        {
+            var dlg = new Form
+            {
+                Text = "Chọn nhà cung cấp để xuất ISO",
+                Size = new Size(480, 520),
+                StartPosition = FormStartPosition.CenterParent,
+                MinimizeBox = false,
+                MaximizeBox = false
+            };
+
+            var lblHint = new Label
+            {
+                Text = "Giữ Ctrl để chọn nhiều, Ctrl+A để chọn tất cả:",
+                Location = new Point(12, 12),
+                AutoSize = true
+            };
+
+            var clb = new CheckedListBox
+            {
+                Location = new Point(12, 36),
+                Size = new Size(440, 380),
+                CheckOnClick = true,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            foreach (var s in _suppliers)
+                clb.Items.Add(s.Company_Name +
+                    (string.IsNullOrEmpty(s.Short_Name) ? "" : $" ({s.Short_Name})"),
+                    false);
+
+            var btnAll = new Button
+            {
+                Text = "Chọn tất cả",
+                Location = new Point(12, 426),
+                Size = new Size(100, 30),
+                FlatStyle = FlatStyle.Flat
+            };
+            btnAll.Click += (s, e) =>
+            {
+                for (int i = 0; i < clb.Items.Count; i++)
+                    clb.SetItemChecked(i, true);
+            };
+
+            var btnNone = new Button
+            {
+                Text = "Bỏ chọn tất cả",
+                Location = new Point(120, 426),
+                Size = new Size(110, 30),
+                FlatStyle = FlatStyle.Flat
+            };
+            btnNone.Click += (s, e) =>
+            {
+                for (int i = 0; i < clb.Items.Count; i++)
+                    clb.SetItemChecked(i, false);
+            };
+
+            var btnOK = new Button
+            {
+                Text = "✅ Xuất",
+                Location = new Point(254, 426),
+                Size = new Size(90, 30),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                DialogResult = DialogResult.OK
+            };
+
+            var btnCancel = new Button
+            {
+                Text = "Hủy",
+                Location = new Point(352, 426),
+                Size = new Size(80, 30),
+                FlatStyle = FlatStyle.Flat,
+                DialogResult = DialogResult.Cancel
+            };
+
+            dlg.Controls.AddRange(new Control[]
+                { lblHint, clb, btnAll, btnNone, btnOK, btnCancel });
+            dlg.AcceptButton = btnOK;
+            dlg.CancelButton = btnCancel;
+
+            if (dlg.ShowDialog() != DialogResult.OK) return null;
+
+            var result = new List<Supplier>();
+            for (int i = 0; i < clb.CheckedIndices.Count; i++)
+                result.Add(_suppliers[clb.CheckedIndices[i]]);
+
+            if (result.Count == 0)
+            {
+                MessageBox.Show("Chưa chọn nhà cung cấp nào.",
+                    "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return null;
+            }
+            return result;
+        }
+
     }
 }
