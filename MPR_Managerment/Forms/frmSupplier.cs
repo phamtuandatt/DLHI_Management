@@ -18,6 +18,7 @@ namespace MPR_Managerment.Forms
         private List<Supplier> _suppliers = new List<Supplier>();
         private int _selectedSupplierID = 0;
         private string _currentUser = "Admin";
+        private bool _suppressSelection = false;
 
         // ── Controls ──────────────────────────────────────────────────
         private DataGridView dgvSuppliers;
@@ -60,6 +61,7 @@ namespace MPR_Managerment.Forms
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
             };
             this.Controls.Add(panelLeft);
+            this.Resize += (s, e) => LayoutPanels();
 
             panelLeft.Controls.Add(new Label
             {
@@ -118,8 +120,7 @@ namespace MPR_Managerment.Forms
                 Size = new Size(600, 640),
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left
-                            | AnchorStyles.Right | AnchorStyles.Bottom
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
             };
             this.Controls.Add(panelRight);
 
@@ -159,19 +160,22 @@ namespace MPR_Managerment.Forms
             panelRight.Controls.Add(chkIsActive);
             y += 38;
 
-            btnNew = MkBtn("+ Thêm mới", Color.FromArgb(40, 167, 69), new Point(10, y), 120, 34);
-            btnSave = MkBtn("💾 Lưu", Color.FromArgb(0, 120, 212), new Point(140, y), 110, 34);
-            btnDelete = MkBtn("🗑 Xóa", Color.FromArgb(220, 53, 69), new Point(260, y), 100, 34);
-            btnClear = MkBtn("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(370, y), 110, 34);
-            btnExport = MkBtn("📊 Xuất Excel", Color.FromArgb(33, 115, 70), new Point(490, y), 130, 34);
-            btnIso = MkBtn("📋 Xuất ISO", Color.FromArgb(142, 68, 173), new Point(630, y), 120, 34);
+            // Dòng 1: thêm / lưu / xóa
+            btnNew    = MkBtn("+ Thêm mới",    Color.FromArgb(40, 167, 69),   new Point(10,  y),      120, 32);
+            btnSave   = MkBtn("💾 Lưu",         Color.FromArgb(0, 120, 212),   new Point(140, y),      110, 32);
+            btnDelete = MkBtn("🗑 Xóa",         Color.FromArgb(220, 53, 69),   new Point(260, y),      100, 32);
+            // Dòng 2: làm mới / xuất excel / xuất ISO
+            int y2 = y + 40;
+            btnClear  = MkBtn("🔄 Làm mới",    Color.FromArgb(108, 117, 125), new Point(10,  y2),     110, 32);
+            btnExport = MkBtn("📊 Xuất Excel",  Color.FromArgb(33, 115, 70),   new Point(130, y2),     130, 32);
+            btnIso    = MkBtn("📋 Xuất ISO",    Color.FromArgb(142, 68, 173),  new Point(270, y2),     120, 32);
 
-            btnNew.Click += BtnNew_Click;
-            btnSave.Click += BtnSave_Click;
+            btnNew.Click    += BtnNew_Click;
+            btnSave.Click   += BtnSave_Click;
             btnDelete.Click += BtnDelete_Click;
             btnExport.Click += (s, e) => ExportToExcel();
-            btnIso.Click += (s, e) => ExportISO();
-            btnClear.Click += BtnClear_Click;
+            btnIso.Click    += (s, e) => ExportISO();
+            btnClear.Click  += BtnClear_Click;
 
             panelRight.Controls.Add(btnNew);
             panelRight.Controls.Add(btnSave);
@@ -182,12 +186,38 @@ namespace MPR_Managerment.Forms
 
             lblStatus = new Label
             {
-                Location = new Point(10, y + 44),
-                Size = new Size(570, 25),
+                Location = new Point(10, y2 + 40),
+                Size = new Size(430, 25),
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.Gray
             };
             panelRight.Controls.Add(lblStatus);
+
+            LayoutPanels();
+
+            // Click vào khoảng trắng bất kỳ → bỏ chọn
+            this.MouseClick       += (s, e) => DeselectGrid();
+            panelLeft.MouseClick  += (s, e) => DeselectGrid();
+            panelRight.MouseClick += (s, e) => DeselectGrid();
+        }
+
+        private void DeselectGrid()
+        {
+            if (dgvSuppliers.SelectedRows.Count > 0)
+                dgvSuppliers.ClearSelection();
+        }
+
+        private void LayoutPanels()
+        {
+            const int margin = 10;
+            const int gap = 10;
+            int available = this.ClientSize.Width - margin * 2 - gap;
+            if (available < 200) return;
+            int leftW = (int)(available * 0.6);
+            int rightW = available - leftW;
+            panelLeft.Width = leftW;
+            panelRight.Left = margin + leftW + gap;
+            panelRight.Width = rightW;
         }
 
         // ── Helper tạo field ──────────────────────────────────────────
@@ -251,6 +281,7 @@ namespace MPR_Managerment.Forms
         // =================================================================
         private void BindGrid(List<Supplier> list)
         {
+            _suppressSelection = true;
             dgvSuppliers.DataSource = list.ConvertAll(s => new
             {
                 ID = s.Supplier_ID,
@@ -262,9 +293,11 @@ namespace MPR_Managerment.Forms
                 Email = s.Email,
                 Trang_Thai = s.IsActive ? "✅ Hoạt động" : "⛔ Ngừng"
             });
-
             if (dgvSuppliers.Columns.Contains("ID"))
                 dgvSuppliers.Columns["ID"].Visible = false;
+            dgvSuppliers.ClearSelection();
+            _suppressSelection = false;
+            ClearDetailFields();
         }
 
         // =================================================================
@@ -306,7 +339,8 @@ namespace MPR_Managerment.Forms
         // =================================================================
         private void DgvSuppliers_SelectionChanged(object sender, EventArgs e)
         {
-            if (dgvSuppliers.SelectedRows.Count == 0) return;
+            if (_suppressSelection) return;
+            if (dgvSuppliers.SelectedRows.Count == 0) { ClearDetailFields(); return; }
             if (!dgvSuppliers.Columns.Contains("ID")) return;
 
             _selectedSupplierID = Convert.ToInt32(
@@ -454,7 +488,7 @@ namespace MPR_Managerment.Forms
         // =================================================================
         // CLEAR FORM
         // =================================================================
-        private void ClearForm()
+        private void ClearDetailFields()
         {
             _selectedSupplierID = 0;
             txtCompanyName.Text = "";
@@ -471,6 +505,11 @@ namespace MPR_Managerment.Forms
             txtCert.Text = "";
             txtNotes.Text = "";
             chkIsActive.Checked = true;
+        }
+
+        private void ClearForm()
+        {
+            ClearDetailFields();
             txtSearch.Text = "";
             lblStatus.Text = "";
         }

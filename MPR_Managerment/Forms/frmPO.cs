@@ -801,6 +801,8 @@ namespace MPR_Managerment.Forms
                 else
                     MessageBox.Show("Không tìm thấy file!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             };
+            dgvMPRFiles.CellMouseEnter += DgvFiles_CellMouseEnter;
+            dgvMPRFiles.CellMouseLeave += DgvFiles_CellMouseLeave;
             panelMPRFiles.Controls.Add(dgvMPRFiles);
             panelDetail.Controls.Add(new Label { Text = "CHI TIẾT ĐƠN HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(300, 25) });
 
@@ -1176,9 +1178,10 @@ namespace MPR_Managerment.Forms
             try
             {
                 if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
-                var cell = dgvFiles.Rows[e.RowIndex].Cells[e.ColumnIndex];
-                // assume second column contains full path (as added earlier)
-                var fullPathCell = dgvFiles.Rows[e.RowIndex].Cells.Count > 1 ? dgvFiles.Rows[e.RowIndex].Cells[1] : null;
+                var dgv = sender as DataGridView;
+                if (dgv == null) return;
+                var cell = dgv.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                var fullPathCell = dgv.Rows[e.RowIndex].Cells.Count > 1 ? dgv.Rows[e.RowIndex].Cells[1] : null;
                 string path = fullPathCell?.Value?.ToString() ?? "";
                 if (string.IsNullOrEmpty(path)) { _previewPath = null; _previewCell = null; return; }
                 _previewPath = path;
