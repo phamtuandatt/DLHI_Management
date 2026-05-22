@@ -1695,50 +1695,78 @@ namespace MPR_Managerment.Forms
         }
 
         // Xuất Excel tổng hợp MPR + PO
-        private void BtnExportMPR_Click(object sender, EventArgs e)
+        private async void BtnExportMPR_Click(object sender, EventArgs e)
         {
             if (dgvMPR == null || dgvMPR.Rows.Count == 0)
             { MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
+            // ── Lấy danh sách MPR No đang HIỂN THỊ (UI thread) ──
+            var mprNos = new System.Collections.Generic.List<string>();
+            foreach (DataGridViewRow row in dgvMPR.Rows)
+            {
+                if (row.IsNewRow || !row.Visible) continue;
+                string mno = row.Cells["MPR No"].Value?.ToString();
+                if (!string.IsNullOrEmpty(mno)) mprNos.Add(mno);
+            }
+            if (mprNos.Count == 0) { MessageBox.Show("Không có MPR nào!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
             using var sfd = new SaveFileDialog
             {
-                Title = "Lưu báo cáo MPR",
-                Filter = "Excel|*.xlsx",
-                FileName = $"BaoCao_MPR_{DateTime.Now:yyyyMMdd_HHmm}"
+                Title        = "Lưu báo cáo MPR",
+                Filter       = "Excel|*.xlsx",
+                FileName     = $"BaoCao_MPR_{DateTime.Now:yyyyMMdd_HHmm}",
+                InitialDirectory = System.IO.Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
             if (sfd.ShowDialog() != DialogResult.OK) return;
 
+            string savePath = sfd.FileName;
+            btnExportMPR.Enabled = false;
+
             try
             {
-                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-                using var pkg = new ExcelPackage();
-
-                var ws = pkg.Workbook.Worksheets.Add("Chi tiết MPR");
-
-                // ── Tiêu đề file ──
-                int TOTAL_COLS = 16; // sẽ cập nhật theo hdrs
-                ws.Cells[1, 1].Value = "BÁO CÁO CHI TIẾT ĐẶT HÀNG MPR";
-                ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
-                ws.Cells[1, 1].Style.Font.Size = 14;
-                ws.Cells[1, 1].Style.Font.Bold = true;
-                ws.Cells[1, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                ws.Cells[2, 1].Value = $"Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
-                ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
-
-                // ── Lấy danh sách MPR No đang HIỂN THỊ ──
-                var mprNos = new System.Collections.Generic.List<string>();
-                foreach (DataGridViewRow row in dgvMPR.Rows)
-                {
-                    if (row.IsNewRow || !row.Visible) continue;
-                    string mno = row.Cells["MPR No"].Value?.ToString();
-                    if (!string.IsNullOrEmpty(mno)) mprNos.Add(mno);
-                }
-                if (mprNos.Count == 0) { MessageBox.Show("Không có MPR nào!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-
                 string inClause = string.Join(",", mprNos.Select(m => $"N'{m.Replace("'", "''")}'"));
 
-                // ── Query: mỗi hạng mục MPR = 1 dòng, đầy đủ tất cả cột MPR_Details ──
+                // ── Query với CTE — cross-revision PO/RIR ──
+                // Sib_Details tính 1 lần toàn bộ cặp (CurrDetailID, SibDetailID) cho tất cả revision
+                // PO_Flat / RIR_Flat là DISTINCT nhỏ gọn — FOR XML PATH cuối chỉ duyệt set nhỏ
                 string sql = @"
+                    WITH
+                    Qry_MPR AS (
+                        SELECT MPR_ID, MPR_No,
+                            CASE WHEN CHARINDEX('_Rev.',MPR_No)>0
+                                 THEN LEFT(MPR_No,CHARINDEX('_Rev.',MPR_No)-1)
+                                 ELSE MPR_No END AS BaseNo
+                        FROM MPR_Header WHERE MPR_No IN (" + inClause + @")
+                    ),
+                    Sib_Details AS (
+                        SELECT DISTINCT dC.Detail_ID AS CurrID, dS.Detail_ID AS SibID
+                        FROM Qry_MPR q
+                        INNER JOIN MPR_Details dC ON dC.MPR_ID = q.MPR_ID
+                            AND NULLIF(LTRIM(RTRIM(dC.Item_Name)),'') IS NOT NULL
+                        INNER JOIN MPR_Header hS
+                            ON (CASE WHEN CHARINDEX('_Rev.',hS.MPR_No)>0
+                                     THEN LEFT(hS.MPR_No,CHARINDEX('_Rev.',hS.MPR_No)-1)
+                                     ELSE hS.MPR_No END) = q.BaseNo
+                        INNER JOIN MPR_Details dS ON dS.MPR_ID = hS.MPR_ID
+                            AND NULLIF(LTRIM(RTRIM(dS.Item_Name)),'') IS NOT NULL
+                            AND LTRIM(RTRIM(LOWER(dS.Item_Name))) = LTRIM(RTRIM(LOWER(dC.Item_Name)))
+                            AND LTRIM(RTRIM(ISNULL(dS.Item_No,''))) = LTRIM(RTRIM(ISNULL(dC.Item_No,'')))
+                    ),
+                    PO_Flat AS (
+                        SELECT DISTINCT sd.CurrID, pox.PONo
+                        FROM Sib_Details sd
+                        INNER JOIN PO_Detail podx ON podx.MPR_Detail_ID = sd.SibID
+                        INNER JOIN PO_head   pox  ON pox.PO_ID = podx.PO_ID
+                        WHERE ISNULL(pox.Status,'') <> 'Cancelled'
+                    ),
+                    RIR_Flat AS (
+                        SELECT DISTINCT sd.CurrID, r.RIR_No
+                        FROM Sib_Details sd
+                        INNER JOIN PO_Detail podx ON podx.MPR_Detail_ID = sd.SibID
+                        INNER JOIN PO_head   pox  ON pox.PO_ID = podx.PO_ID
+                        INNER JOIN RIR_head  r    ON r.PONo = pox.PONo
+                        WHERE ISNULL(pox.Status,'') <> 'Cancelled'
+                    )
                     SELECT
                         h.MPR_No,
                         h.Project_Name,
@@ -1763,21 +1791,13 @@ namespace MPR_Managerment.Forms
                         ISNULL(d.REV,          '0')  AS REV,
                         ISNULL(d.Remarks,      '')   AS Detail_Remarks,
                         ISNULL(STUFF((
-                            SELECT DISTINCT ', ' + pox.PONo
-                            FROM PO_Detail podx
-                            INNER JOIN PO_head pox ON pox.PO_ID = podx.PO_ID
-                            WHERE podx.MPR_Detail_ID = d.Detail_ID
+                            SELECT ', ' + pf.PONo FROM PO_Flat pf
+                            WHERE pf.CurrID = d.Detail_ID
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, ''), '') AS PO_List,
                         ISNULL(STUFF((
-                            SELECT DISTINCT ', ' + r.RIR_No
-                            FROM RIR_head r
-                            WHERE r.PONo IN (
-                                SELECT pox2.PONo
-                                FROM PO_Detail podx2
-                                INNER JOIN PO_head pox2 ON pox2.PO_ID = podx2.PO_ID
-                                WHERE podx2.MPR_Detail_ID = d.Detail_ID
-                            )
+                            SELECT ', ' + rf.RIR_No FROM RIR_Flat rf
+                            WHERE rf.CurrID = d.Detail_ID
                             FOR XML PATH(''), TYPE
                         ).value('.','NVARCHAR(MAX)'), 1, 2, ''), '') AS RIR_List
                     FROM MPR_Header  h
@@ -1786,19 +1806,33 @@ namespace MPR_Managerment.Forms
                       AND ISNULL(TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT),0) = (
                           SELECT ISNULL(MAX(TRY_CAST(TRY_CAST(h2.Rev AS DECIMAL(10,2)) AS INT)),0)
                           FROM MPR_Header h2
-                          WHERE (CASE WHEN CHARINDEX('_Rev.', h2.MPR_No) > 0 THEN LEFT(h2.MPR_No, CHARINDEX('_Rev.', h2.MPR_No)-1) ELSE h2.MPR_No END)
-                                = (CASE WHEN CHARINDEX('_Rev.', h.MPR_No) > 0 THEN LEFT(h.MPR_No, CHARINDEX('_Rev.', h.MPR_No)-1) ELSE h.MPR_No END)
+                          WHERE (CASE WHEN CHARINDEX('_Rev.',h2.MPR_No)>0 THEN LEFT(h2.MPR_No,CHARINDEX('_Rev.',h2.MPR_No)-1) ELSE h2.MPR_No END)
+                                = (CASE WHEN CHARINDEX('_Rev.',h.MPR_No)>0  THEN LEFT(h.MPR_No, CHARINDEX('_Rev.',h.MPR_No)-1)  ELSE h.MPR_No  END)
                       )
                     ORDER BY h.MPR_No,
                              ISNULL(TRY_CAST(TRY_CAST(d.Item_No AS DECIMAL(10,2)) AS INT), 0)";
 
-                DataTable dt;
-                using (var conn = DatabaseHelper.GetConnection())
+                DataTable dt = await Task.Run(() =>
                 {
+                    using var conn = DatabaseHelper.GetConnection();
                     conn.Open();
-                    dt = new DataTable();
-                    dt.Load(new SqlCommand(sql, conn).ExecuteReader());
-                }
+                    var table = new DataTable();
+                    table.Load(new SqlCommand(sql, conn) { CommandTimeout = 120 }.ExecuteReader());
+                    return table;
+                });
+
+                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                using var pkg = new ExcelPackage();
+                var ws = pkg.Workbook.Worksheets.Add("Chi tiết MPR");
+
+                int TOTAL_COLS = 16;
+                ws.Cells[1, 1].Value = "BÁO CÁO CHI TIẾT ĐẶT HÀNG MPR";
+                ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
+                ws.Cells[1, 1].Style.Font.Size = 14;
+                ws.Cells[1, 1].Style.Font.Bold = true;
+                ws.Cells[1, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                ws.Cells[2, 1].Value = $"Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
 
                 // ── Header cột — khớp đúng với SQL ──
                 // Cột 1-5  : thông tin MPR header
@@ -1969,17 +2003,21 @@ namespace MPR_Managerment.Forms
 
                 ws.View.FreezePanes(5, 1);
 
-                pkg.SaveAs(new FileInfo(sfd.FileName));
+                await Task.Run(() => pkg.SaveAs(new FileInfo(savePath)));
+
                 MessageBox.Show(
-                    $"✅ Xuất Excel thành công!\n" +
-                    $"{mprNos.Count} MPR, {dt.Rows.Count} hạng mục.",
+                    $"✅ Xuất Excel thành công!\n{mprNos.Count} MPR, {dt.Rows.Count} hạng mục.",
                     "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                { FileName = sfd.FileName, UseShellExecute = true });
+                    { FileName = savePath, UseShellExecute = true });
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btnExportMPR.Enabled = true;
             }
         }
 
