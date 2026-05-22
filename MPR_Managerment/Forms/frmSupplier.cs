@@ -531,7 +531,8 @@ namespace MPR_Managerment.Forms
                 Filter = "Excel Files (*.xlsx)|*.xlsx",
                 FileName = $"DanhSachNCC_{DateTime.Now:yyyyMMdd_HHmm}.xlsx",
                 DefaultExt = "xlsx",
-                OverwritePrompt = true
+                OverwritePrompt = true,
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
             if (dlg.ShowDialog() != DialogResult.OK) return;
 
@@ -701,7 +702,8 @@ namespace MPR_Managerment.Forms
                 Filter = "Excel Files (*.xlsx)|*.xlsx",
                 FileName = $"ISO_TongHop_{DateTime.Now:yyyyMMdd_HHmm}.xlsx",
                 DefaultExt = "xlsx",
-                OverwritePrompt = true
+                OverwritePrompt = true,
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
             if (save.ShowDialog() != DialogResult.OK) return;
 

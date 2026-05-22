@@ -1831,7 +1831,8 @@ namespace MPR_Managerment.Forms
                             {
                                 Title = "Lưu Phiếu Xuất Kho",
                                 Filter = "Excel Files|*.xlsx",
-                                FileName = $"PXK_{DateTime.Now:ddMMyyyy_HHmm}"
+                                FileName = $"PXK_{DateTime.Now:ddMMyyyy_HHmm}",
+                                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
                             };
 
                             if (saveDialog.ShowDialog() != DialogResult.OK) return;

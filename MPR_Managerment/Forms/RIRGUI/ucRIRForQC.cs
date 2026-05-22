@@ -508,7 +508,8 @@ namespace MPR_Managerment.Forms.RIRGUI
             {
                 Filter = "Excel Files|*.xlsx",
                 FileName = $"ID_Code_List_{projectName}_{DateTime.Now:ddMMyyyy_HHmm}.xlsx",
-                Title = "Lưu file ID Code List"
+                Title = "Lưu file ID Code List",
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
 
             if (saveDialog.ShowDialog() != DialogResult.OK) return;
@@ -608,7 +609,8 @@ namespace MPR_Managerment.Forms.RIRGUI
             {
                 Filter = "Excel Files|*.xlsx",
                 FileName = $"MRI_Report_{DateTime.Now:ddMMyyyy_HHmm}.xlsx",
-                Title = "Lưu báo cáo nghiệm thu vật liệu"
+                Title = "Lưu báo cáo nghiệm thu vật liệu",
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
 
             if (saveDialog.ShowDialog() != DialogResult.OK) return;

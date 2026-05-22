@@ -76,6 +76,7 @@ namespace MPR_Managerment.Forms
             public int TextPageLines = 200;
         }
         private bool _isSearching = false;
+        private bool _isDomestic = true; // true = Mua trong nước (làm tròn số nguyên), false = Mua nước ngoài (2 chữ số thập phân)
 
         private string _projectCodeImport = string.Empty;
 
@@ -663,6 +664,44 @@ namespace MPR_Managerment.Forms
             flowRow3.Controls.Add(MakeField("Ghi chú:", txtNotes, 52));
             flowRow3.Controls.Add(MakeField("Payment Term:", cboPaymentTerm, 88));
             flowRow3.Controls.Add(MakeField("Ngày Giao hàng:", dtpPOExpectDelivery, 96));
+
+            var pnlMode = new Panel { Width = 188, BackColor = Color.White };
+            var rdoDomestic = new RadioButton
+            {
+                Text = "Mua trong nước",
+                Location = new Point(0, 3),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 60),
+                Checked = true
+            };
+            var rdoForeign = new RadioButton
+            {
+                Text = "Mua nước ngoài",
+                Location = new Point(100, 3),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.FromArgb(180, 90, 0)
+            };
+            pnlMode.Controls.Add(rdoDomestic);
+            pnlMode.Controls.Add(rdoForeign);
+            flowRow3.Controls.Add(MakeField("Loại mua:", pnlMode, 60));
+            rdoDomestic.CheckedChanged += (s, ev) =>
+            {
+                if (!rdoDomestic.Checked) return;
+                _isDomestic = true;
+                foreach (DataGridViewRow r in dgvDetails.Rows)
+                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
+                UpdateTotal();
+            };
+            rdoForeign.CheckedChanged += (s, ev) =>
+            {
+                if (!rdoForeign.Checked) return;
+                _isDomestic = false;
+                foreach (DataGridViewRow r in dgvDetails.Rows)
+                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
+                UpdateTotal();
+            };
 
             // Lưu tham chiếu flowHeader = flowRow1 để các handler cũ vẫn hoạt động
             var flowHeader = flowRow1;
@@ -1941,7 +1980,7 @@ namespace MPR_Managerment.Forms
                 btnExp.Click += (s, ev) =>
                 {
                     if (dtCurrent == null || dtCurrent.Rows.Count == 0) { MessageBox.Show("Không có dữ liệu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                    using var sfd = new SaveFileDialog { Title = "Xuất chi tiết PO theo NCC", Filter = "Excel Files|*.xlsx", FileName = $"PO_ChiTiet_{DateTime.Now:yyyyMMdd_HHmm}", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
+                    using var sfd = new SaveFileDialog { Title = "Xuất chi tiết PO theo NCC", Filter = "Excel Files|*.xlsx", FileName = $"PO_ChiTiet_{DateTime.Now:yyyyMMdd_HHmm}", InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
                     try
                     {
@@ -1987,6 +2026,8 @@ namespace MPR_Managerment.Forms
                         ws.View.FreezePanes(4, 1);
 
                         int curRow = 4;
+                        int chiTietDec = _isDomestic ? 0 : 2;
+                        string chiTietFmt = _isDomestic ? "#,##0" : "#,##0.00";
 
                         foreach (System.Data.DataRow dr in dtCurrent.Rows)
                         {
@@ -2014,7 +2055,7 @@ namespace MPR_Managerment.Forms
                                 decimal rp = d.Price, bv = d.Qty_Per_Sheet;
                                 if ((d.Remarks ?? "").Contains("[CALC:KG]") && d.Weight_kg > 0 && d.Qty_Per_Sheet > 0)
                                 { rp = Math.Round((d.Price * d.Qty_Per_Sheet) / d.Weight_kg, 2); bv = d.Weight_kg; }
-                                decimal amt = Math.Round(bv * rp, 2); sub += amt;
+                                decimal amt = Math.Round(bv * rp, chiTietDec, MidpointRounding.AwayFromZero); sub += amt;
 
                                 ws.Cells[curRow, 1].Value = i + 1;
                                 ws.Cells[curRow, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
@@ -2038,8 +2079,8 @@ namespace MPR_Managerment.Forms
                                 // VAT (%) — số nguyên
                                 ws.Cells[curRow, 11].Value = d.VAT; ws.Cells[curRow, 11].Style.Numberformat.Format = "#,##0";
                                 ws.Cells[curRow, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                // Thành tiền — luôn hiển thị 2 chữ số thập phân
-                                ws.Cells[curRow, 12].Value = amt; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00";
+                                // Thành tiền
+                                ws.Cells[curRow, 12].Value = amt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
                                 ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
 
                                 if (i % 2 == 1)
@@ -2051,15 +2092,15 @@ namespace MPR_Managerment.Forms
                             }
 
                             // ── Sub-Total / VAT / Total của PO này ──
-                            decimal vat = Math.Round(sub * 0.1m, 2);
+                            decimal vatAmt = Math.Round(sub * 0.1m, chiTietDec, MidpointRounding.AwayFromZero);
                             ws.Cells[curRow, 11].Value = "Sub-Total:"; ws.Cells[curRow, 11].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00"; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
                             ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
                             ws.Cells[curRow, 11].Value = "VAT (10%):";
-                            ws.Cells[curRow, 12].Value = vat; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00";
+                            ws.Cells[curRow, 12].Value = vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
                             ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
                             ws.Cells[curRow, 10, curRow, 11].Merge = true; ws.Cells[curRow, 10].Value = "TOTAL (incl. VAT):"; ws.Cells[curRow, 10].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Value = sub + vat; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00"; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Value = sub + vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
                             ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
                             curRow += 2; // dòng trống giữa các PO
                         }
@@ -2180,12 +2221,13 @@ namespace MPR_Managerment.Forms
                 e.FormattingApplied = true;
             }
 
-            // Cột Đơn giá và Thành tiền — định dạng số theo Windows system culture
+            // Cột Đơn giá, TT trước thuế, Thành tiền
             if (colName == "Price" || colName == "SubAmount")
             {
                 if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal num))
                 {
-                    e.Value = num.ToString("N2", _numCulture);
+                    string fmt = (colName == "SubAmount" && _isDomestic) ? "N0" : "N2";
+                    e.Value = num.ToString(fmt, _numCulture);
                     e.FormattingApplied = true;
                 }
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -2194,8 +2236,8 @@ namespace MPR_Managerment.Forms
             {
                 if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal numAmt))
                 {
-                    // Thành tiền làm tròn số nguyên
-                    e.Value = numAmt.ToString("N0", _numCulture);
+                    string fmtAmt = _isDomestic ? "N0" : "N2";
+                    e.Value = numAmt.ToString(fmtAmt, _numCulture);
                     e.FormattingApplied = true;
                 }
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -3188,6 +3230,7 @@ namespace MPR_Managerment.Forms
             decimal totalKg = 0;
             decimal totalSubAmt = 0;
             decimal totalAmount = 0;
+            int dec = _isDomestic ? 0 : 2;
 
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
@@ -3199,7 +3242,7 @@ namespace MPR_Managerment.Forms
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
                 decimal rowSubAmt = baseValue * price;
-                decimal rowAmount = Math.Round(rowSubAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero);
+                decimal rowAmount = Math.Round(rowSubAmt * (1 + vat / 100), dec, MidpointRounding.AwayFromZero);
 
                 totalQty += qty;
                 totalKg += weight;
@@ -3209,10 +3252,11 @@ namespace MPR_Managerment.Forms
             subTotal = totalSubAmt;
             total = totalAmount;
 
+            string lblFmt = _isDomestic ? "N0" : "N2";
             if (lblSubTotal != null && lblSubTotal.Visible)
-                lblSubTotal.Text = "Trước VAT: " + subTotal.ToString("N2", _numCulture) + " VND";
+                lblSubTotal.Text = "Trước VAT: " + subTotal.ToString(lblFmt, _numCulture) + " VND";
             if (lblTotal != null && lblTotal.Visible)
-                lblTotal.Text = "Sau VAT: " + total.ToString("N0", _numCulture) + " VND";
+                lblTotal.Text = "Sau VAT: " + total.ToString(lblFmt, _numCulture) + " VND";
 
             // ── Cập nhật dòng Total ở cuối dgvDetails ──
             for (int i = dgvDetails.Rows.Count - 1; i >= 0; i--)
@@ -3229,7 +3273,7 @@ namespace MPR_Managerment.Forms
                 if (dgvDetails.Columns.Contains("Item_Name")) tr.Cells["Item_Name"].Value = "TỔNG CỘNG";
                 if (dgvDetails.Columns.Contains("Qty")) tr.Cells["Qty"].Value = totalQty > 0 ? (object)totalQty : "";
                 if (dgvDetails.Columns.Contains("Weight")) tr.Cells["Weight"].Value = totalKg > 0 ? (object)Math.Round(totalKg, 2) : "";
-                if (dgvDetails.Columns.Contains("SubAmount")) tr.Cells["SubAmount"].Value = totalSubAmt > 0 ? (object)totalSubAmt : "";
+                if (dgvDetails.Columns.Contains("SubAmount")) tr.Cells["SubAmount"].Value = totalSubAmt > 0 ? (object)Math.Round(totalSubAmt, dec, MidpointRounding.AwayFromZero) : "";
                 if (dgvDetails.Columns.Contains("Amount")) tr.Cells["Amount"].Value = totalAmount > 0 ? (object)totalAmount : "";
 
                 tr.DefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
@@ -3374,14 +3418,15 @@ namespace MPR_Managerment.Forms
 
             decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
 
-            // TT trước thuế = số lượng/KG × đơn giá (không làm tròn)
+            // TT trước thuế = số lượng/KG × đơn giá
             decimal subAmt = baseValue * price;
-
-            // Thành tiền = TT trước thuế × (1 + VAT%) — làm tròn đến số nguyên
-            decimal amount = Math.Round(subAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero);
+            int dec = _isDomestic ? 0 : 2;
+            decimal subAmtRounded = Math.Round(subAmt, dec, MidpointRounding.AwayFromZero);
+            // Thành tiền = TT trước thuế × (1 + VAT%)
+            decimal amount = Math.Round(subAmt * (1 + vat / 100), dec, MidpointRounding.AwayFromZero);
 
             if (dgvDetails.Columns.Contains("SubAmount"))
-                row.Cells["SubAmount"].Value = subAmt;
+                row.Cells["SubAmount"].Value = subAmtRounded;
             row.Cells["Amount"].Value = amount;
 
             UpdateTotal();
@@ -3847,6 +3892,8 @@ namespace MPR_Managerment.Forms
                     }
 
                     decimal totalAfterVAT = 0;
+                    string amtFmt = _isDomestic ? "#,##0" : "#,##0.00";
+                    int amtDec = _isDomestic ? 0 : 2;
                     for (int i = 0; i < detailCount; i++)
                     {
                         var d = details[i];
@@ -3862,6 +3909,8 @@ namespace MPR_Managerment.Forms
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
 
+                        decimal dAmt = Math.Round(d.Amount, amtDec, MidpointRounding.AwayFromZero);
+
                         ws.Cells[row, 1].Value = i + 1;
                         ws.Cells[row, 2].Value = d.Item_Name ?? "";
                         ws.Cells[row, 3].Value = d.Material ?? "";
@@ -3875,7 +3924,7 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 11].Value = poHead.Expected_Delivery;
                         ws.Cells[row, 12].Value = "Kho DLHI";
                         ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
-                        ws.Cells[row, 14].Value = d.Amount;
+                        ws.Cells[row, 14].Value = dAmt;
                         ws.Cells[row, 16].Value = rem;
 
                         // --- CỦNG CỐ ĐỊNH DẠNG MERGE CHO REMARKS ---
@@ -3885,7 +3934,7 @@ namespace MPR_Managerment.Forms
                             ws.Cells[row, 16, row, 17].Merge = true;
                         }
 
-                        totalAfterVAT += d.Amount * (1 + d.VAT / 100);
+                        totalAfterVAT += Math.Round(dAmt * (1 + d.VAT / 100), amtDec, MidpointRounding.AwayFromZero);
 
                         // Thiết lập Style cho hàng
                         using (var range = ws.Cells[row, 1, row, 17])
@@ -3909,17 +3958,17 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 13].Style.Numberformat.Format = "#,##0.00";
 
                         ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                        ws.Cells[row, 14].Style.Numberformat.Format = "#,##0.00";
+                        ws.Cells[row, 14].Style.Numberformat.Format = amtFmt;
                     }
 
                     int subTotalRow = startRow + detailCount;
                     int vatRow = subTotalRow + 1;
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
-                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = amtFmt;
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
                     ws.Cells[vatRow, 14].Value = totalAfterVAT;
-                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[vatRow, 14].Style.Numberformat.Format = amtFmt;
                     ws.Cells[vatRow, 14].Style.Font.Bold = true;
 
                     package.Save();
@@ -5949,7 +5998,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                         Title = "Xuất Check by Size",
                         Filter = "Excel Files|*.xlsx",
                         FileName = $"CheckBySize_{DateTime.Now:yyyyMMdd_HHmm}",
-                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                        InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
                     };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
                     try

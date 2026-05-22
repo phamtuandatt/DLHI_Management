@@ -4608,7 +4608,7 @@ namespace MPR_Managerment.Forms
                         Title = "Lưu file Excel",
                         Filter = "Excel Files|*.xlsx",
                         FileName = $"CheckAllItems_{DateTime.Now:yyyyMMdd_HHmm}",
-                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                        InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
                     };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
 
@@ -4850,7 +4850,8 @@ namespace MPR_Managerment.Forms
                 Filter = "Excel Files|*.xlsx",
                 FileName = "MPR_ChiTiet_" + (txtMPRNo?.Text.Trim() ?? "export")
                            + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
-                Title = "Luu file Excel"
+                Title = "Luu file Excel",
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
             if (sfd.ShowDialog() != DialogResult.OK) return;
 
