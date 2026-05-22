@@ -4323,7 +4323,11 @@ INNER JOIN MPR_Header mh_new ON mh_new.MPR_ID = @mprId
              THEN LEFT(mh_old.MPR_No, CHARINDEX('_Rev.', mh_old.MPR_No) - 1)
              ELSE mh_old.MPR_No END
 INNER JOIN MPR_Details md_new ON md_new.MPR_ID = @mprId
+    -- Tránh khớp nhầm: Item_Name phải khác rỗng và Item_No phải giống nhau
+    AND NULLIF(LTRIM(RTRIM(md_new.Item_Name)), '') IS NOT NULL
+    AND NULLIF(LTRIM(RTRIM(md_old.Item_Name)), '') IS NOT NULL
     AND LTRIM(RTRIM(LOWER(md_new.Item_Name))) = LTRIM(RTRIM(LOWER(md_old.Item_Name)))
+    AND LTRIM(RTRIM(ISNULL(md_new.Item_No, ''))) = LTRIM(RTRIM(ISNULL(md_old.Item_No, '')))
 WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn))
                     {

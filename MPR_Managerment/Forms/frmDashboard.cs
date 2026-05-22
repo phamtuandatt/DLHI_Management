@@ -746,8 +746,8 @@ namespace MPR_Managerment.Forms
                 int dynPoW = Math.Max(280, halfW);
                 int dynMprLeft = poLeft + dynPoW + gap;
                 int mprW = Math.Max(100, w - dynMprLeft - 10);
-                // Chia chiều cao: dgvMPRPO 55%, panelMPRDetail 45%
-                int poGridH = Math.Max(80, (int)(totalH * 0.55));
+                // Chia chiều cao: dgvMPRPO 30%, panelMPRDetail 70%
+                int poGridH = Math.Max(80, (int)((totalH - 27) * 0.30));
                 int detailH = Math.Max(80, totalH - poGridH - 27);
 
                 lblMPRPOTitle.Size = new Size(dynPoW, 20);
@@ -807,7 +807,7 @@ namespace MPR_Managerment.Forms
             try
             {
                 string sql = @"
-                    SELECT
+                    SELECT DISTINCT
                         po.PO_ID,
                         po.PONo                                             AS [PO No],
                         po.Project_Name                                     AS [Dự án],
@@ -826,14 +826,25 @@ namespace MPR_Managerment.Forms
                         'Chưa có RIR')                                      AS [Số RIR],
                         po.PO_Date                                          AS _SortDate
                     FROM PO_head po
-                    INNER JOIN MPR_Header mh ON mh.MPR_No = @mprNo
+                    CROSS APPLY (
+                        SELECT CASE WHEN CHARINDEX('_Rev.', @mprNo) > 0
+                                    THEN LEFT(@mprNo, CHARINDEX('_Rev.', @mprNo) - 1)
+                                    ELSE @mprNo END AS BaseNo
+                    ) bn
                     WHERE
+                        -- PO liên kết trực tiếp qua MPR_No (bất kỳ revision nào trong cùng series)
                         po.MPR_No = @mprNo
+                        OR po.MPR_No = bn.BaseNo
+                        OR po.MPR_No LIKE bn.BaseNo + '_Rev.%'
+                        -- PO liên kết qua PO_Detail → MPR_Details → bất kỳ revision nào trong series
                         OR po.PO_ID IN (
                             SELECT DISTINCT pod.PO_ID
                             FROM PO_Detail pod
                             INNER JOIN MPR_Details md ON md.Detail_ID = pod.MPR_Detail_ID
-                            WHERE md.MPR_ID = mh.MPR_ID
+                            INNER JOIN MPR_Header mh ON mh.MPR_ID = md.MPR_ID
+                            WHERE mh.MPR_No = @mprNo
+                               OR mh.MPR_No = bn.BaseNo
+                               OR mh.MPR_No LIKE bn.BaseNo + '_Rev.%'
                         )
                     ORDER BY po.PO_Date DESC";
 
@@ -1404,6 +1415,22 @@ namespace MPR_Managerment.Forms
                     cmd.Parameters.AddWithValue("@status", (filter == "Tất cả") ? (object)DBNull.Value : filter);
                     var dt = new DataTable();
                     dt.Load(cmd.ExecuteReader());
+
+                    // Lọc bỏ revision cũ (Rev < MaxRev) trước khi bind — không hiển thị chỉ đọc
+                    if (dt.Columns.Contains("MaxRev"))
+                    {
+                        var oldRevRows = dt.AsEnumerable()
+                            .Where(r =>
+                            {
+                                int.TryParse(r["Rev"]?.ToString() ?? "0", out int rev);
+                                int.TryParse(r["MaxRev"]?.ToString() ?? "0", out int maxRev);
+                                return maxRev > 0 && rev < maxRev;
+                            })
+                            .ToList();
+                        foreach (var r in oldRevRows)
+                            dt.Rows.Remove(r);
+                    }
+
                     dgvMPR.DataSource = dt;
 
                     if (dgvMPR.Columns.Contains("MPR_ID"))
