@@ -255,15 +255,26 @@ namespace MPR_Managerment.Forms
             var lblZoom    = new Label { Left = 202, Top = 11, Width = 58, Text = "—", ForeColor = Color.FromArgb(220, 220, 220), Font = new Font("Segoe UI", 9, FontStyle.Bold), BackColor = Color.Transparent };
             var btnPrev    = MkBtn("◀",   268, 36, clrDark); btnPrev.Visible = false;
             var btnNext    = MkBtn("▶",   308, 36, clrDark); btnNext.Visible = false;
-            var lblInfo    = new Label { Left = 352, Top = 11, Width = 440, Text = Path.GetFileName(filePath), ForeColor = Color.FromArgb(155, 155, 155), Font = new Font("Segoe UI", 8.5f), BackColor = Color.Transparent };
-            var btnOpen    = MkBtn("↗ Mở file", 870, 84, Color.FromArgb(0, 120, 60));
-            btnOpen.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            var btnClose   = MkBtn("✖", 958, 36, Color.FromArgb(196, 43, 28));
-            btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var lblInfo    = new Label { Left = 352, Top = 11, Width = 360, Text = Path.GetFileName(filePath), ForeColor = Color.FromArgb(155, 155, 155), Font = new Font("Segoe UI", 8.5f), BackColor = Color.Transparent };
+            // Add labels before right-side buttons so buttons have higher z-order
             toolbar.Controls.Add(lblZoom);
             toolbar.Controls.Add(lblInfo);
-            f.Controls.Add(toolbar);
+            var btnPrint = MkBtn("⎙ In file", 0, 90, Color.FromArgb(80, 60, 140));
+            var btnOpen  = MkBtn("↗ Mở file", 0, 84, Color.FromArgb(0, 120, 60));
+            var btnClose = MkBtn("✖",          0, 36, Color.FromArgb(196, 43, 28));
+            // Position right-side buttons dynamically — Anchor fails when toolbar width is 0 at button creation
+            void PlaceRightBtns()
+            {
+                int r = toolbar.ClientSize.Width - 4;
+                btnClose.Left = r - btnClose.Width; r = btnClose.Left - 4;
+                btnOpen.Left  = r - btnOpen.Width;  r = btnOpen.Left  - 4;
+                btnPrint.Left = r - btnPrint.Width;
+            }
+            toolbar.Resize += (s, e) => PlaceRightBtns();
+            f.Controls.Add(toolbar);   // triggers first Resize → buttons placed correctly
 
+            Action printAction = null;
+            btnPrint.Click += (s, e) => { try { printAction?.Invoke(); } catch { } };
             btnOpen .Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
             btnClose.Click += (s, e) => f.Close();
             f.KeyPreview = true;
@@ -397,11 +408,32 @@ namespace MPR_Managerment.Forms
                     f.FormClosed += (s, e) => { try { origBmp.Dispose(); } catch { } };
 
                     btnPrev.Visible = false; btnNext.Visible = false;
+                    printAction = () =>
+                    {
+                        try
+                        {
+                            using var pd = new System.Drawing.Printing.PrintDocument();
+                            var dlg = new PrintDialog { Document = pd };
+                            if (dlg.ShowDialog() != DialogResult.OK) return;
+                            var bmp = origBmp;
+                            pd.PrintPage += (ps, pe) =>
+                            {
+                                var page = pe.MarginBounds;
+                                double sc = Math.Min((double)page.Width / bmp.Width, (double)page.Height / bmp.Height);
+                                int dw = (int)(bmp.Width * sc), dh = (int)(bmp.Height * sc);
+                                pe.Graphics.DrawImage(bmp, page.Left + (page.Width - dw) / 2, page.Top + (page.Height - dh) / 2, dw, dh);
+                                pe.HasMorePages = false;
+                            };
+                            pd.Print();
+                        }
+                        catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                    };
                 }
                 else
                 {
                     BuildPreviewInfoPanel_MPR(f, filePath);
                     btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                    printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
                 }
             }
             else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
@@ -451,12 +483,40 @@ namespace MPR_Managerment.Forms
                     btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
                     UpdatePageInfo();
                 };
+                printAction = () =>
+                {
+                    try
+                    {
+                        using var pd = new System.Drawing.Printing.PrintDocument();
+                        var dlg = new PrintDialog { Document = pd };
+                        if (dlg.ShowDialog() != DialogResult.OK) return;
+                        var lines = state.Lines ?? Array.Empty<string>();
+                        int li = 0;
+                        var pf = new Font("Consolas", 9);
+                        pd.PrintPage += (ps, pe) =>
+                        {
+                            float y = pe.MarginBounds.Top, h = pf.GetHeight(pe.Graphics);
+                            while (li < lines.Length)
+                            {
+                                if (y + h > pe.MarginBounds.Bottom) { pe.HasMorePages = true; return; }
+                                pe.Graphics.DrawString(lines[li++], pf, Brushes.Black, pe.MarginBounds.Left, y);
+                                y += h;
+                            }
+                            pe.HasMorePages = false;
+                        };
+                        pd.BeginPrint += (ps, pe) => li = 0;
+                        pd.EndPrint   += (ps, pe) => pf.Dispose();
+                        pd.Print();
+                    }
+                    catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                };
             }
             else
             {
                 BuildPreviewInfoPanel_MPR(f, filePath);
                 btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
                 btnPrev.Visible = btnNext.Visible = false;
+                printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
             }
 
             try { StopPreviewCloseTimer_MPR(); AttachPreviewMouseHandlers_MPR(f); } catch { }
