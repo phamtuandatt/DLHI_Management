@@ -365,18 +365,26 @@ namespace MPR_Managerment.Forms
             dgvMPR.SuspendLayout();
             dgvMPR.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 
+            // Ẩn các cột không cần hiển thị
+            foreach (var hidden in new[] { "Trạng thái", "BaseNo", "MaxRev" })
+                if (dgvMPR.Columns.Contains(hidden))
+                    dgvMPR.Columns[hidden].Visible = false;
+
+            // Ngày tạo chỉ hiển thị ngày/tháng/năm
+            if (dgvMPR.Columns.Contains("Ngày tạo"))
+                dgvMPR.Columns["Ngày tạo"].DefaultCellStyle.Format = "dd/MM/yyyy";
+
             var colWidths = new Dictionary<string, int>
             {
-                { "MPR No",             180 },
+                { "MPR No",             200 },
                 { "Dự án",               55 },
                 { "Ngày cần",            90 },
-                { "Trạng thái",          95 },
                 { "Rev",                 40 },
 
                 { "Tình trạng PO",      110 },
                 { "% Item đặt hàng",     95 },
 
-                { "Ngày tạo",           125 },
+                { "Ngày tạo",           100 },
                 { "Ghi chú",            160 },
             };
 
@@ -1803,6 +1811,7 @@ namespace MPR_Managerment.Forms
                     FROM MPR_Header  h
                     INNER JOIN MPR_Details d ON d.MPR_ID = h.MPR_ID
                     WHERE h.MPR_No IN (" + inClause + @")
+                      AND ISNULL(d.Is_Deleted, 0) = 0
                       AND ISNULL(TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT),0) = (
                           SELECT ISNULL(MAX(TRY_CAST(TRY_CAST(h2.Rev AS DECIMAL(10,2)) AS INT)),0)
                           FROM MPR_Header h2
@@ -1881,6 +1890,16 @@ namespace MPR_Managerment.Forms
                 string lastMprNo = "";
                 int colorToggle = 0;
 
+                Func<object, object> dimVal = v => {
+                    if (v == null || v == DBNull.Value) return (object)"";
+                    var s = v.ToString(); if (string.IsNullOrEmpty(s)) return (object)"";
+                    return decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out decimal d) && d != 0
+                        ? (object)Math.Round(d, 2, MidpointRounding.AwayFromZero)
+                            .ToString("#,##0.##", System.Globalization.CultureInfo.InvariantCulture)
+                        : (object)"";
+                };
+
                 foreach (DataRow dr in dt.Rows)
                 {
                     string mprNo = dr["MPR_No"]?.ToString() ?? "";
@@ -1920,12 +1939,12 @@ namespace MPR_Managerment.Forms
                     ws.Cells[rowIdx, 7].Value = dr["Item_Name"]?.ToString();      // Tên vật tư
                     ws.Cells[rowIdx, 8].Value = dr["Description"]?.ToString();    // Mô tả
                     ws.Cells[rowIdx, 9].Value = dr["Material"]?.ToString();       // Vật liệu
-                    ws.Cells[rowIdx, 10].Value = dr["A_Day"]?.ToString();          // A-Dày
-                    ws.Cells[rowIdx, 11].Value = dr["B_Sau"]?.ToString();          // B-Sâu
-                    ws.Cells[rowIdx, 12].Value = dr["C_Rong"]?.ToString();         // C-Rộng
-                    ws.Cells[rowIdx, 13].Value = dr["D_Bung"]?.ToString();         // D-Bụng
-                    ws.Cells[rowIdx, 14].Value = dr["E_Canh"]?.ToString();         // E-Cánh
-                    ws.Cells[rowIdx, 15].Value = dr["F_Dai"]?.ToString();          // F-Dài
+                    ws.Cells[rowIdx, 10].Value = dimVal(dr["A_Day"]);
+                    ws.Cells[rowIdx, 11].Value = dimVal(dr["B_Sau"]);
+                    ws.Cells[rowIdx, 12].Value = dimVal(dr["C_Rong"]);
+                    ws.Cells[rowIdx, 13].Value = dimVal(dr["D_Bung"]);
+                    ws.Cells[rowIdx, 14].Value = dimVal(dr["E_Canh"]);
+                    ws.Cells[rowIdx, 15].Value = dimVal(dr["F_Dai"]);
                     ws.Cells[rowIdx, 16].Value = dr["UNIT"]?.ToString();           // ĐVT
                     ws.Cells[rowIdx, 17].Value = dr["SL"] != DBNull.Value ? Convert.ToDecimal(dr["SL"]) : (object)"";  // SL
                     ws.Cells[rowIdx, 18].Value = dr["KG"] != DBNull.Value ? Convert.ToDecimal(dr["KG"]) : (object)"";  // KG
@@ -1990,30 +2009,65 @@ namespace MPR_Managerment.Forms
                     dataRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
                 }
 
+                // Căn chỉnh phải cột kích thước A-F (cell-level vì string values cần ghi đè column style)
+                if (dt.Rows.Count > 0)
+                    foreach (int c in new[] { 10, 11, 12, 13, 14, 15 })
+                        if (c <= TOTAL_COLS)
+                            ws.Cells[5, c, rowIdx - 1, c].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+
                 // Căn chỉnh cột số (STT, kích thước, SL, KG)
                 foreach (int c in new[] { 6, 10, 11, 12, 13, 14, 15, 17, 18 })
                     if (c <= TOTAL_COLS)
                         ws.Column(c).Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
 
-                ws.Cells[ws.Dimension.Address].AutoFitColumns();
-
-                // Giới hạn width cột PO và RIR
-                ws.Column(23).Width = Math.Min(ws.Column(23).Width, 50);
-                ws.Column(24).Width = Math.Min(ws.Column(24).Width, 50);
+                // Độ rộng cột cố định — thay AutoFitColumns() để tránh chậm với dữ liệu lớn
+                double[] colWidths = {
+                    18,  // 1  MPR No
+                    28,  // 2  Dự án
+                    14,  // 3  TT MPR
+                    12,  // 4  Ngày cần
+                    22,  // 5  Ghi chú MPR
+                    6,   // 6  STT
+                    32,  // 7  Tên vật tư
+                    28,  // 8  Mô tả
+                    14,  // 9  Vật liệu
+                    10,  // 10 A-Dày
+                    10,  // 11 B-Sâu
+                    10,  // 12 C-Rộng
+                    10,  // 13 D-Bụng
+                    10,  // 14 E-Cánh
+                    12,  // 15 F-Dài
+                    8,   // 16 ĐVT
+                    10,  // 17 Số lượng
+                    10,  // 18 KG
+                    16,  // 19 MPS Info
+                    16,  // 20 Nơi dùng
+                    6,   // 21 REV
+                    22,  // 22 Ghi chú
+                    35,  // 23 Số PO
+                    22,  // 24 Số RIR
+                };
+                for (int ci = 0; ci < colWidths.Length && ci < TOTAL_COLS; ci++)
+                    ws.Column(ci + 1).Width = colWidths[ci];
 
                 ws.View.FreezePanes(5, 1);
 
                 await Task.Run(() => pkg.SaveAs(new FileInfo(savePath)));
 
-                MessageBox.Show(
-                    $"✅ Xuất Excel thành công!\n{mprNos.Count} MPR, {dt.Rows.Count} hạng mục.",
-                    "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    { FileName = savePath, UseShellExecute = true });
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        { FileName = savePath, UseShellExecute = true });
+                }
+                catch { }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                string msg = ex.Message;
+                this.BeginInvoke(new Action(() =>
+                    MessageBox.Show(Form.ActiveForm ?? this,
+                        "Lỗi xuất Excel: " + msg, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error)));
             }
             finally
             {
