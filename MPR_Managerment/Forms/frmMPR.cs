@@ -4138,6 +4138,7 @@ namespace MPR_Managerment.Forms
                         h.Rev                                               AS [Rev],
                         d.Item_No                                           AS [Item No],
                         d.item_name                                         AS [Tên vật tư],
+                        ISNULL(d.Description, N'')                          AS [Mô tả],
                         d.Material                                          AS [Vật liệu],
                         ISNULL(CAST(NULLIF(d.Thickness_mm,'') AS NVARCHAR),N'') AS [A-Dày(mm)],
                         ISNULL(CAST(NULLIF(d.Depth_mm,    '') AS NVARCHAR),N'') AS [B-Sâu(mm)],
