@@ -77,6 +77,7 @@ namespace MPR_Managerment.Forms
         }
         private bool _isSearching = false;
         private bool _isDomestic = true; // true = Mua trong nước (làm tròn số nguyên), false = Mua nước ngoài (2 chữ số thập phân)
+        private bool _printDialogOpen = false; // giữ preview mở trong khi hộp thoại in đang hiển thị
 
         private string _projectCodeImport = string.Empty;
 
@@ -665,44 +666,6 @@ namespace MPR_Managerment.Forms
             flowRow3.Controls.Add(MakeField("Payment Term:", cboPaymentTerm, 88));
             flowRow3.Controls.Add(MakeField("Ngày Giao hàng:", dtpPOExpectDelivery, 96));
 
-            var pnlMode = new Panel { Width = 188, BackColor = Color.White };
-            var rdoDomestic = new RadioButton
-            {
-                Text = "Mua trong nước",
-                Location = new Point(0, 3),
-                AutoSize = true,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 120, 60),
-                Checked = true
-            };
-            var rdoForeign = new RadioButton
-            {
-                Text = "Mua nước ngoài",
-                Location = new Point(100, 3),
-                AutoSize = true,
-                Font = new Font("Segoe UI", 9),
-                ForeColor = Color.FromArgb(180, 90, 0)
-            };
-            pnlMode.Controls.Add(rdoDomestic);
-            pnlMode.Controls.Add(rdoForeign);
-            flowRow3.Controls.Add(MakeField("Loại mua:", pnlMode, 60));
-            rdoDomestic.CheckedChanged += (s, ev) =>
-            {
-                if (!rdoDomestic.Checked) return;
-                _isDomestic = true;
-                foreach (DataGridViewRow r in dgvDetails.Rows)
-                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
-                UpdateTotal();
-            };
-            rdoForeign.CheckedChanged += (s, ev) =>
-            {
-                if (!rdoForeign.Checked) return;
-                _isDomestic = false;
-                foreach (DataGridViewRow r in dgvDetails.Rows)
-                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
-                UpdateTotal();
-            };
-
             // Lưu tham chiếu flowHeader = flowRow1 để các handler cũ vẫn hoạt động
             var flowHeader = flowRow1;
 
@@ -960,12 +923,12 @@ namespace MPR_Managerment.Forms
             // Anchor Right de tu can le phai khi resize
             var panelRight = new Panel
             {
-                Size = new Size(590, 68),
+                Size = new Size(740, 68),
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             // Vi tri: sat le phai panelDetail, dong voi hang buttons
-            panelRight.Location = new Point(panelDetail.Width - 590 - 5, 2);
+            panelRight.Location = new Point(panelDetail.Width - 740 - 5, 2);
             panelDetail.Resize += (s, ev) =>
                 panelRight.Location = new Point(panelDetail.Width - panelRight.Width - 5, 2);
 
@@ -1062,6 +1025,52 @@ namespace MPR_Managerment.Forms
                 UpdateTotal();
             };
             panelRight.Controls.Add(btnApplyCalc);
+
+            // -- Cot 4: Loai mua (x=500) --
+            int xMode = 500;
+            panelRight.Controls.Add(new Label
+            {
+                Text = "Loại mua:",
+                Location = new Point(xMode, 2),
+                Size = new Size(65, 18),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+            });
+            var rdoDomestic = new RadioButton
+            {
+                Text = "Mua trong nước",
+                Location = new Point(xMode, 22),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 60),
+                Checked = true
+            };
+            var rdoForeign = new RadioButton
+            {
+                Text = "Mua nước ngoài",
+                Location = new Point(xMode, 45),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.FromArgb(180, 90, 0)
+            };
+            panelRight.Controls.Add(rdoDomestic);
+            panelRight.Controls.Add(rdoForeign);
+            rdoDomestic.CheckedChanged += (s, ev) =>
+            {
+                if (!rdoDomestic.Checked) return;
+                _isDomestic = true;
+                foreach (DataGridViewRow r in dgvDetails.Rows)
+                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
+                UpdateTotal();
+            };
+            rdoForeign.CheckedChanged += (s, ev) =>
+            {
+                if (!rdoForeign.Checked) return;
+                _isDomestic = false;
+                foreach (DataGridViewRow r in dgvDetails.Rows)
+                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
+                UpdateTotal();
+            };
 
             panelDetail.Controls.Add(panelRight);
             panelRight.BringToFront();
@@ -1254,19 +1263,21 @@ namespace MPR_Managerment.Forms
             catch { }
         }
 
-        private void StartPreviewCloseTimer()
+        private void StartPreviewCloseTimer(int intervalMs = 800)
         {
             try
             {
+                if (_printDialogOpen) return; // Không đóng khi hộp thoại in đang mở
                 if (_previewCloseTimer == null)
                 {
-                    _previewCloseTimer = new System.Windows.Forms.Timer { Interval = 800 }; // ms
+                    _previewCloseTimer = new System.Windows.Forms.Timer { Interval = intervalMs };
                     _previewCloseTimer.Tick += (s, e) =>
                     {
                         _previewCloseTimer.Stop();
                         HideFilePreview();
                     };
                 }
+                _previewCloseTimer.Interval = intervalMs;
                 _previewCloseTimer.Stop();
                 _previewCloseTimer.Start();
             }
@@ -1346,7 +1357,28 @@ namespace MPR_Managerment.Forms
             f.Controls.Add(toolbar);   // triggers first Resize → buttons placed correctly
 
             Action printAction = null;
-            btnPrint.Click += (s, e) => { try { printAction?.Invoke(); } catch { } };
+            btnPrint.Click += (s, e) =>
+            {
+                try
+                {
+                    StopPreviewCloseTimer();
+                    _printDialogOpen = true;
+                    printAction?.Invoke();
+                }
+                catch { }
+                finally
+                {
+                    _printDialogOpen = false;
+                    // Sau khi hộp thoại in đóng: nếu chuột đã ra ngoài Preview thì đợi 1 giây rồi đóng
+                    var pf = _filePreviewForm;
+                    if (pf != null && !pf.IsDisposed)
+                    {
+                        var pt = pf.PointToClient(Cursor.Position);
+                        if (!pf.ClientRectangle.Contains(pt))
+                            StartPreviewCloseTimer(1000);
+                    }
+                }
+            };
             btnOpen .Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
             btnClose.Click += (s, e) => f.Close();
             f.KeyPreview = true;
@@ -2092,7 +2124,7 @@ namespace MPR_Managerment.Forms
                             }
 
                             // ── Sub-Total / VAT / Total của PO này ──
-                            decimal vatAmt = Math.Round(sub * 0.1m, chiTietDec, MidpointRounding.AwayFromZero);
+                            decimal vatAmt = _isDomestic ? Math.Round(sub * 0.1m, 0, MidpointRounding.AwayFromZero) : 0m;
                             ws.Cells[curRow, 11].Value = "Sub-Total:"; ws.Cells[curRow, 11].Style.Font.Bold = true;
                             ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
                             ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
@@ -2139,6 +2171,8 @@ namespace MPR_Managerment.Forms
                 foreach (DataGridViewColumn col in dgvDetails.Columns)
                 {
                     if (!col.Visible) continue;
+                    // Bỏ qua cột A/B/C — chúng dùng AllCells mode, tự co giãn theo nội dung
+                    if (col.Name == "Asize" || col.Name == "Bsize" || col.Name == "Csize") continue;
                     col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                     SizeF headerSize = g.MeasureString(col.HeaderText, headerFont);
                     int minWidth = (int)Math.Ceiling(headerSize.Width) + 20; int maxWidth = minWidth;
@@ -2814,8 +2848,8 @@ namespace MPR_Managerment.Forms
 
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "SubAmount", HeaderText = "TT trước thuế", ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Amount", HeaderText = "Thành tiền", ReadOnly = true });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận" });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận", Visible = false });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú" });
 
             // Cách tính — mặc định Theo KG
@@ -2827,7 +2861,18 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "NhapKho", HeaderText = "Nhập kho" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPR_Detail_ID", HeaderText = "MPR_Detail_ID", Visible = false });
+
+            // Header: wrap text, tự co giãn chiều cao
+            dgvDetails.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            dgvDetails.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+
             foreach (DataGridViewColumn col in dgvDetails.Columns) col.Width = 60;
+
+            // A/B/C: tự co giãn theo nội dung (AutoAdjustColumnWidths sẽ bỏ qua 3 cột này)
+            dgvDetails.Columns["Asize"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvDetails.Columns["Bsize"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvDetails.Columns["Csize"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+
             // Nhập kho: căn giữa và hiển thị 2 chữ số thập phân
             if (dgvDetails.Columns.Contains("NhapKho"))
             {
@@ -3242,7 +3287,9 @@ namespace MPR_Managerment.Forms
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
                 decimal rowSubAmt = baseValue * price;
-                decimal rowAmount = Math.Round(rowSubAmt * (1 + vat / 100), dec, MidpointRounding.AwayFromZero);
+                decimal rowAmount = _isDomestic
+                    ? Math.Round(rowSubAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero)
+                    : Math.Round(rowSubAmt, 2, MidpointRounding.AwayFromZero);
 
                 totalQty += qty;
                 totalKg += weight;
@@ -3422,8 +3469,10 @@ namespace MPR_Managerment.Forms
             decimal subAmt = baseValue * price;
             int dec = _isDomestic ? 0 : 2;
             decimal subAmtRounded = Math.Round(subAmt, dec, MidpointRounding.AwayFromZero);
-            // Thành tiền = TT trước thuế × (1 + VAT%)
-            decimal amount = Math.Round(subAmt * (1 + vat / 100), dec, MidpointRounding.AwayFromZero);
+            // Thành tiền: Trong nước = TT × (1+VAT%), Nước ngoài = TT (không VAT)
+            decimal amount = _isDomestic
+                ? Math.Round(subAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero)
+                : Math.Round(subAmt, 2, MidpointRounding.AwayFromZero);
 
             if (dgvDetails.Columns.Contains("SubAmount"))
                 row.Cells["SubAmount"].Value = subAmtRounded;
@@ -3934,7 +3983,9 @@ namespace MPR_Managerment.Forms
                             ws.Cells[row, 16, row, 17].Merge = true;
                         }
 
-                        totalAfterVAT += Math.Round(dAmt * (1 + d.VAT / 100), amtDec, MidpointRounding.AwayFromZero);
+                        totalAfterVAT += _isDomestic
+                            ? Math.Round(dAmt * (1 + d.VAT / 100), 0, MidpointRounding.AwayFromZero)
+                            : dAmt;
 
                         // Thiết lập Style cho hàng
                         using (var range = ws.Cells[row, 1, row, 17])

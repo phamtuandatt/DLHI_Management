@@ -181,20 +181,23 @@ namespace MPR_Managerment.Forms
         }
 
         private System.Windows.Forms.Timer _previewCloseTimer_MPR;
+        private bool _printDialogOpen_MPR = false; // giữ preview mở trong khi hộp thoại in đang hiển thị
 
-        private void StartPreviewCloseTimer_MPR()
+        private void StartPreviewCloseTimer_MPR(int intervalMs = 800)
         {
             try
             {
+                if (_printDialogOpen_MPR) return; // Không đóng khi hộp thoại in đang mở
                 if (_previewCloseTimer_MPR == null)
                 {
-                    _previewCloseTimer_MPR = new System.Windows.Forms.Timer { Interval = 800 };
+                    _previewCloseTimer_MPR = new System.Windows.Forms.Timer { Interval = intervalMs };
                     _previewCloseTimer_MPR.Tick += (s, e) =>
                     {
                         _previewCloseTimer_MPR.Stop();
                         HideFilePreview_MPR();
                     };
                 }
+                _previewCloseTimer_MPR.Interval = intervalMs;
                 _previewCloseTimer_MPR.Stop();
                 _previewCloseTimer_MPR.Start();
             }
@@ -274,7 +277,28 @@ namespace MPR_Managerment.Forms
             f.Controls.Add(toolbar);   // triggers first Resize → buttons placed correctly
 
             Action printAction = null;
-            btnPrint.Click += (s, e) => { try { printAction?.Invoke(); } catch { } };
+            btnPrint.Click += (s, e) =>
+            {
+                try
+                {
+                    StopPreviewCloseTimer_MPR();
+                    _printDialogOpen_MPR = true;
+                    printAction?.Invoke();
+                }
+                catch { }
+                finally
+                {
+                    _printDialogOpen_MPR = false;
+                    // Sau khi hộp thoại in đóng: nếu chuột đã ra ngoài Preview thì đợi 1 giây rồi đóng
+                    var pf = _filePreviewForm_MPR;
+                    if (pf != null && !pf.IsDisposed)
+                    {
+                        var pt = pf.PointToClient(Cursor.Position);
+                        if (!pf.ClientRectangle.Contains(pt))
+                            StartPreviewCloseTimer_MPR(1000);
+                    }
+                }
+            };
             btnOpen .Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
             btnClose.Click += (s, e) => f.Close();
             f.KeyPreview = true;
