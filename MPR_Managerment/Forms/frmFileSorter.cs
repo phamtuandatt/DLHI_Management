@@ -336,102 +336,126 @@ namespace MPR_Managerment.Forms
                 return;
             }
 
-            // ── Chạy lệnh: python test_po_ocr.py ────────────────────────
-            SetStatus("⏳ Đang chạy OCR...");
-            try
-            {
-                var psi = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c python test_po_ocr.py",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    WorkingDirectory = @"C:\Users\PCPV"
-                };
-                using var proc = System.Diagnostics.Process.Start(psi);
-                string stderr = proc.StandardError.ReadToEnd();
-                proc.WaitForExit();
-
-                if (proc.ExitCode != 0)
-                {
-                    var res = MessageBox.Show(
-                        $"Script OCR kết thúc với lỗi:\n{stderr}\n\nBạn có muốn tiếp tục quét không?",
-                        "Cảnh báo OCR", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                    if (res != DialogResult.Yes) { SetStatus("Đã hủy."); return; }
-                }
-                else
-                    SetStatus("✅ OCR hoàn thành. Tiếp tục quét file...");
-            }
-            catch (Exception ex)
-            {
-                var res = MessageBox.Show(
-                    $"Không thể chạy OCR:\n{ex.Message}\n\nBạn có muốn tiếp tục quét không?",
-                    "Cảnh báo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                if (res != DialogResult.Yes) { SetStatus("Đã hủy."); return; }
-            }
-
-            SetStatus("⏳ Đang tải dữ liệu dự án từ DB...");
-            _items.Clear();
-            _dgv.Rows.Clear();
+            _btnScan.Enabled = false;
             _btnRun.Enabled = false;
+            SetStatus("⏳ Đang chạy OCR...");
 
-            // Load projects
-            _projects = LoadProjects();
-            if (_projects.Count == 0)
+            Task.Run(() =>
             {
-                SetStatus("⚠️ Không tìm thấy dự án nào trong DB (bảng ProjectInfo).");
-                return;
-            }
+                // ── OCR (chạy ngầm, không block UI) ─────────────────────
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = "/c python test_po_ocr.py",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = false, // không redirect stdout tránh deadlock
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                        WorkingDirectory = @"C:\Users\PCPV"
+                    };
+                    using var proc = System.Diagnostics.Process.Start(psi);
+                    string stderr = proc.StandardError.ReadToEnd();
+                    proc.WaitForExit();
 
-            // Populate ComboBox danh sách dự án cho user chọn tay
-            PopulateProjectCombo();
+                    if (proc.ExitCode != 0)
+                    {
+                        DialogResult res = DialogResult.No;
+                        this.Invoke(() => res = MessageBox.Show(
+                            $"Script OCR kết thúc với lỗi:\n{stderr}\n\nBạn có muốn tiếp tục quét không?",
+                            "Cảnh báo OCR", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
+                        if (res != DialogResult.Yes)
+                        {
+                            this.Invoke(() => { SetStatus("Đã hủy."); _btnScan.Enabled = true; });
+                            return;
+                        }
+                    }
+                    else
+                        this.Invoke(() => SetStatus("✅ OCR hoàn thành. Tiếp tục quét file..."));
+                }
+                catch (Exception ex)
+                {
+                    DialogResult res = DialogResult.No;
+                    this.Invoke(() => res = MessageBox.Show(
+                        $"Không thể chạy OCR:\n{ex.Message}\n\nBạn có muốn tiếp tục quét không?",
+                        "Cảnh báo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
+                    if (res != DialogResult.Yes)
+                    {
+                        this.Invoke(() => { SetStatus("Đã hủy."); _btnScan.Enabled = true; });
+                        return;
+                    }
+                }
 
-            // Đọc file
-            SetStatus("⏳ Đang quét file...");
-            string[] files;
-            try
-            {
-                files = Directory.GetFiles(src, "*.*", SearchOption.TopDirectoryOnly)
-                    .Where(f => !Path.GetFileName(f).StartsWith("~$")
-                             && !Path.GetFileName(f).EndsWith(".log"))
-                    .ToArray();
-            }
-            catch (Exception ex)
-            {
-                SetStatus($"❌ Lỗi đọc thư mục: {ex.Message}");
-                return;
-            }
+                // ── Load projects từ DB ──────────────────────────────────
+                this.Invoke(() => SetStatus("⏳ Đang tải dữ liệu dự án từ DB..."));
+                var projects = LoadProjects();
 
-            if (files.Length == 0)
-            {
-                SetStatus("📂 Thư mục không có file nào.");
-                return;
-            }
+                if (projects.Count == 0)
+                {
+                    this.Invoke(() =>
+                    {
+                        SetStatus("⚠️ Không tìm thấy dự án nào trong DB (bảng ProjectInfo).");
+                        _btnScan.Enabled = true;
+                    });
+                    return;
+                }
 
-            // Phân tích
-            foreach (string fp in files)
-                _items.Add(AnalyzeFile(Path.GetFileName(fp), fp));
+                // ── Đọc file ─────────────────────────────────────────────
+                string[] files;
+                try
+                {
+                    files = Directory.GetFiles(src, "*.*", SearchOption.TopDirectoryOnly)
+                        .Where(f => !Path.GetFileName(f).StartsWith("~$")
+                                 && !Path.GetFileName(f).EndsWith(".log"))
+                        .ToArray();
+                }
+                catch (Exception ex)
+                {
+                    this.Invoke(() => { SetStatus($"❌ Lỗi đọc thư mục: {ex.Message}"); _btnScan.Enabled = true; });
+                    return;
+                }
 
-            RefreshGrid();
+                if (files.Length == 0)
+                {
+                    this.Invoke(() => { SetStatus("📂 Thư mục không có file nào."); _btnScan.Enabled = true; });
+                    return;
+                }
 
-            int ready = _items.Count(i => i.Status == "✅ Sẵn sàng");
-            int renamed = _items.Count(i => i.Status == "⚠️ Đổi tên");
-            int noMatch = _items.Count(i => i.Status == "❌ Không khớp");
-            int err = _items.Count(i =>
-                i.Status != "✅ Sẵn sàng" &&
-                i.Status != "⚠️ Đổi tên" &&
-                i.Status != "❌ Không khớp");
+                // ── Phân tích (có thể dùng projects mới load) ────────────
+                this.Invoke(() => SetStatus("⏳ Đang quét file..."));
+                _projects = projects; // cập nhật trước khi gọi AnalyzeFile
+                var newItems = new List<SortItem>();
+                foreach (string fp in files)
+                    newItems.Add(AnalyzeFile(Path.GetFileName(fp), fp));
 
-            SetStatus($"🔍 {files.Length} file  |  " +
-                $"✅ {ready} sẵn sàng  |  " +
-                $"⚠️ {renamed} cần đổi tên  |  " +
-                $"❌ {noMatch} không khớp  |  " +
-                $"⚠️ {err} lỗi link");
+                // ── Cập nhật UI trên UI thread ───────────────────────────
+                this.Invoke(() =>
+                {
+                    _items = newItems;
+                    _dgv.Rows.Clear();
+                    PopulateProjectCombo();
+                    RefreshGrid();
 
-            _btnRun.Enabled = _items.Any(i =>
-                i.Status == "✅ Sẵn sàng" || i.Status == "⚠️ Đổi tên");
+                    int ready   = _items.Count(i => i.Status == "✅ Sẵn sàng");
+                    int renamed = _items.Count(i => i.Status == "⚠️ Đổi tên");
+                    int noMatch = _items.Count(i => i.Status == "❌ Không khớp");
+                    int err     = _items.Count(i =>
+                        i.Status != "✅ Sẵn sàng" &&
+                        i.Status != "⚠️ Đổi tên" &&
+                        i.Status != "❌ Không khớp");
+
+                    SetStatus($"🔍 {files.Length} file  |  " +
+                        $"✅ {ready} sẵn sàng  |  " +
+                        $"⚠️ {renamed} cần đổi tên  |  " +
+                        $"❌ {noMatch} không khớp  |  " +
+                        $"⚠️ {err} lỗi link");
+
+                    _btnScan.Enabled = true;
+                    _btnRun.Enabled = _items.Any(i =>
+                        i.Status == "✅ Sẵn sàng" || i.Status == "⚠️ Đổi tên");
+                });
+            });
         }
 
         // ─────────────────────────────────────────────────────────────────

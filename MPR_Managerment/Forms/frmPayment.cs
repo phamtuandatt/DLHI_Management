@@ -2333,7 +2333,8 @@ namespace MPR_Managerment.Forms
             {
                 Title = "Lưu báo cáo công nợ",
                 Filter = "Excel|*.xlsx",
-                FileName = $"CongNo_{dtpFrom.Value:yyyyMMdd}_{dtpTo.Value:yyyyMMdd}"
+                FileName = $"CongNo_{dtpFrom.Value:yyyyMMdd}_{dtpTo.Value:yyyyMMdd}",
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
             if (sfd.ShowDialog() != DialogResult.OK) return;
             try
@@ -3445,7 +3446,7 @@ $wb = $excel.Workbooks.Open('{_filePath.Replace("'", "''")}', $false, $true)
                 Title = "Lưu Payment Request",
                 Filter = "Excel Files|*.xlsx",
                 FileName = $"PaymentRequest_{_poNo}_{DateTime.Now:yyyyMMdd}",
-                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
             if (sfd.ShowDialog() == DialogResult.OK)
             {

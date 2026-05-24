@@ -11,6 +11,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Linq;
 
@@ -180,20 +181,23 @@ namespace MPR_Managerment.Forms
         }
 
         private System.Windows.Forms.Timer _previewCloseTimer_MPR;
+        private bool _printDialogOpen_MPR = false; // giữ preview mở trong khi hộp thoại in đang hiển thị
 
-        private void StartPreviewCloseTimer_MPR()
+        private void StartPreviewCloseTimer_MPR(int intervalMs = 800)
         {
             try
             {
+                if (_printDialogOpen_MPR) return; // Không đóng khi hộp thoại in đang mở
                 if (_previewCloseTimer_MPR == null)
                 {
-                    _previewCloseTimer_MPR = new System.Windows.Forms.Timer { Interval = 800 };
+                    _previewCloseTimer_MPR = new System.Windows.Forms.Timer { Interval = intervalMs };
                     _previewCloseTimer_MPR.Tick += (s, e) =>
                     {
                         _previewCloseTimer_MPR.Stop();
                         HideFilePreview_MPR();
                     };
                 }
+                _previewCloseTimer_MPR.Interval = intervalMs;
                 _previewCloseTimer_MPR.Stop();
                 _previewCloseTimer_MPR.Start();
             }
@@ -211,144 +215,336 @@ namespace MPR_Managerment.Forms
             HideFilePreview_MPR();
             if (!File.Exists(filePath)) return;
 
-            var f = new Form();
-            f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
-            f.Size = new Size(1024, 768);
-            f.StartPosition = FormStartPosition.Manual;
-            f.ShowInTaskbar = false;
-            f.TopMost = true;
-            f.BackColor = Color.White;
-            f.Padding = new Padding(6);
-
-            int w = f.Width, h = f.Height;
-            var screen = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0,0,800,600);
-            int x = screen.Left + (screen.Width - w) / 2;
-            int y = screen.Top + (screen.Height - h) / 2;
-            f.Bounds = new Rectangle(x, y, w, h);
-
-            // Toolbar
-            var tool = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(250, 250, 250) };
-            var btnZoomIn = new Button { Text = "+", Width = 34, Height = 28, Left = 6, Top = 4 };
-            var btnZoomOut = new Button { Text = "-", Width = 34, Height = 28, Left = 46, Top = 4 };
-            var btnPrev = new Button { Text = "◀", Width = 40, Height = 28, Left = 96, Top = 4 };
-            var btnNext = new Button { Text = "▶", Width = 40, Height = 28, Left = 142, Top = 4 };
-            var btnClose = new Button { Text = "✖", Width = 34, Height = 28, Left = f.ClientSize.Width - 44, Top = 4, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            tool.Controls.AddRange(new Control[] { btnZoomIn, btnZoomOut, btnPrev, btnNext, btnClose });
-            f.Controls.Add(tool);
-
-            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-            var state = new PreviewStateMPR();
-            if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif")
+            var f = new Form
             {
-                state.Type = "image";
-                var container = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-                var pb = new PictureBox { Location = new Point(0, 0), SizeMode = PictureBoxSizeMode.Normal };
-                try { var img = Image.FromFile(filePath); state.OriginalImage = new Bitmap(img); pb.Image = new Bitmap(state.OriginalImage); pb.Size = state.OriginalImage.Size; } catch { pb.Image = null; }
-                container.Controls.Add(pb);
-                f.Controls.Add(container);
-                btnZoomIn.Click += (s, e) =>
-                {
-                    try
-                    {
-                        state.Scale *= 1.25;
-                        if (state.OriginalImage != null)
-                        {
-                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
-                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
-                            var resized = new Bitmap(newW, newH);
-                            using (var g = Graphics.FromImage(resized))
-                            {
-                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
-                            }
-                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
-                            pb.Image = resized;
-                            pb.Size = resized.Size;
-                        }
-                    }
-                    catch { }
-                };
-                btnZoomOut.Click += (s, e) =>
-                {
-                    try
-                    {
-                        state.Scale /= 1.25;
-                        if (state.OriginalImage != null)
-                        {
-                            int newW = Math.Max(20, (int)(state.OriginalImage.Width * state.Scale));
-                            int newH = Math.Max(20, (int)(state.OriginalImage.Height * state.Scale));
-                            var resized = new Bitmap(newW, newH);
-                            using (var g = Graphics.FromImage(resized))
-                            {
-                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                                g.DrawImage(state.OriginalImage, 0, 0, newW, newH);
-                            }
-                            try { var old = pb.Image; if (old != null) old.Dispose(); } catch { }
-                            pb.Image = resized;
-                            pb.Size = resized.Size;
-                        }
-                    }
-                    catch { }
-                };
-                btnPrev.Enabled = false; btnNext.Enabled = false; btnClose.Click += (s, e) => { f.Close(); };
-            }
-            else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
+                FormBorderStyle = FormBorderStyle.SizableToolWindow,
+                Size            = new Size(1024, 768),
+                StartPosition   = FormStartPosition.Manual,
+                ShowInTaskbar   = false,
+                TopMost         = true,
+                BackColor       = Color.FromArgb(38, 38, 38),
+                Text            = Path.GetFileName(filePath)
+            };
+            var scr = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0, 0, 1024, 768);
+            f.Bounds = new Rectangle(
+                scr.Left + (scr.Width  - f.Width)  / 2,
+                scr.Top  + (scr.Height - f.Height) / 2,
+                f.Width, f.Height);
+
+            // ── Toolbar ──────────────────────────────────────────────────────
+            var toolbar  = new Panel { Dock = DockStyle.Top, Height = 38, BackColor = Color.FromArgb(45, 45, 48) };
+            var clrDark  = Color.FromArgb(62, 62, 66);
+            var clrBlue  = Color.FromArgb(0, 100, 180);
+
+            Button MkBtn(string txt, int left, int w, Color bg)
             {
-                state.Type = "text";
-                var tb = new TextBox { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 9) };
-                try { var full = File.ReadAllText(filePath); state.FullText = full.Replace("\r\n", "\n"); state.Lines = state.FullText.Split(new[] { '\n' }, StringSplitOptions.None); state.TextOffset = 0; tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines)); } catch { tb.Text = "(Không thể đọc nội dung)"; }
-                f.Controls.Add(tb);
-                btnZoomIn.Enabled = false; btnZoomOut.Enabled = false; btnPrev.Enabled = state.TextOffset > 0; btnNext.Enabled = state.Lines != null && state.TextOffset + state.TextPageLines < (state.Lines?.Length ?? 0);
-                btnPrev.Click += (s, e) => { state.TextOffset = Math.Max(0, state.TextOffset - state.TextPageLines); tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines)); btnPrev.Enabled = state.TextOffset > 0; btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length; };
-                btnNext.Click += (s, e) => { state.TextOffset = Math.Min(state.Lines.Length - state.TextPageLines, state.TextOffset + state.TextPageLines); tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines)); btnPrev.Enabled = state.TextOffset > 0; btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length; };
-                btnClose.Click += (s, e) => { f.Close(); };
+                var b = new Button
+                {
+                    Text = txt, Left = left, Top = 5, Width = w, Height = 28,
+                    FlatStyle = FlatStyle.Flat, BackColor = bg,
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+                b.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
+                toolbar.Controls.Add(b);
+                return b;
             }
-            else
+
+            var btnZoomIn  = MkBtn("＋",    8, 36, clrDark);
+            var btnZoomOut = MkBtn("－",   48, 36, clrDark);
+            var btnFit     = MkBtn("⊡ Fit", 88, 60, clrDark);
+            var btn100     = MkBtn("1:1",  152, 44, clrBlue);
+            var lblZoom    = new Label { Left = 202, Top = 11, Width = 58, Text = "—", ForeColor = Color.FromArgb(220, 220, 220), Font = new Font("Segoe UI", 9, FontStyle.Bold), BackColor = Color.Transparent };
+            var btnPrev    = MkBtn("◀",   268, 36, clrDark); btnPrev.Visible = false;
+            var btnNext    = MkBtn("▶",   308, 36, clrDark); btnNext.Visible = false;
+            var lblInfo    = new Label { Left = 352, Top = 11, Width = 360, Text = Path.GetFileName(filePath), ForeColor = Color.FromArgb(155, 155, 155), Font = new Font("Segoe UI", 8.5f), BackColor = Color.Transparent };
+            // Add labels before right-side buttons so buttons have higher z-order
+            toolbar.Controls.Add(lblZoom);
+            toolbar.Controls.Add(lblInfo);
+            var btnPrint = MkBtn("⎙ In file", 0, 90, Color.FromArgb(80, 60, 140));
+            var btnOpen  = MkBtn("↗ Mở file", 0, 84, Color.FromArgb(0, 120, 60));
+            var btnClose = MkBtn("✖",          0, 36, Color.FromArgb(196, 43, 28));
+            // Position right-side buttons dynamically — Anchor fails when toolbar width is 0 at button creation
+            void PlaceRightBtns()
+            {
+                int r = toolbar.ClientSize.Width - 4;
+                btnClose.Left = r - btnClose.Width; r = btnClose.Left - 4;
+                btnOpen.Left  = r - btnOpen.Width;  r = btnOpen.Left  - 4;
+                btnPrint.Left = r - btnPrint.Width;
+            }
+            toolbar.Resize += (s, e) => PlaceRightBtns();
+            f.Controls.Add(toolbar);   // triggers first Resize → buttons placed correctly
+
+            Action printAction = null;
+            btnPrint.Click += (s, e) =>
             {
                 try
                 {
-                    var icon = Icon.ExtractAssociatedIcon(filePath);
-                    if (icon != null)
-                    {
-                        var bmp = icon.ToBitmap();
-                        var pb = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.CenterImage, Image = bmp };
-                        f.Controls.Add(pb);
-                    }
-                    else
-                    {
-                        var pnl = new Panel { Dock = DockStyle.Fill };
-                        var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-                        var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
-                        var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
-                        btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
-                        pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
-                        f.Controls.Add(pnl);
-                    }
+                    StopPreviewCloseTimer_MPR();
+                    _printDialogOpen_MPR = true;
+                    printAction?.Invoke();
                 }
-                catch
+                catch { }
+                finally
                 {
-                    var pnl = new Panel { Dock = DockStyle.Fill };
-                    var lbl = new Label { Dock = DockStyle.Top, Height = 40, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-                    var lbl2 = new Label { Dock = DockStyle.Top, Height = 22, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes" };
-                    var btn = new Button { Text = "Mở file", Dock = DockStyle.Bottom, Height = 28 };
-                    btn.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
-                    pnl.Controls.Add(btn); pnl.Controls.Add(lbl2); pnl.Controls.Add(lbl);
-                    f.Controls.Add(pnl);
+                    _printDialogOpen_MPR = false;
+                    // Sau khi hộp thoại in đóng: nếu chuột đã ra ngoài Preview thì đợi 1 giây rồi đóng
+                    var pf = _filePreviewForm_MPR;
+                    if (pf != null && !pf.IsDisposed)
+                    {
+                        var pt = pf.PointToClient(Cursor.Position);
+                        if (!pf.ClientRectangle.Contains(pt))
+                            StartPreviewCloseTimer_MPR(1000);
+                    }
+                }
+            };
+            btnOpen .Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+            btnClose.Click += (s, e) => f.Close();
+            f.KeyPreview = true;
+            f.KeyDown   += (s, e) => { if (e.KeyCode == Keys.Escape) f.Close(); };
+
+            // ── Content ──────────────────────────────────────────────────────
+            string ext      = Path.GetExtension(filePath).ToLowerInvariant();
+            bool   isImgExt = ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif";
+
+            if (isImgExt || ext == ".pdf")
+            {
+                Bitmap origBmp = null;
+                try
+                {
+                    Image src = null;
+                    if (ext == ".pdf") src = GetShellThumbnail_MPR(filePath, 1800, 2400);
+                    if (src == null && isImgExt) src = Image.FromFile(filePath);
+                    if (src != null)
+                    {
+                        if (src is Bitmap bSrc) origBmp = bSrc;
+                        else { origBmp = new Bitmap(src); src.Dispose(); }
+                    }
+                }
+                catch { origBmp = null; }
+
+                if (origBmp != null)
+                {
+                    double scale  = 1.0;
+                    float  offX   = 0, offY = 0;
+                    bool   fitted = false;
+                    bool   dragging = false;
+                    Point  dragStart = Point.Empty;
+                    float  dragOX = 0, dragOY = 0;
+
+                    var canvas = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(38, 38, 38) };
+                    typeof(Panel).GetProperty("DoubleBuffered",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                        ?.SetValue(canvas, true);
+
+                    void CalcFit()
+                    {
+                        if (canvas.ClientSize.Width <= 0 || canvas.ClientSize.Height <= 0) return;
+                        double sx = (double)canvas.ClientSize.Width  / origBmp.Width;
+                        double sy = (double)canvas.ClientSize.Height / origBmp.Height;
+                        scale = Math.Min(sx, sy) * 0.97;
+                        offX  = (canvas.ClientSize.Width  - (float)(origBmp.Width  * scale)) / 2f;
+                        offY  = (canvas.ClientSize.Height - (float)(origBmp.Height * scale)) / 2f;
+                    }
+
+                    void ClampPan()
+                    {
+                        float dw = (float)(origBmp.Width  * scale);
+                        float dh = (float)(origBmp.Height * scale);
+                        if (dw <= canvas.ClientSize.Width)  offX = (canvas.ClientSize.Width  - dw) / 2f;
+                        else offX = Math.Max(canvas.ClientSize.Width  - dw, Math.Min(0, offX));
+                        if (dh <= canvas.ClientSize.Height) offY = (canvas.ClientSize.Height - dh) / 2f;
+                        else offY = Math.Max(canvas.ClientSize.Height - dh, Math.Min(0, offY));
+                    }
+
+                    void UpdateZoomLabel() => lblZoom.Text = $"{(int)(scale * 100)}%";
+
+                    void ZoomAt(int px, int py, double factor)
+                    {
+                        double ns = Math.Max(0.03, Math.Min(30.0, scale * factor));
+                        float  r  = (float)(ns / scale);
+                        offX  = px - r * (px - offX);
+                        offY  = py - r * (py - offY);
+                        scale = ns;
+                        ClampPan();
+                        UpdateZoomLabel();
+                        canvas.Invalidate();
+                    }
+
+                    canvas.Paint += (s, e) =>
+                    {
+                        if (!fitted && canvas.ClientSize.Width > 0 && canvas.ClientSize.Height > 0)
+                        {
+                            CalcFit(); fitted = true; UpdateZoomLabel();
+                        }
+                        var g = e.Graphics;
+                        g.Clear(Color.FromArgb(38, 38, 38));
+                        g.InterpolationMode  = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                        g.SmoothingMode      = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                        g.PixelOffsetMode    = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                        g.DrawImage(origBmp, offX, offY,
+                            (float)(origBmp.Width * scale), (float)(origBmp.Height * scale));
+                    };
+
+                    canvas.MouseDown  += (s, e) =>
+                    {
+                        if (e.Button != MouseButtons.Left) return;
+                        dragging = true; dragStart = e.Location; dragOX = offX; dragOY = offY;
+                        canvas.Cursor = Cursors.SizeAll;
+                    };
+                    canvas.MouseMove  += (s, e) =>
+                    {
+                        if (!dragging) return;
+                        offX = dragOX + (e.X - dragStart.X);
+                        offY = dragOY + (e.Y - dragStart.Y);
+                        ClampPan();
+                        canvas.Invalidate();
+                    };
+                    canvas.MouseUp    += (s, e) => { dragging = false; canvas.Cursor = Cursors.Default; };
+                    canvas.MouseLeave += (s, e) => { dragging = false; canvas.Cursor = Cursors.Default; };
+
+                    canvas.MouseWheel += (s, e) => ZoomAt(e.X, e.Y, e.Delta > 0 ? 1.15 : 1.0 / 1.15);
+                    canvas.MouseEnter += (s, e) => canvas.Focus();
+
+                    canvas.KeyDown += (s, e) =>
+                    {
+                        int cx = canvas.Width / 2, cy = canvas.Height / 2;
+                        if      (e.KeyCode == Keys.Add      || e.KeyCode == Keys.Oemplus)  ZoomAt(cx, cy, 1.25);
+                        else if (e.KeyCode == Keys.Subtract || e.KeyCode == Keys.OemMinus) ZoomAt(cx, cy, 0.8);
+                        else if (e.KeyCode == Keys.Home)  { CalcFit(); UpdateZoomLabel(); canvas.Invalidate(); }
+                        else if (e.KeyCode == Keys.Escape) f.Close();
+                    };
+
+                    btnZoomIn .Click += (s, e) => ZoomAt(canvas.Width / 2, canvas.Height / 2, 1.25);
+                    btnZoomOut.Click += (s, e) => ZoomAt(canvas.Width / 2, canvas.Height / 2, 0.8);
+                    btnFit    .Click += (s, e) => { CalcFit(); UpdateZoomLabel(); canvas.Invalidate(); };
+                    btn100    .Click += (s, e) =>
+                    {
+                        scale = 1.0;
+                        offX  = (canvas.Width  - origBmp.Width)  / 2f;
+                        offY  = (canvas.Height - origBmp.Height) / 2f;
+                        ClampPan(); UpdateZoomLabel(); canvas.Invalidate();
+                    };
+
+                    f.Controls.Add(canvas);
+                    f.FormClosed += (s, e) => { try { origBmp.Dispose(); } catch { } };
+
+                    btnPrev.Visible = false; btnNext.Visible = false;
+                    printAction = () =>
+                    {
+                        try
+                        {
+                            using var pd = new System.Drawing.Printing.PrintDocument();
+                            var dlg = new PrintDialog { Document = pd };
+                            if (dlg.ShowDialog() != DialogResult.OK) return;
+                            var bmp = origBmp;
+                            pd.PrintPage += (ps, pe) =>
+                            {
+                                var page = pe.MarginBounds;
+                                double sc = Math.Min((double)page.Width / bmp.Width, (double)page.Height / bmp.Height);
+                                int dw = (int)(bmp.Width * sc), dh = (int)(bmp.Height * sc);
+                                pe.Graphics.DrawImage(bmp, page.Left + (page.Width - dw) / 2, page.Top + (page.Height - dh) / 2, dw, dh);
+                                pe.HasMorePages = false;
+                            };
+                            pd.Print();
+                        }
+                        catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                    };
+                }
+                else
+                {
+                    BuildPreviewInfoPanel_MPR(f, filePath);
+                    btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                    printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
                 }
             }
-
-            _filePreviewForm_MPR = f;
-            try
+            else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
             {
-                StopPreviewCloseTimer_MPR();
-                AttachPreviewMouseHandlers_MPR(f);
-            }
-            catch { }
+                var tb = new TextBox
+                {
+                    Multiline = true, ReadOnly = true, Dock = DockStyle.Fill,
+                    ScrollBars = ScrollBars.Both,
+                    Font       = new Font("Consolas", 9.5f),
+                    BackColor  = Color.FromArgb(30, 30, 30),
+                    ForeColor  = Color.FromArgb(212, 212, 212),
+                    BorderStyle = BorderStyle.None
+                };
+                var state = new PreviewStateMPR { Type = "text" };
+                try
+                {
+                    var full = File.ReadAllText(filePath);
+                    state.FullText = full.Replace("\r\n", "\n");
+                    state.Lines    = state.FullText.Split('\n');
+                    tb.Text = string.Join(Environment.NewLine, state.Lines.Take(state.TextPageLines));
+                    lblInfo.Text = $"{Path.GetFileName(filePath)}  ({state.Lines.Length:N0} dòng)";
+                }
+                catch { tb.Text = "(Không thể đọc nội dung)"; }
+                f.Controls.Add(tb);
 
+                btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                btnPrev.Visible = btnNext.Visible = true;
+                btnPrev.Enabled = false;
+                btnNext.Enabled = state.Lines != null && state.Lines.Length > state.TextPageLines;
+
+                void UpdatePageInfo() => lblInfo.Text =
+                    $"{Path.GetFileName(filePath)}  — dòng {state.TextOffset + 1}–{Math.Min(state.Lines.Length, state.TextOffset + state.TextPageLines)} / {state.Lines.Length:N0}";
+
+                btnPrev.Click += (s, e) =>
+                {
+                    state.TextOffset = Math.Max(0, state.TextOffset - state.TextPageLines);
+                    tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
+                    btnPrev.Enabled = state.TextOffset > 0;
+                    btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
+                    UpdatePageInfo();
+                };
+                btnNext.Click += (s, e) =>
+                {
+                    state.TextOffset = Math.Min(Math.Max(0, state.Lines.Length - state.TextPageLines), state.TextOffset + state.TextPageLines);
+                    tb.Text = string.Join(Environment.NewLine, state.Lines.Skip(state.TextOffset).Take(state.TextPageLines));
+                    btnPrev.Enabled = state.TextOffset > 0;
+                    btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
+                    UpdatePageInfo();
+                };
+                printAction = () =>
+                {
+                    try
+                    {
+                        using var pd = new System.Drawing.Printing.PrintDocument();
+                        var dlg = new PrintDialog { Document = pd };
+                        if (dlg.ShowDialog() != DialogResult.OK) return;
+                        var lines = state.Lines ?? Array.Empty<string>();
+                        int li = 0;
+                        var pf = new Font("Consolas", 9);
+                        pd.PrintPage += (ps, pe) =>
+                        {
+                            float y = pe.MarginBounds.Top, h = pf.GetHeight(pe.Graphics);
+                            while (li < lines.Length)
+                            {
+                                if (y + h > pe.MarginBounds.Bottom) { pe.HasMorePages = true; return; }
+                                pe.Graphics.DrawString(lines[li++], pf, Brushes.Black, pe.MarginBounds.Left, y);
+                                y += h;
+                            }
+                            pe.HasMorePages = false;
+                        };
+                        pd.BeginPrint += (ps, pe) => li = 0;
+                        pd.EndPrint   += (ps, pe) => pf.Dispose();
+                        pd.Print();
+                    }
+                    catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                };
+            }
+            else
+            {
+                BuildPreviewInfoPanel_MPR(f, filePath);
+                btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                btnPrev.Visible = btnNext.Visible = false;
+                printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
+            }
+
+            try { StopPreviewCloseTimer_MPR(); AttachPreviewMouseHandlers_MPR(f); } catch { }
+            _filePreviewForm_MPR = f;
             f.Show();
         }
 
@@ -363,6 +559,71 @@ namespace MPR_Managerment.Forms
             }
             catch { }
         }
+
+        private void BuildPreviewInfoPanel_MPR(Form f, string filePath)
+        {
+            f.BackColor = Color.FromArgb(45, 45, 48);
+            var pnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(45, 45, 48) };
+            var pb  = new PictureBox { Left = 24, Top = 24, Width = 64, Height = 64, SizeMode = PictureBoxSizeMode.StretchImage };
+            try { pb.Image = Icon.ExtractAssociatedIcon(filePath)?.ToBitmap(); } catch { }
+            var lblName = new Label { Left = 24, Top = 96,  Width = 600, AutoSize = false, Height = 26, Text = Path.GetFileName(filePath), Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Color.White };
+            var lblSize = new Label { Left = 24, Top = 126, Width = 400, AutoSize = false, Height = 20, Text = $"Kích thước: {new FileInfo(filePath).Length:N0} bytes",   Font = new Font("Segoe UI", 9), ForeColor = Color.FromArgb(170, 170, 170) };
+            var lblExt  = new Label { Left = 24, Top = 150, Width = 400, AutoSize = false, Height = 20, Text = $"Loại: {Path.GetExtension(filePath).ToUpperInvariant()}", Font = new Font("Segoe UI", 9), ForeColor = Color.FromArgb(170, 170, 170) };
+            var btnOp   = new Button { Left = 24, Top = 186, Width = 120, Height = 30, Text = "Mở file", FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnOp.FlatAppearance.BorderSize = 0;
+            btnOp.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
+            pnl.Controls.AddRange(new Control[] { pb, lblName, lblSize, lblExt, btnOp });
+            f.Controls.Add(pnl);
+        }
+
+        // Shell thumbnail extraction (PDF, Office, images)
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false, EntryPoint = "SHCreateItemFromParsingName")]
+        private static extern void SHCreateItemFromParsingName_MPR([MarshalAs(UnmanagedType.LPWStr)] string pszPath, IntPtr pbc, [In] ref Guid riid, out IntPtr ppv);
+
+        [DllImport("gdi32.dll", EntryPoint = "DeleteObject")]
+        private static extern bool DeleteObject_MPR(IntPtr hObject);
+
+        [ComImport]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        [Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b")]
+        private interface IShellItemImageFactory_MPR
+        {
+            void GetImage([In] SIZE_MPR size, [In] SIIGBF_MPR flags, out IntPtr phbm);
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SIZE_MPR { public int cx; public int cy; public SIZE_MPR(int x, int y) { cx = x; cy = y; } }
+
+        [Flags]
+        private enum SIIGBF_MPR : uint
+        {
+            SIIGBF_RESIZETOFIT  = 0x00,
+            SIIGBF_BIGGERSIZEOK = 0x01,
+            SIIGBF_MEMORYONLY   = 0x02,
+            SIIGBF_ICONONLY     = 0x04,
+            SIIGBF_THUMBNAILONLY = 0x08,
+            SIIGBF_INCACHEONLY  = 0x10
+        }
+
+        private Image GetShellThumbnail_MPR(string path, int width, int height)
+        {
+            try
+            {
+                Guid guid = new Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b");
+                SHCreateItemFromParsingName_MPR(path, IntPtr.Zero, ref guid, out IntPtr ppv);
+                if (ppv == IntPtr.Zero) return null;
+                var factory = (IShellItemImageFactory_MPR)Marshal.GetObjectForIUnknown(ppv);
+                factory.GetImage(new SIZE_MPR(Math.Max(1, width), Math.Max(1, height)), SIIGBF_MPR.SIIGBF_RESIZETOFIT, out IntPtr hbm);
+                Marshal.ReleaseComObject(factory);
+                Marshal.Release(ppv);
+                if (hbm == IntPtr.Zero) return null;
+                var img = Image.FromHbitmap(hbm);
+                DeleteObject_MPR(hbm);
+                return img;
+            }
+            catch { return null; }
+        }
+
         private Button btnAddDetail, btnDeleteDetail, btnSaveDetail;
 
         // BẢNG: Tiến độ PO
@@ -3877,6 +4138,7 @@ namespace MPR_Managerment.Forms
                         h.Rev                                               AS [Rev],
                         d.Item_No                                           AS [Item No],
                         d.item_name                                         AS [Tên vật tư],
+                        ISNULL(d.Description, N'')                          AS [Mô tả],
                         d.Material                                          AS [Vật liệu],
                         ISNULL(CAST(NULLIF(d.Thickness_mm,'') AS NVARCHAR),N'') AS [A-Dày(mm)],
                         ISNULL(CAST(NULLIF(d.Depth_mm,    '') AS NVARCHAR),N'') AS [B-Sâu(mm)],
@@ -4371,7 +4633,7 @@ namespace MPR_Managerment.Forms
                         Title = "Lưu file Excel",
                         Filter = "Excel Files|*.xlsx",
                         FileName = $"CheckAllItems_{DateTime.Now:yyyyMMdd_HHmm}",
-                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                        InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
                     };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
 
@@ -4613,7 +4875,8 @@ namespace MPR_Managerment.Forms
                 Filter = "Excel Files|*.xlsx",
                 FileName = "MPR_ChiTiet_" + (txtMPRNo?.Text.Trim() ?? "export")
                            + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
-                Title = "Luu file Excel"
+                Title = "Luu file Excel",
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
             if (sfd.ShowDialog() != DialogResult.OK) return;
 

@@ -76,6 +76,8 @@ namespace MPR_Managerment.Forms
             public int TextPageLines = 200;
         }
         private bool _isSearching = false;
+        private bool _isDomestic = true; // true = Mua trong nước (làm tròn số nguyên), false = Mua nước ngoài (2 chữ số thập phân)
+        private bool _printDialogOpen = false; // giữ preview mở trong khi hộp thoại in đang hiển thị
 
         private string _projectCodeImport = string.Empty;
 
@@ -801,6 +803,8 @@ namespace MPR_Managerment.Forms
                 else
                     MessageBox.Show("Không tìm thấy file!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             };
+            dgvMPRFiles.CellMouseEnter += DgvFiles_CellMouseEnter;
+            dgvMPRFiles.CellMouseLeave += DgvFiles_CellMouseLeave;
             panelMPRFiles.Controls.Add(dgvMPRFiles);
             panelDetail.Controls.Add(new Label { Text = "CHI TIẾT ĐƠN HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(300, 25) });
 
@@ -919,12 +923,12 @@ namespace MPR_Managerment.Forms
             // Anchor Right de tu can le phai khi resize
             var panelRight = new Panel
             {
-                Size = new Size(590, 68),
+                Size = new Size(740, 68),
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             // Vi tri: sat le phai panelDetail, dong voi hang buttons
-            panelRight.Location = new Point(panelDetail.Width - 590 - 5, 2);
+            panelRight.Location = new Point(panelDetail.Width - 740 - 5, 2);
             panelDetail.Resize += (s, ev) =>
                 panelRight.Location = new Point(panelDetail.Width - panelRight.Width - 5, 2);
 
@@ -1021,6 +1025,52 @@ namespace MPR_Managerment.Forms
                 UpdateTotal();
             };
             panelRight.Controls.Add(btnApplyCalc);
+
+            // -- Cot 4: Loai mua (x=500) --
+            int xMode = 500;
+            panelRight.Controls.Add(new Label
+            {
+                Text = "Loại mua:",
+                Location = new Point(xMode, 2),
+                Size = new Size(65, 18),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+            });
+            var rdoDomestic = new RadioButton
+            {
+                Text = "Mua trong nước",
+                Location = new Point(xMode, 22),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 60),
+                Checked = true
+            };
+            var rdoForeign = new RadioButton
+            {
+                Text = "Mua nước ngoài",
+                Location = new Point(xMode, 45),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.FromArgb(180, 90, 0)
+            };
+            panelRight.Controls.Add(rdoDomestic);
+            panelRight.Controls.Add(rdoForeign);
+            rdoDomestic.CheckedChanged += (s, ev) =>
+            {
+                if (!rdoDomestic.Checked) return;
+                _isDomestic = true;
+                foreach (DataGridViewRow r in dgvDetails.Rows)
+                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
+                UpdateTotal();
+            };
+            rdoForeign.CheckedChanged += (s, ev) =>
+            {
+                if (!rdoForeign.Checked) return;
+                _isDomestic = false;
+                foreach (DataGridViewRow r in dgvDetails.Rows)
+                    if (!r.IsNewRow && r.Tag?.ToString() != "TOTAL") RecalculateAmount(r.Index);
+                UpdateTotal();
+            };
 
             panelDetail.Controls.Add(panelRight);
             panelRight.BringToFront();
@@ -1176,9 +1226,10 @@ namespace MPR_Managerment.Forms
             try
             {
                 if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
-                var cell = dgvFiles.Rows[e.RowIndex].Cells[e.ColumnIndex];
-                // assume second column contains full path (as added earlier)
-                var fullPathCell = dgvFiles.Rows[e.RowIndex].Cells.Count > 1 ? dgvFiles.Rows[e.RowIndex].Cells[1] : null;
+                var dgv = sender as DataGridView;
+                if (dgv == null) return;
+                var cell = dgv.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                var fullPathCell = dgv.Rows[e.RowIndex].Cells.Count > 1 ? dgv.Rows[e.RowIndex].Cells[1] : null;
                 string path = fullPathCell?.Value?.ToString() ?? "";
                 if (string.IsNullOrEmpty(path)) { _previewPath = null; _previewCell = null; return; }
                 _previewPath = path;
@@ -1212,19 +1263,21 @@ namespace MPR_Managerment.Forms
             catch { }
         }
 
-        private void StartPreviewCloseTimer()
+        private void StartPreviewCloseTimer(int intervalMs = 800)
         {
             try
             {
+                if (_printDialogOpen) return; // Không đóng khi hộp thoại in đang mở
                 if (_previewCloseTimer == null)
                 {
-                    _previewCloseTimer = new System.Windows.Forms.Timer { Interval = 800 }; // ms
+                    _previewCloseTimer = new System.Windows.Forms.Timer { Interval = intervalMs };
                     _previewCloseTimer.Tick += (s, e) =>
                     {
                         _previewCloseTimer.Stop();
                         HideFilePreview();
                     };
                 }
+                _previewCloseTimer.Interval = intervalMs;
                 _previewCloseTimer.Stop();
                 _previewCloseTimer.Start();
             }
@@ -1285,15 +1338,47 @@ namespace MPR_Managerment.Forms
             var lblZoom    = new Label { Left = 202, Top = 11, Width = 58, Text = "—", ForeColor = Color.FromArgb(220, 220, 220), Font = new Font("Segoe UI", 9, FontStyle.Bold), BackColor = Color.Transparent };
             var btnPrev    = MkBtn("◀",   268, 36, clrDark); btnPrev.Visible = false;
             var btnNext    = MkBtn("▶",   308, 36, clrDark); btnNext.Visible = false;
-            var lblInfo    = new Label { Left = 352, Top = 11, Width = 440, Text = Path.GetFileName(filePath), ForeColor = Color.FromArgb(155, 155, 155), Font = new Font("Segoe UI", 8.5f), BackColor = Color.Transparent };
-            var btnOpen    = MkBtn("↗ Mở file", 870, 84, Color.FromArgb(0, 120, 60));
-            btnOpen.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            var btnClose   = MkBtn("✖", 958, 36, Color.FromArgb(196, 43, 28));
-            btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var lblInfo    = new Label { Left = 352, Top = 11, Width = 360, Text = Path.GetFileName(filePath), ForeColor = Color.FromArgb(155, 155, 155), Font = new Font("Segoe UI", 8.5f), BackColor = Color.Transparent };
+            // Add labels before right-side buttons so buttons have higher z-order
             toolbar.Controls.Add(lblZoom);
             toolbar.Controls.Add(lblInfo);
-            f.Controls.Add(toolbar);
+            var btnPrint = MkBtn("⎙ In file", 0, 90, Color.FromArgb(80, 60, 140));
+            var btnOpen  = MkBtn("↗ Mở file", 0, 84, Color.FromArgb(0, 120, 60));
+            var btnClose = MkBtn("✖",          0, 36, Color.FromArgb(196, 43, 28));
+            // Position right-side buttons dynamically — Anchor fails when toolbar width is 0 at button creation
+            void PlaceRightBtns()
+            {
+                int r = toolbar.ClientSize.Width - 4;
+                btnClose.Left = r - btnClose.Width; r = btnClose.Left - 4;
+                btnOpen.Left  = r - btnOpen.Width;  r = btnOpen.Left  - 4;
+                btnPrint.Left = r - btnPrint.Width;
+            }
+            toolbar.Resize += (s, e) => PlaceRightBtns();
+            f.Controls.Add(toolbar);   // triggers first Resize → buttons placed correctly
 
+            Action printAction = null;
+            btnPrint.Click += (s, e) =>
+            {
+                try
+                {
+                    StopPreviewCloseTimer();
+                    _printDialogOpen = true;
+                    printAction?.Invoke();
+                }
+                catch { }
+                finally
+                {
+                    _printDialogOpen = false;
+                    // Sau khi hộp thoại in đóng: nếu chuột đã ra ngoài Preview thì đợi 1 giây rồi đóng
+                    var pf = _filePreviewForm;
+                    if (pf != null && !pf.IsDisposed)
+                    {
+                        var pt = pf.PointToClient(Cursor.Position);
+                        if (!pf.ClientRectangle.Contains(pt))
+                            StartPreviewCloseTimer(1000);
+                    }
+                }
+            };
             btnOpen .Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { } };
             btnClose.Click += (s, e) => f.Close();
             f.KeyPreview = true;
@@ -1436,11 +1521,32 @@ namespace MPR_Managerment.Forms
                     f.FormClosed += (s, e) => { try { origBmp.Dispose(); } catch { } };
 
                     btnPrev.Visible = false; btnNext.Visible = false;
+                    printAction = () =>
+                    {
+                        try
+                        {
+                            using var pd = new System.Drawing.Printing.PrintDocument();
+                            var dlg = new PrintDialog { Document = pd };
+                            if (dlg.ShowDialog() != DialogResult.OK) return;
+                            var bmp = origBmp;
+                            pd.PrintPage += (ps, pe) =>
+                            {
+                                var page = pe.MarginBounds;
+                                double sc = Math.Min((double)page.Width / bmp.Width, (double)page.Height / bmp.Height);
+                                int dw = (int)(bmp.Width * sc), dh = (int)(bmp.Height * sc);
+                                pe.Graphics.DrawImage(bmp, page.Left + (page.Width - dw) / 2, page.Top + (page.Height - dh) / 2, dw, dh);
+                                pe.HasMorePages = false;
+                            };
+                            pd.Print();
+                        }
+                        catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                    };
                 }
                 else
                 {
                     BuildPreviewInfoPanel(f, filePath);
                     btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
+                    printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
                 }
             }
             else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
@@ -1490,12 +1596,40 @@ namespace MPR_Managerment.Forms
                     btnNext.Enabled = state.TextOffset + state.TextPageLines < state.Lines.Length;
                     UpdatePageInfo();
                 };
+                printAction = () =>
+                {
+                    try
+                    {
+                        using var pd = new System.Drawing.Printing.PrintDocument();
+                        var dlg = new PrintDialog { Document = pd };
+                        if (dlg.ShowDialog() != DialogResult.OK) return;
+                        var lines = state.Lines ?? Array.Empty<string>();
+                        int li = 0;
+                        var pf = new Font("Consolas", 9);
+                        pd.PrintPage += (ps, pe) =>
+                        {
+                            float y = pe.MarginBounds.Top, h = pf.GetHeight(pe.Graphics);
+                            while (li < lines.Length)
+                            {
+                                if (y + h > pe.MarginBounds.Bottom) { pe.HasMorePages = true; return; }
+                                pe.Graphics.DrawString(lines[li++], pf, Brushes.Black, pe.MarginBounds.Left, y);
+                                y += h;
+                            }
+                            pe.HasMorePages = false;
+                        };
+                        pd.BeginPrint += (ps, pe) => li = 0;
+                        pd.EndPrint   += (ps, pe) => pf.Dispose();
+                        pd.Print();
+                    }
+                    catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                };
             }
             else
             {
                 BuildPreviewInfoPanel(f, filePath);
                 btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
                 btnPrev.Visible = btnNext.Visible = false;
+                printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
             }
 
             try { StopPreviewCloseTimer(); AttachPreviewMouseHandlers(f); } catch { }
@@ -1878,7 +2012,7 @@ namespace MPR_Managerment.Forms
                 btnExp.Click += (s, ev) =>
                 {
                     if (dtCurrent == null || dtCurrent.Rows.Count == 0) { MessageBox.Show("Không có dữ liệu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                    using var sfd = new SaveFileDialog { Title = "Xuất chi tiết PO theo NCC", Filter = "Excel Files|*.xlsx", FileName = $"PO_ChiTiet_{DateTime.Now:yyyyMMdd_HHmm}", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
+                    using var sfd = new SaveFileDialog { Title = "Xuất chi tiết PO theo NCC", Filter = "Excel Files|*.xlsx", FileName = $"PO_ChiTiet_{DateTime.Now:yyyyMMdd_HHmm}", InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
                     try
                     {
@@ -1924,6 +2058,8 @@ namespace MPR_Managerment.Forms
                         ws.View.FreezePanes(4, 1);
 
                         int curRow = 4;
+                        int chiTietDec = _isDomestic ? 0 : 2;
+                        string chiTietFmt = _isDomestic ? "#,##0" : "#,##0.00";
 
                         foreach (System.Data.DataRow dr in dtCurrent.Rows)
                         {
@@ -1951,7 +2087,7 @@ namespace MPR_Managerment.Forms
                                 decimal rp = d.Price, bv = d.Qty_Per_Sheet;
                                 if ((d.Remarks ?? "").Contains("[CALC:KG]") && d.Weight_kg > 0 && d.Qty_Per_Sheet > 0)
                                 { rp = Math.Round((d.Price * d.Qty_Per_Sheet) / d.Weight_kg, 2); bv = d.Weight_kg; }
-                                decimal amt = Math.Round(bv * rp, 2); sub += amt;
+                                decimal amt = Math.Round(bv * rp, chiTietDec, MidpointRounding.AwayFromZero); sub += amt;
 
                                 ws.Cells[curRow, 1].Value = i + 1;
                                 ws.Cells[curRow, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
@@ -1975,8 +2111,8 @@ namespace MPR_Managerment.Forms
                                 // VAT (%) — số nguyên
                                 ws.Cells[curRow, 11].Value = d.VAT; ws.Cells[curRow, 11].Style.Numberformat.Format = "#,##0";
                                 ws.Cells[curRow, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                // Thành tiền — luôn hiển thị 2 chữ số thập phân
-                                ws.Cells[curRow, 12].Value = amt; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00";
+                                // Thành tiền
+                                ws.Cells[curRow, 12].Value = amt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
                                 ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
 
                                 if (i % 2 == 1)
@@ -1988,15 +2124,15 @@ namespace MPR_Managerment.Forms
                             }
 
                             // ── Sub-Total / VAT / Total của PO này ──
-                            decimal vat = Math.Round(sub * 0.1m, 2);
+                            decimal vatAmt = _isDomestic ? Math.Round(sub * 0.1m, 0, MidpointRounding.AwayFromZero) : 0m;
                             ws.Cells[curRow, 11].Value = "Sub-Total:"; ws.Cells[curRow, 11].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00"; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
                             ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
                             ws.Cells[curRow, 11].Value = "VAT (10%):";
-                            ws.Cells[curRow, 12].Value = vat; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00";
+                            ws.Cells[curRow, 12].Value = vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
                             ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
                             ws.Cells[curRow, 10, curRow, 11].Merge = true; ws.Cells[curRow, 10].Value = "TOTAL (incl. VAT):"; ws.Cells[curRow, 10].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Value = sub + vat; ws.Cells[curRow, 12].Style.Numberformat.Format = "#,##0.00"; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                            ws.Cells[curRow, 12].Value = sub + vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
                             ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
                             curRow += 2; // dòng trống giữa các PO
                         }
@@ -2035,6 +2171,8 @@ namespace MPR_Managerment.Forms
                 foreach (DataGridViewColumn col in dgvDetails.Columns)
                 {
                     if (!col.Visible) continue;
+                    // Bỏ qua cột A/B/C — chúng dùng AllCells mode, tự co giãn theo nội dung
+                    if (col.Name == "Asize" || col.Name == "Bsize" || col.Name == "Csize") continue;
                     col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                     SizeF headerSize = g.MeasureString(col.HeaderText, headerFont);
                     int minWidth = (int)Math.Ceiling(headerSize.Width) + 20; int maxWidth = minWidth;
@@ -2117,12 +2255,13 @@ namespace MPR_Managerment.Forms
                 e.FormattingApplied = true;
             }
 
-            // Cột Đơn giá và Thành tiền — định dạng số theo Windows system culture
+            // Cột Đơn giá, TT trước thuế, Thành tiền
             if (colName == "Price" || colName == "SubAmount")
             {
                 if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal num))
                 {
-                    e.Value = num.ToString("N2", _numCulture);
+                    string fmt = (colName == "SubAmount" && _isDomestic) ? "N0" : "N2";
+                    e.Value = num.ToString(fmt, _numCulture);
                     e.FormattingApplied = true;
                 }
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -2131,8 +2270,8 @@ namespace MPR_Managerment.Forms
             {
                 if (e.Value != null && decimal.TryParse(e.Value.ToString(), out decimal numAmt))
                 {
-                    // Thành tiền làm tròn số nguyên
-                    e.Value = numAmt.ToString("N0", _numCulture);
+                    string fmtAmt = _isDomestic ? "N0" : "N2";
+                    e.Value = numAmt.ToString(fmtAmt, _numCulture);
                     e.FormattingApplied = true;
                 }
                 e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -2709,8 +2848,8 @@ namespace MPR_Managerment.Forms
 
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "SubAmount", HeaderText = "TT trước thuế", ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Amount", HeaderText = "Thành tiền", ReadOnly = true });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận" });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Received", HeaderText = "Đã nhận", Visible = false });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPSNo", HeaderText = "MPS No", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remarks", HeaderText = "Ghi chú" });
 
             // Cách tính — mặc định Theo KG
@@ -2722,7 +2861,18 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "NhapKho", HeaderText = "Nhập kho" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPR_Detail_ID", HeaderText = "MPR_Detail_ID", Visible = false });
+
+            // Header: wrap text, tự co giãn chiều cao
+            dgvDetails.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            dgvDetails.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+
             foreach (DataGridViewColumn col in dgvDetails.Columns) col.Width = 60;
+
+            // A/B/C: tự co giãn theo nội dung (AutoAdjustColumnWidths sẽ bỏ qua 3 cột này)
+            dgvDetails.Columns["Asize"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvDetails.Columns["Bsize"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvDetails.Columns["Csize"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+
             // Nhập kho: căn giữa và hiển thị 2 chữ số thập phân
             if (dgvDetails.Columns.Contains("NhapKho"))
             {
@@ -3125,6 +3275,7 @@ namespace MPR_Managerment.Forms
             decimal totalKg = 0;
             decimal totalSubAmt = 0;
             decimal totalAmount = 0;
+            int dec = _isDomestic ? 0 : 2;
 
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
@@ -3136,7 +3287,9 @@ namespace MPR_Managerment.Forms
                 string calcMethod = row.Cells["Calc_Method"].Value?.ToString() ?? "Theo KG";
                 decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
                 decimal rowSubAmt = baseValue * price;
-                decimal rowAmount = Math.Round(rowSubAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero);
+                decimal rowAmount = _isDomestic
+                    ? Math.Round(rowSubAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero)
+                    : Math.Round(rowSubAmt, 2, MidpointRounding.AwayFromZero);
 
                 totalQty += qty;
                 totalKg += weight;
@@ -3146,10 +3299,11 @@ namespace MPR_Managerment.Forms
             subTotal = totalSubAmt;
             total = totalAmount;
 
+            string lblFmt = _isDomestic ? "N0" : "N2";
             if (lblSubTotal != null && lblSubTotal.Visible)
-                lblSubTotal.Text = "Trước VAT: " + subTotal.ToString("N2", _numCulture) + " VND";
+                lblSubTotal.Text = "Trước VAT: " + subTotal.ToString(lblFmt, _numCulture) + " VND";
             if (lblTotal != null && lblTotal.Visible)
-                lblTotal.Text = "Sau VAT: " + total.ToString("N0", _numCulture) + " VND";
+                lblTotal.Text = "Sau VAT: " + total.ToString(lblFmt, _numCulture) + " VND";
 
             // ── Cập nhật dòng Total ở cuối dgvDetails ──
             for (int i = dgvDetails.Rows.Count - 1; i >= 0; i--)
@@ -3166,7 +3320,7 @@ namespace MPR_Managerment.Forms
                 if (dgvDetails.Columns.Contains("Item_Name")) tr.Cells["Item_Name"].Value = "TỔNG CỘNG";
                 if (dgvDetails.Columns.Contains("Qty")) tr.Cells["Qty"].Value = totalQty > 0 ? (object)totalQty : "";
                 if (dgvDetails.Columns.Contains("Weight")) tr.Cells["Weight"].Value = totalKg > 0 ? (object)Math.Round(totalKg, 2) : "";
-                if (dgvDetails.Columns.Contains("SubAmount")) tr.Cells["SubAmount"].Value = totalSubAmt > 0 ? (object)totalSubAmt : "";
+                if (dgvDetails.Columns.Contains("SubAmount")) tr.Cells["SubAmount"].Value = totalSubAmt > 0 ? (object)Math.Round(totalSubAmt, dec, MidpointRounding.AwayFromZero) : "";
                 if (dgvDetails.Columns.Contains("Amount")) tr.Cells["Amount"].Value = totalAmount > 0 ? (object)totalAmount : "";
 
                 tr.DefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
@@ -3311,14 +3465,17 @@ namespace MPR_Managerment.Forms
 
             decimal baseValue = (calcMethod == "Theo KG") ? weight : qty;
 
-            // TT trước thuế = số lượng/KG × đơn giá (không làm tròn)
+            // TT trước thuế = số lượng/KG × đơn giá
             decimal subAmt = baseValue * price;
-
-            // Thành tiền = TT trước thuế × (1 + VAT%) — làm tròn đến số nguyên
-            decimal amount = Math.Round(subAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero);
+            int dec = _isDomestic ? 0 : 2;
+            decimal subAmtRounded = Math.Round(subAmt, dec, MidpointRounding.AwayFromZero);
+            // Thành tiền: Trong nước = TT × (1+VAT%), Nước ngoài = TT (không VAT)
+            decimal amount = _isDomestic
+                ? Math.Round(subAmt * (1 + vat / 100), 0, MidpointRounding.AwayFromZero)
+                : Math.Round(subAmt, 2, MidpointRounding.AwayFromZero);
 
             if (dgvDetails.Columns.Contains("SubAmount"))
-                row.Cells["SubAmount"].Value = subAmt;
+                row.Cells["SubAmount"].Value = subAmtRounded;
             row.Cells["Amount"].Value = amount;
 
             UpdateTotal();
@@ -3784,6 +3941,8 @@ namespace MPR_Managerment.Forms
                     }
 
                     decimal totalAfterVAT = 0;
+                    string amtFmt = _isDomestic ? "#,##0" : "#,##0.00";
+                    int amtDec = _isDomestic ? 0 : 2;
                     for (int i = 0; i < detailCount; i++)
                     {
                         var d = details[i];
@@ -3799,6 +3958,8 @@ namespace MPR_Managerment.Forms
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
 
+                        decimal dAmt = Math.Round(d.Amount, amtDec, MidpointRounding.AwayFromZero);
+
                         ws.Cells[row, 1].Value = i + 1;
                         ws.Cells[row, 2].Value = d.Item_Name ?? "";
                         ws.Cells[row, 3].Value = d.Material ?? "";
@@ -3812,7 +3973,7 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 11].Value = poHead.Expected_Delivery;
                         ws.Cells[row, 12].Value = "Kho DLHI";
                         ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
-                        ws.Cells[row, 14].Value = d.Amount;
+                        ws.Cells[row, 14].Value = dAmt;
                         ws.Cells[row, 16].Value = rem;
 
                         // --- CỦNG CỐ ĐỊNH DẠNG MERGE CHO REMARKS ---
@@ -3822,7 +3983,9 @@ namespace MPR_Managerment.Forms
                             ws.Cells[row, 16, row, 17].Merge = true;
                         }
 
-                        totalAfterVAT += d.Amount * (1 + d.VAT / 100);
+                        totalAfterVAT += _isDomestic
+                            ? Math.Round(dAmt * (1 + d.VAT / 100), 0, MidpointRounding.AwayFromZero)
+                            : dAmt;
 
                         // Thiết lập Style cho hàng
                         using (var range = ws.Cells[row, 1, row, 17])
@@ -3846,17 +4009,17 @@ namespace MPR_Managerment.Forms
                         ws.Cells[row, 13].Style.Numberformat.Format = "#,##0.00";
 
                         ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                        ws.Cells[row, 14].Style.Numberformat.Format = "#,##0.00";
+                        ws.Cells[row, 14].Style.Numberformat.Format = amtFmt;
                     }
 
                     int subTotalRow = startRow + detailCount;
                     int vatRow = subTotalRow + 1;
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
-                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = amtFmt;
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
                     ws.Cells[vatRow, 14].Value = totalAfterVAT;
-                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[vatRow, 14].Style.Numberformat.Format = amtFmt;
                     ws.Cells[vatRow, 14].Style.Font.Bold = true;
 
                     package.Save();
@@ -4320,7 +4483,11 @@ INNER JOIN MPR_Header mh_new ON mh_new.MPR_ID = @mprId
              THEN LEFT(mh_old.MPR_No, CHARINDEX('_Rev.', mh_old.MPR_No) - 1)
              ELSE mh_old.MPR_No END
 INNER JOIN MPR_Details md_new ON md_new.MPR_ID = @mprId
+    -- Tránh khớp nhầm: Item_Name phải khác rỗng và Item_No phải giống nhau
+    AND NULLIF(LTRIM(RTRIM(md_new.Item_Name)), '') IS NOT NULL
+    AND NULLIF(LTRIM(RTRIM(md_old.Item_Name)), '') IS NOT NULL
     AND LTRIM(RTRIM(LOWER(md_new.Item_Name))) = LTRIM(RTRIM(LOWER(md_old.Item_Name)))
+    AND LTRIM(RTRIM(ISNULL(md_new.Item_No, ''))) = LTRIM(RTRIM(ISNULL(md_old.Item_No, '')))
 WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn))
                     {
@@ -5882,7 +6049,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                         Title = "Xuất Check by Size",
                         Filter = "Excel Files|*.xlsx",
                         FileName = $"CheckBySize_{DateTime.Now:yyyyMMdd_HHmm}",
-                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                        InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
                     };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
                     try
