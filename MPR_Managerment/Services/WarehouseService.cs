@@ -467,7 +467,7 @@ namespace MPR_Managerment.Services
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                string sql = "SELECT * FROM vw_Warehouse_Stock_V3 WHERE 1=1";
+                string sql = "SELECT * FROM vw_Warehouse_Stock_V2 WHERE 1=1";
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 if (!string.IsNullOrEmpty(keyword))
@@ -488,6 +488,30 @@ namespace MPR_Managerment.Services
             if (!string.IsNullOrEmpty(keyword))
                 sql += $"AND (Material LIKE N'%{keyword}%' OR Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
             sql += " ORDER BY Import_Date DESC";
+
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                SqlCommand cmd = new SqlCommand(sql, conn);
+
+                DataTable dt = new DataTable();
+                await conn.OpenAsync(); // Mở kết nối ngầm
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetInvoices(string projectCode = "", string keyword = "")
+        {
+            string sql = "EXEC dbo.usp_GetWarehouseStockReport_V3";
+            //if (!string.IsNullOrEmpty(projectCode))
+            //    sql += $" AND Project_Code = N'{projectCode}'";
+            //if (!string.IsNullOrEmpty(keyword))
+            //    sql += $"AND (Material LIKE N'%{keyword}%' OR Item_Name LIKE N'%{keyword}%' OR ID_Code LIKE N'%{keyword}%' OR PONo LIKE N'%{keyword}%' OR Size LIKE N'%{keyword}%')";
+            //sql += " ORDER BY Import_Date DESC";
 
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {

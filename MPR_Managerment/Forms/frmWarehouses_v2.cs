@@ -777,19 +777,47 @@ namespace MPR_Managerment.Forms
 
         public void SetupFillInvoiceNoLayout_v2(TabPage parent)
         {
-            // --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
+            //// --- CẤU HÌNH GỐC: CHO PHÉP SCROLL TOÀN TRANG ---
+            //Panel mainScrollPanel = new Panel();
+            //mainScrollPanel.Dock = DockStyle.Fill;
+            ////mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+            //parent.Controls.Add(mainScrollPanel);
+            //parent.AllowDrop = true;
+            //parent.Padding = new Padding(0);
+
+            //// Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
+            //Panel container = new Panel();
+            //container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
+            //container.Height = 1200; // Độ cao ước tính cho 4 phần
+            //container.Location = new Point(0, 0);
+            //mainScrollPanel.Controls.Add(container);
+
+            //ucFillInvoiceNo ucFillInvoiceNo = new ucFillInvoiceNo();
+            //ucFillInvoiceNo.Dock = DockStyle.Fill;
+            //container.Controls.Add(ucFillInvoiceNo);
+            //ucFillInvoiceNo.BringToFront();
+
+            // 1. Panel bao ngoài cùng: Luôn Fill và quản lý Scroll
             Panel mainScrollPanel = new Panel();
             mainScrollPanel.Dock = DockStyle.Fill;
-            //mainScrollPanel.AutoScroll = true; // Kích hoạt cuộn ngang/dọc khi thu nhỏ
+            mainScrollPanel.AutoScroll = true;
             parent.Controls.Add(mainScrollPanel);
-            parent.AllowDrop = true;
-            parent.Padding = new Padding(0);
 
-            // Dùng một container để giữ độ rộng cố định khi scroll (tránh các control bị bóp méo)
+            // 2. Panel container: Chứa nội dung chính, kích thước tối thiểu để hiện Scroll
             Panel container = new Panel();
-            container.Width = 1300; // Độ rộng tối thiểu để không bị nhảy layout
-            container.Height = 1200; // Độ cao ước tính cho 4 phần
             container.Location = new Point(0, 0);
+            container.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            int minW = 1280;
+            int minH = 1280; // Điều chỉnh độ cao phù hợp với nội dung của bạn
+            container.MinimumSize = new Size(minW, minH);
+            container.Size = new Size(Math.Max(parent.Width, minW), minH);
+
+            // Xử lý Resize để container luôn dãn rộng theo màn hình lớn
+            parent.Resize += (s, e) =>
+            {
+                container.Width = Math.Max(mainScrollPanel.ClientSize.Width, minW);
+            };
             mainScrollPanel.Controls.Add(container);
 
             ucFillInvoiceNo ucFillInvoiceNo = new ucFillInvoiceNo();

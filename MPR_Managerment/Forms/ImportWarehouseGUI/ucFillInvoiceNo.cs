@@ -2,6 +2,8 @@
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml.Utils;
+using Syncfusion.XlsIO.Implementation.XmlSerialization;
+using Syncfusion.XlsIO.Parser.Biff_Records;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -24,6 +26,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         private bool _isPOLoaded = false;
         DateTimePicker dtp = new DateTimePicker();
         private DataTable dtSelected = new DataTable();
+        private DataTable dtInvoices = new DataTable();
 
         public ucFillInvoiceNo()
         {
@@ -32,6 +35,202 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
 
             InitGridSelected();
             FormartGrid(dgvList, Color.FromArgb(0, 120, 212));
+            FormartGrid(dgvInvoices, Color.FromArgb(0, 120, 212));
+        }
+
+        private async void ucFillInvoiceNo_Load(object sender, EventArgs e)
+        {
+            //// Thêm dtp vào Grid và ẩn đi
+            //dgvList.Controls.Add(dtp);
+            //dtp.Visible = false;
+            //dtp.Format = DateTimePickerFormat.Custom;
+            //dtp.CustomFormat = "dd-MM-yyyy";
+
+            //// Sự kiện khi chọn ngày xong
+            //dtp.ValueChanged += (s, ev) =>
+            //{
+            //    dgvList.CurrentCell.Value = dtp.Value.ToString("dd-MM-yyyy");
+            //};
+            await LoadInvoices();
+
+            var lstProperty = new List<string>()
+            {
+                //"InvoiceNo", "ID_Code", "Project_Code", "Item_Name", "Material", "Size", "PONo", "MPR_No" // Tên cột phải khớp chính xác với DataTable
+                "InvoiceNo"
+            };
+
+            txtInvoiceSearch.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    DataView dv = Common.Common.Search(txtInvoiceSearch.Text, dtInvoices, lstProperty);
+                    dgvInvoices.DataSource = dv;
+                }
+            };
+
+            dgvInvoices.CellFormatting += (s, e) =>
+            {
+                if (e.RowIndex < 0) return;
+                string col = dgvInvoices.Columns[e.ColumnIndex].Name;
+                if (col == "InvoiceNo")
+                {
+                    e.CellStyle.ForeColor = Color.SeaGreen;
+                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                }
+            };
+
+            var lstColumn = new List<string>()
+            {
+                "Import_ID", "Import_Date", "Qty_Exported", "Weight_Exported", "MPR_No", "PO_Date", 
+            };
+            Common.Common.HideColumnDataGridView(dgvInvoices, lstColumn);
+        }
+
+        private async Task LoadInvoices()
+        {
+            dtInvoices = await _warehouseServices.GetInvoices();
+            dgvInvoices.DataSource = dtInvoices;
+        }
+
+        private void OpenFormModifyItem(int importId)
+        {
+            if (AppSession.CurrentUser.Role_ID == 1)
+            {
+                // Sử dụng khối lệnh using để khởi tạo và tự động giải phóng tài nguyên Form
+                using (Form frm = new Form())
+                {
+                    // --- 1. Cấu hình giao diện Form ---
+                    frm.Text = "Cập nhật dữ liệu - Product Entry V2";
+                    frm.Size = new Size(400, 380);
+                    frm.StartPosition = FormStartPosition.CenterScreen;
+                    frm.FormBorderStyle = FormBorderStyle.FixedDialog;
+                    frm.MaximizeBox = false;
+                    frm.Font = new Font("Segoe UI", 10);
+
+                    // Biến hỗ trợ vị trí hiển thị
+                    int startY = 25;
+                    int spacing = 45;
+
+                    // --- 2. Khởi tạo 4 cặp Label và TextBox ---
+                    // Item_Code
+                    Label lblItemCode = new Label() { Text = "Item_Code:", Location = new Point(20, startY), AutoSize = true };
+                    TextBox txtItemCode = new TextBox() { Location = new Point(150, startY - 3), Size = new Size(200, 25) };
+
+                    // Qty_Import
+                    Label lblQty = new Label() { Text = "Qty_Import:", Location = new Point(20, startY + spacing), AutoSize = true };
+                    TextBox txtQty = new TextBox() { Location = new Point(150, startY + spacing - 3), Size = new Size(200, 25) };
+
+                    // Weight_kg
+                    Label lblWeight = new Label() { Text = "Weight_kg:", Location = new Point(20, startY + (spacing * 2)), AutoSize = true };
+                    TextBox txtWeight = new TextBox() { Location = new Point(150, startY + (spacing * 2) - 3), Size = new Size(200, 25) };
+
+                    // Size
+                    Label lblSize = new Label() { Text = "Size:", Location = new Point(20, startY + (spacing * 3)), AutoSize = true };
+                    TextBox txtSize = new TextBox() { Location = new Point(150, startY + (spacing * 3) - 3), Size = new Size(200, 25) };
+
+                    // Name
+                    Label lblName = new Label() { Text = "Name:", Location = new Point(20, startY + (spacing * 4)), AutoSize = true };
+                    TextBox txtName = new TextBox() { Location = new Point(150, startY + (spacing * 4) - 3), Size = new Size(200, 25) };
+
+                    // --- 3. Cấu hình các Button ---
+                    // Button Cancel (Nền xám, chữ trắng)
+                    Button btnCancel = new Button()
+                    {
+                        Text = "Cancel",
+                        Location = new Point(150, 250),
+                        Size = new Size(90, 35),
+                        BackColor = Color.Gray,
+                        ForeColor = Color.White,
+                        FlatStyle = FlatStyle.Flat
+                    };
+                    btnCancel.Click += (s, e) => { frm.Close(); };
+
+                    // Button Save (Nền xanh, chữ trắng)
+                    Button btnSave = new Button()
+                    {
+                        Text = "Save",
+                        Location = new Point(260, 250),
+                        Size = new Size(90, 35),
+                        BackColor = Color.DodgerBlue,
+                        ForeColor = Color.White,
+                        FlatStyle = FlatStyle.Flat
+                    };
+
+                    // --- 4. Logic lấy dữ liệu khi Click Save ---
+                    btnSave.Click += (s, e) =>
+                    {
+                        //[cite_start]// Truy xuất giá trị từ các TextBox [cite: 108, 111]
+                        string itemCode = txtItemCode.Text;
+                        string qty = txtQty.Text;
+                        string weight = txtWeight.Text;
+                        string sizeValue = txtSize.Text;
+                        string name = txtName.Text;
+
+                        var w = new WarehouseImport()
+                        {
+                            Import_ID = importId,
+                            ID_Code = itemCode,
+                            Qty_Import = !string.IsNullOrEmpty(qty) ? Convert.ToDecimal(qty.Trim()) : 0,
+                            Size = sizeValue,
+                            Item_Name = name,
+                        };
+
+                        if (!string.IsNullOrEmpty(txtItemCode.Text))
+                        {
+                            _warehouseServices.ModifyIDCodeOfWarehouse(w);
+                        }
+                        if (!string.IsNullOrEmpty(txtQty.Text))
+                        {
+                            _warehouseServices.ModifyQtyImportOfWarehouseImport(w);
+                        }
+                        if (!string.IsNullOrEmpty(txtWeight.Text))
+                        {
+                            _warehouseServices.ModifyWeightOfWarehouseImport(w);
+                        }
+                        if (!string.IsNullOrEmpty(txtSize.Text))
+                        {
+                            _warehouseServices.ModifySizeOfWarehouseImport(w);
+                        }
+                        if (!string.IsNullOrEmpty(txtName.Text))
+                        {
+                            _warehouseServices.ModifyNameOfWarehouseImport(w);
+                        }
+                        // Hiển thị kết quả lấy được để kiểm tra
+                        string info = $"Dữ liệu đã thu thập:\n" +
+                                      $"- Item Code: {itemCode}\n" +
+                                      $"- Qty: {qty}\n" +
+                                      $"- Weight: {weight}\n" +
+                                      $"- Size: {sizeValue}";
+
+                        MessageBox.Show(info, "Kết quả lưu dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        // Sau khi xử lý xong có thể đóng form hoặc giữ lại tùy ý
+                        frm.DialogResult = DialogResult.OK;
+                    };
+
+                    // --- 5. Thêm Controls vào Form và hiển thị ---
+                    frm.Controls.AddRange(new Control[] {
+                        lblItemCode, txtItemCode,
+                        lblQty, txtQty,
+                        lblWeight, txtWeight,
+                        lblSize, txtSize,
+                        lblName, txtName,
+                        btnCancel, btnSave
+                    });
+
+                    frm.AcceptButton = btnSave; // Nhấn Enter để Save [cite: 115]
+                    frm.CancelButton = btnCancel; // Nhấn Esc để Cancel [cite: 115]
+
+                    frm.ShowDialog();
+                }
+            }
+        }
+
+        private void dgvInvoices_CellContentDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            int importId = (int)dgvInvoices.Rows[e.RowIndex].Cells["Import_ID"].Value;
+            OpenFormModifyItem(importId);
         }
 
         private async void LoadProjects()
@@ -121,21 +320,6 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         {
             if (!_isLoaded) return;
             LoadPOByProjectCode(cboProject.SelectedValue.ToString());
-        }
-
-        private void ucFillInvoiceNo_Load(object sender, EventArgs e)
-        {
-            //// Thêm dtp vào Grid và ẩn đi
-            //dgvList.Controls.Add(dtp);
-            //dtp.Visible = false;
-            //dtp.Format = DateTimePickerFormat.Custom;
-            //dtp.CustomFormat = "dd-MM-yyyy";
-
-            //// Sự kiện khi chọn ngày xong
-            //dtp.ValueChanged += (s, ev) =>
-            //{
-            //    dgvList.CurrentCell.Value = dtp.Value.ToString("dd-MM-yyyy");
-            //};
         }
 
         private void dgvList_CellClick(object sender, DataGridViewCellEventArgs e)

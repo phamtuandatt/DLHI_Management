@@ -12,6 +12,19 @@ namespace MPR_Managerment.Common
     {
         private static readonly System.Globalization.CultureInfo _numCulture = new System.Globalization.CultureInfo("vi-VN");
 
+        public static void HideColumnDataGridView(DataGridView dgv, List<string> lstColumn)
+        {
+            if (dgv.Rows.Count == 0 || lstColumn == null) return;
+
+            foreach (DataGridViewColumn column in dgv.Columns)
+            {
+                if (lstColumn.Contains(column.Name))
+                {
+                    column.Visible = false;
+                }
+            }
+        }
+
         public static void ComboBoxTextUpdateForListItem(object? sender, EventArgs e, List<string> itemList)
         {
             ComboBox cb = sender as ComboBox;

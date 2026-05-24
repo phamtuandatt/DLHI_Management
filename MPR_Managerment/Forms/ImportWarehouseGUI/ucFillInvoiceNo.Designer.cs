@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
+            tableLayoutPanel1 = new TableLayoutPanel();
             groupBox2 = new GroupBox();
             panel3 = new Panel();
             dgvList = new DataGridView();
@@ -40,6 +41,12 @@
             label3 = new Label();
             lblStatus = new Label();
             btnSaveInvoice = new Button();
+            groupBox3 = new GroupBox();
+            panel4 = new Panel();
+            dgvInvoices = new DataGridView();
+            panel5 = new Panel();
+            txtInvoiceSearch = new TextBox();
+            label5 = new Label();
             groupBox1 = new GroupBox();
             btnSearch = new Button();
             cboPO = new ComboBox();
@@ -47,32 +54,52 @@
             cboProject = new ComboBox();
             label2 = new Label();
             panel1.SuspendLayout();
+            tableLayoutPanel1.SuspendLayout();
             groupBox2.SuspendLayout();
             panel3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvList).BeginInit();
             panel2.SuspendLayout();
+            groupBox3.SuspendLayout();
+            panel4.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvInvoices).BeginInit();
+            panel5.SuspendLayout();
             groupBox1.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
             // 
             panel1.BackColor = Color.White;
-            panel1.Controls.Add(groupBox2);
+            panel1.Controls.Add(tableLayoutPanel1);
             panel1.Controls.Add(groupBox1);
             panel1.Dock = DockStyle.Fill;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(989, 624);
+            panel1.Size = new Size(1149, 658);
             panel1.TabIndex = 0;
+            // 
+            // tableLayoutPanel1
+            // 
+            tableLayoutPanel1.ColumnCount = 1;
+            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel1.Controls.Add(groupBox2, 0, 0);
+            tableLayoutPanel1.Controls.Add(groupBox3, 0, 1);
+            tableLayoutPanel1.Dock = DockStyle.Fill;
+            tableLayoutPanel1.Location = new Point(0, 43);
+            tableLayoutPanel1.Name = "tableLayoutPanel1";
+            tableLayoutPanel1.RowCount = 2;
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 40.8130074F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 59.1869926F));
+            tableLayoutPanel1.Size = new Size(1149, 615);
+            tableLayoutPanel1.TabIndex = 1;
             // 
             // groupBox2
             // 
             groupBox2.Controls.Add(panel3);
             groupBox2.Controls.Add(panel2);
             groupBox2.Dock = DockStyle.Fill;
-            groupBox2.Location = new Point(0, 43);
+            groupBox2.Location = new Point(3, 3);
             groupBox2.Name = "groupBox2";
-            groupBox2.Size = new Size(989, 581);
+            groupBox2.Size = new Size(1143, 245);
             groupBox2.TabIndex = 0;
             groupBox2.TabStop = false;
             // 
@@ -82,7 +109,7 @@
             panel3.Dock = DockStyle.Fill;
             panel3.Location = new Point(3, 48);
             panel3.Name = "panel3";
-            panel3.Size = new Size(983, 530);
+            panel3.Size = new Size(1137, 194);
             panel3.TabIndex = 8;
             // 
             // dgvList
@@ -100,7 +127,7 @@
             dgvList.Name = "dgvList";
             dgvList.ReadOnly = true;
             dgvList.RowHeadersWidth = 51;
-            dgvList.Size = new Size(983, 530);
+            dgvList.Size = new Size(1137, 194);
             dgvList.TabIndex = 6;
             dgvList.CellClick += dgvList_CellClick;
             dgvList.CellContentClick += dgvList_CellContentClick;
@@ -119,7 +146,7 @@
             panel2.Dock = DockStyle.Top;
             panel2.Location = new Point(3, 19);
             panel2.Name = "panel2";
-            panel2.Size = new Size(983, 29);
+            panel2.Size = new Size(1137, 29);
             panel2.TabIndex = 7;
             // 
             // btnFill
@@ -161,7 +188,7 @@
             btnClear.FlatStyle = FlatStyle.Flat;
             btnClear.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnClear.ForeColor = Color.White;
-            btnClear.Location = new Point(733, 0);
+            btnClear.Location = new Point(887, 0);
             btnClear.Margin = new Padding(3, 2, 3, 2);
             btnClear.Name = "btnClear";
             btnClear.Size = new Size(101, 29);
@@ -197,7 +224,7 @@
             btnSaveInvoice.FlatStyle = FlatStyle.Flat;
             btnSaveInvoice.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnSaveInvoice.ForeColor = Color.White;
-            btnSaveInvoice.Location = new Point(834, 0);
+            btnSaveInvoice.Location = new Point(988, 0);
             btnSaveInvoice.Margin = new Padding(3, 2, 3, 2);
             btnSaveInvoice.Name = "btnSaveInvoice";
             btnSaveInvoice.Size = new Size(149, 29);
@@ -205,6 +232,74 @@
             btnSaveInvoice.Text = "💾 Cập nhật hóa đơn";
             btnSaveInvoice.UseVisualStyleBackColor = false;
             btnSaveInvoice.Click += btnSaveInvoice_Click;
+            // 
+            // groupBox3
+            // 
+            groupBox3.Controls.Add(panel4);
+            groupBox3.Controls.Add(panel5);
+            groupBox3.Dock = DockStyle.Fill;
+            groupBox3.Location = new Point(3, 254);
+            groupBox3.Name = "groupBox3";
+            groupBox3.Size = new Size(1143, 358);
+            groupBox3.TabIndex = 0;
+            groupBox3.TabStop = false;
+            // 
+            // panel4
+            // 
+            panel4.Controls.Add(dgvInvoices);
+            panel4.Dock = DockStyle.Fill;
+            panel4.Location = new Point(3, 48);
+            panel4.Name = "panel4";
+            panel4.Size = new Size(1137, 307);
+            panel4.TabIndex = 8;
+            // 
+            // dgvInvoices
+            // 
+            dgvInvoices.AllowUserToAddRows = false;
+            dgvInvoices.AllowUserToDeleteRows = false;
+            dgvInvoices.AllowUserToOrderColumns = true;
+            dgvInvoices.BackgroundColor = Color.White;
+            dgvInvoices.BorderStyle = BorderStyle.None;
+            dgvInvoices.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
+            dgvInvoices.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvInvoices.Dock = DockStyle.Fill;
+            dgvInvoices.Location = new Point(0, 0);
+            dgvInvoices.Margin = new Padding(3, 2, 3, 2);
+            dgvInvoices.Name = "dgvInvoices";
+            dgvInvoices.ReadOnly = true;
+            dgvInvoices.RowHeadersWidth = 51;
+            dgvInvoices.Size = new Size(1137, 307);
+            dgvInvoices.TabIndex = 6;
+            dgvInvoices.CellContentDoubleClick += dgvInvoices_CellContentDoubleClick;
+            dgvInvoices.EditingControlShowing += dgvList_EditingControlShowing;
+            dgvInvoices.Scroll += dgvList_Scroll;
+            // 
+            // panel5
+            // 
+            panel5.Controls.Add(txtInvoiceSearch);
+            panel5.Controls.Add(label5);
+            panel5.Dock = DockStyle.Top;
+            panel5.Location = new Point(3, 19);
+            panel5.Name = "panel5";
+            panel5.Size = new Size(1137, 29);
+            panel5.TabIndex = 7;
+            // 
+            // txtInvoiceSearch
+            // 
+            txtInvoiceSearch.Location = new Point(96, 1);
+            txtInvoiceSearch.Margin = new Padding(3, 2, 3, 2);
+            txtInvoiceSearch.Name = "txtInvoiceSearch";
+            txtInvoiceSearch.Size = new Size(167, 23);
+            txtInvoiceSearch.TabIndex = 9;
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Location = new Point(13, 5);
+            label5.Name = "label5";
+            label5.Size = new Size(67, 15);
+            label5.TabIndex = 6;
+            label5.Text = "Invoice No:";
             // 
             // groupBox1
             // 
@@ -216,7 +311,7 @@
             groupBox1.Dock = DockStyle.Top;
             groupBox1.Location = new Point(0, 0);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(989, 43);
+            groupBox1.Size = new Size(1149, 43);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             // 
@@ -282,14 +377,20 @@
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(panel1);
             Name = "ucFillInvoiceNo";
-            Size = new Size(989, 624);
+            Size = new Size(1149, 658);
             Load += ucFillInvoiceNo_Load;
             panel1.ResumeLayout(false);
+            tableLayoutPanel1.ResumeLayout(false);
             groupBox2.ResumeLayout(false);
             panel3.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dgvList).EndInit();
             panel2.ResumeLayout(false);
             panel2.PerformLayout();
+            groupBox3.ResumeLayout(false);
+            panel4.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dgvInvoices).EndInit();
+            panel5.ResumeLayout(false);
+            panel5.PerformLayout();
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             ResumeLayout(false);
@@ -315,5 +416,12 @@
         private TextBox txtInvoiceNo;
         private Label label3;
         private Button btnFill;
+        private TableLayoutPanel tableLayoutPanel1;
+        private GroupBox groupBox3;
+        private Panel panel4;
+        private DataGridView dgvInvoices;
+        private Panel panel5;
+        private TextBox txtInvoiceSearch;
+        private Label label5;
     }
 }
