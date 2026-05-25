@@ -1893,7 +1893,8 @@ namespace MPR_Managerment.Forms
                 popup.Controls.Add(lblCount);
 
                 int DGV_TOP = 38 + PF_H + 28;
-                var dgv = new DataGridView { Location = new Point(10, DGV_TOP), Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - DGV_TOP - 50), ReadOnly = true, AllowUserToAddRows = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle, RowHeadersVisible = false, Font = new Font("Segoe UI", 9), AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+                var dgv = new DataGridView { Location = new Point(10, DGV_TOP), Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - DGV_TOP - 50), ReadOnly = false, AllowUserToAddRows = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle, RowHeadersVisible = false, Font = new Font("Segoe UI", 9), AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+                dgv.CellBeginEdit += (s, ev) => { if (dgv.Columns[ev.ColumnIndex].DataPropertyName != "Chọn") ev.Cancel = true; };
                 dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153); dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White; dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold); dgv.EnableHeadersVisualStyles = false;
                 dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
                 dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
@@ -1922,9 +1923,24 @@ namespace MPR_Managerment.Forms
                         return true;
                     });
                     dtCurrent = rows.Any() ? rows.CopyToDataTable() : dtFull.Clone();
+                    if (!dtCurrent.Columns.Contains("Chọn"))
+                        dtCurrent.Columns.Add("Chọn", typeof(bool));
+                    foreach (System.Data.DataRow row in dtCurrent.Rows) row["Chọn"] = false;
                     dgv.DataSource = dtCurrent;
                     if (dgv.Columns.Contains("PO_ID")) dgv.Columns["PO_ID"].Visible = false;
-                    if (dgv.Columns.Contains("Dự án")) dgv.Columns["Dự án"].Visible = false; // ẩn tên DA, chỉ hiện Mã DA
+                    if (dgv.Columns.Contains("Dự án")) dgv.Columns["Dự án"].Visible = false;
+                    var chonCol = dgv.Columns.Cast<DataGridViewColumn>()
+                        .FirstOrDefault(c => c.DataPropertyName == "Chọn");
+                    if (chonCol != null)
+                    {
+                        chonCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                        chonCol.Width = 40;
+                        chonCol.HeaderText = "✓";
+                        chonCol.ReadOnly = false;
+                        chonCol.DisplayIndex = 0; // đặt cuối cùng để tránh reorder làm null ref
+                    }
+                    foreach (DataGridViewColumn col in dgv.Columns)
+                        if (col.DataPropertyName != "Chọn") col.ReadOnly = true;
 
                     int total = dtFull.Rows.Count, shown = dtCurrent.Rows.Count;
                     string daInfo = checkedProjects.Count == 0 ? "tất cả mã DA" : $"{checkedProjects.Count} mã DA";
@@ -2007,11 +2023,24 @@ namespace MPR_Managerment.Forms
                 btnSel.Click += (s, ev) => { if (dgv.SelectedRows.Count == 0) { MessageBox.Show("Vui lòng chọn một dòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; } selectedPONo = dgv.SelectedRows[0].Cells["PO No"].Value?.ToString(); popup.DialogResult = DialogResult.OK; popup.Close(); };
                 popup.Controls.Add(btnSel);
 
-                var btnExp = new Button { Text = "📥 Xuất Excel", Location = new Point(150, btnY), Size = new Size(130, 32), BackColor = Color.FromArgb(0, 150, 100), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+                var btnSelAll = new Button { Text = "☑ Chọn tất cả", Location = new Point(150, btnY), Size = new Size(130, 32), BackColor = Color.FromArgb(255, 140, 0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+                btnSelAll.FlatAppearance.BorderSize = 0;
+                btnSelAll.Click += (s, ev) =>
+                {
+                    if (dtCurrent == null) return;
+                    bool allChecked = dtCurrent.Rows.Cast<System.Data.DataRow>().All(r => r["Chọn"] is bool b && b);
+                    foreach (System.Data.DataRow row in dtCurrent.Rows) row["Chọn"] = !allChecked;
+                    btnSelAll.Text = allChecked ? "☑ Chọn tất cả" : "☐ Bỏ chọn tất cả";
+                    dgv.Invalidate();
+                };
+                popup.Controls.Add(btnSelAll);
+
+                var btnExp = new Button { Text = "📥 Xuất Excel", Location = new Point(290, btnY), Size = new Size(130, 32), BackColor = Color.FromArgb(0, 150, 100), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
                 btnExp.FlatAppearance.BorderSize = 0;
                 btnExp.Click += (s, ev) =>
                 {
-                    if (dtCurrent == null || dtCurrent.Rows.Count == 0) { MessageBox.Show("Không có dữ liệu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    var selectedRows = dtCurrent?.Rows.Cast<System.Data.DataRow>().Where(r => r["Chọn"] is bool b && b).ToList();
+                    if (selectedRows == null || selectedRows.Count == 0) { MessageBox.Show("Vui lòng chọn ít nhất một PO để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
                     using var sfd = new SaveFileDialog { Title = "Xuất chi tiết PO theo NCC", Filter = "Excel Files|*.xlsx", FileName = $"PO_ChiTiet_{DateTime.Now:yyyyMMdd_HHmm}", InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
                     try
@@ -2036,7 +2065,7 @@ namespace MPR_Managerment.Forms
                         ws.Cells[1, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
 
                         // ── Dòng 2: Thông tin xuất ──
-                        ws.Cells[2, 1].Value = $"Tổng PO: {dtCurrent.Rows.Count}   |   Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                        ws.Cells[2, 1].Value = $"Tổng PO: {selectedRows.Count}   |   Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
                         ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
                         ws.Cells[2, 1].Style.Font.Italic = true; ws.Cells[2, 1].Style.Font.Size = 9;
                         ws.Cells[2, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
@@ -2061,7 +2090,7 @@ namespace MPR_Managerment.Forms
                         int chiTietDec = _isDomestic ? 0 : 2;
                         string chiTietFmt = _isDomestic ? "#,##0" : "#,##0.00";
 
-                        foreach (System.Data.DataRow dr in dtCurrent.Rows)
+                        foreach (System.Data.DataRow dr in selectedRows)
                         {
                             int poId = Convert.ToInt32(dr["PO_ID"]);
                             string poNo = dr["PO No"]?.ToString() ?? "";
@@ -2141,7 +2170,7 @@ namespace MPR_Managerment.Forms
                         ws.Column(2).Width = Math.Min(ws.Column(2).Width, 45);
 
                         pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
-                        MessageBox.Show($"✅ Đã xuất {dtCurrent.Rows.Count} PO với {totalRows} dòng chi tiết!\nTất cả gộp vào 1 sheet duy nhất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show($"✅ Đã xuất {selectedRows.Count} PO với {totalRows} dòng chi tiết!\nTất cả gộp vào 1 sheet duy nhất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         // Tự động mở file Excel sau khi xuất
                         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                         { FileName = sfd.FileName, UseShellExecute = true });
@@ -2154,7 +2183,7 @@ namespace MPR_Managerment.Forms
                 btnClose.FlatAppearance.BorderSize = 0; btnClose.Location = new Point(popup.ClientSize.Width - 115, btnY);
                 popup.Controls.Add(btnClose); popup.CancelButton = btnClose;
 
-                popup.Resize += (s, ev) => { pF.Width = popup.ClientSize.Width - 20; dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 165); btnSel.Location = new Point(10, popup.ClientSize.Height - 42); btnExp.Location = new Point(150, popup.ClientSize.Height - 42); btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 42); };
+                popup.Resize += (s, ev) => { pF.Width = popup.ClientSize.Width - 20; dgv.Size = new Size(popup.ClientSize.Width - 20, popup.ClientSize.Height - 165); btnSel.Location = new Point(10, popup.ClientSize.Height - 42); btnSelAll.Location = new Point(150, popup.ClientSize.Height - 42); btnExp.Location = new Point(290, popup.ClientSize.Height - 42); btnClose.Location = new Point(popup.ClientSize.Width - 115, popup.ClientSize.Height - 42); };
                 if (popup.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(selectedPONo)) SelectPOByNo(selectedPONo);
             }
             catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }

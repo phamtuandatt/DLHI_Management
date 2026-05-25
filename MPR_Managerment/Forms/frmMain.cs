@@ -705,20 +705,23 @@ namespace MPR_Managerment.Forms
                 int cat = cboFilter.SelectedIndex; // 0=Tất cả,1=0%,2=1-99%,3=100%
 
                 // Lọc theo search + tiến độ (dùng pctQty làm đại diện tiến độ đặt hàng)
-                var sorted = rows.FindAll(d =>
-                {
-                    bool matchKW = string.IsNullOrEmpty(kw)
-                        || d.code.ToLower().Contains(kw)
-                        || d.name.ToLower().Contains(kw);
-                    bool matchCat = cat switch
+                var sorted = rows
+                    .FindAll(d =>
                     {
-                        1 => d.pctQty == 0,
-                        2 => d.pctQty > 0 && d.pctQty < 100,
-                        3 => d.pctQty >= 100,
-                        _ => true
-                    };
-                    return matchKW && matchCat;
-                });
+                        bool matchKW = string.IsNullOrEmpty(kw)
+                            || d.code.ToLower().Contains(kw)
+                            || d.name.ToLower().Contains(kw);
+                        bool matchCat = cat switch
+                        {
+                            1 => d.pctQty == 0,
+                            2 => d.pctQty > 0 && d.pctQty < 100,
+                            3 => d.pctQty >= 100,
+                            _ => true
+                        };
+                        return matchKW && matchCat;
+                    })
+                    .OrderByDescending(d => d.pctBudg)
+                    .ToList();
 
                 pRight.SuspendLayout();
                 pCards.SuspendLayout();
@@ -746,7 +749,7 @@ namespace MPR_Managerment.Forms
                     var card = new Panel
                     {
                         Location = new Point(10, yp),
-                        Size = new Size(pw, 128),
+                        Size = new Size(pw, 106),
                         BackColor = Color.FromArgb(245, 248, 255),
                         BorderStyle = BorderStyle.FixedSingle
                     };
@@ -804,15 +807,12 @@ namespace MPR_Managerment.Forms
                         });
                     }
 
-                    AddBar($"📦 SL ({d.poQty:N0}/{d.mprQty:N0})",
-                           d.pctQty, Color.FromArgb(0, 120, 212), 30);
                     AddBar($"💰 Budget ({d.poAmt / 1e6:F1}M/{d.budget / 1e6:F1}M)",
-                           d.pctBudg, Color.FromArgb(233, 30, 99), 52);
-                    // % KG = Tổng KG đã đặt PO / PJWeight dự án
+                           d.pctBudg, Color.FromArgb(233, 30, 99), 30);
                     AddBar($"⚖ KG ({d.poKG:N0}/{d.pjKG:N0} kg)",
-                           d.pctKG, Color.FromArgb(102, 51, 153), 74);
+                           d.pctKG, Color.FromArgb(102, 51, 153), 52);
 
-                    yp += 136;
+                    yp += 114;
                 }
 
                 // Set chiều cao pCards = nội dung thực, pRight tự scroll

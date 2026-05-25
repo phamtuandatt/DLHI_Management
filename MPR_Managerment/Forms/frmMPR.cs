@@ -1579,20 +1579,27 @@ namespace MPR_Managerment.Forms
                         INNER JOIN PO_Detail pod ON pod.MPR_Detail_ID = cur.Detail_ID
                         INNER JOIN PO_head   poh ON poh.PO_ID = pod.PO_ID
                         WHERE  cur.MPR_ID = @mprId
+                          AND  ISNULL(poh.Status, '') <> 'Cancelled'
 
                         UNION
 
-                        -- Bước 2: PO liên kết với Detail_ID của Rev khác, match theo Item_No
+                        -- Bước 2: PO từ Rev khác — match theo Item_No + Item_Name + Material
+                        -- (Item_No alone không đủ nếu revision thay đổi thứ tự vật tư)
                         SELECT cur.Detail_ID AS CurDetailId, poh.PONo
                         FROM   MPR_Details cur
                         INNER JOIN MPR_Details old
-                               ON old.Item_No = cur.Item_No
-                              AND old.MPR_ID != cur.MPR_ID
+                               ON old.Item_No  = cur.Item_No
+                              AND ISNULL(old.Item_Name, '') = ISNULL(cur.Item_Name, '')
+                              AND ISNULL(old.Material,  '') = ISNULL(cur.Material,  '')
+                              AND old.MPR_ID  != cur.MPR_ID
+                              AND ISNULL(old.Is_Deleted, 0) = 0
                         INNER JOIN MPR_Header oldH ON oldH.MPR_ID = old.MPR_ID
                         INNER JOIN PO_Detail pod   ON pod.MPR_Detail_ID = old.Detail_ID
-                        INNER JOIN PO_head poh     ON poh.PO_ID = pod.PO_ID
+                        INNER JOIN PO_head   poh   ON poh.PO_ID = pod.PO_ID
                         WHERE  cur.MPR_ID = @mprId
+                          AND  ISNULL(cur.Is_Deleted, 0) = 0
                           AND  (oldH.MPR_No = @baseNo OR oldH.MPR_No LIKE @baseNo + N'_Rev.%')
+                          AND  ISNULL(poh.Status, '') <> 'Cancelled'
 
                         ORDER BY CurDetailId, PONo";
 
@@ -2415,12 +2422,14 @@ namespace MPR_Managerment.Forms
             {
                 if (dgvDet.SelectedRows.Count == 0)
                 {
-                    MessageBox.Show("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    dlg.BringToFront(); dlg.Activate();
+                    MessageBox.Show(dlg, "Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 string msg = dgvDet.SelectedRows.Count == 1 ?
                 "Bạn có chắc chắn muốn xóa dòng này?" : $"Bạn có chắc chắn muốn xóa {dgvDet.SelectedRows.Count} dòng đã chọn?";
-                if (MessageBox.Show(msg, "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                dlg.BringToFront(); dlg.Activate();
+                if (MessageBox.Show(dlg, msg, "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
                     try
                     {
@@ -2440,7 +2449,8 @@ namespace MPR_Managerment.Forms
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        dlg.BringToFront(); dlg.Activate();
+                        MessageBox.Show(dlg, "Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             };
@@ -2591,7 +2601,7 @@ namespace MPR_Managerment.Forms
                 ShowReviseMPRPopup(tProjCode.Text, tProjName.Text, true);
             };
 
-            dlg.Owner = this.FindForm();
+            dlg.Owner = TopOwner;
             dlg.ShowDialog();
         }
 
@@ -3439,7 +3449,7 @@ namespace MPR_Managerment.Forms
                 catch (Exception ex) { lblSave.Text = "❌ " + ex.Message; }
             };
 
-            dlg.Owner = this.FindForm();
+            dlg.Owner = TopOwner;
             dlg.ShowDialog();
         }
 
@@ -3709,19 +3719,25 @@ namespace MPR_Managerment.Forms
             dgvDetails.BeginEdit(true);
         }
 
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private void SafeMsg(string text, string caption, MessageBoxIcon icon = MessageBoxIcon.Error)
+        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, caption, MessageBoxButtons.OK, icon); }
+        private DialogResult SafeConfirm(string text, string caption)
+        { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, text, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Question); }
+
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("MPR", "Xóa dòng", "Xóa dòng")) return;
             if (dgvDetails.SelectedRows.Count == 0)
             {
-                MessageBox.Show("Vui lòng chọn dòng cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                SafeMsg("Vui lòng chọn dòng cần xóa!", "Thông báo", MessageBoxIcon.Warning);
                 return;
             }
 
             string msg = dgvDetails.SelectedRows.Count == 1
                 ? "Bạn có chắc chắn muốn xóa dòng này?"
                 : $"Bạn có chắc chắn muốn xóa {dgvDetails.SelectedRows.Count} dòng đã chọn?";
-            if (MessageBox.Show(msg, "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            if (SafeConfirm(msg, "Xác nhận xóa") == DialogResult.Yes)
             {
                 try
                 {
@@ -3750,7 +3766,7 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    SafeMsg("Lỗi khi xóa: " + ex.Message, "Lỗi");
                 }
             }
         }
