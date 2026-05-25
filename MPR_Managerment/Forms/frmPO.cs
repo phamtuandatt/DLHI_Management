@@ -601,7 +601,7 @@ namespace MPR_Managerment.Forms
             txtPONo = new TextBox { Width = 100, Font = new Font("Segoe UI", 9) };
             txtProjectName = new TextBox { Width = 160, Font = new Font("Segoe UI", 9) };
             txtWorkorderNo = new TextBox { Width = 120, Font = new Font("Segoe UI", 9) };
-            txtMPRNo = new TextBox { Width = 110, Font = new Font("Segoe UI", 9) };
+            txtMPRNo = new TextBox { Width = 220, Font = new Font("Segoe UI", 9) };
             txtMPRNo.Leave += (s, e) => LoadMPRFiles();
             flowRow1.Controls.Add(MakeField("PO No (*):", txtPONo, 60));
             flowRow1.Controls.Add(MakeField("Tên dự án:", txtProjectName, 65));
@@ -2573,7 +2573,10 @@ namespace MPR_Managerment.Forms
                     ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
-                    ReplaceCell(ws, "<<USER_NAME>>", AppSession.CurrentUser.Full_Name);
+                    string fullName = AppSession.CurrentUser.Full_Name ?? _currentUser;
+                    ReplaceCell(ws, "<<USER_NAME>>", fullName);
+                    ReplaceCell(ws, "<<user name>>", fullName);
+                    ReplaceCell(ws, "<<User Name>>", fullName);
 
                     // Payment Term — set trực tiếp vào O5 (merged O5:Q5)
                     ws.Cells[5, 15].Value = !string.IsNullOrEmpty(po.Payment_Term)
@@ -2839,7 +2842,15 @@ namespace MPR_Managerment.Forms
         //}
 
         private void ReplaceCell(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string value)
-        { for (int r = 1; r <= ws.Dimension.End.Row; r++) for (int c = 1; c <= ws.Dimension.End.Column; c++) if (ws.Cells[r, c].Value?.ToString() == placeholder) ws.Cells[r, c].Value = value; }
+        {
+            for (int r = 1; r <= ws.Dimension.End.Row; r++)
+                for (int c = 1; c <= ws.Dimension.End.Column; c++)
+                {
+                    string cellVal = ws.Cells[r, c].Value?.ToString()?.Trim() ?? "";
+                    if (string.Equals(cellVal, placeholder, StringComparison.OrdinalIgnoreCase))
+                        ws.Cells[r, c].Value = value;
+                }
+        }
 
         private void BuildDetailColumns()
         {

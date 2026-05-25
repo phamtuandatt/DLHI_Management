@@ -1521,6 +1521,7 @@ namespace MPR_Managerment.Forms
                             dt.Rows.Remove(r);
                     }
 
+                    foreach (DataColumn col in dt.Columns) col.ReadOnly = false;
                     dgvMPR.DataSource = dt;
 
                     if (dgvMPR.Columns.Contains("MPR_ID"))
@@ -1531,6 +1532,7 @@ namespace MPR_Managerment.Forms
                     // Tat ca cot bound: ReadOnly
                     foreach (DataGridViewColumn col in dgvMPR.Columns)
                         col.ReadOnly = true;
+                    if (dgvMPR.Columns.Contains("Ghi chu")) dgvMPR.Columns["Ghi chu"].ReadOnly = false;
 
                     // Style older revisions (Rev < MaxRev) as read-only/gray using MaxRev returned by SP
                     try
@@ -1638,10 +1640,12 @@ namespace MPR_Managerment.Forms
                     dgvMPR.CellFormatting += DgvMPR_CellFormatting;
 
                     int total = dt.Rows.Count, hasPO = 0, noPO = 0, completed = 0;
+                    bool hasTinhCol = dt.Columns.Contains("Tình trạng PO");
+                    bool hasStatusCol = dt.Columns.Contains("Trạng thái");
                     foreach (DataRow row in dt.Rows)
                     {
-                        string tinh = row["Tình trạng PO"]?.ToString() ?? "";
-                        string status = row["Trạng thái"]?.ToString() ?? "";
+                        string tinh = hasTinhCol ? row["Tình trạng PO"]?.ToString() ?? "" : "";
+                        string status = hasStatusCol ? row["Trạng thái"]?.ToString() ?? "" : "";
 
                         if (!tinh.Contains("Chưa có")) hasPO++;
                         else noPO++;
@@ -1690,6 +1694,7 @@ namespace MPR_Managerment.Forms
         private void DgvMPR_RowPrePaint(object sender, DataGridViewRowPrePaintEventArgs e)
         {
             if (e.RowIndex < 0 || dgvMPR.Rows[e.RowIndex].IsNewRow) return;
+            if (!dgvMPR.Columns.Contains("Tình trạng PO") || !dgvMPR.Columns.Contains("Trạng thái")) return;
             var row = dgvMPR.Rows[e.RowIndex];
             string tinh = row.Cells["Tình trạng PO"].Value?.ToString() ?? "";
             string status = row.Cells["Trạng thái"].Value?.ToString() ?? "";
