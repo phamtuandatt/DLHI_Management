@@ -634,6 +634,7 @@ namespace MPR_Managerment.Forms
         private Panel panelTop, panelHeader, panelDetail;
         private ComboBox _cboFilterPO;    // Loc theo Da len PO
         private Button _btnExportDetail; // Xuat Excel chi tiet
+        private Button _btnMPRStatus;   // MPR Status popup
 
         // Khai báo phía trên cùng của Class Form
         private System.Diagnostics.Process _excelProcess = null;
@@ -961,6 +962,10 @@ namespace MPR_Managerment.Forms
             _btnExportDetail = CreateButton("📥 Xuat Excel", Color.FromArgb(0, 150, 100), new Point(898, 38), 120, 30);
             _btnExportDetail.Click += BtnExportDetail_Click;
             panelDetail.Controls.Add(_btnExportDetail);
+
+            _btnMPRStatus = CreateButton("📊 MPR Status", Color.FromArgb(75, 0, 130), new Point(1030, 38), 130, 30);
+            _btnMPRStatus.Click += BtnMPRStatus_Click;
+            panelDetail.Controls.Add(_btnMPRStatus);
 
             dgvDetails = new DataGridView
             {
@@ -1584,14 +1589,14 @@ namespace MPR_Managerment.Forms
 
                         UNION
 
-                        -- Bước 2: PO từ Rev khác — match theo Item_Name (trim+lower)
-                        -- Bỏ Item_No và Material: có thể thay đổi hoặc NULL giữa các revision
+                        -- Bước 2: PO từ Rev khác — match theo Item_No (số thứ tự)
+                        -- Item_No được giữ nguyên khi tạo revision, là ID chính xác nhất
                         SELECT cur.Detail_ID AS CurDetailId, poh.PONo
                         FROM   MPR_Details cur
                         INNER JOIN MPR_Details old
-                               ON LTRIM(RTRIM(LOWER(ISNULL(old.Item_Name,'')))) = LTRIM(RTRIM(LOWER(ISNULL(cur.Item_Name,''))))
-                              AND NULLIF(LTRIM(RTRIM(old.Item_Name)),'') IS NOT NULL
-                              AND NULLIF(LTRIM(RTRIM(cur.Item_Name)),'') IS NOT NULL
+                               ON TRY_CAST(TRY_CAST(old.Item_No AS DECIMAL(10,2)) AS INT)
+                                = TRY_CAST(TRY_CAST(cur.Item_No AS DECIMAL(10,2)) AS INT)
+                              AND TRY_CAST(TRY_CAST(cur.Item_No AS DECIMAL(10,2)) AS INT) > 0
                               AND old.MPR_ID  != cur.MPR_ID
                               AND ISNULL(old.Is_Deleted, 0) = 0
                         INNER JOIN MPR_Header oldH ON oldH.MPR_ID = old.MPR_ID
@@ -4099,13 +4104,13 @@ namespace MPR_Managerment.Forms
                         FROM MPR_Header
                     ) q
                     INNER JOIN MPR_Details dC ON dC.MPR_ID = q.MPR_ID
-                        AND NULLIF(LTRIM(RTRIM(dC.Item_Name)),'') IS NOT NULL
+                        AND TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT) > 0
                     INNER JOIN MPR_Header hS
                         ON SUBSTRING(hS.MPR_No, 1, CHARINDEX('_Rev.', hS.MPR_No + '_Rev.') - 1)
                          = SUBSTRING(q.MPR_No,  1, CHARINDEX('_Rev.', q.MPR_No  + '_Rev.') - 1)
                     INNER JOIN MPR_Details dS ON dS.MPR_ID = hS.MPR_ID
-                        AND NULLIF(LTRIM(RTRIM(dS.Item_Name)),'') IS NOT NULL
-                        AND LTRIM(RTRIM(LOWER(dS.Item_Name))) = LTRIM(RTRIM(LOWER(dC.Item_Name)))
+                        AND TRY_CAST(TRY_CAST(dS.Item_No AS DECIMAL(10,2)) AS INT)
+                          = TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT)
                     WHERE q.rn = 1";
 
                 // Bước 2: Main query dùng #SibDet (temp table) — mỗi flat CTE scan 1 lần duy nhất
@@ -4929,6 +4934,387 @@ namespace MPR_Managerment.Forms
 
             if (visibleCount == 0 && sel != "(Tat ca)")
                 SafeMsg("Không tìm thấy kết quả phù hợp!", "Tìm kiếm", MessageBoxIcon.Information);
+        }
+
+        // =====================================================================
+        //  MPR STATUS POPUP
+        // =====================================================================
+        private void BtnMPRStatus_Click(object sender, EventArgs e)
+        {
+            ShowMPRStatusPopup();
+        }
+
+        private void ShowMPRStatusPopup()
+        {
+            var popup = new Form
+            {
+                Text = "Theo dõi tiến độ xử lý MPR",
+                Size = new Size(1100, 680),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.White,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            // ── Toolbar ──────────────────────────────────────────────────────
+            var pnlTop = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Color.FromArgb(45, 45, 48), Padding = new Padding(8, 8, 8, 4) };
+            popup.Controls.Add(pnlTop);
+
+            // Project filter
+            var lblProj = new Label { Text = "Dự án:", ForeColor = Color.White, AutoSize = true, Location = new Point(8, 16) };
+            var cboProject = new ComboBox { Location = new Point(55, 12), Size = new Size(200, 24), DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 9) };
+
+            // MPR No filter
+            var lblMPR = new Label { Text = "Số MPR:", ForeColor = Color.White, AutoSize = true, Location = new Point(270, 16) };
+            var txtMPRNo = new TextBox { Location = new Point(322, 12), Size = new Size(180, 24), Font = new Font("Segoe UI", 9) };
+
+            // Search button
+            var btnSearch = new Button
+            {
+                Text = "🔍 Tìm kiếm",
+                Location = new Point(516, 10),
+                Size = new Size(100, 28),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSearch.FlatAppearance.BorderSize = 0;
+
+            pnlTop.Controls.AddRange(new Control[] { lblProj, cboProject, lblMPR, txtMPRNo, btnSearch });
+
+            // ── Status filter buttons ────────────────────────────────────────
+            var pnlFilter = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Color.FromArgb(240, 240, 245), Padding = new Padding(8, 6, 8, 4) };
+            popup.Controls.Add(pnlFilter);
+
+            string[] filterLabels = { "Tất cả", "Chưa gửi báo giá", "Đang chờ báo giá", "Đã gửi PO" };
+            Color[] filterColors = {
+                Color.FromArgb(100, 100, 100),
+                Color.FromArgb(180, 50, 50),
+                Color.FromArgb(200, 140, 0),
+                Color.FromArgb(0, 130, 60)
+            };
+            var filterBtns = new Button[4];
+            int fx = 8;
+            for (int i = 0; i < filterLabels.Length; i++)
+            {
+                var b = new Button
+                {
+                    Text = filterLabels[i],
+                    Location = new Point(fx, 7),
+                    Size = new Size(150, 30),
+                    BackColor = filterColors[i],
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Tag = filterLabels[i],
+                    Cursor = Cursors.Hand
+                };
+                b.FlatAppearance.BorderSize = 0;
+                pnlFilter.Controls.Add(b);
+                filterBtns[i] = b;
+                fx += 158;
+            }
+
+            // Summary label
+            var lblSummary = new Label
+            {
+                Text = "",
+                Location = new Point(fx + 10, 12),
+                Size = new Size(400, 20),
+                ForeColor = Color.FromArgb(60, 60, 60),
+                Font = new Font("Segoe UI", 9)
+            };
+            pnlFilter.Controls.Add(lblSummary);
+
+            // ── DataGridView ─────────────────────────────────────────────────
+            var dgv = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                ReadOnly = true,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            };
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgv.EnableHeadersVisualStyles = false;
+            dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
+            dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
+            dgv.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+
+            var pnlGrid = new Panel { Dock = DockStyle.Fill };
+            pnlGrid.Controls.Add(dgv);
+            popup.Controls.Add(pnlGrid);
+
+            // Raise panels (added top-to-bottom, dock=Top means last-added is topmost)
+            pnlFilter.BringToFront();
+            pnlTop.BringToFront();
+
+            // ── State ────────────────────────────────────────────────────────
+            DataTable dtAll = new DataTable();
+            string currentFilter = "Tất cả";
+
+            // ── Columns ──────────────────────────────────────────────────────
+            dgv.Columns.Clear();
+            var cols = new[]
+            {
+                ("MPR_No",      "Số MPR",         90),
+                ("Project_Name","Tên dự án",       200),
+                ("Project_Code","Mã dự án",        110),
+                ("Required_Date","Ngày yêu cầu",   105),
+                ("Total_Items", "Tổng SL hạng mục", 55),
+                ("PO_Count",    "Số lượng PO",     65),
+                ("Status_Cat",  "Trạng thái",      140),
+                ("PO_List",     "Số PO",           220),
+            };
+            foreach (var (name, hdr, w) in cols)
+            {
+                var col = new DataGridViewTextBoxColumn { Name = name, HeaderText = hdr, DataPropertyName = name, FillWeight = w };
+                col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+                dgv.Columns.Add(col);
+            }
+            dgv.Columns["Total_Items"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dgv.Columns["PO_Count"].DefaultCellStyle.Alignment    = DataGridViewContentAlignment.MiddleCenter;
+            dgv.Columns["Status_Cat"].DefaultCellStyle.Alignment  = DataGridViewContentAlignment.MiddleCenter;
+
+            // ── Cell coloring by status ───────────────────────────────────
+            dgv.CellFormatting += (s, ev) =>
+            {
+                if (ev.RowIndex < 0) return;
+                var row = dgv.Rows[ev.RowIndex];
+                var cat = row.Cells["Status_Cat"].Value?.ToString() ?? "";
+                Color bg = cat switch
+                {
+                    "Đã gửi PO"           => Color.FromArgb(210, 240, 220),
+                    "Đang chờ báo giá"     => Color.FromArgb(255, 243, 205),
+                    "Chưa gửi báo giá"     => Color.FromArgb(255, 220, 220),
+                    _                      => Color.White
+                };
+                if (ev.RowIndex % 2 == 0)
+                    row.DefaultCellStyle.BackColor = bg;
+                else
+                    row.DefaultCellStyle.BackColor = ControlPaint.Light(bg, 0.3f);
+            };
+
+            // ── Apply filter helper ───────────────────────────────────────
+            void ApplyFilter(string cat)
+            {
+                currentFilter = cat;
+                // Highlight active button
+                for (int i = 0; i < filterBtns.Length; i++)
+                {
+                    filterBtns[i].Font = new Font("Segoe UI", 9,
+                        filterBtns[i].Tag?.ToString() == cat ? FontStyle.Bold : FontStyle.Regular);
+                    filterBtns[i].FlatAppearance.BorderSize = filterBtns[i].Tag?.ToString() == cat ? 2 : 0;
+                }
+
+                var view = cat == "Tất cả"
+                    ? dtAll
+                    : new DataView(dtAll, $"Status_Cat = '{cat}'", null, DataViewRowState.CurrentRows).ToTable();
+
+                dgv.DataSource = null;
+                dgv.DataSource = view;
+
+                // Summary counts
+                int total    = dtAll.Rows.Count;
+                int chua     = dtAll.Select("Status_Cat = 'Chưa gửi báo giá'").Length;
+                int cho      = dtAll.Select("Status_Cat = 'Đang chờ báo giá'").Length;
+                int daPO     = dtAll.Select("Status_Cat = 'Đã gửi PO'").Length;
+                lblSummary.Text = $"Tổng: {total}  |  Chưa BG: {chua}  |  Chờ BG: {cho}  |  Đã PO: {daPO}";
+            }
+
+            // ── Load data ────────────────────────────────────────────────────
+            void LoadData()
+            {
+                string projFilter  = cboProject.SelectedValue?.ToString() ?? "";
+                string mprFilter   = txtMPRNo.Text.Trim();
+
+                const string SQL_SIB = @"
+IF OBJECT_ID('tempdb..#SibDetStatus') IS NOT NULL DROP TABLE #SibDetStatus;
+SELECT DISTINCT dC.Detail_ID AS CurrID, dS.Detail_ID AS SibID
+INTO #SibDetStatus
+FROM (
+    SELECT h.MPR_ID, h.MPR_No, h.Project_Code,
+           ROW_NUMBER() OVER (
+               PARTITION BY h.Project_Code,
+                   SUBSTRING(h.MPR_No, 1, CHARINDEX('_Rev.', h.MPR_No + '_Rev.') - 1)
+               ORDER BY TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT) DESC, h.MPR_ID DESC
+           ) AS rn
+    FROM MPR_Header h
+) q
+INNER JOIN MPR_Details dC ON dC.MPR_ID = q.MPR_ID
+    AND TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT) > 0
+    AND ISNULL(dC.Is_Deleted,0) = 0
+INNER JOIN MPR_Header hS
+    ON SUBSTRING(hS.MPR_No, 1, CHARINDEX('_Rev.', hS.MPR_No + '_Rev.') - 1)
+     = SUBSTRING(q.MPR_No,  1, CHARINDEX('_Rev.', q.MPR_No  + '_Rev.') - 1)
+INNER JOIN MPR_Details dS ON dS.MPR_ID = hS.MPR_ID
+    AND TRY_CAST(TRY_CAST(dS.Item_No AS DECIMAL(10,2)) AS INT)
+      = TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT)
+    AND ISNULL(dS.Is_Deleted,0) = 0
+WHERE q.rn = 1;";
+
+                string SQL = @"
+WITH FilteredMPR AS (
+    SELECT h.MPR_ID, h.MPR_No, h.Rev, h.Status,
+           h.Required_Date, h.Project_Code,
+           ROW_NUMBER() OVER (
+               PARTITION BY h.Project_Code,
+                   SUBSTRING(h.MPR_No, 1, CHARINDEX('_Rev.', h.MPR_No + '_Rev.') - 1)
+               ORDER BY TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT) DESC, h.MPR_ID DESC
+           ) AS rn
+    FROM MPR_Header h
+),
+PO_Flat AS (
+    SELECT DISTINCT sd.CurrID, ph.PONo
+    FROM #SibDetStatus sd
+    INNER JOIN PO_Detail pod ON pod.MPR_Detail_ID = sd.SibID
+    INNER JOIN PO_head   ph  ON ph.PO_ID = pod.PO_ID
+    WHERE ISNULL(ph.Status,'') <> 'Cancelled'
+),
+cte_PO AS (
+    SELECT pf.CurrID,
+           COUNT(DISTINCT pf.PONo) AS PO_Count,
+           ISNULL(STUFF((
+               SELECT DISTINCT N', ' + pf2.PONo
+               FROM PO_Flat pf2
+               WHERE pf2.CurrID = pf.CurrID
+               FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS PO_List
+    FROM PO_Flat pf
+    GROUP BY pf.CurrID
+),
+MPR_PO AS (
+    SELECT d.MPR_ID,
+           COUNT(d.Detail_ID) AS Total_Items,
+           SUM(CASE WHEN cp.PO_Count > 0 THEN 1 ELSE 0 END) AS Items_With_PO,
+           SUM(ISNULL(cp.PO_Count,0)) AS Total_PO_Links,
+           ISNULL(STUFF((
+               SELECT DISTINCT N', ' + cp2.PO_List
+               FROM MPR_Details d2
+               INNER JOIN cte_PO cp2 ON cp2.CurrID = d2.Detail_ID
+               WHERE d2.MPR_ID = d.MPR_ID
+                 AND ISNULL(d2.Is_Deleted,0) = 0
+                 AND LEN(ISNULL(cp2.PO_List,'')) > 0
+               FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS PO_List
+    FROM MPR_Details d
+    LEFT JOIN cte_PO cp ON cp.CurrID = d.Detail_ID
+    WHERE ISNULL(d.Is_Deleted,0) = 0
+    GROUP BY d.MPR_ID
+)
+SELECT
+    f.MPR_No,
+    ISNULL(pi.ProjectName, f.Project_Code) AS Project_Name,
+    f.Project_Code,
+    CONVERT(NVARCHAR(10), f.Required_Date, 103) AS Required_Date,
+    ISNULL(mp.Total_Items,0)    AS Total_Items,
+    ISNULL(mp.Total_PO_Links,0) AS PO_Count,
+    CASE
+        WHEN ISNULL(mp.Total_PO_Links,0) > 0        THEN N'Đã gửi PO'
+        WHEN ISNULL(f.Status,'') <> N'Mới'          THEN N'Đang chờ báo giá'
+        ELSE                                              N'Chưa gửi báo giá'
+    END AS Status_Cat,
+    ISNULL(mp.PO_List, N'')     AS PO_List
+FROM FilteredMPR f
+LEFT JOIN MPR_PO mp ON mp.MPR_ID = f.MPR_ID
+LEFT JOIN ProjectInfo pi ON pi.ProjectCode = f.Project_Code
+WHERE f.rn = 1";
+
+                // Dynamic filters
+                var whereParts = new System.Collections.Generic.List<string>();
+                if (!string.IsNullOrEmpty(projFilter))
+                    whereParts.Add($"  AND f.Project_Code = @projCode");
+                if (!string.IsNullOrEmpty(mprFilter))
+                    whereParts.Add($"  AND f.MPR_No LIKE @mprNo");
+                if (whereParts.Count > 0)
+                    SQL += "\n" + string.Join("\n", whereParts);
+
+                SQL += "\nORDER BY pi.ProjectName, f.MPR_No";
+
+                try
+                {
+                    using (var conn = DatabaseHelper.GetConnection())
+                    {
+                        conn.Open();
+                        var cmdSib = new SqlCommand(SQL_SIB, conn) { CommandTimeout = 120 };
+                        cmdSib.ExecuteNonQuery();
+
+                        var cmd = new SqlCommand(SQL, conn) { CommandTimeout = 120 };
+                        if (!string.IsNullOrEmpty(projFilter))
+                            cmd.Parameters.AddWithValue("@projCode", projFilter);
+                        if (!string.IsNullOrEmpty(mprFilter))
+                            cmd.Parameters.AddWithValue("@mprNo", "%" + mprFilter + "%");
+
+                        dtAll = new DataTable();
+                        dtAll.Load(cmd.ExecuteReader());
+                    }
+                    ApplyFilter(currentFilter);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Lỗi tải dữ liệu MPR Status:\n" + ex.Message, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+
+            // ── Load project list ─────────────────────────────────────────────
+            void LoadProjects()
+            {
+                try
+                {
+                    using (var conn = DatabaseHelper.GetConnection())
+                    {
+                        conn.Open();
+                        string sqlProj = @"
+SELECT DISTINCT ISNULL(pi.ProjectName, h.Project_Code) AS DisplayName, h.Project_Code
+FROM MPR_Header h
+LEFT JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
+ORDER BY DisplayName";
+                        var dt = new DataTable();
+                        dt.Columns.Add("DisplayName");
+                        dt.Columns.Add("Project_Code");
+                        dt.Rows.Add("(Tất cả)", "");
+                        var dtProj = new DataTable();
+                        dtProj.Load(new SqlCommand(sqlProj, conn).ExecuteReader());
+                        foreach (DataRow row in dtProj.Rows)
+                            dt.Rows.Add(row["DisplayName"].ToString(), row["Project_Code"].ToString());
+
+                        cboProject.DataSource    = dt;
+                        cboProject.DisplayMember = "DisplayName";
+                        cboProject.ValueMember   = "Project_Code";
+                    }
+                }
+                catch { /* ignore — combobox just shows (Tất cả) */ }
+            }
+
+            // ── Wire events ──────────────────────────────────────────────────
+            btnSearch.Click += (s, ev) => LoadData();
+            txtMPRNo.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) LoadData(); };
+            foreach (var btn in filterBtns)
+            {
+                var cap = btn.Tag?.ToString() ?? "";
+                btn.Click += (s, ev) => ApplyFilter(cap);
+            }
+
+            // ── Initialize ───────────────────────────────────────────────────
+            popup.Load += (s, ev) =>
+            {
+                LoadProjects();
+                LoadData();
+            };
+
+            popup.ShowDialog(this);
         }
 
         // =====================================================================

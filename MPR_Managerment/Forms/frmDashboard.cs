@@ -1839,14 +1839,14 @@ namespace MPR_Managerment.Forms
                         SELECT DISTINCT dC.Detail_ID AS CurrID, dS.Detail_ID AS SibID
                         FROM Qry_MPR q
                         INNER JOIN MPR_Details dC ON dC.MPR_ID = q.MPR_ID
-                            AND NULLIF(LTRIM(RTRIM(dC.Item_Name)),'') IS NOT NULL
+                            AND TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT) > 0
                         INNER JOIN MPR_Header hS
                             ON (CASE WHEN CHARINDEX('_Rev.',hS.MPR_No)>0
                                      THEN LEFT(hS.MPR_No,CHARINDEX('_Rev.',hS.MPR_No)-1)
                                      ELSE hS.MPR_No END) = q.BaseNo
                         INNER JOIN MPR_Details dS ON dS.MPR_ID = hS.MPR_ID
-                            AND NULLIF(LTRIM(RTRIM(dS.Item_Name)),'') IS NOT NULL
-                            AND LTRIM(RTRIM(LOWER(dS.Item_Name))) = LTRIM(RTRIM(LOWER(dC.Item_Name)))
+                            AND TRY_CAST(TRY_CAST(dS.Item_No AS DECIMAL(10,2)) AS INT)
+                              = TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT)
                     ),
                     PO_Flat AS (
                         SELECT DISTINCT sd.CurrID, pox.PONo
