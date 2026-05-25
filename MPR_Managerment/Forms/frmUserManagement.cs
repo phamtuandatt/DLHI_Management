@@ -85,6 +85,7 @@ namespace MPR_Managerment.Forms
             new ModuleDef("Material Inspector Request", "Kiểm tra vật tư (QC)",
                 new[]{ "Xem","Tìm kiếm RIR","Lưu chi tiết" }),
         };
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
         public frmUserManagement()
         {
@@ -649,7 +650,7 @@ namespace MPR_Managerment.Forms
         // ─────────────────────────────────────────────────────────────────────
         private void BtnApplyRoleTemplate_Click(object sender, EventArgs e)
         {
-            if (_selectedUserId == 0) { MessageBox.Show("Vui lòng chọn user trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (_selectedUserId == 0) { MessageBox.Show(TopOwner, "Vui lòng chọn user trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             var u = _users.Find(x => x.User_ID == _selectedUserId);
             if (u == null) return;
 
@@ -787,7 +788,7 @@ namespace MPR_Managerment.Forms
 
             if (string.IsNullOrWhiteSpace(txtUsername.Text) || string.IsNullOrWhiteSpace(txtFullName.Text))
             {
-                MessageBox.Show("Vui lòng nhập Username và Họ tên!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng nhập Username và Họ tên!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -816,48 +817,48 @@ namespace MPR_Managerment.Forms
                 {
                     if (string.IsNullOrWhiteSpace(txtNewPwd.Text))
                     {
-                        MessageBox.Show("Vui lòng nhập mật khẩu ban đầu!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show(TopOwner, "Vui lòng nhập mật khẩu ban đầu!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                     _selectedUserId = _svc.InsertUser(user, txtNewPwd.Text, AppSession.CurrentUser?.Username ?? "Admin");
-                    MessageBox.Show($"✅ Tạo tài khoản '{user.Username}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, $"✅ Tạo tài khoản '{user.Username}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
                     _svc.UpdateUser(user, AppSession.CurrentUser?.Username ?? "Admin");
-                    MessageBox.Show("✅ Cập nhật thông tin thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "✅ Cập nhật thông tin thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 LoadUsers();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void BtnResetPwd_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("USER_MGT", "Reset Password", "Reset Password")) return;
-            if (_selectedUserId == 0) { MessageBox.Show("Vui lòng chọn user!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (_selectedUserId == 0) { MessageBox.Show(TopOwner, "Vui lòng chọn user!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
             string newPwd = Microsoft.VisualBasic.Interaction.InputBox(
                 "Nhập mật khẩu mới cho user này:", "Reset Password", "Admin@123");
             if (string.IsNullOrWhiteSpace(newPwd)) return;
 
             _svc.ResetPassword(_selectedUserId, newPwd, AppSession.CurrentUser?.Username ?? "Admin");
-            MessageBox.Show($"✅ Đã reset mật khẩu thành công!\nUser sẽ phải đổi mật khẩu khi đăng nhập lần tiếp.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(TopOwner, $"✅ Đã reset mật khẩu thành công!\nUser sẽ phải đổi mật khẩu khi đăng nhập lần tiếp.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void BtnDeactivate_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("USER_MGT", "Vô hiệu hóa", "Vô hiệu hóa tài khoản")) return;
-            if (_selectedUserId == 0) { MessageBox.Show("Vui lòng chọn user!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-            if (_selectedUserId == AppSession.CurrentUser?.User_ID) { MessageBox.Show("Không thể vô hiệu hóa tài khoản đang đăng nhập!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (_selectedUserId == 0) { MessageBox.Show(TopOwner, "Vui lòng chọn user!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (_selectedUserId == AppSession.CurrentUser?.User_ID) { MessageBox.Show(TopOwner, "Không thể vô hiệu hóa tài khoản đang đăng nhập!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
-            if (MessageBox.Show("Vô hiệu hóa tài khoản này?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            if (MessageBox.Show(TopOwner, "Vô hiệu hóa tài khoản này?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 _svc.DeactivateUser(_selectedUserId, AppSession.CurrentUser?.Username ?? "Admin");
-                MessageBox.Show("✅ Đã vô hiệu hóa tài khoản!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, "✅ Đã vô hiệu hóa tài khoản!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadUsers();
             }
         }
@@ -870,19 +871,19 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("USER_MGT", "Lưu user", "Xóa user")) return;
             if (_selectedUserId == 0)
             {
-                MessageBox.Show("Vui lòng chọn user cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn user cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (_selectedUserId == AppSession.CurrentUser?.User_ID)
             {
-                MessageBox.Show("Không thể xóa tài khoản đang đăng nhập!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Không thể xóa tài khoản đang đăng nhập!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             var u = _users.Find(x => x.User_ID == _selectedUserId);
             string uname = u?.Username ?? _selectedUserId.ToString();
 
-            if (MessageBox.Show(
+            if (MessageBox.Show(TopOwner,
                 $"Bạn chắc chắn muốn XÓA VĨNH VIỄN tài khoản '{uname}'?\n\nHành động này KHÔNG thể hoàn tác!",
                 "Xác nhận xóa user",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
@@ -894,14 +895,14 @@ namespace MPR_Managerment.Forms
             {
                 _svc.DeactivateUser(_selectedUserId, AppSession.CurrentUser?.Username ?? "Admin");
 
-                MessageBox.Show($"✅ Đã vô hiệu hóa tài khoản '{uname}' thành công!\n(Tài khoản bị vô hiệu hóa — liên hệ DBA nếu cần xóa hẳn khỏi DB.)", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, $"✅ Đã vô hiệu hóa tài khoản '{uname}' thành công!\n(Tài khoản bị vô hiệu hóa — liên hệ DBA nếu cần xóa hẳn khỏi DB.)", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _selectedUserId = 0;
                 LoadUsers();
                 BtnNew_Click(null, null); // reset form
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1011,7 +1012,7 @@ namespace MPR_Managerment.Forms
         private void BtnSavePerms_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("USER_MGT", "Phân quyền", "Lưu phân quyền")) return;
-            if (_selectedUserId == 0) { MessageBox.Show("Vui lòng chọn user trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (_selectedUserId == 0) { MessageBox.Show(TopOwner, "Vui lòng chọn user trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
             var perms = new Dictionary<string, bool>();
             foreach (DataGridViewRow row in dgvPermissions.Rows)
@@ -1025,7 +1026,7 @@ namespace MPR_Managerment.Forms
                 perms[key] = Convert.ToBoolean(row.Cells["Allowed"].Value ?? false);
             }
             _svc.SaveDetailedPermissions(_selectedUserId, perms, AppSession.CurrentUser?.Username ?? "Admin");
-            MessageBox.Show("✅ Đã lưu phân quyền chi tiết!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(TopOwner, "✅ Đã lưu phân quyền chi tiết!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             LoadPermissions(_selectedUserId);
         }
 
@@ -1033,10 +1034,10 @@ namespace MPR_Managerment.Forms
         {
             if (!PermissionHelper.Check("USER_MGT", "Phân quyền", "Reset phân quyền về mặc định")) return;
             if (_selectedUserId == 0) return;
-            if (MessageBox.Show("Reset về quyền mặc định của Role?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            if (MessageBox.Show(TopOwner, "Reset về quyền mặc định của Role?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 _svc.ResetUserPermissions(_selectedUserId);
-                MessageBox.Show("✅ Đã reset về quyền mặc định!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, "✅ Đã reset về quyền mặc định!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadPermissions(_selectedUserId);
             }
         }
@@ -1048,12 +1049,12 @@ namespace MPR_Managerment.Forms
         {
             if (!AppSession.IsAdmin)
             {
-                MessageBox.Show("Chỉ tài khoản Admin mới được dùng chức năng này!",
+                MessageBox.Show(TopOwner, "Chỉ tài khoản Admin mới được dùng chức năng này!",
                     "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (MessageBox.Show(
+            if (MessageBox.Show(TopOwner,
                 "Thao tác này sẽ:\n\n" +
                 "  1. Xóa toàn bộ quyền tùy chỉnh của tất cả tài khoản Admin\n" +
                 "  2. Admin sẽ có MỌI quyền (bypass toàn bộ phân quyền)\n\n" +
@@ -1080,7 +1081,7 @@ namespace MPR_Managerment.Forms
                 // Reset session hiện tại ngay lập tức
                 AppSession.EnsureAdminBypass();
 
-                MessageBox.Show(
+                MessageBox.Show(TopOwner,
                     $"✅ Đã reset thành công!\n\n" +
                     $"  • Xóa {affected} bản ghi quyền tùy chỉnh của Admin\n" +
                     $"  • Admin hiện có toàn quyền truy cập\n\n" +
@@ -1093,7 +1094,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                MessageBox.Show(TopOwner,
                     "Lỗi khi reset: " + ex.Message + "\n\n" +
                     "Bạn có thể tự chạy SQL sau trong DB:\n" +
                     "DELETE FROM User_Detailed_Permissions WHERE User_ID IN\n" +

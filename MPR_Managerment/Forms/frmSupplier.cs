@@ -32,6 +32,7 @@ namespace MPR_Managerment.Forms
         private Button btnSearch, btnNew, btnSave, btnDelete, btnClear, btnExport, btnIso;
         private Label lblStatus;
         private Panel panelLeft, panelRight;
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
         public frmSupplier()
         {
@@ -271,7 +272,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải dữ liệu: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi tải dữ liệu: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -388,7 +389,7 @@ namespace MPR_Managerment.Forms
         {
             if (string.IsNullOrWhiteSpace(txtCompanyName.Text))
             {
-                MessageBox.Show("Vui lòng nhập Tên công ty!", "Thiếu thông tin",
+                MessageBox.Show(TopOwner, "Vui lòng nhập Tên công ty!", "Thiếu thông tin",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtCompanyName.Focus();
                 return;
@@ -419,13 +420,13 @@ namespace MPR_Managerment.Forms
                 if (_selectedSupplierID == 0)
                 {
                     _service.Insert(s, _currentUser);
-                    MessageBox.Show("✅ Thêm nhà cung cấp thành công!", "Thành công",
+                    MessageBox.Show(TopOwner, "✅ Thêm nhà cung cấp thành công!", "Thành công",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
                     _service.Update(s, _currentUser);
-                    MessageBox.Show("✅ Cập nhật nhà cung cấp thành công!", "Thành công",
+                    MessageBox.Show(TopOwner, "✅ Cập nhật nhà cung cấp thành công!", "Thành công",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
 
@@ -434,7 +435,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi khi lưu: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi khi lưu: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -446,13 +447,13 @@ namespace MPR_Managerment.Forms
         {
             if (_selectedSupplierID == 0)
             {
-                MessageBox.Show("Vui lòng chọn nhà cung cấp cần xóa!", "Thông báo",
+                MessageBox.Show(TopOwner, "Vui lòng chọn nhà cung cấp cần xóa!", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             string name = txtCompanyName.Text.Trim();
-            if (MessageBox.Show(
+            if (MessageBox.Show(TopOwner,
                     $"Bạn có chắc muốn xóa nhà cung cấp '{name}'?\nHành động này không thể hoàn tác!",
                     "Xác nhận xóa",
                     MessageBoxButtons.YesNo,
@@ -463,14 +464,14 @@ namespace MPR_Managerment.Forms
                 try
                 {
                     _service.Delete(_selectedSupplierID, _currentUser);
-                    MessageBox.Show("✅ Xóa thành công!", "Thông báo",
+                    MessageBox.Show(TopOwner, "✅ Xóa thành công!", "Thông báo",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadSuppliers();
                     ClearForm();
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi",
+                    MessageBox.Show(TopOwner, "Lỗi khi xóa: " + ex.Message, "Lỗi",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
@@ -520,7 +521,7 @@ namespace MPR_Managerment.Forms
         {
             if (_suppliers == null || _suppliers.Count == 0)
             {
-                MessageBox.Show("Không có dữ liệu để xuất.", "Thông báo",
+                MessageBox.Show(TopOwner, "Không có dữ liệu để xuất.", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -599,7 +600,7 @@ namespace MPR_Managerment.Forms
                 ws.View.FreezePanes(2, 1);
                 pkg.SaveAs(new FileInfo(dlg.FileName));
 
-                MessageBox.Show(
+                MessageBox.Show(TopOwner,
                     $"✅ Đã xuất {_suppliers.Count} nhà cung cấp.\nFile: {dlg.FileName}",
                     "Hoàn thành", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -607,7 +608,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi xuất Excel: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -652,7 +653,7 @@ namespace MPR_Managerment.Forms
         {
             if (_suppliers == null || _suppliers.Count == 0)
             {
-                MessageBox.Show("Không có dữ liệu nhà cung cấp.",
+                MessageBox.Show(TopOwner, "Không có dữ liệu nhà cung cấp.",
                     "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -665,7 +666,7 @@ namespace MPR_Managerment.Forms
             string templatePath = GetTemplatePath();
             if (templatePath == null)
             {
-                MessageBox.Show(
+                MessageBox.Show(TopOwner,
                     "Không tìm thấy file ISO_template.xlsx.\n" +
                     "Vui lòng đặt file vào:\n" +
                     AppDomain.CurrentDomain.BaseDirectory,
@@ -674,7 +675,7 @@ namespace MPR_Managerment.Forms
             }
 
             // ── Bước 3: Chọn chế độ xuất ─────────────────────────────────
-            var modeResult = MessageBox.Show(
+            var modeResult = MessageBox.Show(TopOwner,
                 $"Đã chọn {selected.Count} nhà cung cấp.\n\n" +
                 "Chọn cách xuất:\n" +
                 "• YES  → 1 file duy nhất (mỗi NCC 1 sheet)\n" +
@@ -753,7 +754,7 @@ namespace MPR_Managerment.Forms
 
                 pkg.Save();
 
-                MessageBox.Show(
+                MessageBox.Show(TopOwner,
                     $"✅ Đã xuất {suppliers.Count} sheet vào 1 file:\n{save.FileName}",
                     "Hoàn thành", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -761,7 +762,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi xuất file: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi xuất file: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -816,8 +817,7 @@ namespace MPR_Managerment.Forms
             string msg = $"✅ Đã xuất {ok} file vào:\n{outDir}";
             if (fail > 0) msg += $"\n\n⚠️ {fail} file lỗi:\n{failList}";
 
-            MessageBox.Show(msg, "Hoàn thành", MessageBoxButtons.OK,
-                fail > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, msg, "Hoàn thành", MessageBoxButtons.OK, fail > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information); }
 
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             { FileName = outDir, UseShellExecute = true });
@@ -914,7 +914,7 @@ namespace MPR_Managerment.Forms
 
             if (result.Count == 0)
             {
-                MessageBox.Show("Chưa chọn nhà cung cấp nào.",
+                MessageBox.Show(TopOwner, "Chưa chọn nhà cung cấp nào.",
                     "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return null;
             }

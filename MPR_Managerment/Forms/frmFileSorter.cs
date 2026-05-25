@@ -76,6 +76,8 @@ namespace MPR_Managerment.Forms
             public string MPRLink { get; set; }
         }
 
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+
         // ═════════════════════════════════════════════════════════════════
         // CONSTRUCTOR
         // ═════════════════════════════════════════════════════════════════
@@ -225,7 +227,7 @@ namespace MPR_Managerment.Forms
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     { FileName = path, UseShellExecute = true });
                 else
-                    MessageBox.Show($"File không còn tồn tại:\n{path}",
+                    MessageBox.Show(TopOwner, $"File không còn tồn tại:\n{path}",
                         "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             };
 
@@ -244,7 +246,7 @@ namespace MPR_Managerment.Forms
                 // Kiểm tra tên hợp lệ
                 if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 {
-                    MessageBox.Show("Tên file chứa ký tự không hợp lệ.",
+                    MessageBox.Show(TopOwner, "Tên file chứa ký tự không hợp lệ.",
                         "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
                     return;
@@ -253,7 +255,7 @@ namespace MPR_Managerment.Forms
                 // Đổi tên file gốc ngay trên disk
                 if (!File.Exists(item.SourcePath))
                 {
-                    MessageBox.Show($"File gốc không còn tồn tại:\n{item.SourcePath}",
+                    MessageBox.Show(TopOwner, $"File gốc không còn tồn tại:\n{item.SourcePath}",
                         "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
                     return;
@@ -264,7 +266,7 @@ namespace MPR_Managerment.Forms
 
                 if (File.Exists(newPath))
                 {
-                    MessageBox.Show($"File \"{newName}\" đã tồn tại trong thư mục nguồn.",
+                    MessageBox.Show(TopOwner, $"File \"{newName}\" đã tồn tại trong thư mục nguồn.",
                         "Trùng tên", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
                     return;
@@ -280,7 +282,7 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Không thể đổi tên:\n{ex.Message}",
+                    MessageBox.Show(TopOwner, $"Không thể đổi tên:\n{ex.Message}",
                         "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     _dgv.Rows[e.RowIndex].Cells["FinalName"].Value = item.FinalName;
                 }
@@ -331,7 +333,7 @@ namespace MPR_Managerment.Forms
             string src = _txtSource.Text.Trim();
             if (!Directory.Exists(src))
             {
-                MessageBox.Show($"Thư mục không tồn tại:\n{src}",
+                MessageBox.Show(TopOwner, $"Thư mục không tồn tại:\n{src}",
                     "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -362,7 +364,7 @@ namespace MPR_Managerment.Forms
                     if (proc.ExitCode != 0)
                     {
                         DialogResult res = DialogResult.No;
-                        this.Invoke(() => res = MessageBox.Show(
+                        this.Invoke(() => res = MessageBox.Show(TopOwner,
                             $"Script OCR kết thúc với lỗi:\n{stderr}\n\nBạn có muốn tiếp tục quét không?",
                             "Cảnh báo OCR", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
                         if (res != DialogResult.Yes)
@@ -377,7 +379,7 @@ namespace MPR_Managerment.Forms
                 catch (Exception ex)
                 {
                     DialogResult res = DialogResult.No;
-                    this.Invoke(() => res = MessageBox.Show(
+                    this.Invoke(() => res = MessageBox.Show(TopOwner,
                         $"Không thể chạy OCR:\n{ex.Message}\n\nBạn có muốn tiếp tục quét không?",
                         "Cảnh báo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
                     if (res != DialogResult.Yes)
@@ -596,12 +598,12 @@ namespace MPR_Managerment.Forms
 
             if (toMove.Count == 0)
             {
-                MessageBox.Show("Không có file nào sẵn sàng để di chuyển.",
+                MessageBox.Show(TopOwner, "Không có file nào sẵn sàng để di chuyển.",
                     "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            if (MessageBox.Show(
+            if (MessageBox.Show(TopOwner,
                 $"Chế độ: {(preview ? "PREVIEW (không di chuyển thực sự)" : "DI CHUYỂN THỰC SỰ")}\n\n" +
                 $"Sẽ xử lý {toMove.Count} file.\nBạn có chắc chắn?",
                 "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
@@ -687,7 +689,7 @@ namespace MPR_Managerment.Forms
                 ? $"🔍 Preview: {ok} file sẽ được di chuyển, {fail} lỗi."
                 : $"✅ Hoàn thành: {ok} file thành công, {fail} lỗi. Log đã lưu.");
 
-            MessageBox.Show(
+            MessageBox.Show(TopOwner,
                 $"{(preview ? "🔍 Preview xong" : "✅ Hoàn thành")}\n\n" +
                 $"Thành công : {ok} file\n" +
                 $"Lỗi        : {fail} file",
@@ -733,7 +735,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Lỗi tải dữ liệu DB:\n{ex.Message}",
+                MessageBox.Show(TopOwner, $"Lỗi tải dữ liệu DB:\n{ex.Message}",
                     "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             return list;

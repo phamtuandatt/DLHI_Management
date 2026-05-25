@@ -728,7 +728,7 @@ namespace MPR_Managerment.Forms
                     dgvHistory.Rows[ev.RowIndex].Cells["H_Paid"].Value = false; // luôn false khi Pending
                     dgvHistory.RefreshEdit();
                     dgvHistory.InvalidateRow(ev.RowIndex);
-                    MessageBox.Show("Chỉ có thể đánh dấu 'Đã TT' khi Status là Approval!",
+                    MessageBox.Show(TopOwner, "Chỉ có thể đánh dấu 'Đã TT' khi Status là Approval!",
                         "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             };
@@ -768,7 +768,7 @@ namespace MPR_Managerment.Forms
 
                 if (string.IsNullOrEmpty(filePath)) return;
                 if (!System.IO.File.Exists(filePath))
-                { MessageBox.Show($"Không tìm thấy file:\n{filePath}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                { MessageBox.Show(TopOwner, $"Không tìm thấy file:\n{filePath}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
                 try
                 {
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -1277,7 +1277,7 @@ namespace MPR_Managerment.Forms
                 cmd.Parameters.AddWithValue("@ecStatus", ecStatus);
                 cmd.ExecuteNonQuery();
 
-                MessageBox.Show("✅ Đã lưu trạng thái thành công!", "Thông báo",
+                MessageBox.Show(TopOwner, "✅ Đã lưu trạng thái thành công!", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadPaymentProgress(); // Reload để giữ đồng bộ
             }
@@ -1388,13 +1388,13 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception exStatus)
             {
-                MessageBox.Show("Lưu OK nhưng lỗi cập nhật trạng thái: " + exStatus.Message,
+                MessageBox.Show(TopOwner, "Lưu OK nhưng lỗi cập nhật trạng thái: " + exStatus.Message,
                     "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             string msg = $"✅ Đã lưu {saved} dòng vào History Paid!";
             if (skipped > 0) msg += $"\n⚠ {skipped} dòng đã tồn tại hoặc không hợp lệ — bỏ qua.";
-            MessageBox.Show(msg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Info(msg, "Thành công");
 
             // Reload cả hai bảng + reload grid PO để hiển thị status mới
             LoadPaymentProgress();
@@ -1595,7 +1595,7 @@ namespace MPR_Managerment.Forms
 
             string msg = $"✅ Đã gửi lệnh in {ok} file.";
             if (fail > 0) msg += $"\n⚠ {fail} file không thể in.";
-            MessageBox.Show(msg, "Hoàn tất", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Info(msg, "Hoàn tất");
         }
 
 
@@ -1762,7 +1762,7 @@ namespace MPR_Managerment.Forms
 
                 LoadPOSummary();
 
-                MessageBox.Show("✅ Đã xóa đợt thanh toán thành công!", "Thành công",
+                MessageBox.Show(TopOwner, "✅ Đã xóa đợt thanh toán thành công!", "Thành công",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex) { Err(ex.Message); }
@@ -1819,7 +1819,7 @@ namespace MPR_Managerment.Forms
                     else _svc.UpdateSchedule(s);
                     saved++;
                 }
-                MessageBox.Show($"✅ Đã lưu {saved} đợt thanh toán!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, $"✅ Đã lưu {saved} đợt thanh toán!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 // Ghi nhớ PO đang chọn để giữ hiển thị sau khi refresh
                 int savedPoId = _selectedPO_ID;
@@ -1867,7 +1867,7 @@ namespace MPR_Managerment.Forms
             // ── Popup hiển thị toàn bộ dgvPrintHistory (Danh sách PO đã in Request) ──
             if (dgvPrintHistory == null || dgvPrintHistory.Rows.Count == 0)
             {
-                MessageBox.Show("Danh sách PO đã in Request đang trống.\nVui lòng in Request trước hoặc nhấn '📋 Tất cả' để tải dữ liệu!",
+                MessageBox.Show(TopOwner, "Danh sách PO đã in Request đang trống.\nVui lòng in Request trước hoặc nhấn '📋 Tất cả' để tải dữ liệu!",
                     "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -2061,7 +2061,7 @@ namespace MPR_Managerment.Forms
                     : new List<DataGridViewRow>();
                 if (selected.Count == 0)
                 {
-                    MessageBox.Show("Vui lòng chọn ít nhất một dòng!", "Thông báo",
+                    MessageBox.Show(TopOwner, "Vui lòng chọn ít nhất một dòng!", "Thông báo",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
@@ -2385,7 +2385,7 @@ namespace MPR_Managerment.Forms
 
                 ws.Cells[ws.Dimension.Address].AutoFitColumns();
                 pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
-                MessageBox.Show("✅ Xuất Excel thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, "✅ Xuất Excel thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = sfd.FileName, UseShellExecute = true });
             }
             catch (Exception ex) { Err(ex.Message); }
@@ -2615,12 +2615,17 @@ namespace MPR_Managerment.Forms
             return val;
         }
 
-        private void Warn(string msg) =>
-            MessageBox.Show(msg, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        private void Err(string msg) =>
-            MessageBox.Show("Lỗi: " + msg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        private bool Ask(string msg) =>
-            MessageBox.Show(msg, "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private void Warn(string msg)
+        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, msg, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        private void Err(string msg)
+        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, "Lỗi: " + msg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        private bool Ask(string msg)
+        { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, msg, "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
+        private void Info(string msg, string title = "Thông báo")
+        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, msg, title, MessageBoxButtons.OK, MessageBoxIcon.Information); }
+        private bool AskYN(string msg, string title = "Xác nhận")
+        { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, msg, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
 
         // Được gọi từ frmPrintPreview khi user chọn OK cập nhật lịch sử
         public void AddPrintHistory(string poNo, string project, List<PaymentSchedule> scheds)
@@ -2767,7 +2772,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                MessageBox.Show(TopOwner,
                     "Lỗi tải lịch sử in Request:\n" + ex.Message,
                     "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -2788,7 +2793,7 @@ namespace MPR_Managerment.Forms
                              row.Cells["PH_ID"].Value != DBNull.Value
                              ? Convert.ToInt32(row.Cells["PH_ID"].Value) : 0;
 
-            if (MessageBox.Show(
+            if (MessageBox.Show(TopOwner,
                 $"Xóa lịch sử in Request này?\n\nPO: {poNo}\nNgày in: {date}",
                 "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
@@ -2806,7 +2811,7 @@ namespace MPR_Managerment.Forms
                 }
                 // Xóa khỏi grid dù có ID hay không
                 dgvPrintHistory.Rows.Remove(row);
-                MessageBox.Show("✅ Đã xóa thành công!", "Thông báo",
+                MessageBox.Show(TopOwner, "✅ Đã xóa thành công!", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex) { Err("Lỗi xóa: " + ex.Message); }
@@ -2853,7 +2858,7 @@ namespace MPR_Managerment.Forms
             var po = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);
             if (po != null && CheckAlreadyPrinted(po.PONo, out string lastDate))
             {
-                var ans = MessageBox.Show(
+                var ans = MessageBox.Show(TopOwner,
                     $"⚠ PO \"{po.PONo}\" đã được in Request trước đó.\n" +
                     $"Lần in gần nhất: {lastDate}\n\n" +
                     "Bạn có muốn in lại không?",
@@ -3135,7 +3140,7 @@ namespace MPR_Managerment.Forms
                 cmd.ExecuteNonQuery();
                 LoadHistoryPaid(_paidFrom?.Value.Date ?? DateTime.Today.AddMonths(-3),
                     (_paidTo?.Value.Date ?? DateTime.Today).AddDays(1).AddSeconds(-1));
-                MessageBox.Show("✅ Đã xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, "✅ Đã xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex) { Err("Lỗi xóa: " + ex.Message); }
         }
@@ -3282,13 +3287,14 @@ public class frmPrintPreview : Form
     }
 
     private bool _historyUpdated = false;
+    private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
     private void FrmPrintPreview_FormClosing(object sender, FormClosingEventArgs e)
     {
         if (_historyUpdated) return; // Đã cập nhật rồi, không hỏi lại
         if (_owner == null || _scheds.Count == 0) return;
 
-        var ans = MessageBox.Show(
+        var ans = MessageBox.Show(TopOwner,
             "Cập nhật thông tin vào lịch sử in Request?",
             "Xác nhận",
             MessageBoxButtons.OKCancel,
@@ -3451,7 +3457,7 @@ $wb = $excel.Workbooks.Open('{_filePath.Replace("'", "''")}', $false, $true)
             if (sfd.ShowDialog() == DialogResult.OK)
             {
                 System.IO.File.Copy(_filePath, sfd.FileName, true);
-                MessageBox.Show("✅ Đã lưu file thành công!", "Thành công",
+                MessageBox.Show(TopOwner, "✅ Đã lưu file thành công!", "Thành công",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         };
@@ -3500,7 +3506,7 @@ $excel.Quit()
                 var proc = System.Diagnostics.Process.Start(psi);
 
                 // Không chờ process kết thúc để UI không bị block
-                MessageBox.Show("✅ Đã gửi lệnh in!\nFile sẽ được in mà không cần lưu lại.",
+                MessageBox.Show(TopOwner, "✅ Đã gửi lệnh in!\nFile sẽ được in mà không cần lưu lại.",
                     "In thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
 
@@ -3513,7 +3519,7 @@ $excel.Quit()
             catch (Exception ex)
             {
                 // Fallback: mở file bình thường nếu PowerShell không khả dụng
-                var ans = MessageBox.Show(
+                var ans = MessageBox.Show(TopOwner,
                     $"Không thể in tự động: {ex.Message}\n\nBấm OK để mở file và in thủ công.",
                     "Lỗi in", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
                 if (ans == DialogResult.OK)
@@ -3559,6 +3565,7 @@ public class frmAddPayment : Form
     private DateTimePicker dtpDate;
     private TextBox txtAmount, txtBank, txtTransNo, txtNotes;
     private Label lblErr;
+    private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
     public frmAddPayment(int poId, List<PaymentSchedule> scheds, string user)
     {
@@ -3714,7 +3721,7 @@ public class frmAddPayment : Form
                 Notes = txtNotes.Text.Trim()
             }, _user);
 
-            MessageBox.Show($"✅ Đã ghi nhận {FormatAmt(amt)} VNĐ!", "Thành công",
+            MessageBox.Show(TopOwner, $"✅ Đã ghi nhận {FormatAmt(amt)} VNĐ!", "Thành công",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             this.DialogResult = DialogResult.OK;
             this.Close();
@@ -3745,6 +3752,7 @@ public class frmPaymentRequestPreview : Form
     private TextBox txtBenef, txtBankAcc, txtBankName;
     private ComboBox cboDot;          // Chọn đợt thanh toán
     private RichTextBox rtbPreview;
+    private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
     public frmPaymentRequestPreview(POPaymentSummary po, string mprNo,
         List<PODetail> details, Supplier supp,
@@ -4019,7 +4027,7 @@ public class frmPaymentRequestPreview : Form
         if (inTable) sbHtml.Append("</table>");
 
         CopyToClipboardAsHtml(sbHtml.ToString(), rtbPreview.Text);
-        MessageBox.Show("✅ Đã copy nội dung vào Bảng tạm!\nDán (Ctrl+V) vào Word hoặc Outlook sẽ hiển thị bảng kẻ ô chuẩn, font Times New Roman.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(TopOwner, "✅ Đã copy nội dung vào Bảng tạm!\nDán (Ctrl+V) vào Word hoặc Outlook sẽ hiển thị bảng kẻ ô chuẩn, font Times New Roman.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     // =====================================================================

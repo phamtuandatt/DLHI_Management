@@ -38,6 +38,7 @@ namespace MPR_Managerment.Forms
 
         // Stats labels — dự án đang chọn
         private Label lblMPRProject, lblPOProject, lblRIRProject, lblWeightProject, lblBudgetProject;
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
         public frmProject()
         {
@@ -402,7 +403,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tải dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -515,7 +516,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tìm kiếm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tìm kiếm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -581,13 +582,13 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("PROJECT", "Lưu", "Lưu dự án")) return;
             if (string.IsNullOrWhiteSpace(txtProjectName.Text))
             {
-                MessageBox.Show("Vui lòng nhập Tên dự án!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng nhập Tên dự án!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtProjectName.Focus();
                 return;
             }
             if (string.IsNullOrWhiteSpace(txtProjectCode.Text))
             {
-                MessageBox.Show("Vui lòng nhập Mã dự án!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng nhập Mã dự án!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtProjectCode.Focus();
                 return;
             }
@@ -617,12 +618,12 @@ namespace MPR_Managerment.Forms
                 if (_selectedId == 0)
                 {
                     _service.Insert(p, _currentUser);
-                    MessageBox.Show("Thêm dự án thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Thêm dự án thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
                     _service.Update(p);
-                    MessageBox.Show("Cập nhật thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Cập nhật thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
 
                 LoadProjects();
@@ -630,7 +631,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi khi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi khi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -639,23 +640,23 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("PROJECT", "Xóa", "Xóa dự án")) return;
             if (_selectedId == 0)
             {
-                MessageBox.Show("Vui lòng chọn dự án cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn dự án cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (MessageBox.Show("Bạn có chắc muốn xóa dự án này?", "Xác nhận",
+            if (MessageBox.Show(TopOwner, "Bạn có chắc muốn xóa dự án này?", "Xác nhận",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 try
                 {
                     _service.Delete(_selectedId);
-                    MessageBox.Show("Xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadProjects();
                     ClearForm();
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(TopOwner, "Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }

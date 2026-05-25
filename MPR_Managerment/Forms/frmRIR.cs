@@ -44,6 +44,7 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvRIRFolders;     // Danh sách thư mục trong RIR_Link
         private DataTable _projectTable;        // DataTable: ProjectCode | RIR_Link
         private bool _isProjectSearching = false;
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
         public frmRIR()
         {
@@ -540,7 +541,7 @@ namespace MPR_Managerment.Forms
             if (string.IsNullOrEmpty(path)) return;
             if (!Directory.Exists(path))
             {
-                MessageBox.Show("Thư mục không tồn tại:\n" + path, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Thư mục không tồn tại:\n" + path, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             try
@@ -553,7 +554,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Không thể mở thư mục: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Không thể mở thư mục: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -675,7 +676,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi khi dán dữ liệu từ Excel:\n" + ex.Message,
+                MessageBox.Show(TopOwner, "Lỗi khi dán dữ liệu từ Excel:\n" + ex.Message,
                     "Lỗi Paste", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -787,7 +788,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải RIR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tải RIR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -847,7 +848,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tải chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -926,7 +927,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -945,7 +946,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("RIR", "Lưu Header", "Lưu Header")) return;
             if (string.IsNullOrWhiteSpace(txtRIRNo.Text))
             {
-                MessageBox.Show("Vui lòng nhập RIR No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng nhập RIR No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtRIRNo.Focus();
                 return;
             }
@@ -1010,14 +1011,14 @@ namespace MPR_Managerment.Forms
                         }
                         catch (Exception ex)
                         {
-                            MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            MessageBox.Show(TopOwner, "Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     }
 
                     // ── Tạo thư mục theo RIR No trong RIR_Link của dự án ──
                     TryCreateRIRFolder(h.RIR_No);
 
-                    MessageBox.Show("Tạo phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Tạo phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
@@ -1026,13 +1027,13 @@ namespace MPR_Managerment.Forms
                     // ── Tạo thư mục nếu chưa có (khi cập nhật cũng kiểm tra) ──
                     TryCreateRIRFolder(h.RIR_No);
 
-                    MessageBox.Show("Cập nhật phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Cập nhật phiếu RIR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 LoadRIR();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1073,7 +1074,7 @@ namespace MPR_Managerment.Forms
 
                 if (string.IsNullOrWhiteSpace(rirLink))
                 {
-                    MessageBox.Show(
+                    MessageBox.Show(TopOwner,
                         $"⚠ Không tìm thấy đường dẫn RIR Link của dự án.\n" +
                         $"Workorder: {txtWorkorderNo.Text.Trim()}\n" +
                         $"Dự án: {txtProjectName.Text.Trim()}\n\n" +
@@ -1084,7 +1085,7 @@ namespace MPR_Managerment.Forms
 
                 if (!System.IO.Directory.Exists(rirLink))
                 {
-                    MessageBox.Show(
+                    MessageBox.Show(TopOwner,
                         $"⚠ Thư mục RIR Link không tồn tại trên ổ đĩa:\n{rirLink}\nThư mục không được tạo.",
                         "Thư mục không tồn tại", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
@@ -1096,14 +1097,14 @@ namespace MPR_Managerment.Forms
 
                 if (System.IO.Directory.Exists(newFolderPath))
                 {
-                    MessageBox.Show(
+                    MessageBox.Show(TopOwner,
                         $"ℹ Thư mục đã tồn tại:\n{newFolderPath}",
                         "Thư mục đã tồn tại", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
                 System.IO.Directory.CreateDirectory(newFolderPath);
-                MessageBox.Show(
+                MessageBox.Show(TopOwner,
                     $"✅ Đã tạo thư mục thành công:\n{newFolderPath}",
                     "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
@@ -1112,7 +1113,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tạo thư mục: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tạo thư mục: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1121,15 +1122,15 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("RIR", "Xóa RIR", "Xóa RIR")) return;
             if (_selectedRIR_ID == 0)
             {
-                MessageBox.Show("Vui lòng chọn phiếu RIR cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn phiếu RIR cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            if (MessageBox.Show("Xóa phiếu RIR và toàn bộ chi tiết?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            if (MessageBox.Show(TopOwner, "Xóa phiếu RIR và toàn bộ chi tiết?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 try
                 {
                     _service.DeleteHead(_selectedRIR_ID);
-                    MessageBox.Show("Xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     _selectedRIR_ID = 0;
                     ClearHead();
                     dgvDetails.Rows.Clear();
@@ -1137,7 +1138,7 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -1351,9 +1352,9 @@ namespace MPR_Managerment.Forms
                     }
 
                     if (countItems == 0)
-                        MessageBox.Show("Phiếu nhập kho này không có chi tiết vật tư!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show(TopOwner, "Phiếu nhập kho này không có chi tiết vật tư!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     else
-                        MessageBox.Show(
+                        MessageBox.Show(TopOwner,
                             $"✅ Đã kéo dữ liệu từ phiếu nhập: {pnkNo}\n" +
                             $"Mã RIR tạo mới: {autoRIRNo}\n" +
                             $"Số lượng vật tư: {countItems} mục\n\n" +
@@ -1363,7 +1364,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi trong quá trình Import: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi trong quá trình Import: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1404,7 +1405,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("RIR", "Thêm dòng", "Thêm dòng")) return;
             if (_selectedRIR_ID == 0)
             {
-                MessageBox.Show("Vui lòng lưu header RIR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng lưu header RIR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             int nextNo = dgvDetails.Rows.Count + 1;
@@ -1434,14 +1435,14 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("RIR", "Xóa dòng", "Xóa dòng")) return;
             if (dgvDetails.SelectedRows.Count == 0)
             {
-                MessageBox.Show("Vui lòng chọn dòng cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn dòng cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             var row = dgvDetails.SelectedRows[0];
             int detailId = Convert.ToInt32(row.Cells["RIR_Detail_ID"].Value ?? 0);
             if (detailId > 0)
             {
-                if (MessageBox.Show("Xóa dòng này?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                if (MessageBox.Show(TopOwner, "Xóa dòng này?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
                     try
                     {
@@ -1451,7 +1452,7 @@ namespace MPR_Managerment.Forms
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             }
@@ -1467,12 +1468,12 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("RIR", "Lưu chi tiết", "Lưu chi tiết")) return;
             if (_selectedRIR_ID == 0)
             {
-                MessageBox.Show("Vui lòng lưu header RIR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng lưu header RIR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (dgvDetails.Rows.Count == 0)
             {
-                MessageBox.Show("Không có dòng nào để lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Không có dòng nào để lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -1514,12 +1515,12 @@ namespace MPR_Managerment.Forms
                     }
                     saved++;
                 }
-                MessageBox.Show($"Đã lưu {saved} dòng thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, $"Đã lưu {saved} dòng thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadDetails(_selectedRIR_ID);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1556,7 +1557,7 @@ namespace MPR_Managerment.Forms
             {
                 if (dgvRIR.CurrentRow == null)
                 {
-                    MessageBox.Show("Vui lòng chọn một phiếu để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(TopOwner, "Vui lòng chọn một phiếu để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -1569,7 +1570,7 @@ namespace MPR_Managerment.Forms
 
                 if (!File.Exists(templatePath))
                 {
-                    MessageBox.Show("Không tìm thấy file template!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(TopOwner, "Không tìm thấy file template!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -1653,7 +1654,7 @@ namespace MPR_Managerment.Forms
                     package.Save();
                 }
 
-                if (MessageBox.Show("✅ Xuất phiếu RIR thành công! Mở file ngay?", "Thành công",
+                if (MessageBox.Show(TopOwner, "✅ Xuất phiếu RIR thành công! Mở file ngay?", "Thành công",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                 {
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(actualSavePath) { UseShellExecute = true });
@@ -1661,7 +1662,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1671,7 +1672,7 @@ namespace MPR_Managerment.Forms
         //    {
         //        if (dgvRIR.CurrentRow == null)
         //        {
-        //            MessageBox.Show("Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        //            MessageBox.Show(TopOwner, "Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         //            return;
         //        }
 
@@ -1685,7 +1686,7 @@ namespace MPR_Managerment.Forms
 
         //        if (!File.Exists(templatePath))
         //        {
-        //            MessageBox.Show("Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        //            MessageBox.Show(TopOwner, "Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
         //            return;
         //        }
 
@@ -1783,7 +1784,7 @@ namespace MPR_Managerment.Forms
         //    }
         //    catch (Exception ex)
         //    {
-        //        MessageBox.Show("Lỗi khi in phiếu: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        //        MessageBox.Show(TopOwner, "Lỗi khi in phiếu: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
         //    }
         //}
         // =====================================================

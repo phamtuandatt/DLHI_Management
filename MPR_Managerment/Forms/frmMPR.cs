@@ -214,6 +214,7 @@ namespace MPR_Managerment.Forms
         {
             HideFilePreview_MPR();
             if (!File.Exists(filePath)) return;
+            Form _previewOwner = this.TopLevelControl as Form ?? this;
 
             var f = new Form
             {
@@ -450,14 +451,14 @@ namespace MPR_Managerment.Forms
                             };
                             pd.Print();
                         }
-                        catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                        catch (Exception ex) { MessageBox.Show(_previewOwner, "Lỗi in: " + ex.Message, "In file"); }
                     };
                 }
                 else
                 {
                     BuildPreviewInfoPanel_MPR(f, filePath);
                     btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
-                    printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
+                    printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show(_previewOwner, "Không thể in file này.", "In file"); } };
                 }
             }
             else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
@@ -532,7 +533,7 @@ namespace MPR_Managerment.Forms
                         pd.EndPrint   += (ps, pe) => pf.Dispose();
                         pd.Print();
                     }
-                    catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
+                    catch (Exception ex) { MessageBox.Show(_previewOwner, "Lỗi in: " + ex.Message, "In file"); }
                 };
             }
             else
@@ -540,7 +541,7 @@ namespace MPR_Managerment.Forms
                 BuildPreviewInfoPanel_MPR(f, filePath);
                 btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
                 btnPrev.Visible = btnNext.Visible = false;
-                printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
+                printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show(_previewOwner, "Không thể in file này.", "In file"); } };
             }
 
             try { StopPreviewCloseTimer_MPR(); AttachPreviewMouseHandlers_MPR(f); } catch { }
@@ -1066,12 +1067,12 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Không thể mở file: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(TopOwner, "Không thể mở file: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             else if (!string.IsNullOrEmpty(path))
             {
-                MessageBox.Show("File không tồn tại hoặc đã bị xóa / di chuyển khỏi thư mục!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "File không tồn tại hoặc đã bị xóa / di chuyển khỏi thư mục!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -1399,7 +1400,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1539,7 +1540,7 @@ namespace MPR_Managerment.Forms
         // Logic:
         //   Bước 1: Tìm PO liên kết trực tiếp qua MPR_Detail_ID (Detail_ID hiện tại)
         //   Bước 2: Với các dòng chưa có PO, tìm sang các phiên bản MPR khác cùng MPR_No
-        //           (revise) khớp theo Item_No + Item_Name + Material để lấy PO đã đặt
+        //           (revise) khớp theo Item_Name + Material để lấy PO đã đặt
         //           từ phiên bản cũ — rồi điền vào dòng tương ứng của phiên bản mới
         // =====================================================================
         // Trả về dict: Detail_ID → danh sách PONo đã đặt cho từng vật tư
@@ -1583,14 +1584,14 @@ namespace MPR_Managerment.Forms
 
                         UNION
 
-                        -- Bước 2: PO từ Rev khác — match theo Item_No + Item_Name + Material
-                        -- (Item_No alone không đủ nếu revision thay đổi thứ tự vật tư)
+                        -- Bước 2: PO từ Rev khác — match theo Item_Name (trim+lower)
+                        -- Bỏ Item_No và Material: có thể thay đổi hoặc NULL giữa các revision
                         SELECT cur.Detail_ID AS CurDetailId, poh.PONo
                         FROM   MPR_Details cur
                         INNER JOIN MPR_Details old
-                               ON old.Item_No  = cur.Item_No
-                              AND ISNULL(old.Item_Name, '') = ISNULL(cur.Item_Name, '')
-                              AND ISNULL(old.Material,  '') = ISNULL(cur.Material,  '')
+                               ON LTRIM(RTRIM(LOWER(ISNULL(old.Item_Name,'')))) = LTRIM(RTRIM(LOWER(ISNULL(cur.Item_Name,''))))
+                              AND NULLIF(LTRIM(RTRIM(old.Item_Name)),'') IS NOT NULL
+                              AND NULLIF(LTRIM(RTRIM(cur.Item_Name)),'') IS NOT NULL
                               AND old.MPR_ID  != cur.MPR_ID
                               AND ISNULL(old.Is_Deleted, 0) = 0
                         INNER JOIN MPR_Header oldH ON oldH.MPR_ID = old.MPR_ID
@@ -1705,7 +1706,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tải chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1749,11 +1750,14 @@ namespace MPR_Managerment.Forms
                         (m.Project_Code ?? "").Contains(kw, StringComparison.OrdinalIgnoreCase));
 
                 BindMPRGrid(_mprList);
-                lblStatus.Text = $"Tìm thấy: {_mprList.Count} phiếu MPR";
+                if (!string.IsNullOrEmpty(kw) && _mprList.Count == 0)
+                { lblStatus.Text = "Không tìm thấy kết quả"; SafeMsg("Không tìm thấy kết quả phù hợp!", "Tìm kiếm", MessageBoxIcon.Information); }
+                else
+                    lblStatus.Text = $"Tìm thấy: {_mprList.Count} phiếu MPR";
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tìm kiếm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tìm kiếm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1762,7 +1766,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("MPR", "Tạo MPR", "Tạo MPR")) return;
 
             string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "SQLTesting-Template.xlsm");
-            if (!File.Exists(templatePath)) { MessageBox.Show("Không tìm thấy file!"); return; }
+            if (!File.Exists(templatePath)) { MessageBox.Show(TopOwner, "Không tìm thấy file!"); return; }
 
             Form mainForm = this.ParentForm ?? this.FindForm();
 
@@ -1808,7 +1812,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi: " + ex.Message);
+                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message);
             }
             finally
             {
@@ -1908,15 +1912,17 @@ namespace MPR_Managerment.Forms
                 if (ev.KeyCode != Keys.Enter) return;
                 ev.SuppressKeyPress = true;
                 FilterProjects();
+                if (dgvProj.Rows.Count == 0)
+                    SafeMsg("Không tìm thấy kết quả phù hợp!", "Tìm kiếm", MessageBoxIcon.Information);
                 // Nếu đúng 1 kết quả → chọn ngay, SelectionChanged tự gọi ApplyProject
-                if (dgvProj.Rows.Count == 1)
+                else if (dgvProj.Rows.Count == 1)
                 {
                     dgvProj.ClearSelection();
                     dgvProj.Rows[0].Selected = true;
                     dgvProj.CurrentCell = dgvProj.Rows[0].Cells[0];
                 }
                 // Nếu nhiều kết quả → chọn row đầu tiên để user thấy ngay
-                else if (dgvProj.Rows.Count > 1)
+                else
                 {
                     dgvProj.ClearSelection();
                     dgvProj.Rows[0].Selected = true;
@@ -2477,7 +2483,7 @@ namespace MPR_Managerment.Forms
 
                     if (string.IsNullOrWhiteSpace(strSoLuong))
                     {
-                        MessageBox.Show("Cảnh báo: Ô 'Số lượng' đang để trống hoặc chứa khoảng trắng!\nVui lòng nhập giá trị số vào ô này.",
+                        MessageBox.Show(TopOwner, "Cảnh báo: Ô 'Số lượng' đang để trống hoặc chứa khoảng trắng!\nVui lòng nhập giá trị số vào ô này.",
                                         "Yêu cầu nhập liệu",
                                         MessageBoxButtons.OK,
                                         MessageBoxIcon.Warning);
@@ -2498,12 +2504,12 @@ namespace MPR_Managerment.Forms
                         System.Diagnostics.Debug.WriteLine($"Parse thành công số lượng: {parsedQty}");
 
                         // Ví dụ một thông báo nhỏ dưới thanh trạng thái hoặc thông báo kiểm tra (tùy nhu cầu UX của bạn)
-                        // MessageBox.Show($"Số lượng hợp lệ: {parsedQty}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // MessageBox.Show(TopOwner, $"Số lượng hợp lệ: {parsedQty}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     else
                     {
                         // Trường hợp ô nhập chữ hoặc ký tự đặc biệt không thể chuyển thành số (Ví dụ: "ABC", "12a3")
-                        MessageBox.Show($"Giá trị '{strSoLuong}' tại ô 'Số lượng' không phải là số hợp lệ!\nVui lòng nhập lại.",
+                        MessageBox.Show(TopOwner, $"Giá trị '{strSoLuong}' tại ô 'Số lượng' không phải là số hợp lệ!\nVui lòng nhập lại.",
                                         "Sai định dạng số",
                                         MessageBoxButtons.OK,
                                         MessageBoxIcon.Error);
@@ -2575,7 +2581,7 @@ namespace MPR_Managerment.Forms
                         }, _currentUser);
                     }
 
-                    MessageBox.Show($"✅ Tạo MPR '{header.MPR_No}' thành công ({stt - 1} vật tư)!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, $"✅ Tạo MPR '{header.MPR_No}' thành công ({stt - 1} vật tư)!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     dlg.DialogResult = DialogResult.OK;
                     dlg.Close();
                     LoadMPR();
@@ -2621,7 +2627,7 @@ namespace MPR_Managerment.Forms
             string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "mpr_template.xlsx");
             if (!File.Exists(templatePath))
             {
-                MessageBox.Show("Không tìm thấy file template mpr_template.xlsx!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Không tìm thấy file template mpr_template.xlsx!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -2722,7 +2728,7 @@ namespace MPR_Managerment.Forms
                     package.Save();
                 }
 
-                if (MessageBox.Show($"✅ Xuất phiếu MPR thành công!\nBạn có muốn mở file không?", "Thành công",
+                if (MessageBox.Show(TopOwner, $"✅ Xuất phiếu MPR thành công!\nBạn có muốn mở file không?", "Thành công",
                             MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                 {
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(saveDialog.FileName) { UseShellExecute = true });
@@ -2730,7 +2736,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -3442,7 +3448,7 @@ namespace MPR_Managerment.Forms
                     string msg = isAdmin
                         ? $"✅ Admin đã cập nhật MPR '{oldMprNo}' (giữ nguyên REV)!"
                         : $"✅ Đã tạo Revise '{newMprNo}' (REV={nextRev})!";
-                    MessageBox.Show(msg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, msg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadMPR();
                     dlg.Close();
                 }
@@ -3458,7 +3464,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("MPR", "Lưu Header", "Lưu Header")) return;
             if (string.IsNullOrWhiteSpace(txtMPRNo.Text))
             {
-                MessageBox.Show("Vui lòng nhập MPR No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng nhập MPR No!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtMPRNo.Focus();
                 return;
             }
@@ -3481,18 +3487,18 @@ namespace MPR_Managerment.Forms
                 if (_selectedMPR_ID == 0)
                 {
                     _selectedMPR_ID = _service.InsertHeader(m, _currentUser);
-                    MessageBox.Show("Tạo phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Tạo phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
                     _service.UpdateHeader(m, _currentUser);
-                    MessageBox.Show("Cập nhật phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(TopOwner, "Cập nhật phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 LoadMPR();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi lưu header: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi lưu header: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -3505,7 +3511,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("MPR", "Xóa MPR", "Xóa MPR")) return;
             if (_selectedMPR_ID == 0)
             {
-                MessageBox.Show("Vui lòng chọn phiếu MPR cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn phiếu MPR cần xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -3519,7 +3525,7 @@ namespace MPR_Managerment.Forms
                 $"   • Liên kết PO sẽ được chuyển về phiên bản Rev trước (nếu có)\n\n" +
                 $"Dữ liệu PO sẽ KHÔNG bị xóa!";
 
-            if (MessageBox.Show(confirmMsg, "⚠ Xác nhận xóa MPR",
+            if (MessageBox.Show(TopOwner, confirmMsg, "⚠ Xác nhận xóa MPR",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2) != DialogResult.Yes)
                 return;
@@ -3631,7 +3637,7 @@ namespace MPR_Managerment.Forms
                                     ? $"   • {poDetailMoved} liên kết PO đã chuyển về Rev trước ✅\n"
                                     : $"   • Không có liên kết PO nào cần chuyển\n") +
                                 $"   • Dữ liệu PO được giữ nguyên hoàn toàn ✅";
-                            MessageBox.Show(resultMsg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show(TopOwner, resultMsg, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         catch
                         {
@@ -3650,7 +3656,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi khi xóa MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi khi xóa MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -3669,7 +3675,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("MPR", "Tạo PO", "Tạo PO từ MPR")) return;
             if (_selectedMPR_ID == 0)
             {
-                MessageBox.Show("Vui lòng chọn một MPR trước!", "Thông báo",
+                MessageBox.Show(TopOwner, "Vui lòng chọn một MPR trước!", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -3687,7 +3693,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("MPR", "Thêm dòng", "Thêm dòng")) return;
             if (_selectedMPR_ID == 0)
             {
-                MessageBox.Show("Vui lòng chọn hoặc lưu phiếu MPR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn hoặc lưu phiếu MPR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -3776,12 +3782,12 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("MPR", "Lưu chi tiết", "Lưu chi tiết")) return;
             if (_selectedMPR_ID == 0)
             {
-                MessageBox.Show("Vui lòng lưu header MPR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng lưu header MPR trước!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (dgvDetails.Rows.Count == 0)
             {
-                MessageBox.Show("Không có dòng nào để lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Không có dòng nào để lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -3899,13 +3905,13 @@ namespace MPR_Managerment.Forms
                     }
                 }
 
-                MessageBox.Show($"✅ Đã lưu {saved} dòng chi tiết thành công!", "Thành công",
+                MessageBox.Show(TopOwner, $"✅ Đã lưu {saved} dòng chi tiết thành công!", "Thành công",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LoadDetails(_selectedMPR_ID);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi lưu chi tiết: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi lưu chi tiết: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -4078,75 +4084,117 @@ namespace MPR_Managerment.Forms
             try
             {
                 // SQL tối ưu: CTE pre-aggregate, tương thích SQL Server 2012+
+                // Bước 1: Materialized Sib_Details vào temp table — tính 1 lần, tránh re-evaluate 4 lần
+                const string SQL_SIB = @"
+                    IF OBJECT_ID('tempdb..#SibDet') IS NOT NULL DROP TABLE #SibDet;
+                    SELECT DISTINCT dC.Detail_ID AS CurrID, dS.Detail_ID AS SibID
+                    INTO #SibDet
+                    FROM (
+                        SELECT MPR_ID, MPR_No,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY Project_Code,
+                                       SUBSTRING(MPR_No, 1, CHARINDEX('_Rev.', MPR_No + '_Rev.') - 1)
+                                   ORDER BY TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) DESC, MPR_ID DESC
+                               ) AS rn
+                        FROM MPR_Header
+                    ) q
+                    INNER JOIN MPR_Details dC ON dC.MPR_ID = q.MPR_ID
+                        AND NULLIF(LTRIM(RTRIM(dC.Item_Name)),'') IS NOT NULL
+                    INNER JOIN MPR_Header hS
+                        ON SUBSTRING(hS.MPR_No, 1, CHARINDEX('_Rev.', hS.MPR_No + '_Rev.') - 1)
+                         = SUBSTRING(q.MPR_No,  1, CHARINDEX('_Rev.', q.MPR_No  + '_Rev.') - 1)
+                    INNER JOIN MPR_Details dS ON dS.MPR_ID = hS.MPR_ID
+                        AND NULLIF(LTRIM(RTRIM(dS.Item_Name)),'') IS NOT NULL
+                        AND LTRIM(RTRIM(LOWER(dS.Item_Name))) = LTRIM(RTRIM(LOWER(dC.Item_Name)))
+                    WHERE q.rn = 1";
+
+                // Bước 2: Main query dùng #SibDet (temp table) — mỗi flat CTE scan 1 lần duy nhất
                 const string SQL = @"
-                    WITH FilteredMPR AS (
+                    WITH
+                    FilteredMPR AS (
                         SELECT *,
                                ROW_NUMBER() OVER (
                                    PARTITION BY Project_Code,
                                        SUBSTRING(MPR_No, 1, CHARINDEX('_Rev.', MPR_No + '_Rev.') - 1)
                                    ORDER BY TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) DESC, MPR_ID DESC
-                               ) as rn
+                               ) AS rn
                         FROM MPR_Header
                     ),
-                    cte_PO AS (
-                        SELECT pod.MPR_Detail_ID,
-                               ISNULL(STUFF((
-                                   SELECT DISTINCT N', ' + ph2.PONo
-                                   FROM   PO_Detail pod2
-                                   INNER JOIN PO_head ph2 ON ph2.PO_ID = pod2.PO_ID
-                                   WHERE  pod2.MPR_Detail_ID = pod.MPR_Detail_ID
-                                   FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS POList
-                        FROM   PO_Detail pod
-                        WHERE  pod.MPR_Detail_ID IS NOT NULL
-                        GROUP BY pod.MPR_Detail_ID
+                    PO_Flat AS (
+                        SELECT DISTINCT sd.CurrID, ph.PONo
+                        FROM #SibDet sd
+                        INNER JOIN PO_Detail pod ON pod.MPR_Detail_ID = sd.SibID
+                        INNER JOIN PO_head   ph  ON ph.PO_ID = pod.PO_ID
+                        WHERE ISNULL(ph.Status,'') <> 'Cancelled'
                     ),
-                    cte_Heat AS (
-                        SELECT pod.MPR_Detail_ID,
-                               ISNULL(STUFF((
-                                   SELECT DISTINCT N', ' + rd2.Heatno
-                                   FROM   PO_Detail pod2
-                                   INNER JOIN PO_head    ph2 ON ph2.PO_ID  = pod2.PO_ID
-                                   INNER JOIN RIR_head   rh2 ON rh2.PONo   = ph2.PONo
-                                   INNER JOIN RIR_detail rd2 ON rd2.RIR_ID = rh2.RIR_ID
-                                   WHERE  pod2.MPR_Detail_ID = pod.MPR_Detail_ID
-                                     AND  ISNULL(rd2.Heatno,N'') != N''
-                                   FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS HeatList
-                        FROM   PO_Detail pod
-                        WHERE  pod.MPR_Detail_ID IS NOT NULL
-                        GROUP BY pod.MPR_Detail_ID
+                    Heat_Flat AS (
+                        SELECT DISTINCT sd.CurrID, rd.Heatno
+                        FROM #SibDet sd
+                        INNER JOIN PO_Detail  pod ON pod.MPR_Detail_ID = sd.SibID
+                        INNER JOIN PO_head    ph  ON ph.PO_ID  = pod.PO_ID
+                        INNER JOIN RIR_head   rh  ON rh.PONo   = ph.PONo
+                        INNER JOIN RIR_detail rd  ON rd.RIR_ID = rh.RIR_ID
+                        WHERE ISNULL(rd.Heatno,N'') != N''
                     ),
-                    cte_KT AS (
-                        SELECT pod.MPR_Detail_ID,
+                    KT_Flat AS (
+                        SELECT sd.CurrID,
                                MIN(CASE rd.Inspect_Result
                                    WHEN N'Fail' THEN 1 WHEN N'Hold' THEN 2
                                    WHEN N'Pass' THEN 3 ELSE 4 END) AS KT_Rank
-                        FROM   PO_Detail pod
-                        INNER JOIN PO_head    ph ON ph.PO_ID  = pod.PO_ID
-                        INNER JOIN RIR_head   rh ON rh.PONo   = ph.PONo
-                        INNER JOIN RIR_detail rd ON rd.RIR_ID = rh.RIR_ID
-                        WHERE  pod.MPR_Detail_ID IS NOT NULL
-                        GROUP BY pod.MPR_Detail_ID
+                        FROM #SibDet sd
+                        INNER JOIN PO_Detail  pod ON pod.MPR_Detail_ID = sd.SibID
+                        INNER JOIN PO_head    ph  ON ph.PO_ID  = pod.PO_ID
+                        INNER JOIN RIR_head   rh  ON rh.PONo   = ph.PONo
+                        INNER JOIN RIR_detail rd  ON rd.RIR_ID = rh.RIR_ID
+                        GROUP BY sd.CurrID
+                    ),
+                    RIR_Flat AS (
+                        SELECT DISTINCT sd.CurrID, rh.RIR_No,
+                                        rh.Status AS RIR_Status, rh.Issue_Date
+                        FROM #SibDet sd
+                        INNER JOIN PO_Detail pod ON pod.MPR_Detail_ID = sd.SibID
+                        INNER JOIN PO_head   ph  ON ph.PO_ID = pod.PO_ID
+                        INNER JOIN RIR_head  rh  ON rh.PONo  = ph.PONo
+                        WHERE ISNULL(rh.RIR_No,N'') != N''
+                    ),
+                    cte_PO AS (
+                        SELECT pf.CurrID AS CurrDetailID,
+                               ISNULL(STUFF((
+                                   SELECT DISTINCT N', ' + pf2.PONo
+                                   FROM PO_Flat pf2
+                                   WHERE pf2.CurrID = pf.CurrID
+                                   FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS POList
+                        FROM PO_Flat pf
+                        GROUP BY pf.CurrID
+                    ),
+                    cte_Heat AS (
+                        SELECT hf.CurrID AS CurrDetailID,
+                               ISNULL(STUFF((
+                                   SELECT DISTINCT N', ' + hf2.Heatno
+                                   FROM Heat_Flat hf2
+                                   WHERE hf2.CurrID = hf.CurrID
+                                   FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS HeatList
+                        FROM Heat_Flat hf
+                        GROUP BY hf.CurrID
+                    ),
+                    cte_KT AS (
+                        SELECT CurrID AS CurrDetailID, KT_Rank
+                        FROM KT_Flat
                     ),
                     cte_RIR AS (
-                        SELECT pod.MPR_Detail_ID,
+                        SELECT rf.CurrID AS CurrDetailID,
                                ISNULL(STUFF((
-                                   SELECT DISTINCT N', ' + rh2.RIR_No
-                                   FROM   PO_Detail pod2
-                                   INNER JOIN PO_head  ph2 ON ph2.PO_ID = pod2.PO_ID
-                                   INNER JOIN RIR_head rh2 ON rh2.PONo  = ph2.PONo
-                                   WHERE  pod2.MPR_Detail_ID = pod.MPR_Detail_ID
-                                     AND  ISNULL(rh2.RIR_No,N'') != N''
+                                   SELECT DISTINCT N', ' + rf2.RIR_No
+                                   FROM RIR_Flat rf2
+                                   WHERE rf2.CurrID = rf.CurrID
                                    FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'),1,2,N''),N'') AS RIRList,
-                               (SELECT TOP 1 rh3.Status
-                                FROM   PO_Detail pod3
-                                INNER JOIN PO_head  ph3 ON ph3.PO_ID = pod3.PO_ID
-                                INNER JOIN RIR_head rh3 ON rh3.PONo  = ph3.PONo
-                                WHERE  pod3.MPR_Detail_ID = pod.MPR_Detail_ID
-                                  AND  ISNULL(rh3.Status,N'') != N''
-                                ORDER BY rh3.Issue_Date DESC) AS RIR_Status
-                        FROM   PO_Detail pod
-                        WHERE  pod.MPR_Detail_ID IS NOT NULL
-                        GROUP BY pod.MPR_Detail_ID
+                               (SELECT TOP 1 rf3.RIR_Status
+                                FROM RIR_Flat rf3
+                                WHERE rf3.CurrID = rf.CurrID
+                                  AND ISNULL(rf3.RIR_Status,N'') != N''
+                                ORDER BY rf3.Issue_Date DESC) AS RIR_Status
+                        FROM RIR_Flat rf
+                        GROUP BY rf.CurrID
                     )
                     SELECT
                         ISNULL(pi.ProjectCode, N'')                         AS [Mã dự án],
@@ -4175,10 +4223,10 @@ namespace MPR_Managerment.Forms
                     FROM FilteredMPR h
                     INNER JOIN MPR_Details d  ON d.MPR_ID       = h.MPR_ID
                     LEFT  JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
-                    LEFT  JOIN cte_PO  cp ON cp.MPR_Detail_ID   = d.Detail_ID
-                    LEFT  JOIN cte_Heat ch ON ch.MPR_Detail_ID  = d.Detail_ID
-                    LEFT  JOIN cte_KT  ck ON ck.MPR_Detail_ID   = d.Detail_ID
-                    LEFT  JOIN cte_RIR cr ON cr.MPR_Detail_ID   = d.Detail_ID
+                    LEFT  JOIN cte_PO   cp ON cp.CurrDetailID   = d.Detail_ID
+                    LEFT  JOIN cte_Heat ch ON ch.CurrDetailID   = d.Detail_ID
+                    LEFT  JOIN cte_KT   ck ON ck.CurrDetailID   = d.Detail_ID
+                    LEFT  JOIN cte_RIR  cr ON cr.CurrDetailID   = d.Detail_ID
                     WHERE h.rn = 1
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
 
@@ -4187,8 +4235,11 @@ namespace MPR_Managerment.Forms
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+                    // Bước 1: tạo temp table #SibDet (tính 1 lần)
+                    new SqlCommand(SQL_SIB, conn) { CommandTimeout = 120 }.ExecuteNonQuery();
+                    // Bước 2: main query dùng #SibDet
                     dtFull = new DataTable();
-                    dtFull.Load(new SqlCommand(SQL, conn).ExecuteReader());
+                    dtFull.Load(new SqlCommand(SQL, conn) { CommandTimeout = 120 }.ExecuteReader());
                 }
 
                 // ── Popup ──
@@ -4597,7 +4648,7 @@ namespace MPR_Managerment.Forms
                     var target = _mprList.Find(m => m.MPR_No == mprNo);
                     if (target == null)
                     {
-                        MessageBox.Show($"Không tìm thấy MPR: {mprNo}", "Thông báo",
+                        MessageBox.Show(TopOwner, $"Không tìm thấy MPR: {mprNo}", "Thông báo",
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
@@ -4639,7 +4690,7 @@ namespace MPR_Managerment.Forms
                     var dtExport = dgv.DataSource as DataTable;
                     if (dtExport == null || dtExport.Rows.Count == 0)
                     {
-                        MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo",
+                        MessageBox.Show(TopOwner, "Không có dữ liệu để xuất!", "Thông báo",
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
@@ -4743,7 +4794,7 @@ namespace MPR_Managerment.Forms
                             pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
                         }
 
-                        var res = MessageBox.Show(
+                        var res = MessageBox.Show(TopOwner,
                             $"✅ Xuất Excel thành công!\nFile: {sfd.FileName}\n\nBạn có muốn mở file không?",
                             "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                         if (res == DialogResult.Yes)
@@ -4752,7 +4803,7 @@ namespace MPR_Managerment.Forms
                     }
                     catch (Exception exExport)
                     {
-                        MessageBox.Show("Lỗi xuất Excel: " + exExport.Message, "Lỗi",
+                        MessageBox.Show(TopOwner, "Lỗi xuất Excel: " + exExport.Message, "Lỗi",
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 };
@@ -4786,7 +4837,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -4860,18 +4911,24 @@ namespace MPR_Managerment.Forms
             if (_cboFilterPO == null || dgvDetails == null) return;
             string sel = _cboFilterPO.SelectedItem?.ToString() ?? "(Tat ca)";
 
+            int visibleCount = 0;
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
                 if (row.IsNewRow) continue;
                 string poVal = row.Cells["PO_No"]?.Value?.ToString() ?? "";
-
+                bool show;
                 if (sel == "(Tat ca)")
-                    row.Visible = true;
+                    show = true;
                 else if (sel == "(Chua len PO)")
-                    row.Visible = string.IsNullOrWhiteSpace(poVal);
+                    show = string.IsNullOrWhiteSpace(poVal);
                 else
-                    row.Visible = string.Equals(poVal, sel, StringComparison.OrdinalIgnoreCase);
+                    show = string.Equals(poVal, sel, StringComparison.OrdinalIgnoreCase);
+                row.Visible = show;
+                if (show) visibleCount++;
             }
+
+            if (visibleCount == 0 && sel != "(Tat ca)")
+                SafeMsg("Không tìm thấy kết quả phù hợp!", "Tìm kiếm", MessageBoxIcon.Information);
         }
 
         // =====================================================================
@@ -4881,7 +4938,7 @@ namespace MPR_Managerment.Forms
         {
             if (dgvDetails.Rows.Count == 0)
             {
-                MessageBox.Show("Khong co du lieu de xuat!", "Thong bao",
+                MessageBox.Show(TopOwner, "Khong co du lieu de xuat!", "Thong bao",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -5033,7 +5090,7 @@ namespace MPR_Managerment.Forms
 
                 pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
 
-                if (MessageBox.Show("Xuat Excel thanh cong!\nMo file ngay?", "Thanh cong",
+                if (MessageBox.Show(TopOwner, "Xuat Excel thanh cong!\nMo file ngay?", "Thanh cong",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                     System.Diagnostics.Process.Start(
                         new System.Diagnostics.ProcessStartInfo
@@ -5041,7 +5098,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Loi xuat Excel: " + ex.Message, "Loi",
+                MessageBox.Show(TopOwner, "Loi xuat Excel: " + ex.Message, "Loi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -5070,7 +5127,7 @@ namespace MPR_Managerment.Forms
         {
             if (_selectedMPR_ID == 0)
             {
-                MessageBox.Show("Vui lòng chọn phiếu MPR trước khi dán dữ liệu!",
+                MessageBox.Show(TopOwner, "Vui lòng chọn phiếu MPR trước khi dán dữ liệu!",
                     "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -5171,7 +5228,7 @@ namespace MPR_Managerment.Forms
             dgvDetails.ResumeLayout();
             dgvDetails.Refresh();
 
-            MessageBox.Show(
+            MessageBox.Show(TopOwner,
                 $"✅ Đã dán {rows.Length} dòng thành công!\n\nNhấn '💾 Lưu chi tiết' để lưu vào database.",
                 "Dán dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -5189,7 +5246,7 @@ namespace MPR_Managerment.Forms
 
                 if (selectedRows.Count == 0)
                 {
-                    MessageBox.Show("Vui long chon it nhat mot dong de copy!",
+                    MessageBox.Show(TopOwner, "Vui long chon it nhat mot dong de copy!",
                         "Thong bao", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
@@ -5261,7 +5318,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Loi copy: " + ex.Message, "Loi",
+                MessageBox.Show(TopOwner, "Loi copy: " + ex.Message, "Loi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

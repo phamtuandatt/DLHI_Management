@@ -81,6 +81,7 @@ namespace MPR_Managerment.Forms
         private List<SelectedItemModel> _selectedItem = new List<SelectedItemModel>();
 
         private List<string> originalPOList = new List<string>();
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
 
         public frmWarehouses_v2(string targetPONo = "")
         {
@@ -682,7 +683,7 @@ namespace MPR_Managerment.Forms
                 LoadPOFilterForHistoryByProject(project);
                 //LoadImports(); // Không thực hiện lấy dữ liệu từ combobox trên nữa
             }
-            catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void BtnSearchHistory_Click(object? sender, EventArgs e)
@@ -698,7 +699,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Load dữ liệu thất bại: {ex.Message}", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, $"Load dữ liệu thất bại: {ex.Message}", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -1153,7 +1154,7 @@ namespace MPR_Managerment.Forms
                 // Nếu không có gì hợp lệ
                 if (pdfPath == null && pdfBytes == null)
                 {
-                    MessageBox.Show("Chỉ hỗ trợ file PDF!", "Thông báo",
+                    MessageBox.Show(TopOwner, "Chỉ hỗ trợ file PDF!", "Thông báo",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
                 }
 
@@ -1215,15 +1216,15 @@ namespace MPR_Managerment.Forms
             btnSaveInv.Click += (s, e) =>
             {
                 if (string.IsNullOrEmpty(_pendingDropPath) || !System.IO.File.Exists(_pendingDropPath))
-                { MessageBox.Show("Không có file nào chờ lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                { MessageBox.Show(TopOwner, "Không có file nào chờ lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
                 if (!System.IO.Directory.Exists(_invFolderPath))
-                { MessageBox.Show("Thư mục INV Link không tồn tại!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+                { MessageBox.Show(TopOwner, "Thư mục INV Link không tồn tại!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
 
                 // Lấy PO No từ bộ lọc trong tab hóa đơn
                 string poNo = cboPONoInv?.SelectedItem?.ToString()?.Trim() ?? "";
                 if (string.IsNullOrEmpty(poNo) || poNo == "-- Chọn PO No --")
-                { MessageBox.Show("Vui lòng chọn số PO trước khi lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                { MessageBox.Show(TopOwner, "Vui lòng chọn số PO trước khi lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
                 // Tạo tên file: INV_PONo.pdf, nếu trùng → INV_PONo_2.pdf, _3.pdf...
                 string baseName = $"INV_{poNo}";
@@ -1239,7 +1240,7 @@ namespace MPR_Managerment.Forms
                 try
                 {
                     System.IO.File.Copy(_pendingDropPath, destPath, false);
-                    MessageBox.Show(
+                    MessageBox.Show(TopOwner,
                         $"✅ Đã lưu hóa đơn thành công!\nFile: {System.IO.Path.GetFileName(destPath)}",
                         "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
@@ -1253,7 +1254,7 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi lưu file: " + ex.Message, "Lỗi",
+                    MessageBox.Show(TopOwner, "Lỗi lưu file: " + ex.Message, "Lỗi",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
@@ -1287,7 +1288,7 @@ namespace MPR_Managerment.Forms
         private void BtnCancel_Click(object? sender, EventArgs e)
         {
             if (_importQueue.Count > 0)
-                if (MessageBox.Show($"Bạn có {_importQueue.Count} items chưa lưu. Tạo phiếu mới sẽ xóa danh sách. Tiếp tục?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                if (MessageBox.Show(TopOwner, $"Bạn có {_importQueue.Count} items chưa lưu. Tạo phiếu mới sẽ xóa danh sách. Tiếp tục?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             _importQueue.Clear();
 
             _importQueueActual.Clear();
@@ -1710,7 +1711,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Có lỗi xảy ra: " + ex.Message);
+                MessageBox.Show(TopOwner, "Có lỗi xảy ra: " + ex.Message);
             }
             finally
             {
@@ -1788,7 +1789,7 @@ namespace MPR_Managerment.Forms
 
                             if (slXuat > slTon)
                             {
-                                MessageBox.Show($"Số lượng xuất ({slXuat}) không được lớn hơn số lượng tồn ({slTon})!",
+                                MessageBox.Show(TopOwner, $"Số lượng xuất ({slXuat}) không được lớn hơn số lượng tồn ({slTon})!",
                                                 "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
                                 // Gán lại giá trị Xuất bằng giá trị Tồn
@@ -1797,7 +1798,7 @@ namespace MPR_Managerment.Forms
                             else if (slXuat < 0)
                             {
                                 // Tiện thể kiểm tra luôn trường hợp nhập số âm
-                                MessageBox.Show("Số lượng xuất không được nhỏ hơn 0!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                MessageBox.Show(TopOwner, "Số lượng xuất không được nhỏ hơn 0!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                                 row.Cells["SL_Xuat"].Value = 0;
                             }
                         }
@@ -1822,7 +1823,7 @@ namespace MPR_Managerment.Forms
                             int rowIndex = dgvSelected.CurrentRow.Index;
                             string itemName = dgvSelected.CurrentRow.Cells["Ten_Vat_Tu"].Value?.ToString();
 
-                            if (MessageBox.Show($"Bạn có chắc chắn muốn xóa dòng: {itemName}?", "Xác nhận xóa",
+                            if (MessageBox.Show(TopOwner, $"Bạn có chắc chắn muốn xóa dòng: {itemName}?", "Xác nhận xóa",
                                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                             {
                                 // Xóa dòng trực tiếp trên giao diện DataGridView
@@ -1832,7 +1833,7 @@ namespace MPR_Managerment.Forms
                         else
                         {
                             // Trường hợp không có dòng nào được chọn
-                            MessageBox.Show("Vui lòng chọn một dòng để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show(TopOwner, "Vui lòng chọn một dòng để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
                     };
 
@@ -1842,7 +1843,7 @@ namespace MPR_Managerment.Forms
 
                         if (dgvSelected.Rows.Count == 0)
                         {
-                            MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show(TopOwner, "Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
 
@@ -1851,7 +1852,7 @@ namespace MPR_Managerment.Forms
                             string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pxk_template.xlsx");
                             if (!File.Exists(templatePath))
                             {
-                                MessageBox.Show("Không tìm thấy file template!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                MessageBox.Show(TopOwner, "Không tìm thấy file template!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                                 return;
                             }
 
@@ -1937,9 +1938,9 @@ namespace MPR_Managerment.Forms
                                 package.Save();
                             }
 
-                            //MessageBox.Show("Xuất phiếu xuất kho thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            //MessageBox.Show(TopOwner, "Xuất phiếu xuất kho thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             //dlg.DialogResult = DialogResult.OK;
-                            var result = MessageBox.Show(
+                            var result = MessageBox.Show(TopOwner,
                             $"✅ Xuất phiếu nhập kho thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file ngay không?",
                             "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                             if (result == DialogResult.Yes)
@@ -1953,7 +1954,7 @@ namespace MPR_Managerment.Forms
                         }
                         catch (Exception ex)
                         {
-                            MessageBox.Show("Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     };
 
@@ -1966,7 +1967,7 @@ namespace MPR_Managerment.Forms
             }
             else
             {
-                MessageBox.Show("Vui lòng chọn ít nhất một dòng!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn ít nhất một dòng!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -2035,7 +2036,7 @@ namespace MPR_Managerment.Forms
                         decimal originalLimit = Convert.ToDecimal(oldValue ?? 0);
                         if (newValue > originalLimit)
                         {
-                            MessageBox.Show($"Số lượng không được vượt quá số lượng của PO !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show(TopOwner, $"Số lượng không được vượt quá số lượng của PO !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             cell.Value = oldValue;
                         }
                         _importQueueActual[(int)poDetailIdCell] = newValue;
@@ -2059,7 +2060,7 @@ namespace MPR_Managerment.Forms
                         decimal originalLimit = Convert.ToDecimal(oldValue ?? 0);
                         if (newValue > originalLimit + 10)
                         {
-                            MessageBox.Show($"Khối lượng không được vượt quá khối lượng của PO !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show(TopOwner, $"Khối lượng không được vượt quá khối lượng của PO !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             cell.Value = oldValue;
                         }
                     }
@@ -2131,13 +2132,13 @@ namespace MPR_Managerment.Forms
                 //    //if (lblStockQty != null) lblStockQty.Text = tQ.ToString("N2");
                 //}
             }
-            catch (Exception ex) { MessageBox.Show("Lỗi tải tồn kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi tải tồn kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void LoadStockOnly()
         {
             try { if (cboProject.Items.Count <= 0) return; if (dgvStock != null) BindStockGrid(_service.GetStockWithRemaining(cboProject.SelectedText ?? "")); }
-            catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         //private void BindStockGrid(List<WarehouseStock> stocks)
@@ -2286,7 +2287,7 @@ namespace MPR_Managerment.Forms
             {
                 if (dgvImport.CurrentRow == null)
                 {
-                    MessageBox.Show("Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(TopOwner, "Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -2309,7 +2310,7 @@ namespace MPR_Managerment.Forms
 
                 if (!File.Exists(templatePath))
                 {
-                    MessageBox.Show("Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(TopOwner, "Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -2418,7 +2419,7 @@ namespace MPR_Managerment.Forms
                 // Update print status print
                 _service.UpdateStatusPrintPNK(new WarehouseImport() { PO_ID = poId });
 
-                if (MessageBox.Show($"✅ Xuất phiếu PNK thành công!\nBạn có muốn mở file không?", "Thành công",
+                if (MessageBox.Show(TopOwner, $"✅ Xuất phiếu PNK thành công!\nBạn có muốn mở file không?", "Thành công",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                 {
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(actualSavePath) { UseShellExecute = true });
@@ -2426,7 +2427,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -2436,7 +2437,7 @@ namespace MPR_Managerment.Forms
         //    {
         //        if (dgvImport.CurrentRow == null)
         //        {
-        //            MessageBox.Show("Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        //            MessageBox.Show(TopOwner, "Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         //            return;
         //        }
 
@@ -2461,7 +2462,7 @@ namespace MPR_Managerment.Forms
 
         //        if (!File.Exists(templatePath))
         //        {
-        //            MessageBox.Show("Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        //            MessageBox.Show(TopOwner, "Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
         //            return;
         //        }
 
@@ -2568,7 +2569,7 @@ namespace MPR_Managerment.Forms
         //    }
         //    catch (Exception ex)
         //    {
-        //        MessageBox.Show("Lỗi khi in phiếu: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        //        MessageBox.Show(TopOwner, "Lỗi khi in phiếu: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
         //    }
         //}
 
@@ -2580,13 +2581,13 @@ namespace MPR_Managerment.Forms
             {
                 if (string.IsNullOrEmpty(item.Cells["ID_Code"].Value.ToString()))
                 {
-                    MessageBox.Show($"Hãy tạo code cho item: {item.Cells["Item_Name"].Value.ToString()}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(TopOwner, $"Hãy tạo code cho item: {item.Cells["Item_Name"].Value.ToString()}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
             }
             var lstDif = Common.Common.GetDictionaryDifferences(_importQueueActual, _importQueueBase);
 
-            if (_importQueue.Count == 0) { MessageBox.Show("Danh sách phiếu đang trống!\nHãy thêm vật tư trước.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (_importQueue.Count == 0) { MessageBox.Show(TopOwner, "Danh sách phiếu đang trống!\nHãy thêm vật tư trước.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             try
             {
                 int saved = 0;
@@ -2613,7 +2614,7 @@ namespace MPR_Managerment.Forms
                     }
                 }
 
-                MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, $"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _importQueue.Clear(); _currentBatchNo = ""; _pendingPO_ID = 0;
                 RefreshQueueGrid();
                 LoadAll();
@@ -2621,7 +2622,7 @@ namespace MPR_Managerment.Forms
                 _importQueueBase.Clear();
                 _importQueueActual.Clear();
             }
-            catch (Exception ex) { MessageBox.Show("Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void LoadAll()
@@ -2668,7 +2669,7 @@ namespace MPR_Managerment.Forms
                 LoadPOFilterByProject(project);
                 //LoadImports(); // Không thực hiện lấy dữ liệu từ combobox trên nữa
             }
-            catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void LoadImports(string poNo, string projectCode)
@@ -2728,7 +2729,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tải nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -2808,7 +2809,7 @@ namespace MPR_Managerment.Forms
                 cboPONo.SelectedIndex = 0;
                 //cboFilterPO.SelectedIndex = 0;
             }
-            catch (Exception ex) { MessageBox.Show("Lỗi lọc PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi lọc PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void LoadPOFilterForHistoryByProject(string projectCode)
@@ -2857,7 +2858,7 @@ namespace MPR_Managerment.Forms
                 }
                 cboFilterPO.SelectedIndex = 0;
             }
-            catch (Exception ex) { MessageBox.Show("Lỗi lọc PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi lọc PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void BtnSearch_Click(object? sender, EventArgs e)
@@ -2875,7 +2876,7 @@ namespace MPR_Managerment.Forms
                 var po = _poList.Find(p => p.PONo == poNo);
                 if (po == null) return;
                 var details = _poService.GetDetails(po.PO_ID);
-                if (details.Count == 0) { MessageBox.Show("PO này chưa có chi tiết vật tư!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                if (details.Count == 0) { MessageBox.Show(TopOwner, "PO này chưa có chi tiết vật tư!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
 
                 using (var dlg = new Form())
                 {
@@ -2977,11 +2978,11 @@ namespace MPR_Managerment.Forms
                         }
                         RefreshQueueGrid();
                         if (addedCount > 0)
-                            MessageBox.Show($"✅ Đã thêm {addedCount} vật tư vào phiếu: {_currentBatchNo}\nTổng: {_importQueue.Count} items — Nhấn 'Lưu phiếu nhập' để hoàn tất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            MessageBox.Show(TopOwner, $"✅ Đã thêm {addedCount} vật tư vào phiếu: {_currentBatchNo}\nTổng: {_importQueue.Count} items — Nhấn 'Lưu phiếu nhập' để hoàn tất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
             }
-            catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void RefreshQueueGrid()
@@ -3025,7 +3026,7 @@ namespace MPR_Managerment.Forms
                 string copiedData = Clipboard.GetText();
                 if (string.IsNullOrEmpty(copiedData))
                 {
-                    MessageBox.Show("Bộ nhớ tạm (Clipboard) đang trống!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(TopOwner, "Bộ nhớ tạm (Clipboard) đang trống!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -3061,11 +3062,11 @@ namespace MPR_Managerment.Forms
                     }
                 }
 
-                MessageBox.Show(" ✅ Đã dán dữ liệu vào các ô cho phép!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(TopOwner, " ✅ Đã dán dữ liệu vào các ô cho phép!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(" ❌ Lỗi dán dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, " ❌ Lỗi dán dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -3179,7 +3180,7 @@ namespace MPR_Managerment.Forms
                                       $"- Weight: {weight}\n" +
                                       $"- Size: {sizeValue}";
 
-                        MessageBox.Show(info, "Kết quả lưu dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, info, "Kết quả lưu dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Information); }
 
                         // Sau khi xử lý xong có thể đóng form hoặc giữ lại tùy ý
                         frm.DialogResult = DialogResult.OK;

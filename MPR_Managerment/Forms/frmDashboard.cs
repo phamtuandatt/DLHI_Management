@@ -1432,13 +1432,15 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        // ── SafeMsg: đưa form lên trước rồi mới show MessageBox cho lỗi ─────
+        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
         private void SafeMsg(string text, string title, MessageBoxIcon icon = MessageBoxIcon.Error)
-        {
-            this.BringToFront();
-            this.Activate();
-            MessageBox.Show(this, text, title, MessageBoxButtons.OK, icon);
-        }
+        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, icon); }
+        private void SafeInfo(string text, string title = "Thông báo")
+        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Information); }
+        private void SafeWarn(string text, string title = "Thông báo")
+        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        private bool SafeAsk(string text, string title = "Xác nhận")
+        { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, text, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
 
         private void LoadMPRData()
         {
@@ -1845,7 +1847,6 @@ namespace MPR_Managerment.Forms
                         INNER JOIN MPR_Details dS ON dS.MPR_ID = hS.MPR_ID
                             AND NULLIF(LTRIM(RTRIM(dS.Item_Name)),'') IS NOT NULL
                             AND LTRIM(RTRIM(LOWER(dS.Item_Name))) = LTRIM(RTRIM(LOWER(dC.Item_Name)))
-                            AND LTRIM(RTRIM(ISNULL(dS.Item_No,''))) = LTRIM(RTRIM(ISNULL(dC.Item_No,'')))
                     ),
                     PO_Flat AS (
                         SELECT DISTINCT sd.CurrID, pox.PONo
@@ -1902,7 +1903,8 @@ namespace MPR_Managerment.Forms
                       AND ISNULL(TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT),0) = (
                           SELECT ISNULL(MAX(TRY_CAST(TRY_CAST(h2.Rev AS DECIMAL(10,2)) AS INT)),0)
                           FROM MPR_Header h2
-                          WHERE (CASE WHEN CHARINDEX('_Rev.',h2.MPR_No)>0 THEN LEFT(h2.MPR_No,CHARINDEX('_Rev.',h2.MPR_No)-1) ELSE h2.MPR_No END)
+                          WHERE h2.MPR_No IN (" + inClause + @")
+                            AND (CASE WHEN CHARINDEX('_Rev.',h2.MPR_No)>0 THEN LEFT(h2.MPR_No,CHARINDEX('_Rev.',h2.MPR_No)-1) ELSE h2.MPR_No END)
                                 = (CASE WHEN CHARINDEX('_Rev.',h.MPR_No)>0  THEN LEFT(h.MPR_No, CHARINDEX('_Rev.',h.MPR_No)-1)  ELSE h.MPR_No  END)
                       )
                     ORDER BY h.MPR_No,
