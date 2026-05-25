@@ -264,6 +264,7 @@ namespace MPR_Managerment.Forms
             dgvPO.CellClick += (s, ev) =>
             {
                 if (ev.RowIndex < 0) return;
+                if (ev.ColumnIndex >= 0 && dgvPO.Columns[ev.ColumnIndex].Name == "col_SendEmail") return;
                 string poNo = dgvPO.Rows[ev.RowIndex].Cells["PO_No"].Value?.ToString() ?? "";
                 if (!string.IsNullOrEmpty(poNo))
                 {
@@ -271,6 +272,8 @@ namespace MPR_Managerment.Forms
                     lblStatus.Text = $"✔ Đã copy: {poNo}";
                 }
             };
+
+            dgvPO.CellContentClick += DgvPO_CellContentClick;
 
             panelTop.Controls.Add(dgvPO);
 
@@ -3177,7 +3180,8 @@ namespace MPR_Managerment.Forms
                     Ngay_PO = h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
                     Trang_Thai = h.Status,
                     Tong_Tien = h.Total_Amount.ToString("N2", _numCulture),
-                    Revise = h.Revise
+                    Revise = h.Revise,
+                    Email_Status = h.Email_Status
                 };
             });
             if (dgvPO.Columns.Contains("ID")) dgvPO.Columns["ID"].Visible = false;
@@ -3186,10 +3190,40 @@ namespace MPR_Managerment.Forms
             {
                 var col = dgvPO.Columns["MPR_No"];
                 col.HeaderText = "MPR No";
-                // Không giới hạn — fit hoàn toàn theo nội dung
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
                 col.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
             }
+            // Cấu hình cột Email_Status
+            if (dgvPO.Columns.Contains("Email_Status"))
+            {
+                var esc = dgvPO.Columns["Email_Status"];
+                esc.HeaderText = "Email";
+                esc.Width = 65;
+                esc.ReadOnly = true;
+                esc.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                esc.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                esc.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
+
+            // Thêm nút gửi email (chỉ thêm 1 lần)
+            if (!dgvPO.Columns.Contains("col_SendEmail"))
+            {
+                var btnEmail = new DataGridViewButtonColumn
+                {
+                    Name = "col_SendEmail",
+                    HeaderText = "Gửi Email",
+                    Text = "📧 Gửi",
+                    UseColumnTextForButtonValue = false,
+                    Width = 80,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                    FlatStyle = FlatStyle.Flat,
+                    DefaultCellStyle = { BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White, Font = new Font("Segoe UI", 8, FontStyle.Bold) },
+                };
+                dgvPO.Columns.Add(btnEmail);
+            }
+            // Tô màu cột Email_Status theo giá trị
+            dgvPO.CellFormatting -= DgvPO_EmailCellFormatting;
+            dgvPO.CellFormatting += DgvPO_EmailCellFormatting;
             dgvPO.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
         }
 
@@ -6252,6 +6286,345 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                 lblTotal.Visible = canViewTotal;
                 if (!canViewTotal) lblTotal.Text = "";
             }
+        }
+
+        // =====================================================================
+        //  EMAIL CELL FORMATTING
+        // =====================================================================
+        private void DgvPO_EmailCellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            string colName = dgvPO.Columns[e.ColumnIndex].Name;
+
+            // Đọc Email_Status của row này
+            string status = "";
+            if (dgvPO.Columns.Contains("Email_Status"))
+                status = dgvPO.Rows[e.RowIndex].Cells["Email_Status"].Value?.ToString() ?? "";
+            bool done = status.Equals("done", StringComparison.OrdinalIgnoreCase);
+
+            if (colName == "col_SendEmail")
+            {
+                if (done)
+                {
+                    e.Value = "✔ Đã gửi";
+                    e.CellStyle.BackColor = Color.FromArgb(200, 200, 200);
+                    e.CellStyle.ForeColor = Color.Black;
+                }
+                else
+                {
+                    e.Value = "📧 Gửi";
+                    e.CellStyle.BackColor = Color.FromArgb(40, 167, 69);
+                    e.CellStyle.ForeColor = Color.White;
+                }
+                e.FormattingApplied = true;
+            }
+            else if (colName == "Email_Status")
+            {
+                if (done)
+                {
+                    e.Value = "✔ done";
+                    e.CellStyle.ForeColor = Color.Black;
+                    e.CellStyle.BackColor = Color.FromArgb(200, 200, 200);
+                    e.FormattingApplied = true;
+                }
+            }
+        }
+
+        // =====================================================================
+        //  EMAIL BUTTON CLICK
+        // =====================================================================
+        private void DgvPO_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            if (dgvPO.Columns[e.ColumnIndex].Name != "col_SendEmail") return;
+
+            int poId = Convert.ToInt32(dgvPO.Rows[e.RowIndex].Cells["ID"].Value ?? 0);
+            if (poId == 0) return;
+
+            var po = _poList.Find(p => p.PO_ID == poId);
+            if (po == null) return;
+
+            ShowEmailComposePopup(po);
+        }
+
+        // =====================================================================
+        //  EMAIL SETTINGS DIALOG
+        // =====================================================================
+        private bool ShowEmailSettingsDialog()
+        {
+            var settings = Helpers.EmailHelper.LoadSettings();
+            var dlg = new Form
+            {
+                Text = "Cài đặt Email (SMTP)",
+                Size = new Size(440, 340),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.White, Font = new Font("Segoe UI", 9)
+            };
+
+            int y = 15;
+            Control MakeRow(string label, Control ctrl) {
+                dlg.Controls.Add(new Label { Text = label, Location = new Point(15, y + 3), Size = new Size(120, 20), TextAlign = ContentAlignment.MiddleRight });
+                ctrl.Location = new Point(140, y); ctrl.Width = 260; dlg.Controls.Add(ctrl); y += 35; return ctrl;
+            }
+
+            var txtHost = new TextBox { Text = settings.Host };
+            var txtPort = new TextBox { Text = settings.Port.ToString() };
+            var txtUser = new TextBox { Text = settings.Username };
+            var txtPass = new TextBox { Text = settings.Password, UseSystemPasswordChar = true };
+            var txtFrom = new TextBox { Text = settings.FromName };
+            var chkSsl  = new CheckBox { Text = "Bật SSL/TLS", Checked = settings.EnableSsl, Location = new Point(140, y), AutoSize = true };
+
+            MakeRow("SMTP Host:", txtHost);
+            MakeRow("SMTP Port:", txtPort);
+            MakeRow("Username (email):", txtUser);
+            MakeRow("Password:", txtPass);
+            MakeRow("Tên hiển thị:", txtFrom);
+            dlg.Controls.Add(chkSsl); y += 35;
+
+            var btnOk = new Button { Text = "Lưu", DialogResult = DialogResult.OK, Location = new Point(200, y), Size = new Size(90, 30), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var btnCancel = new Button { Text = "Huỷ", DialogResult = DialogResult.Cancel, Location = new Point(300, y), Size = new Size(90, 30), FlatStyle = FlatStyle.Flat };
+            btnOk.FlatAppearance.BorderSize = 0;
+            dlg.Controls.AddRange(new Control[] { btnOk, btnCancel });
+            dlg.AcceptButton = btnOk; dlg.CancelButton = btnCancel;
+            dlg.ClientSize = new Size(420, y + 50);
+
+            if (dlg.ShowDialog(this) != DialogResult.OK) return false;
+
+            settings.Host       = txtHost.Text.Trim();
+            settings.Port       = int.TryParse(txtPort.Text, out int p) ? p : 587;
+            settings.Username   = txtUser.Text.Trim();
+            settings.Password   = txtPass.Text;
+            settings.FromName   = txtFrom.Text.Trim();
+            settings.EnableSsl  = chkSsl.Checked;
+            Helpers.EmailHelper.SaveSettings(settings);
+            return true;
+        }
+
+        // =====================================================================
+        //  EMAIL COMPOSE + SEND VIA OUTLOOK (mailto:)
+        // =====================================================================
+        private void ShowEmailComposePopup(POHead po)
+        {
+            var suppliers = new SupplierService().GetAll();
+            var supplier  = suppliers.Find(s => s.Supplier_ID == po.Supplier_ID);
+            string toEmail = supplier?.Email ?? "";
+
+            if (string.IsNullOrWhiteSpace(toEmail))
+            {
+                SafeWarn($"Nhà cung cấp của PO \"{po.PONo}\" chưa có email trong hệ thống.\nVui lòng cập nhật thông tin nhà cung cấp trước.", "Thiếu email");
+                return;
+            }
+
+            // Build body (không có tên user)
+            var details = new POService().GetDetails(po.PO_ID);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Kính gửi: {supplier?.Company_Name ?? "Quý Nhà Cung Cấp"},");
+            sb.AppendLine();
+            sb.AppendLine("Chúng tôi xin gửi Đơn Đặt Hàng (PO) với thông tin như sau:");
+            sb.AppendLine($"  - Số PO   : {po.PONo}");
+            sb.AppendLine($"  - Dự án   : {po.Project_Name}");
+            sb.AppendLine($"  - Ngày PO : {po.PO_Date?.ToString("dd/MM/yyyy") ?? ""}");
+            if (po.Revise > 0) sb.AppendLine($"  - Revise  : {po.Revise}");
+            sb.AppendLine();
+            sb.AppendLine("Chi tiết vật tư:");
+            int stt = 1;
+            foreach (var d in details)
+                sb.AppendLine($"  {stt++}. {d.Item_Name}  |  SL: {d.Qty_Per_Sheet} {d.UNIT}  |  Đơn giá: {d.Price:N2}");
+            sb.AppendLine();
+            sb.AppendLine($"Tổng giá trị: {po.Total_Amount:N2}");
+            sb.AppendLine();
+            sb.AppendLine("Vui lòng xác nhận đơn hàng và liên hệ nếu có thắc mắc.");
+
+            string subject = $"Đơn Đặt Hàng (PO) - {po.PONo}";
+            string body    = sb.ToString();
+
+            // Tìm PDF trước để hiện thị trong popup
+            string pdfPath = FindPOPdfFile(po, supplier);
+
+            // Popup xem trước
+            var popup = new Form
+            {
+                Text = $"Gửi Email PO — {po.PONo}",
+                Size = new Size(660, 560),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.White, Font = new Font("Segoe UI", 9)
+            };
+
+            int py = 12;
+            void AddRow(string lbl, Control ctrl, int h = 26)
+            {
+                popup.Controls.Add(new Label { Text = lbl, Location = new Point(10, py + 3), Size = new Size(65, 20), TextAlign = ContentAlignment.MiddleRight });
+                ctrl.Location = new Point(80, py); ctrl.Size = new Size(560, h);
+                popup.Controls.Add(ctrl); py += h + 6;
+            }
+
+            var txtTo      = new TextBox { Text = toEmail };
+            var txtSubject = new TextBox { Text = subject };
+            var txtBody    = new TextBox { Text = body, Multiline = true, ScrollBars = ScrollBars.Vertical };
+
+            AddRow("Đến:",     txtTo);
+            AddRow("Chủ đề:",  txtSubject);
+            AddRow("Nội dung:", txtBody, 320);
+
+            // Label đính kèm
+            bool hasPdf = !string.IsNullOrEmpty(pdfPath) && File.Exists(pdfPath);
+            var lblAttach = new Label
+            {
+                Text      = hasPdf
+                    ? $"📎 {Path.GetFileName(pdfPath)}"
+                    : "⚠ Không tìm thấy file PDF — email sẽ gửi không có đính kèm.",
+                Location  = new Point(10, py), Size = new Size(630, 20),
+                ForeColor = hasPdf ? Color.FromArgb(0, 130, 60) : Color.FromArgb(180, 80, 0),
+                Font      = new Font("Segoe UI", 8.5f, FontStyle.Italic)
+            };
+            popup.Controls.Add(lblAttach); py += 28;
+
+            // Buttons
+            var btnSend  = new Button { Text = "📧 Gửi Email", Location = new Point(10, py), Size = new Size(140, 34), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+            var btnClose = new Button { Text = "Huỷ", Location = new Point(560, py), Size = new Size(80, 34), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnSend.FlatAppearance.BorderSize = 0;
+            popup.Controls.AddRange(new Control[] { btnSend, btnClose });
+            popup.ClientSize = new Size(650, py + 54);
+
+            btnClose.Click += (s, ev) => popup.Close();
+
+            btnSend.Click += (s, ev) =>
+            {
+                if (string.IsNullOrWhiteSpace(txtTo.Text)) { SafeWarn("Chưa có email nhận!"); return; }
+                btnSend.Enabled = false;
+                btnSend.Text    = "Đang gửi...";
+                try
+                {
+                    var outlookType = Type.GetTypeFromProgID("Outlook.Application");
+                    if (outlookType == null) throw new Exception("Không tìm thấy Outlook trên máy tính này.");
+
+                    dynamic outlook = Activator.CreateInstance(outlookType);
+                    dynamic mail    = outlook.CreateItem(0); // olMailItem
+
+                    mail.To      = txtTo.Text.Trim();
+                    mail.Subject = txtSubject.Text.Trim();
+
+                    // Dùng GetInspector để kích hoạt chữ ký mà không hiện cửa sổ
+                    dynamic inspector = mail.GetInspector;
+                    string htmlWithSig = (string)mail.HTMLBody;
+
+                    // Chèn nội dung vào trước chữ ký
+                    string ourHtml   = BuildHtmlBody(txtBody.Text);
+                    int    tagEnd    = htmlWithSig.IndexOf('>', htmlWithSig.IndexOf("<body", StringComparison.OrdinalIgnoreCase));
+                    mail.HTMLBody    = tagEnd >= 0
+                        ? htmlWithSig.Insert(tagEnd + 1, ourHtml)
+                        : ourHtml + htmlWithSig;
+
+                    // Đính kèm PDF nếu tìm thấy
+                    string attachPath = !string.IsNullOrEmpty(pdfPath) && File.Exists(pdfPath) ? pdfPath : null;
+                    if (attachPath != null)
+                        mail.Attachments.Add(attachPath, 1, Type.Missing, Path.GetFileName(attachPath));
+
+                    // Gửi ngay
+                    mail.Send();
+
+                    // Cập nhật trạng thái
+                    new POService().UpdateEmailStatus(po.PO_ID, "done");
+                    var h = _poList.Find(x => x.PO_ID == po.PO_ID);
+                    if (h != null) h.Email_Status = "done";
+                    foreach (DataGridViewRow row in dgvPO.Rows)
+                    {
+                        if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == po.PO_ID)
+                        {
+                            if (dgvPO.Columns.Contains("Email_Status"))
+                                row.Cells["Email_Status"].Value = "done";
+                            dgvPO.InvalidateRow(row.Index);
+                            break;
+                        }
+                    }
+
+                    SafeInfo($"Email đã gửi thành công đến: {txtTo.Text}", "Gửi Email");
+                    popup.Close();
+                }
+                catch (Exception ex)
+                {
+                    btnSend.Enabled = true;
+                    btnSend.Text    = "📧 Gửi Email";
+                    SafeErr($"Lỗi gửi email:\n{ex.Message}", "Lỗi");
+                }
+            };
+
+            popup.ShowDialog(this);
+        }
+
+        // =====================================================================
+        //  TÌM FILE PDF CỦA PO (theo PO_Link dự án, thay Excel→PDF)
+        // =====================================================================
+        private string FindPOPdfFile(POHead po, Supplier supplier)
+        {
+            try
+            {
+                var projects = new ProjectService().GetAll();
+                var prj = projects.Find(p =>
+                    (!string.IsNullOrEmpty(p.WorkorderNo)  && p.WorkorderNo.Equals(po.WorkorderNo,   StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(p.ProjectName)  && p.ProjectName.Equals(po.Project_Name,  StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(p.ProjectCode)  && p.ProjectCode.Equals(po.ProjectCode,   StringComparison.OrdinalIgnoreCase)));
+
+                if (prj == null || string.IsNullOrEmpty(prj.PO_Link)) return null;
+
+                // Xác định thư mục PDF
+                string configured = prj.PO_Link.Trim()
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string lastName = Path.GetFileName(configured) ?? "";
+                string pdfDir   = lastName.Equals("Excel", StringComparison.OrdinalIgnoreCase)
+                    ? Path.Combine(Path.GetDirectoryName(configured) ?? configured, "PDF")
+                    : configured;
+
+                if (!Directory.Exists(pdfDir)) return null;
+
+                // Chuẩn hoá token tìm kiếm
+                string poNo      = Normalize(po.PONo);
+                string suppShort = Normalize(supplier?.Short_Name ?? "");
+
+                // Lấy tất cả PDF trong thư mục
+                var candidates = Directory.GetFiles(pdfDir, "*.pdf", SearchOption.TopDirectoryOnly);
+
+                // Chấm điểm: ưu tiên file có cả số PO lẫn tên viết tắt NCC
+                string bestPath  = null;
+                int    bestScore = -1;
+
+                foreach (var f in candidates)
+                {
+                    string nameNorm = Normalize(Path.GetFileNameWithoutExtension(f));
+                    int score = 0;
+                    if (!string.IsNullOrEmpty(poNo)      && nameNorm.Contains(poNo))      score += 2;
+                    if (!string.IsNullOrEmpty(suppShort) && nameNorm.Contains(suppShort)) score += 1;
+                    if (score > bestScore) { bestScore = score; bestPath = f; }
+                }
+
+                // Chỉ trả về nếu ít nhất khớp số PO (score >= 2)
+                return bestScore >= 2 ? bestPath : null;
+            }
+            catch { return null; }
+        }
+
+        private static string Normalize(string s) =>
+            (s ?? "").ToUpperInvariant()
+                     .Replace(" ", "")
+                     .Replace("-", "")
+                     .Replace("_", "")
+                     .Replace(".", "");
+
+        private static string BuildHtmlBody(string plainText)
+        {
+            // Chuyển plain text → HTML, giữ xuống dòng và khoảng trắng
+            string html = plainText
+                .Replace("&",  "&amp;")
+                .Replace("<",  "&lt;")
+                .Replace(">",  "&gt;")
+                .Replace("\r\n", "<br>")
+                .Replace("\n",   "<br>")
+                .Replace("  ",  "&nbsp;&nbsp;");
+            return $"<div style='font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000000;'>{html}</div><br>";
         }
 
     }

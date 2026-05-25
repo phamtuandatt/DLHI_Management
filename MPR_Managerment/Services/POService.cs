@@ -73,8 +73,33 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void EnsureEmailStatusColumn()
+        {
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                new SqlCommand(@"
+IF NOT EXISTS (SELECT 1 FROM sys.columns
+               WHERE object_id = OBJECT_ID('PO_head') AND name = 'Email_Status')
+    ALTER TABLE PO_head ADD Email_Status NVARCHAR(50) NULL", conn).ExecuteNonQuery();
+            }
+            catch { }
+        }
+
+        public void UpdateEmailStatus(int poId, string status)
+        {
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand("UPDATE PO_head SET Email_Status = @s WHERE PO_ID = @id", conn);
+            cmd.Parameters.AddWithValue("@s", status);
+            cmd.Parameters.AddWithValue("@id", poId);
+            cmd.ExecuteNonQuery();
+        }
+
         public List<POHead> GetAll()
         {
+            EnsureEmailStatusColumn();
             var list = new List<POHead>();
             using (var conn = DatabaseHelper.GetConnection())
             {
@@ -297,7 +322,16 @@ namespace MPR_Managerment.Services
                 ProjectCode = r["ProjectCode"].ToString() ?? "",
                 Payment_Term = r["Payment_Term"] != DBNull.Value ? r["Payment_Term"].ToString() : "",
                 Expected_Delivery = r["Expected_Delivery"] != DBNull.Value ? Convert.ToDateTime(r["Expected_Delivery"]) : DateTime.Now.AddDays(7),
+                Email_Status = SafeGetString(r, "Email_Status"),
             };
+        }
+
+        private static string SafeGetString(SqlDataReader r, string col)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i).Equals(col, StringComparison.OrdinalIgnoreCase))
+                    return r[i] == DBNull.Value ? "" : r[i]?.ToString() ?? "";
+            return "";
         }
 
         public async Task<POHead> GetPOAsync(string PONo)
