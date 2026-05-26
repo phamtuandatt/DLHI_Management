@@ -28,6 +28,7 @@ namespace MPR_Managerment.Forms
         private TextBox txtEmail, txtAddress;
         private TextBox txtBankAccount, txtBankName;
         private TextBox txtWebsite, txtCert, txtNotes;
+        private TextBox txtZaloGroupId;
         private CheckBox chkIsActive;
         private Button btnSearch, btnNew, btnSave, btnDelete, btnClear, btnExport, btnIso;
         private Label lblStatus;
@@ -149,6 +150,32 @@ namespace MPR_Managerment.Forms
             txtWebsite = AddField(panelRight, "Website", ref y);
             txtCert = AddField(panelRight, "Chứng chỉ", ref y);
             txtNotes = AddField(panelRight, "Ghi chú", ref y);
+
+            // ── Zalo Group ID ──────────────────────────────────────────
+            panelRight.Controls.Add(new Label
+            {
+                Text = "Tên nhóm Zalo:",
+                Location = new Point(10, y + 3),
+                Size = new Size(135, 20),
+                Font = new Font("Segoe UI", 9)
+            });
+            txtZaloGroupId = new TextBox
+            {
+                Location = new Point(150, y),
+                Size = new Size(280, 25),
+                Font = new Font("Segoe UI", 9),
+                PlaceholderText = "VD: Nhóm mua hàng ABC"
+            };
+            panelRight.Controls.Add(txtZaloGroupId);
+            panelRight.Controls.Add(new Label
+            {
+                Text = "ℹ️ Tên nhóm Zalo (tìm kiếm chính xác)",
+                Location = new Point(436, y + 4),
+                Size = new Size(230, 18),
+                Font = new Font("Segoe UI", 8, FontStyle.Italic),
+                ForeColor = Color.FromArgb(100, 100, 100)
+            });
+            y += 35;
 
             chkIsActive = new CheckBox
             {
@@ -292,10 +319,18 @@ namespace MPR_Managerment.Forms
                 Lien_He = s.Contact_Person,
                 SDT = s.Contact_Phone,
                 Email = s.Email,
+                Zalo = string.IsNullOrWhiteSpace(s.Zalo_Group_ID) ? "" : "✅",
                 Trang_Thai = s.IsActive ? "✅ Hoạt động" : "⛔ Ngừng"
             });
             if (dgvSuppliers.Columns.Contains("ID"))
                 dgvSuppliers.Columns["ID"].Visible = false;
+            if (dgvSuppliers.Columns.Contains("Zalo"))
+            {
+                dgvSuppliers.Columns["Zalo"].HeaderText = "Zalo";
+                dgvSuppliers.Columns["Zalo"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                dgvSuppliers.Columns["Zalo"].Width = 48;
+                dgvSuppliers.Columns["Zalo"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            }
             dgvSuppliers.ClearSelection();
             _suppressSelection = false;
             ClearDetailFields();
@@ -366,6 +401,7 @@ namespace MPR_Managerment.Forms
             txtCert.Text = s.Cert ?? "";
             txtNotes.Text = s.Notes ?? "";
             chkIsActive.Checked = s.IsActive;
+            txtZaloGroupId.Text = s.Zalo_Group_ID ?? "";
 
             lblStatus.Text = $"Đang xem: {s.Company_Name}";
         }
@@ -417,15 +453,23 @@ namespace MPR_Managerment.Forms
                     IsActive = chkIsActive.Checked            // @IsActive
                 };
 
+                string zaloId = txtZaloGroupId.Text.Trim();
+
                 if (_selectedSupplierID == 0)
                 {
                     _service.Insert(s, _currentUser);
+                    // Tải lại để lấy Supplier_ID vừa được tạo
+                    LoadSuppliers();
+                    var newSup = _suppliers.Find(x => x.Company_Name == s.Company_Name);
+                    if (newSup != null)
+                        _service.UpdateZaloGroupId(newSup.Supplier_ID, zaloId);
                     MessageBox.Show(TopOwner, "✅ Thêm nhà cung cấp thành công!", "Thành công",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
                     _service.Update(s, _currentUser);
+                    _service.UpdateZaloGroupId(_selectedSupplierID, zaloId);
                     MessageBox.Show(TopOwner, "✅ Cập nhật nhà cung cấp thành công!", "Thành công",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
@@ -506,6 +550,7 @@ namespace MPR_Managerment.Forms
             txtCert.Text = "";
             txtNotes.Text = "";
             chkIsActive.Checked = true;
+            txtZaloGroupId.Text = "";
         }
 
         private void ClearForm()

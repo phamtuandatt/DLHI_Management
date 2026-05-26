@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
 using MPR_Managerment.Forms.RIRGUI;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using System;
@@ -128,11 +129,31 @@ namespace MPR_Managerment.Forms
             _btnRefresh.Click += (s, e) => RefreshActiveForm();
             panelHeader.Controls.Add(_btnRefresh);
 
+            // Nút cài đặt Zalo
+            var btnZalo = new Button
+            {
+                Text = "🔔 Zalo",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(0, 140, 70),
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(90, 30),
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            btnZalo.FlatAppearance.BorderSize = 0;
+            btnZalo.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
+            new ToolTip().SetToolTip(btnZalo, "Cài đặt thông báo Zalo OA");
+            btnZalo.Location = new Point(panelHeader.Width - 515, 12);
+            btnZalo.Click += (s, e) => ShowZaloSettingsDialog();
+            panelHeader.Controls.Add(btnZalo);
+
             panelHeader.Resize += (s, ev) =>
             {
                 panelHeader.Width = this.ClientSize.Width;
                 lblUser.Left = panelHeader.Width - 300;
                 _btnRefresh.Left = panelHeader.Width - 415;
+                btnZalo.Left = panelHeader.Width - 515;
             };
 
             this.Controls.Add(panelHeader);
@@ -1915,6 +1936,155 @@ namespace MPR_Managerment.Forms
             return DateTime.MinValue;
         }
 
+        // =====================================================================
+        //  ZALO SETTINGS DIALOG
+        // =====================================================================
+        private void ShowZaloSettingsDialog()
+        {
+            var settings = ZaloHelper.LoadSettings();
+
+            var dlg = new Form
+            {
+                Text = "Cài đặt thông báo Zalo (Selenium)",
+                Size = new Size(560, 400),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.White,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            int y = 16;
+
+            // Bật/tắt
+            var chkEnabled = new CheckBox
+            {
+                Text = "Bật gửi thông báo Zalo tự động sau khi gửi email",
+                Location = new Point(16, y), Size = new Size(480, 24),
+                Checked = settings.Enabled, Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            dlg.Controls.Add(chkEnabled); y += 38;
+
+            // Thư mục session
+            dlg.Controls.Add(new Label { Text = "Session path:", Location = new Point(16, y + 3), Size = new Size(110, 20) });
+            var txtDataDir = new TextBox
+            {
+                Location = new Point(130, y), Size = new Size(330, 24),
+                Text = string.IsNullOrWhiteSpace(settings.UserDataDir)
+                    ? ZaloHelper.DefaultUserDataDir : settings.UserDataDir,
+                Font = new Font("Segoe UI", 8)
+            };
+            dlg.Controls.Add(txtDataDir);
+            var btnBrowse = new Button { Text = "...", Location = new Point(466, y - 1), Size = new Size(50, 26), FlatStyle = FlatStyle.Flat };
+            btnBrowse.Click += (s, e) =>
+            {
+                using var fbd = new FolderBrowserDialog { Description = "Chọn thư mục lưu session Zalo", SelectedPath = txtDataDir.Text };
+                if (fbd.ShowDialog() == DialogResult.OK) txtDataDir.Text = fbd.SelectedPath;
+            };
+            dlg.Controls.Add(btnBrowse); y += 36;
+
+            // Hướng dẫn
+            dlg.Controls.Add(new Label
+            {
+                Text = "── Thiết lập lần đầu ────────────────────────────────────────────",
+                Location = new Point(16, y), Size = new Size(500, 18),
+                ForeColor = Color.FromArgb(0, 100, 180), Font = new Font("Segoe UI", 8.5f)
+            }); y += 22;
+
+            dlg.Controls.Add(new Label
+            {
+                Text = "1. Bấm 'Lưu'  →  2. Bấm 'Mở & đăng nhập'  →  3. Đăng nhập Zalo Web  →  4. Đóng cửa sổ đó lại.",
+                Location = new Point(16, y), Size = new Size(500, 18),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic), ForeColor = Color.FromArgb(80, 80, 80)
+            }); y += 28;
+
+            var btnLogin = new Button
+            {
+                Text = "🌐 Mở & đăng nhập Zalo",
+                Location = new Point(16, y), Size = new Size(200, 32),
+                BackColor = Color.FromArgb(0, 140, 70), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
+            };
+            btnLogin.FlatAppearance.BorderSize = 0; y += 46;
+
+            // Test
+            dlg.Controls.Add(new Label { Text = "Tên nhóm test:", Location = new Point(16, y + 3), Size = new Size(110, 20) });
+            var txtTestGroup = new TextBox
+            {
+                Location = new Point(130, y), Size = new Size(250, 24),
+                PlaceholderText = "Nhập đúng tên nhóm Zalo"
+            };
+            dlg.Controls.Add(txtTestGroup);
+            var btnTest = new Button
+            {
+                Text = "📨 Gửi thử",
+                Location = new Point(386, y - 2), Size = new Size(100, 28),
+                BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
+            };
+            btnTest.FlatAppearance.BorderSize = 0;
+            dlg.Controls.AddRange(new Control[] { btnLogin, btnTest }); y += 36;
+
+            var lblResult = new Label
+            {
+                Location = new Point(16, y), Size = new Size(500, 22),
+                ForeColor = Color.Gray, Font = new Font("Segoe UI", 8.5f)
+            };
+            dlg.Controls.Add(lblResult); y += 34;
+
+            var btnSave  = new Button { Text = "💾 Lưu", Location = new Point(16, y),  Size = new Size(100, 32), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            var btnClose = new Button { Text = "Đóng",   Location = new Point(430, y), Size = new Size(80, 32),  FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnSave.FlatAppearance.BorderSize = 0;
+            dlg.Controls.AddRange(new Control[] { btnSave, btnClose });
+            dlg.ClientSize = new Size(530, y + 52);
+
+            ZaloSettings CurrentSettings() => new ZaloSettings
+            {
+                Enabled     = chkEnabled.Checked,
+                UserDataDir = txtDataDir.Text.Trim()
+            };
+
+            btnSave.Click += (s, e) =>
+            {
+                ZaloHelper.SaveSettings(CurrentSettings());
+                lblResult.ForeColor = Color.Green;
+                lblResult.Text = "✅ Đã lưu cài đặt.";
+            };
+
+            btnLogin.Click += (s, e) =>
+            {
+                try
+                {
+                    ZaloHelper.SaveSettings(CurrentSettings());
+                    ZaloHelper.OpenBrowserForLogin(CurrentSettings());
+                    lblResult.ForeColor = Color.FromArgb(0, 100, 180);
+                    lblResult.Text = "🌐 Đã mở cửa sổ Zalo — đăng nhập xong thì đóng lại.";
+                }
+                catch (Exception ex)
+                {
+                    lblResult.ForeColor = Color.OrangeRed;
+                    lblResult.Text = $"❌ {ex.Message}";
+                }
+            };
+
+            btnTest.Click += async (s, e) =>
+            {
+                string grp = txtTestGroup.Text.Trim();
+                if (string.IsNullOrWhiteSpace(grp)) { lblResult.Text = "⚠ Nhập tên nhóm để gửi thử."; lblResult.ForeColor = Color.OrangeRed; return; }
+                btnTest.Enabled = false;
+                lblResult.ForeColor = Color.Gray;
+                lblResult.Text = "⏳ Đang mở Zalo Web và tìm nhóm...";
+
+                var (ok, err) = await ZaloHelper.SendToGroupAsync(CurrentSettings(), grp,
+                    "🔔 Test thông báo từ hệ thống ERP — Zalo tự động đã hoạt động!");
+                btnTest.Enabled = true;
+                if (ok) { lblResult.Text = "✅ Gửi thành công!"; lblResult.ForeColor = Color.Green; }
+                else    { lblResult.Text = $"❌ {err}";           lblResult.ForeColor = Color.OrangeRed; }
+            };
+
+            btnClose.Click += (s, e) => dlg.Close();
+            dlg.ShowDialog(this);
+        }
 
     }
 }

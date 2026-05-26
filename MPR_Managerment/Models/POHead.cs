@@ -29,5 +29,7 @@ namespace MPR_Managerment.Models
         public string Payment_Term { get; set; } = "";
         public DateTime? Expected_Delivery { get; set; }
         public string Email_Status { get; set; } = "";
+        public string Email_Sent_By { get; set; } = "";
+        public DateTime? Email_Sent_At { get; set; }
     }
 }

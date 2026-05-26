@@ -82,17 +82,26 @@ namespace MPR_Managerment.Services
                 new SqlCommand(@"
 IF NOT EXISTS (SELECT 1 FROM sys.columns
                WHERE object_id = OBJECT_ID('PO_head') AND name = 'Email_Status')
-    ALTER TABLE PO_head ADD Email_Status NVARCHAR(50) NULL", conn).ExecuteNonQuery();
+    ALTER TABLE PO_head ADD Email_Status NVARCHAR(50) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.columns
+               WHERE object_id = OBJECT_ID('PO_head') AND name = 'Email_Sent_By')
+    ALTER TABLE PO_head ADD Email_Sent_By NVARCHAR(100) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.columns
+               WHERE object_id = OBJECT_ID('PO_head') AND name = 'Email_Sent_At')
+    ALTER TABLE PO_head ADD Email_Sent_At DATETIME NULL;", conn).ExecuteNonQuery();
             }
             catch { }
         }
 
-        public void UpdateEmailStatus(int poId, string status)
+        public void UpdateEmailStatus(int poId, string status, string sentBy = "", DateTime? sentAt = null)
         {
             using var conn = DatabaseHelper.GetConnection();
             conn.Open();
-            var cmd = new SqlCommand("UPDATE PO_head SET Email_Status = @s WHERE PO_ID = @id", conn);
-            cmd.Parameters.AddWithValue("@s", status);
+            var cmd = new SqlCommand(
+                "UPDATE PO_head SET Email_Status = @s, Email_Sent_By = @by, Email_Sent_At = @at WHERE PO_ID = @id", conn);
+            cmd.Parameters.AddWithValue("@s",  status);
+            cmd.Parameters.AddWithValue("@by", sentBy ?? "");
+            cmd.Parameters.AddWithValue("@at", sentAt.HasValue ? (object)sentAt.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@id", poId);
             cmd.ExecuteNonQuery();
         }
@@ -322,8 +331,18 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns
                 ProjectCode = r["ProjectCode"].ToString() ?? "",
                 Payment_Term = r["Payment_Term"] != DBNull.Value ? r["Payment_Term"].ToString() : "",
                 Expected_Delivery = r["Expected_Delivery"] != DBNull.Value ? Convert.ToDateTime(r["Expected_Delivery"]) : DateTime.Now.AddDays(7),
-                Email_Status = SafeGetString(r, "Email_Status"),
+                Email_Status  = SafeGetString(r, "Email_Status"),
+                Email_Sent_By = SafeGetString(r, "Email_Sent_By"),
+                Email_Sent_At = SafeGetDateTime(r, "Email_Sent_At"),
             };
+        }
+
+        private static DateTime? SafeGetDateTime(SqlDataReader r, string col)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i).Equals(col, StringComparison.OrdinalIgnoreCase))
+                    return r[i] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r[i]);
+            return null;
         }
 
         private static string SafeGetString(SqlDataReader r, string col)

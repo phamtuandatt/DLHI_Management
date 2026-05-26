@@ -19,5 +19,8 @@ namespace MPR_Managerment.Models
         public string Created_By { get; set; } = "";
         public DateTime? Modified_Date { get; set; }
         public string Modified_By { get; set; } = "";
+        public string Email_Status { get; set; } = "";
+        public string Email_Sent_By { get; set; } = "";
+        public DateTime? Email_Sent_At { get; set; }
     }
 }

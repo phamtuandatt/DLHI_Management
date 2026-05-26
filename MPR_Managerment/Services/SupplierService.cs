@@ -47,6 +47,7 @@ namespace MPR_Managerment.Services
         // ===== GET ALL =====
         public List<Supplier> GetAll()
         {
+            EnsureZaloGroupIdColumn();
             var list = new List<Supplier>();
             using (var conn = DatabaseHelper.GetConnection())
             {
@@ -58,6 +59,35 @@ namespace MPR_Managerment.Services
                         list.Add(MapSupplier(reader));
             }
             return list;
+        }
+
+        private static bool _zaloColumnChecked = false;
+        private static void EnsureZaloGroupIdColumn()
+        {
+            if (_zaloColumnChecked) return;
+            _zaloColumnChecked = true;
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                new SqlCommand(@"
+                    IF NOT EXISTS (SELECT 1 FROM sys.columns
+                                  WHERE object_id = OBJECT_ID('Suppliers') AND name = 'Zalo_Group_ID')
+                        ALTER TABLE Suppliers ADD Zalo_Group_ID NVARCHAR(100) NULL", conn)
+                    .ExecuteNonQuery();
+            }
+            catch { }
+        }
+
+        public void UpdateZaloGroupId(int supplierId, string groupId)
+        {
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            new SqlCommand(
+                "UPDATE Suppliers SET Zalo_Group_ID = @g WHERE Supplier_ID = @id", conn)
+            {
+                Parameters = { new("@g", groupId ?? ""), new("@id", supplierId) }
+            }.ExecuteNonQuery();
         }
 
         // ===== GET BY ID =====
@@ -174,7 +204,16 @@ namespace MPR_Managerment.Services
             Notes = reader["Notes"]?.ToString() ?? "",
             IsActive = reader["IsActive"] != DBNull.Value && Convert.ToBoolean(reader["IsActive"]),
             Created_Date = reader["Created_Date"] != DBNull.Value ? Convert.ToDateTime(reader["Created_Date"]) : null,
-            Created_By = reader["Created_By"]?.ToString() ?? ""
+            Created_By    = reader["Created_By"]?.ToString() ?? "",
+            Zalo_Group_ID = SafeStr(reader, "Zalo_Group_ID")
         };
+
+        private static string SafeStr(SqlDataReader r, string col)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i).Equals(col, StringComparison.OrdinalIgnoreCase))
+                    return r[i] == DBNull.Value ? "" : r[i]?.ToString() ?? "";
+            return "";
+        }
     }
 }

@@ -20,6 +20,7 @@ namespace MPR_Managerment.Forms
         private POService _service = new POService();
         private List<POHead> _poList = new List<POHead>();
         private List<PODetail> _details = new List<PODetail>();
+        private readonly Dictionary<int, System.Windows.Forms.Timer> _emailPollers = new();
         private int _selectedPO_ID = 0;
         private string _currentUser = AppSession.CurrentUser.Full_Name ?? "Admin";
 
@@ -3196,7 +3197,10 @@ namespace MPR_Managerment.Forms
                     Trang_Thai = h.Status,
                     Tong_Tien = h.Total_Amount.ToString("N2", _numCulture),
                     Revise = h.Revise,
-                    Email_Status = h.Email_Status
+                    Email_Status    = h.Email_Status,
+                    Email_Sent_Info = h.Email_Sent_At.HasValue
+                        ? $"{h.Email_Sent_By}\n{h.Email_Sent_At.Value:dd/MM/yy HH:mm}"
+                        : ""
                 };
             });
             if (dgvPO.Columns.Contains("ID")) dgvPO.Columns["ID"].Visible = false;
@@ -3236,6 +3240,20 @@ namespace MPR_Managerment.Forms
                 };
                 dgvPO.Columns.Add(btnEmail);
             }
+            // Cấu hình cột Email_Sent_Info (người gửi + thời gian)
+            if (dgvPO.Columns.Contains("Email_Sent_Info"))
+            {
+                var c = dgvPO.Columns["Email_Sent_Info"];
+                c.AutoSizeMode  = DataGridViewAutoSizeColumnMode.None;
+                c.Width         = 115;
+                c.HeaderText    = "Người gửi / Thời gian";
+                c.ReadOnly      = true;
+                c.DefaultCellStyle.WrapMode  = DataGridViewTriState.True;
+                c.DefaultCellStyle.Font      = new Font("Segoe UI", 8f);
+                c.DefaultCellStyle.ForeColor = Color.FromArgb(80, 80, 80);
+                c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            }
+
             // Tô màu cột Email_Status theo giá trị
             dgvPO.CellFormatting -= DgvPO_EmailCellFormatting;
             dgvPO.CellFormatting += DgvPO_EmailCellFormatting;
@@ -6492,25 +6510,48 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             AddRow("Chủ đề:",  txtSubject);
             AddRow("Nội dung:", txtBody, 320);
 
-            // Label đính kèm
+            // Label + nút duyệt đính kèm
             bool hasPdf = !string.IsNullOrEmpty(pdfPath) && File.Exists(pdfPath);
             var lblAttach = new Label
             {
                 Text      = hasPdf
                     ? $"📎 {Path.GetFileName(pdfPath)}"
-                    : "⚠ Không tìm thấy file PDF — email sẽ gửi không có đính kèm.",
-                Location  = new Point(10, py), Size = new Size(630, 20),
+                    : "⚠ Không tìm thấy file PDF trong thư mục PO Link",
+                Location  = new Point(80, py), Size = new Size(470, 18),
                 ForeColor = hasPdf ? Color.FromArgb(0, 130, 60) : Color.FromArgb(180, 80, 0),
                 Font      = new Font("Segoe UI", 8.5f, FontStyle.Italic)
             };
-            popup.Controls.Add(lblAttach); py += 28;
+            popup.Controls.Add(lblAttach);
+            var btnBrowse = new Button
+            {
+                Text = "...", Location = new Point(555, py - 2), Size = new Size(85, 22),
+                FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 8)
+            };
+            popup.Controls.Add(btnBrowse);
+            py += 28;
 
             // Buttons
-            var btnSend  = new Button { Text = "📧 Gửi Email", Location = new Point(10, py), Size = new Size(140, 34), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+            var btnSend  = new Button { Text = "📧 Mở trong Outlook", Location = new Point(10, py), Size = new Size(165, 34), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
             var btnClose = new Button { Text = "Huỷ", Location = new Point(560, py), Size = new Size(80, 34), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnSend.FlatAppearance.BorderSize = 0;
             popup.Controls.AddRange(new Control[] { btnSend, btnClose });
             popup.ClientSize = new Size(650, py + 54);
+
+            string resolvedAttach = pdfPath;
+
+            btnBrowse.Click += (s, ev) =>
+            {
+                using var ofd = new OpenFileDialog
+                {
+                    Title  = "Chọn file PO đính kèm",
+                    Filter = "Excel / PDF|*.xlsx;*.xls;*.pdf|Tất cả|*.*",
+                    InitialDirectory = string.IsNullOrEmpty(resolvedAttach) ? "" : Path.GetDirectoryName(resolvedAttach) ?? ""
+                };
+                if (ofd.ShowDialog() != DialogResult.OK) return;
+                resolvedAttach      = ofd.FileName;
+                lblAttach.Text      = $"📎 {Path.GetFileName(resolvedAttach)}";
+                lblAttach.ForeColor = Color.FromArgb(0, 130, 60);
+            };
 
             btnClose.Click += (s, ev) => popup.Close();
 
@@ -6518,7 +6559,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             {
                 if (string.IsNullOrWhiteSpace(txtTo.Text)) { SafeWarn("Chưa có email nhận!"); return; }
                 btnSend.Enabled = false;
-                btnSend.Text    = "Đang gửi...";
+                btnSend.Text    = "Đang mở Outlook...";
                 try
                 {
                     var outlookType = Type.GetTypeFromProgID("Outlook.Application");
@@ -6530,48 +6571,35 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     mail.To      = txtTo.Text.Trim();
                     mail.Subject = txtSubject.Text.Trim();
 
-                    // Dùng GetInspector để kích hoạt chữ ký mà không hiện cửa sổ
-                    dynamic inspector = mail.GetInspector;
-                    string htmlWithSig = (string)mail.HTMLBody;
-
-                    // Chèn nội dung vào trước chữ ký
-                    string ourHtml   = BuildHtmlBody(txtBody.Text);
-                    int    tagEnd    = htmlWithSig.IndexOf('>', htmlWithSig.IndexOf("<body", StringComparison.OrdinalIgnoreCase));
-                    mail.HTMLBody    = tagEnd >= 0
-                        ? htmlWithSig.Insert(tagEnd + 1, ourHtml)
-                        : ourHtml + htmlWithSig;
-
-                    // Đính kèm PDF nếu tìm thấy
-                    string attachPath = !string.IsNullOrEmpty(pdfPath) && File.Exists(pdfPath) ? pdfPath : null;
-                    if (attachPath != null)
-                        mail.Attachments.Add(attachPath, 1, Type.Missing, Path.GetFileName(attachPath));
-
-                    // Gửi ngay
-                    mail.Send();
-
-                    // Cập nhật trạng thái
-                    new POService().UpdateEmailStatus(po.PO_ID, "done");
-                    var h = _poList.Find(x => x.PO_ID == po.PO_ID);
-                    if (h != null) h.Email_Status = "done";
-                    foreach (DataGridViewRow row in dgvPO.Rows)
+                    // Chèn nội dung vào trước chữ ký Outlook
+                    dynamic inspector  = mail.GetInspector;
+                    string htmlWithSig = (string)(mail.HTMLBody ?? "");
+                    string ourHtml     = BuildHtmlBody(txtBody.Text);
+                    if (string.IsNullOrEmpty(htmlWithSig))
                     {
-                        if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == po.PO_ID)
-                        {
-                            if (dgvPO.Columns.Contains("Email_Status"))
-                                row.Cells["Email_Status"].Value = "done";
-                            dgvPO.InvalidateRow(row.Index);
-                            break;
-                        }
+                        mail.HTMLBody = ourHtml;
+                    }
+                    else
+                    {
+                        int tagEnd = htmlWithSig.IndexOf('>', htmlWithSig.IndexOf("<body", StringComparison.OrdinalIgnoreCase));
+                        mail.HTMLBody = tagEnd >= 0 ? htmlWithSig.Insert(tagEnd + 1, ourHtml) : ourHtml + htmlWithSig;
                     }
 
-                    SafeInfo($"Email đã gửi thành công đến: {txtTo.Text}", "Gửi Email");
+                    // Đính kèm file nếu tìm thấy
+                    if (!string.IsNullOrEmpty(resolvedAttach) && File.Exists(resolvedAttach))
+                        mail.Attachments.Add(resolvedAttach, 1, Type.Missing, Path.GetFileName(resolvedAttach));
+
+                    // Mở cửa sổ soạn thảo Outlook (không gửi ngay)
+                    mail.Display(false);
+
                     popup.Close();
+                    _StartPOEmailSentPoller(outlook, mail, txtSubject.Text.Trim(), po.PO_ID, supplier);
                 }
                 catch (Exception ex)
                 {
                     btnSend.Enabled = true;
-                    btnSend.Text    = "📧 Gửi Email";
-                    SafeErr($"Lỗi gửi email:\n{ex.Message}", "Lỗi");
+                    btnSend.Text    = "📧 Mở trong Outlook";
+                    SafeErr($"Lỗi mở Outlook:\n{ex.Message}", "Lỗi");
                 }
             };
 
@@ -6647,6 +6675,203 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                 .Replace("\n",   "<br>")
                 .Replace("  ",  "&nbsp;&nbsp;");
             return $"<div style='font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000000;'>{html}</div><br>";
+        }
+
+        // =====================================================================
+        //  POLL mail.Sent — tự cập nhật status khi Outlook thực sự bấm Send
+        //  Fallback: khi COM object bị giải phóng (sau khi gửi) → check Sent Items
+        // =====================================================================
+        private void _StartPOEmailSentPoller(dynamic outlook, dynamic mail, string subject, int poId,
+            MPR_Managerment.Models.Supplier supplier = null)
+        {
+            if (_emailPollers.TryGetValue(poId, out var old))
+            {
+                old.Stop(); old.Dispose();
+                _emailPollers.Remove(poId);
+            }
+
+            if (lblStatus != null)
+                lblStatus.Text = $"⏳ Đang chờ Outlook gửi email cho PO #{poId}...";
+
+            var startedAt = DateTime.Now;
+            var timer     = new System.Windows.Forms.Timer { Interval = 2000 };
+            var deadline  = DateTime.Now.AddMinutes(15);
+            bool comDead  = false;
+            _emailPollers[poId] = timer;
+
+            timer.Tick += (_, __) =>
+            {
+                if (DateTime.Now > deadline)
+                {
+                    timer.Stop(); timer.Dispose();
+                    _emailPollers.Remove(poId);
+                    if (lblStatus != null) lblStatus.Text = "⚠ Hết thời gian chờ — email chưa được ghi nhận.";
+                    return;
+                }
+
+                // Pha 1: COM còn sống → kiểm tra mail.Sent
+                if (!comDead)
+                {
+                    bool sent = false;
+                    try { sent = (bool)mail.Sent; }
+                    catch { comDead = true; }
+
+                    if (sent)
+                    {
+                        _MarkPOEmailDone(poId, supplier);
+                        timer.Stop(); timer.Dispose();
+                        _emailPollers.Remove(poId);
+                        return;
+                    }
+                }
+
+                // Pha 2: COM đã chết → tiếp tục poll Sent Items mỗi 2s
+                if (comDead)
+                {
+                    int elapsed = (int)(DateTime.Now - startedAt).TotalSeconds;
+                    if (lblStatus != null)
+                        lblStatus.Text = $"⏳ Đang kiểm tra Sent Items... ({elapsed}s)";
+
+                    if (_POCheckSentItemsFolder(subject))
+                    {
+                        _MarkPOEmailDone(poId, supplier);
+                        timer.Stop(); timer.Dispose();
+                        _emailPollers.Remove(poId);
+                    }
+                    // Chưa thấy → giữ timer tiếp tục, không dừng
+                    return;
+                }
+
+                int sec = (int)(DateTime.Now - startedAt).TotalSeconds;
+                if (lblStatus != null)
+                    lblStatus.Text = $"⏳ Chờ Outlook gửi... ({sec}s)";
+            };
+
+            timer.Start();
+        }
+
+        private void _MarkPOEmailDone(int poId,
+            MPR_Managerment.Models.Supplier supplier = null)
+        {
+            var sentAt = DateTime.Now;
+            new POService().UpdateEmailStatus(poId, "done", _currentUser, sentAt);
+            var h = _poList.Find(x => x.PO_ID == poId);
+            if (h != null)
+            {
+                h.Email_Status  = "done";
+                h.Email_Sent_By = _currentUser;
+                h.Email_Sent_At = sentAt;
+            }
+            BindPOGrid(_poList);
+            if (lblStatus != null)
+                lblStatus.Text = "✅ Email PO đã được gửi thành công!";
+
+            // Gửi thông báo Zalo vào nhóm NCC
+            if (supplier != null && h != null)
+            {
+                string zaloMsg =
+                    $"📋 DLHI Thông báo:\n" +
+                    $"Chúng tôi đã gửi Đơn Đặt Hàng (PO) đến Quý công ty:\n" +
+                    $"🔹 Số PO    : {h.PONo}\n" +
+                    $"🔹 Dự án   : {h.Project_Name}\n" +
+                    $"🔹 Thời gian: {sentAt:dd/MM/yyyy HH:mm}\n" +
+                    $"Xin vui lòng kiểm tra Email, Rất mong sớm nhận được xác nhận từ Quý công ty!";
+                _SendZaloPONotify(supplier, zaloMsg);
+            }
+        }
+
+        private async void _SendZaloPONotify(
+            MPR_Managerment.Models.Supplier supplier, string msg)
+        {
+            void SetSt(string text) { if (lblStatus != null) lblStatus.Text = text; }
+
+            var cfg = Helpers.ZaloHelper.LoadSettings();
+
+            if (!cfg.Enabled)
+            {
+                SetSt("✅ Email PO đã gửi  |  ⚠ Zalo chưa bật — vào 🔔 Zalo trên tiêu đề để bật");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(supplier?.Zalo_Group_ID))
+            {
+                SetSt("✅ Email PO đã gửi  |  ⚠ NCC chưa có tên nhóm Zalo — vào Nhà Cung Cấp để điền");
+                return;
+            }
+
+            SetSt($"✅ Email PO đã gửi  |  ⏳ Đang gửi Zalo đến '{supplier.Zalo_Group_ID}'...");
+
+            try
+            {
+                var (ok, err) = await Helpers.ZaloHelper.SendToGroupAsync(cfg, supplier.Zalo_Group_ID, msg);
+                if (ok)
+                    SetSt("✅ Email PO đã gửi  |  🔔 Đã gửi thông báo Zalo thành công");
+                else
+                    SetSt($"✅ Email PO đã gửi  |  ❌ Zalo lỗi: {err}");
+            }
+            catch (Exception ex)
+            {
+                SetSt($"✅ Email PO đã gửi  |  ❌ Zalo exception: {ex.Message}");
+            }
+        }
+
+        private bool _POCheckSentItemsFolder(string subject)
+        {
+            try
+            {
+                // Tạo instance Outlook mới (singleton COM — trả về Outlook đang chạy)
+                var outlookType = Type.GetTypeFromProgID("Outlook.Application");
+                if (outlookType == null) return false;
+                dynamic ol = Activator.CreateInstance(outlookType);
+                dynamic ns = ol.GetNamespace("MAPI");
+                try
+                {
+                    dynamic stores     = ns.Stores;
+                    int     storeCount = Convert.ToInt32(stores.Count);
+                    for (int s = 1; s <= storeCount; s++)
+                    {
+                        try
+                        {
+                            dynamic store = stores[s];
+                            dynamic sentFolder;
+                            try { sentFolder = store.GetDefaultFolder(5); } catch { continue; }
+                            if (_POScanFolderForSubject(sentFolder, subject)) return true;
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+                try
+                {
+                    dynamic sentFolder = ns.GetDefaultFolder(5);
+                    if (_POScanFolderForSubject(sentFolder, subject)) return true;
+                }
+                catch { }
+                return false;
+            }
+            catch { return false; }
+        }
+
+        private bool _POScanFolderForSubject(dynamic folder, string subject)
+        {
+            try
+            {
+                dynamic items = folder.Items;
+                items.Sort("[SentOn]", true);
+                int count = Convert.ToInt32(items.Count);
+                for (int i = 1; i <= Math.Min(100, count); i++)
+                {
+                    try
+                    {
+                        dynamic item = items[i];
+                        string  itemSubj;
+                        try { itemSubj = (string)item.Subject; } catch { continue; }
+                        if (string.Equals(itemSubj, subject, StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                    catch { }
+                }
+                return false;
+            }
+            catch { return false; }
         }
 
     }

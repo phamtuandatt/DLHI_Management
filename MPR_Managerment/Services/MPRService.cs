@@ -21,7 +21,10 @@ namespace MPR_Managerment.Services
                            Department, Requestor,
                            ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) AS Rev,
                            Required_Date,
-                           Status, Total_Amount, Notes, Created_Date, Created_By
+                           Status, Total_Amount, Notes, Created_Date, Created_By,
+                           ISNULL(Email_Status, '') AS Email_Status,
+                           ISNULL(Email_Sent_By, '') AS Email_Sent_By,
+                           Email_Sent_At
                     FROM MPR_Header
                     ORDER BY Created_Date DESC", conn);
                 using (var r = cmd.ExecuteReader())
@@ -42,7 +45,10 @@ namespace MPR_Managerment.Services
                            Department, Requestor,
                            ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) AS Rev,
                            Required_Date,
-                           Status, Total_Amount, Notes, Created_Date, Created_By
+                           Status, Total_Amount, Notes, Created_Date, Created_By,
+                           ISNULL(Email_Status, '') AS Email_Status,
+                           ISNULL(Email_Sent_By, '') AS Email_Sent_By,
+                           Email_Sent_At
                     FROM MPR_Header
                     WHERE MPR_No LIKE @kw OR Project_Name LIKE @kw OR Project_Code LIKE @kw
                     ORDER BY Created_Date DESC", conn);
@@ -290,8 +296,31 @@ namespace MPR_Managerment.Services
                 Total_Amount = r["Total_Amount"] != DBNull.Value ? Convert.ToDecimal(r["Total_Amount"]) : 0,
                 Notes = r["Notes"]?.ToString() ?? "",
                 Created_Date = r["Created_Date"] != DBNull.Value ? Convert.ToDateTime(r["Created_Date"]) : null,
-                Created_By = r["Created_By"]?.ToString() ?? ""
+                Created_By = r["Created_By"]?.ToString() ?? "",
+                Email_Status   = ReadStringSafe(r, "Email_Status"),
+                Email_Sent_By  = ReadStringSafe(r, "Email_Sent_By"),
+                Email_Sent_At  = r["Email_Sent_At"] != DBNull.Value ? Convert.ToDateTime(r["Email_Sent_At"]) : (DateTime?)null
             };
+        }
+
+        private static string ReadStringSafe(SqlDataReader r, string col)
+        {
+            try { return r[col] == DBNull.Value ? "" : r[col]?.ToString() ?? ""; }
+            catch { return ""; }
+        }
+
+        // ===== UPDATE EMAIL STATUS =====
+        public void UpdateEmailStatus(int mprId, string status, string sentBy = "", DateTime? sentAt = null)
+        {
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand(
+                "UPDATE MPR_Header SET Email_Status = @s, Email_Sent_By = @by, Email_Sent_At = @at WHERE MPR_ID = @id", conn);
+            cmd.Parameters.AddWithValue("@s",  status);
+            cmd.Parameters.AddWithValue("@by", sentBy ?? "");
+            cmd.Parameters.AddWithValue("@at", sentAt.HasValue ? (object)sentAt.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@id", mprId);
+            cmd.ExecuteNonQuery();
         }
 
         private MPRDetail MapDetail(SqlDataReader r)

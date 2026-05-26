@@ -26,19 +26,21 @@ namespace MPR_Managerment.Forms
         // Đảm bảo cột Is_Deleted tồn tại trong DB (chạy 1 lần, idempotent)
         private static void EnsureIsDeletedColumn()
         {
+            using var conn = Helpers.DatabaseHelper.GetConnection();
+            try { conn.Open(); } catch { return; }
+
             try
             {
-                using var conn = Helpers.DatabaseHelper.GetConnection();
-                conn.Open();
-                // Cột Is_Deleted trong MPR_Details
                 new SqlCommand(@"
                     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
                                   WHERE TABLE_NAME='MPR_Details' AND COLUMN_NAME='Is_Deleted')
                         ALTER TABLE MPR_Details ADD Is_Deleted BIT NOT NULL DEFAULT 0", conn)
                     .ExecuteNonQuery();
+            }
+            catch { }
 
-                // ── Làm sạch dữ liệu Rev về số nguyên ──
-                // Rev lưu varchar có thể chứa '0.40', '00', '01' → chuẩn hóa thành '0', '1', '2'...
+            try
+            {
                 new SqlCommand(@"
                     UPDATE MPR_Header
                     SET Rev = CAST(FLOOR(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT)) AS VARCHAR(10))
@@ -46,14 +48,16 @@ namespace MPR_Managerment.Forms
                        OR Rev LIKE '%.%'
                        OR (LEN(Rev) > 1 AND LEFT(Rev,1) = '0')", conn)
                     .ExecuteNonQuery();
+            }
+            catch { }
 
-                // Cột Is_Latest trong MPR_Header — đánh dấu MPR mới nhất của mỗi chuỗi Revise
+            try
+            {
                 new SqlCommand(@"
                     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
                                   WHERE TABLE_NAME='MPR_Header' AND COLUMN_NAME='Is_Latest')
                     BEGIN
                         ALTER TABLE MPR_Header ADD Is_Latest BIT NOT NULL DEFAULT 1;
-                        -- Đánh dấu lại: chỉ MPR có Rev cao nhất trong mỗi chuỗi = 1
                         UPDATE MPR_Header SET Is_Latest = 0;
                         UPDATE h SET h.Is_Latest = 1
                         FROM MPR_Header h
@@ -77,13 +81,30 @@ namespace MPR_Managerment.Forms
                     END", conn)
                     .ExecuteNonQuery();
             }
-            catch { } // bỏ qua nếu đã có
+            catch { }
+
+            try
+            {
+                new SqlCommand(@"
+                    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                                  WHERE TABLE_NAME='MPR_Header' AND COLUMN_NAME='Email_Status')
+                        ALTER TABLE MPR_Header ADD Email_Status NVARCHAR(20) NULL DEFAULT '';
+                    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                                  WHERE TABLE_NAME='MPR_Header' AND COLUMN_NAME='Email_Sent_By')
+                        ALTER TABLE MPR_Header ADD Email_Sent_By NVARCHAR(100) NULL;
+                    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                                  WHERE TABLE_NAME='MPR_Header' AND COLUMN_NAME='Email_Sent_At')
+                        ALTER TABLE MPR_Header ADD Email_Sent_At DATETIME NULL;", conn)
+                    .ExecuteNonQuery();
+            }
+            catch { }
         }
 
         private List<MPRHeader> _mprList = new List<MPRHeader>();
         private List<MPRDetail> _details = new List<MPRDetail>();
         private int _selectedMPR_ID = 0;
         private string _currentUser = "Admin";
+        private readonly Dictionary<int, System.Windows.Forms.Timer> _emailPollers = new();
 
         // Thêm biến để lưu ID truyền từ Dashboard sang
         private int _targetMprId = 0;
@@ -1444,12 +1465,78 @@ namespace MPR_Managerment.Forms
                 Rev = m.Rev,
                 Trang_Thai = m.Status,
                 Ngay_Tao = m.Created_Date.HasValue ? m.Created_Date.Value.ToString("dd/MM/yyyy") : "",
+                Email_Status    = m.Email_Status,
+                Email_Sent_Info = m.Email_Sent_At.HasValue
+                    ? $"{m.Email_Sent_By}\n{m.Email_Sent_At.Value:dd/MM/yy HH:mm}"
+                    : "",
                 _IsLatest = latestIds.Contains(m.MPR_ID) ? 1 : 0  // cột ẩn để format dòng
             });
             if (dgvMPR.Columns.Contains("ID"))
                 dgvMPR.Columns["ID"].Visible = false;
             if (dgvMPR.Columns.Contains("_IsLatest"))
                 dgvMPR.Columns["_IsLatest"].Visible = false;
+
+            // Cố định kích thước các cột nhỏ trước (AutoSizeMode.None TRƯỚC khi set Width)
+            void FixCol(string name, int w)
+            {
+                if (!dgvMPR.Columns.Contains(name)) return;
+                var c = dgvMPR.Columns[name];
+                c.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                c.Width = w;
+            }
+            FixCol("Rev",        45);
+            FixCol("Trang_Thai", 90);
+            FixCol("Ngay_Can",   95);
+            FixCol("Ngay_Tao",   95);
+
+            // Cấu hình cột Email_Status (AutoSizeMode TRƯỚC Width)
+            if (dgvMPR.Columns.Contains("Email_Status"))
+            {
+                var esc = dgvMPR.Columns["Email_Status"];
+                esc.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                esc.Width = 65;
+                esc.HeaderText = "Email";
+                esc.ReadOnly = true;
+                esc.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                esc.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
+
+            // Thêm nút gửi email MPR (chỉ thêm 1 lần)
+            if (!dgvMPR.Columns.Contains("col_SendEmail_MPR"))
+            {
+                var btnEmail = new DataGridViewButtonColumn
+                {
+                    Name = "col_SendEmail_MPR",
+                    HeaderText = "Gửi Email",
+                    Text = "📧 Gửi",
+                    UseColumnTextForButtonValue = false,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                    Width = 85,
+                    FlatStyle = FlatStyle.Flat,
+                    DefaultCellStyle = { BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White, Font = new Font("Segoe UI", 8, FontStyle.Bold) },
+                };
+                dgvMPR.Columns.Add(btnEmail);
+            }
+
+            // Cấu hình cột Email_Sent_Info (người gửi + thời gian)
+            if (dgvMPR.Columns.Contains("Email_Sent_Info"))
+            {
+                var c = dgvMPR.Columns["Email_Sent_Info"];
+                c.AutoSizeMode  = DataGridViewAutoSizeColumnMode.None;
+                c.Width         = 115;
+                c.HeaderText    = "Người gửi / Thời gian";
+                c.ReadOnly      = true;
+                c.DefaultCellStyle.WrapMode   = DataGridViewTriState.True;
+                c.DefaultCellStyle.Font       = new Font("Segoe UI", 8f);
+                c.DefaultCellStyle.ForeColor  = Color.FromArgb(80, 80, 80);
+                c.DefaultCellStyle.Alignment  = DataGridViewContentAlignment.MiddleLeft;
+            }
+
+            // Tô màu cột Email_Status và nút gửi
+            dgvMPR.CellFormatting -= DgvMPR_EmailCellFormatting;
+            dgvMPR.CellFormatting += DgvMPR_EmailCellFormatting;
+            dgvMPR.CellContentClick -= DgvMPR_EmailCellContentClick;
+            dgvMPR.CellContentClick += DgvMPR_EmailCellContentClick;
 
             // Tô màu xám (chỉ đọc) cho các bản nằm giữa (Rev > 1 && Rev < MaxRev) — vẫn hiển thị trong danh sách
             foreach (DataGridViewRow row in dgvMPR.Rows)
@@ -5153,6 +5240,7 @@ FROM (
                ORDER BY TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT) DESC, h.MPR_ID DESC
            ) AS rn
     FROM MPR_Header h
+    WHERE ISNULL(h.Is_Deleted,0) = 0
 ) q
 INNER JOIN MPR_Details dC ON dC.MPR_ID = q.MPR_ID
     AND TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT) > 0
@@ -5160,6 +5248,7 @@ INNER JOIN MPR_Details dC ON dC.MPR_ID = q.MPR_ID
 INNER JOIN MPR_Header hS
     ON SUBSTRING(hS.MPR_No, 1, CHARINDEX('_Rev.', hS.MPR_No + '_Rev.') - 1)
      = SUBSTRING(q.MPR_No,  1, CHARINDEX('_Rev.', q.MPR_No  + '_Rev.') - 1)
+    AND ISNULL(hS.Is_Deleted,0) = 0
 INNER JOIN MPR_Details dS ON dS.MPR_ID = hS.MPR_ID
     AND TRY_CAST(TRY_CAST(dS.Item_No AS DECIMAL(10,2)) AS INT)
       = TRY_CAST(TRY_CAST(dC.Item_No AS DECIMAL(10,2)) AS INT)
@@ -5176,6 +5265,7 @@ WITH FilteredMPR AS (
                ORDER BY TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT) DESC, h.MPR_ID DESC
            ) AS rn
     FROM MPR_Header h
+    WHERE ISNULL(h.Is_Deleted,0) = 0
 ),
 PO_Flat AS (
     SELECT DISTINCT sd.CurrID, ph.PONo
@@ -5228,7 +5318,7 @@ SELECT
     ISNULL(mp.PO_List, N'')     AS PO_List
 FROM FilteredMPR f
 LEFT JOIN MPR_PO mp ON mp.MPR_ID = f.MPR_ID
-LEFT JOIN ProjectInfo pi ON pi.ProjectCode = f.Project_Code
+LEFT JOIN Project_Info pi ON pi.ProjectCode = f.Project_Code
 WHERE f.rn = 1";
 
                 // Dynamic filters
@@ -5279,7 +5369,8 @@ WHERE f.rn = 1";
                         string sqlProj = @"
 SELECT DISTINCT ISNULL(pi.ProjectName, h.Project_Code) AS DisplayName, h.Project_Code
 FROM MPR_Header h
-LEFT JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
+LEFT JOIN Project_Info pi ON pi.ProjectCode = h.Project_Code
+WHERE ISNULL(h.Is_Deleted,0) = 0
 ORDER BY DisplayName";
                         var dt = new DataTable();
                         dt.Columns.Add("DisplayName");
@@ -5296,6 +5387,7 @@ ORDER BY DisplayName";
                     }
                 }
                 catch { /* ignore — combobox just shows (Tất cả) */ }
+                cboProject.SelectedIndex = 0;
             }
 
             // ── Wire events ──────────────────────────────────────────────────
@@ -5707,6 +5799,590 @@ ORDER BY DisplayName";
                 MessageBox.Show(TopOwner, "Loi copy: " + ex.Message, "Loi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        // =====================================================================
+        //  EMAIL CELL FORMATTING
+        // =====================================================================
+        private void DgvMPR_EmailCellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (e.ColumnIndex >= dgvMPR.Columns.Count) return;
+            var col = dgvMPR.Columns[e.ColumnIndex];
+            if (col == null) return;
+            string colName = col.Name;
+
+            string status = "";
+            if (dgvMPR.Columns.Contains("Email_Status") && e.RowIndex < dgvMPR.Rows.Count)
+            {
+                var cell = dgvMPR.Rows[e.RowIndex].Cells["Email_Status"];
+                status = cell?.Value?.ToString() ?? "";
+            }
+            bool done = status.Equals("done", StringComparison.OrdinalIgnoreCase);
+
+            if (colName == "col_SendEmail_MPR")
+            {
+                if (done)
+                {
+                    e.Value = "✔ Đã gửi";
+                    e.CellStyle.BackColor = Color.FromArgb(200, 200, 200);
+                    e.CellStyle.ForeColor = Color.Black;
+                }
+                else
+                {
+                    e.Value = "📧 Gửi";
+                    e.CellStyle.BackColor = Color.FromArgb(40, 167, 69);
+                    e.CellStyle.ForeColor = Color.White;
+                }
+                e.FormattingApplied = true;
+            }
+            else if (colName == "Email_Status")
+            {
+                if (done)
+                {
+                    e.Value = "✔ done";
+                    e.CellStyle.ForeColor = Color.Black;
+                    e.CellStyle.BackColor = Color.FromArgb(200, 200, 200);
+                    e.FormattingApplied = true;
+                }
+            }
+        }
+
+        // =====================================================================
+        //  EMAIL BUTTON CLICK
+        // =====================================================================
+        private void DgvMPR_EmailCellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (e.ColumnIndex >= dgvMPR.Columns.Count) return;
+            if (dgvMPR.Columns[e.ColumnIndex]?.Name != "col_SendEmail_MPR") return;
+
+            var idCell = dgvMPR.Rows[e.RowIndex].Cells["ID"];
+            int mprId = Convert.ToInt32(idCell?.Value ?? 0);
+            if (mprId == 0) return;
+
+            var mpr = _mprList.Find(m => m.MPR_ID == mprId);
+            if (mpr == null) return;
+
+            ShowEmailComposePopupMPR(mpr);
+        }
+
+        // =====================================================================
+        //  EMAIL COMPOSE — mở Outlook trực tiếp, BCC tất cả nhà cung cấp được chọn
+        // =====================================================================
+        private void ShowEmailComposePopupMPR(MPRHeader mpr)
+        {
+            // --- Bước 1: Chọn nhà cung cấp ---
+            var allSuppliers = new SupplierService().GetAll()
+                .Where(s => !string.IsNullOrWhiteSpace(s.Email))
+                .OrderBy(s => s.Company_Name)
+                .ToList();
+
+            if (allSuppliers.Count == 0)
+            {
+                MessageBox.Show(TopOwner, "Không có nhà cung cấp nào có email trong hệ thống.\nVui lòng cập nhật email nhà cung cấp trước.", "Thiếu email", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var selDlg = new Form
+            {
+                Text = $"Chọn nhà cung cấp — MPR: {mpr.MPR_No}",
+                Size = new Size(520, 480),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.White, Font = new Font("Segoe UI", 9)
+            };
+
+            selDlg.Controls.Add(new Label
+            {
+                Text = "Chọn nhà cung cấp nhận email (BCC). Có thể chọn nhiều:",
+                Location = new Point(10, 10), Size = new Size(490, 20),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            });
+
+            var txtFilter = new TextBox { Location = new Point(10, 36), Size = new Size(490, 24), PlaceholderText = "Lọc nhanh theo tên / email..." };
+            var clb = new CheckedListBox { Location = new Point(10, 66), Size = new Size(490, 310), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 9) };
+            foreach (var s in allSuppliers)
+                clb.Items.Add($"{s.Company_Name}  <{s.Email}>", false);
+
+            txtFilter.TextChanged += (s, e) =>
+            {
+                string kw = txtFilter.Text.Trim().ToLower();
+                clb.Items.Clear();
+                foreach (var sup in allSuppliers)
+                    if (string.IsNullOrEmpty(kw) || sup.Company_Name.ToLower().Contains(kw) || sup.Email.ToLower().Contains(kw))
+                        clb.Items.Add($"{sup.Company_Name}  <{sup.Email}>", false);
+            };
+
+            var btnAll      = new Button { Text = "Chọn tất cả",   Location = new Point(10,  382), Size = new Size(110, 28), FlatStyle = FlatStyle.Flat };
+            var btnNone     = new Button { Text = "Bỏ chọn tất cả", Location = new Point(126, 382), Size = new Size(120, 28), FlatStyle = FlatStyle.Flat };
+            var btnNext     = new Button { Text = "Tiếp theo ▶", Location = new Point(360, 382), Size = new Size(140, 28), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.OK };
+            var btnCancelSel = new Button { Text = "Huỷ", Location = new Point(260, 382), Size = new Size(90, 28), FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.Cancel };
+            btnNext.FlatAppearance.BorderSize = 0;
+            btnAll.Click  += (s, e) => { for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true); };
+            btnNone.Click += (s, e) => { for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, false); };
+
+            selDlg.Controls.AddRange(new Control[] { txtFilter, clb, btnAll, btnNone, btnNext, btnCancelSel });
+            selDlg.AcceptButton = btnNext; selDlg.CancelButton = btnCancelSel;
+            selDlg.ClientSize = new Size(510, 420);
+
+            if (selDlg.ShowDialog(this) != DialogResult.OK) return;
+
+            var selectedEmails    = new List<string>();
+            var selectedNames     = new List<string>();
+            var selectedSuppliers = new List<MPR_Managerment.Models.Supplier>();
+            for (int i = 0; i < clb.Items.Count; i++)
+            {
+                if (!clb.GetItemChecked(i)) continue;
+                string itemText = clb.Items[i].ToString() ?? "";
+                int lt = itemText.IndexOf('<'), gt = itemText.IndexOf('>');
+                if (lt < 0 || gt < 0) continue;
+                string email = itemText.Substring(lt + 1, gt - lt - 1).Trim();
+                var sup = allSuppliers.Find(x => x.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+                if (sup != null)
+                {
+                    selectedEmails.Add(sup.Email);
+                    selectedNames.Add(sup.Company_Name);
+                    selectedSuppliers.Add(sup);
+                }
+            }
+
+            if (selectedEmails.Count == 0)
+            {
+                MessageBox.Show(TopOwner, "Chưa chọn nhà cung cấp nào!", "Thiếu lựa chọn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // --- Bước 2: Tìm file MPR đính kèm ---
+            string attachPath = FindMPRFile(mpr);
+
+            // --- Bước 3: Compose popup ---
+            var details = _service.GetDetails(mpr.MPR_ID);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Kính gửi Quý Nhà Cung Cấp,");
+            sb.AppendLine();
+            sb.AppendLine("Chúng tôi gửi đến Quý vị Phiếu Yêu cầu Mua Vật tư (MPR) với thông tin như sau:");
+            sb.AppendLine($"  - Số MPR     : {mpr.MPR_No}");
+            sb.AppendLine($"  - Dự án      : {mpr.Project_Name}");
+            sb.AppendLine($"  - Mã dự án   : {mpr.Project_Code}");
+            sb.AppendLine($"  - Ngày cần   : {mpr.Required_Date?.ToString("dd/MM/yyyy") ?? ""}");
+            if (mpr.Rev > 0) sb.AppendLine($"  - Revise     : {mpr.Rev}");
+            sb.AppendLine();
+            sb.AppendLine("Chi tiết vật tư:");
+            int stt = 1;
+            foreach (var d in details)
+                sb.AppendLine($"  {stt++}. {d.Item_Name}  |  SL: {d.Qty_Per_Sheet} {d.UNIT}");
+            sb.AppendLine();
+            sb.AppendLine("Vui lòng xem xét và báo giá trong thời gian sớm nhất. Cảm ơn Quý vị!");
+
+            string subject = $"Phiếu Yêu cầu Mua Vật tư (MPR) - {mpr.MPR_No}";
+            string bccList = string.Join(";", selectedEmails);
+
+            var popup = new Form
+            {
+                Text = $"Gửi Email MPR qua Outlook — {mpr.MPR_No}",
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.White, Font = new Font("Segoe UI", 9)
+            };
+
+            int py = 12;
+            void AddRow(string lbl, Control ctrl, int h = 26)
+            {
+                popup.Controls.Add(new Label { Text = lbl, Location = new Point(10, py + 3), Size = new Size(70, 20), TextAlign = ContentAlignment.MiddleRight });
+                ctrl.Location = new Point(85, py); ctrl.Size = new Size(575, h);
+                popup.Controls.Add(ctrl); py += h + 6;
+            }
+
+            var txtBcc     = new TextBox { Text = bccList };
+            var txtSubject = new TextBox { Text = subject };
+            var txtBody    = new TextBox { Text = sb.ToString(), Multiline = true, ScrollBars = ScrollBars.Vertical };
+
+            AddRow("BCC:", txtBcc);
+            AddRow("Chủ đề:", txtSubject);
+            AddRow("Nội dung:", txtBody, 280);
+
+            // Dòng đính kèm
+            bool hasFile = !string.IsNullOrEmpty(attachPath) && File.Exists(attachPath);
+            var lblAttach = new Label
+            {
+                Text      = hasFile ? $"📎  {Path.GetFileName(attachPath)}" : "⚠  Không tìm thấy file MPR trong thư mục MPR Link",
+                Location  = new Point(85, py), Size = new Size(470, 18),
+                ForeColor = hasFile ? Color.FromArgb(0, 120, 60) : Color.FromArgb(160, 80, 0),
+                Font      = new Font("Segoe UI", 8.5f, FontStyle.Italic)
+            };
+            popup.Controls.Add(lblAttach);
+
+            // Nút duyệt file thủ công
+            var btnBrowse = new Button
+            {
+                Text = "...", Location = new Point(560, py - 2), Size = new Size(100, 22),
+                FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 8)
+            };
+            popup.Controls.Add(btnBrowse);
+            py += 28;
+
+            // BCC summary
+            var lblBccNote = new Label
+            {
+                Text = $"BCC tới {selectedEmails.Count} nhà cung cấp: {string.Join(", ", selectedNames.Take(4))}{(selectedNames.Count > 4 ? $" ... (+{selectedNames.Count - 4})" : "")}",
+                Location = new Point(10, py), Size = new Size(650, 18),
+                ForeColor = Color.FromArgb(0, 100, 180),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic)
+            };
+            popup.Controls.Add(lblBccNote); py += 26;
+
+            var btnOpen  = new Button { Text = "📧 Mở trong Outlook", Location = new Point(10, py), Size = new Size(170, 34), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+            var btnClose = new Button { Text = "Huỷ", Location = new Point(580, py), Size = new Size(80, 34), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnOpen.FlatAppearance.BorderSize = 0;
+            popup.Controls.AddRange(new Control[] { btnOpen, btnClose });
+            popup.ClientSize = new Size(670, py + 54);
+
+            // Cho phép duyệt file thủ công
+            string resolvedAttach = attachPath;
+            btnBrowse.Click += (s, ev) =>
+            {
+                using var ofd = new OpenFileDialog
+                {
+                    Title  = "Chọn file MPR đính kèm",
+                    Filter = "Excel / PDF|*.xlsx;*.xls;*.pdf|Tất cả|*.*",
+                    InitialDirectory = string.IsNullOrEmpty(resolvedAttach) ? "" : Path.GetDirectoryName(resolvedAttach) ?? ""
+                };
+                if (ofd.ShowDialog() != DialogResult.OK) return;
+                resolvedAttach     = ofd.FileName;
+                lblAttach.Text     = $"📎  {Path.GetFileName(resolvedAttach)}";
+                lblAttach.ForeColor = Color.FromArgb(0, 120, 60);
+            };
+
+            btnClose.Click += (s, ev) => popup.Close();
+
+            btnOpen.Click += (s, ev) =>
+            {
+                string bcc = txtBcc.Text.Trim();
+                if (string.IsNullOrWhiteSpace(bcc))
+                {
+                    MessageBox.Show(TopOwner, "Chưa có địa chỉ BCC!", "Thiếu email", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                btnOpen.Enabled = false;
+                btnOpen.Text    = "Đang mở Outlook...";
+                try
+                {
+                    var outlookType = Type.GetTypeFromProgID("Outlook.Application");
+                    if (outlookType == null) throw new Exception("Không tìm thấy Outlook trên máy tính này.");
+
+                    dynamic outlook = Activator.CreateInstance(outlookType);
+                    dynamic mail    = outlook.CreateItem(0); // olMailItem
+
+                    mail.BCC     = bcc;
+                    mail.Subject = txtSubject.Text.Trim();
+
+                    // Chèn nội dung vào trước chữ ký Outlook
+                    dynamic inspector  = mail.GetInspector;
+                    string htmlWithSig = (string)(mail.HTMLBody ?? "");
+                    string ourHtml     = BuildHtmlBodyMPR(txtBody.Text);
+                    if (string.IsNullOrEmpty(htmlWithSig))
+                    {
+                        mail.HTMLBody = ourHtml;
+                    }
+                    else
+                    {
+                        int tagEnd = htmlWithSig.IndexOf('>', htmlWithSig.IndexOf("<body", StringComparison.OrdinalIgnoreCase));
+                        mail.HTMLBody = tagEnd >= 0 ? htmlWithSig.Insert(tagEnd + 1, ourHtml) : ourHtml + htmlWithSig;
+                    }
+
+                    // Đính kèm file MPR nếu tìm thấy
+                    if (!string.IsNullOrEmpty(resolvedAttach) && File.Exists(resolvedAttach))
+                        mail.Attachments.Add(resolvedAttach, 1, Type.Missing, Path.GetFileName(resolvedAttach));
+
+                    // Mở cửa sổ soạn thảo Outlook (không gửi ngay)
+                    mail.Display(false);
+
+                    // Đóng popup, rồi poll mail.Sent để tự nhận khi Outlook thực sự gửi
+                    popup.Close();
+                    _StartEmailSentPoller(outlook, mail, txtSubject.Text.Trim(), mpr.MPR_ID, selectedSuppliers);
+                }
+                catch (Exception ex)
+                {
+                    btnOpen.Enabled = true;
+                    btnOpen.Text    = "📧 Mở trong Outlook";
+                    MessageBox.Show(TopOwner, $"Lỗi mở Outlook:\n{ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            popup.ShowDialog(this);
+        }
+
+        // =====================================================================
+        //  POLL mail.Sent — tự cập nhật status khi Outlook thực sự bấm Send
+        //  Fallback: khi COM object bị giải phóng (sau khi gửi) → check Sent Items
+        // =====================================================================
+        private void _StartEmailSentPoller(dynamic outlook, dynamic mail, string subject, int mprId,
+            List<MPR_Managerment.Models.Supplier> suppliers = null)
+        {
+            if (_emailPollers.TryGetValue(mprId, out var old))
+            {
+                old.Stop(); old.Dispose();
+                _emailPollers.Remove(mprId);
+            }
+
+            if (lblStatus != null)
+                lblStatus.Text = $"⏳ Đang chờ Outlook gửi email cho MPR #{mprId}...";
+
+            var startedAt = DateTime.Now;
+            var timer     = new System.Windows.Forms.Timer { Interval = 2000 };
+            var deadline  = DateTime.Now.AddMinutes(15);
+            bool comDead  = false;   // chuyển sang chế độ scan Sent Items
+            _emailPollers[mprId] = timer;
+
+            timer.Tick += (_, __) =>
+            {
+                if (DateTime.Now > deadline)
+                {
+                    timer.Stop(); timer.Dispose();
+                    _emailPollers.Remove(mprId);
+                    if (lblStatus != null) lblStatus.Text = "⚠ Hết thời gian chờ — email chưa được ghi nhận.";
+                    return;
+                }
+
+                // Pha 1: COM còn sống → kiểm tra mail.Sent
+                if (!comDead)
+                {
+                    bool sent = false;
+                    try { sent = (bool)mail.Sent; }
+                    catch { comDead = true; }
+
+                    if (sent)
+                    {
+                        _MarkEmailDone(mprId, suppliers);
+                        timer.Stop(); timer.Dispose();
+                        _emailPollers.Remove(mprId);
+                        return;
+                    }
+                }
+
+                // Pha 2: COM đã chết → tiếp tục poll Sent Items mỗi 2s
+                // (email có thể còn đang trong Outbox chưa kịp gửi)
+                if (comDead)
+                {
+                    int elapsed = (int)(DateTime.Now - startedAt).TotalSeconds;
+                    if (lblStatus != null)
+                        lblStatus.Text = $"⏳ Đang kiểm tra Sent Items... ({elapsed}s)";
+
+                    if (_CheckSentItemsFolder(subject))
+                    {
+                        _MarkEmailDone(mprId, suppliers);
+                        timer.Stop(); timer.Dispose();
+                        _emailPollers.Remove(mprId);
+                    }
+                    // Chưa thấy → giữ timer tiếp tục, không dừng
+                    return;
+                }
+
+                int sec = (int)(DateTime.Now - startedAt).TotalSeconds;
+                if (lblStatus != null)
+                    lblStatus.Text = $"⏳ Chờ Outlook gửi... ({sec}s)";
+            };
+
+            timer.Start();
+        }
+
+        private void _MarkEmailDone(int mprId,
+            List<MPR_Managerment.Models.Supplier> suppliers = null)
+        {
+            var sentAt = DateTime.Now;
+            _service.UpdateEmailStatus(mprId, "done", _currentUser, sentAt);
+
+            var h = _mprList.Find(x => x.MPR_ID == mprId);
+            if (h != null)
+            {
+                h.Email_Status  = "done";
+                h.Email_Sent_By = _currentUser;
+                h.Email_Sent_At = sentAt;
+            }
+
+            BindMPRGrid(_mprList);
+            if (lblStatus != null)
+                lblStatus.Text = "✅ Email MPR đã được gửi thành công!";
+
+            // Gửi thông báo Zalo vào nhóm của từng NCC
+            if (suppliers != null && suppliers.Count > 0 && h != null)
+            {
+                string zaloMsg =
+                    $"📋 DLHI Thông báo:\n" +
+                    $"Chúng tôi đã gửi yêu cầu báo giá cho:\n" +
+                    $"🔹 Số MPR   : {h.MPR_No}\n" +
+                    $"🔹 Dự án   : {h.Project_Name}\n" +
+                    $"🔹 Thời gian: {sentAt:dd/MM/yyyy HH:mm}\n" +
+                    $"Xin vui lòng kiểm tra Email, Rất mong sớm nhận được báo giá từ Quý công ty!";
+                _SendZaloMPRNotify(suppliers, zaloMsg);
+            }
+        }
+
+        private async void _SendZaloMPRNotify(
+            List<MPR_Managerment.Models.Supplier> suppliers, string msg)
+        {
+            void SetSt(string text) { if (lblStatus != null) lblStatus.Text = text; }
+
+            var cfg = Helpers.ZaloHelper.LoadSettings();
+            if (!cfg.Enabled)
+            {
+                SetSt("✅ Email MPR đã gửi  |  ⚠ Zalo chưa bật — vào 🔔 Zalo trên tiêu đề để bật");
+                return;
+            }
+
+            var targets = suppliers.FindAll(s => !string.IsNullOrWhiteSpace(s.Zalo_Group_ID));
+            if (targets.Count == 0)
+            {
+                SetSt("✅ Email MPR đã gửi  |  ⚠ Không có NCC nào có tên nhóm Zalo");
+                return;
+            }
+
+            SetSt($"✅ Email MPR đã gửi  |  ⏳ Đang gửi Zalo ({targets.Count} nhóm)...");
+
+            int ok = 0, fail = 0;
+            bool first = true;
+            foreach (var sup in targets)
+            {
+                if (!first) await Task.Delay(8000);
+                first = false;
+
+                try
+                {
+                    var (sent, err) = await Helpers.ZaloHelper.SendToGroupAsync(cfg, sup.Zalo_Group_ID, msg);
+                    if (sent) ok++;
+                    else { fail++; SetSt($"✅ Email MPR đã gửi  |  ❌ Zalo lỗi '{sup.Zalo_Group_ID}': {err}"); }
+                }
+                catch (Exception ex)
+                {
+                    fail++;
+                    SetSt($"✅ Email MPR đã gửi  |  ❌ Zalo exception: {ex.Message}");
+                }
+            }
+
+            if (fail == 0)
+                SetSt($"✅ Email MPR đã gửi  |  🔔 Đã gửi Zalo thành công ({ok} nhóm)");
+        }
+
+        private bool _CheckSentItemsFolder(string subject)
+        {
+            try
+            {
+                // Tạo instance Outlook mới (singleton COM — trả về Outlook đang chạy)
+                var outlookType = Type.GetTypeFromProgID("Outlook.Application");
+                if (outlookType == null) return false;
+                dynamic ol = Activator.CreateInstance(outlookType);
+                dynamic ns = ol.GetNamespace("MAPI");
+
+                // Duyệt tất cả store (account) — tránh bỏ sót khi Outlook có nhiều tài khoản
+                try
+                {
+                    dynamic stores     = ns.Stores;
+                    int     storeCount = Convert.ToInt32(stores.Count);
+                    for (int s = 1; s <= storeCount; s++)
+                    {
+                        try
+                        {
+                            dynamic store = stores[s];
+                            dynamic sentFolder;
+                            try { sentFolder = store.GetDefaultFolder(5); } catch { continue; }
+                            if (_ScanFolderForSubject(sentFolder, subject)) return true;
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+
+                // Fallback: thư mục Sent Items mặc định của namespace
+                try
+                {
+                    dynamic sentFolder = ns.GetDefaultFolder(5);
+                    if (_ScanFolderForSubject(sentFolder, subject)) return true;
+                }
+                catch { }
+
+                return false;
+            }
+            catch { return false; }
+        }
+
+        private bool _ScanFolderForSubject(dynamic folder, string subject)
+        {
+            try
+            {
+                dynamic items = folder.Items;
+                items.Sort("[SentOn]", true); // mới nhất trước
+                int count = Convert.ToInt32(items.Count);
+                for (int i = 1; i <= Math.Min(100, count); i++)
+                {
+                    try
+                    {
+                        dynamic item = items[i];
+                        string  itemSubj;
+                        try { itemSubj = (string)item.Subject; } catch { continue; }
+                        if (string.Equals(itemSubj, subject, StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                    catch { }
+                }
+                return false;
+            }
+            catch { return false; }
+        }
+
+        // =====================================================================
+        //  TÌM FILE MPR TRONG THƯ MỤC MPR_Link (khớp MPR_No, ưu tiên PDF)
+        // =====================================================================
+        private string FindMPRFile(MPRHeader mpr)
+        {
+            try
+            {
+                var projects = new ProjectService().GetAll();
+                var prj = projects.Find(p =>
+                    (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(mpr.Project_Name, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(p.ProjectCode) && p.ProjectCode.Equals(mpr.Project_Code, StringComparison.OrdinalIgnoreCase)));
+
+                if (prj == null || string.IsNullOrEmpty(prj.MPR_Link)) return null;
+                string folder = prj.MPR_Link.Trim();
+                if (!Directory.Exists(folder)) return null;
+
+                string mprNorm = NormalizeName(mpr.MPR_No);
+                var candidates = Directory.GetFiles(folder, "*.*", SearchOption.TopDirectoryOnly)
+                    .Where(f => { string ext = Path.GetExtension(f).ToLower(); return ext == ".xlsx" || ext == ".xls" || ext == ".pdf"; })
+                    .ToList();
+
+                string bestPath  = null;
+                int    bestScore = -1;
+                foreach (var f in candidates)
+                {
+                    string nameNorm = NormalizeName(Path.GetFileNameWithoutExtension(f));
+                    int score = 0;
+                    if (!string.IsNullOrEmpty(mprNorm) && nameNorm.Contains(mprNorm)) score += 4;
+                    if (Path.GetExtension(f).ToLower() == ".pdf")  score += 2;
+                    if (Path.GetExtension(f).ToLower() == ".xlsx") score += 1;
+                    if (score > bestScore) { bestScore = score; bestPath = f; }
+                }
+
+                return bestScore >= 4 ? bestPath : null;
+            }
+            catch { return null; }
+        }
+
+        private static string NormalizeName(string s) =>
+            (s ?? "").ToUpperInvariant().Replace(" ", "").Replace("-", "").Replace("_", "").Replace(".", "");
+
+        private static string BuildHtmlBodyMPR(string plainText)
+        {
+            string html = plainText
+                .Replace("&",  "&amp;")
+                .Replace("<",  "&lt;")
+                .Replace(">",  "&gt;")
+                .Replace("\r\n", "<br>")
+                .Replace("\n",   "<br>")
+                .Replace("  ",  "&nbsp;&nbsp;");
+            return $"<div style='font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000000;'>{html}</div><br>";
         }
     }
 }
