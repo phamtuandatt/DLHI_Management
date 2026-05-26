@@ -2583,7 +2583,10 @@ namespace MPR_Managerment.Forms
                     ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
-                    string fullName = AppSession.CurrentUser.Full_Name ?? _currentUser;
+                    string fullName = !string.IsNullOrWhiteSpace(AppSession.CurrentUser?.Full_Name)
+                        ? AppSession.CurrentUser.Full_Name
+                        : !string.IsNullOrWhiteSpace(_currentUser) ? _currentUser
+                        : AppSession.CurrentUser?.Username ?? "Admin";
                     ReplaceCell(ws, "<<USER_NAME>>", fullName);
                     ReplaceCell(ws, "<<user name>>", fullName);
                     ReplaceCell(ws, "<<User Name>>", fullName);
@@ -2853,13 +2856,25 @@ namespace MPR_Managerment.Forms
 
         private void ReplaceCell(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string value)
         {
-            for (int r = 1; r <= ws.Dimension.End.Row; r++)
-                for (int c = 1; c <= ws.Dimension.End.Column; c++)
+            if (ws.Dimension == null) return;
+            foreach (var cell in ws.Cells[ws.Dimension.Address])
+            {
+                if (cell.IsRichText)
                 {
-                    string cellVal = ws.Cells[r, c].Value?.ToString()?.Trim() ?? "";
-                    if (string.Equals(cellVal, placeholder, StringComparison.OrdinalIgnoreCase))
-                        ws.Cells[r, c].Value = value;
+                    // Rich-text cell: thay trong từng run
+                    foreach (var run in cell.RichText)
+                    {
+                        if (run.Text.Contains(placeholder, StringComparison.OrdinalIgnoreCase))
+                            run.Text = run.Text.Replace(placeholder, value, StringComparison.OrdinalIgnoreCase);
+                    }
                 }
+                else
+                {
+                    string cellVal = cell.Value?.ToString() ?? "";
+                    if (cellVal.Contains(placeholder, StringComparison.OrdinalIgnoreCase))
+                        cell.Value = cellVal.Replace(placeholder, value, StringComparison.OrdinalIgnoreCase);
+                }
+            }
         }
 
         private void BuildDetailColumns()
@@ -4006,6 +4021,13 @@ namespace MPR_Managerment.Forms
                     ReplaceCell(ws, "<<PO-NO>>", poHead.PONo ?? "");
                     string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
                     ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
+                    string fullNameAuto = !string.IsNullOrWhiteSpace(AppSession.CurrentUser?.Full_Name)
+                        ? AppSession.CurrentUser.Full_Name
+                        : !string.IsNullOrWhiteSpace(_currentUser) ? _currentUser
+                        : AppSession.CurrentUser?.Username ?? "Admin";
+                    ReplaceCell(ws, "<<USER_NAME>>", fullNameAuto);
+                    ReplaceCell(ws, "<<user name>>", fullNameAuto);
+                    ReplaceCell(ws, "<<User Name>>", fullNameAuto);
 
                     ws.Cells[5, 15].Value = !string.IsNullOrEmpty(poHead.Payment_Term)
                         ? poHead.Payment_Term : "Within 7 days after delivery";
