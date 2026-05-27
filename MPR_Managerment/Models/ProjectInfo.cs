@@ -23,5 +23,9 @@ namespace MPR_Managerment.Models
         public string INV_Link { get; set; }
         public string DeliveryNote_Link { get; set; }
         public string PNK_Link { get; set; }
+        public string ZaloGroupId { get; set; } = "";
+        public string ZaloGroupName { get; set; } = "";
+        public string ZaloGroupLink { get; set; } = "";
+        public bool EnableZaloNotification { get; set; } = false;
     }
 }

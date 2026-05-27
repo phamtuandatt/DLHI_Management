@@ -6116,53 +6116,27 @@ ORDER BY DisplayName";
                     $"🔹 Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}\n" +
                     $"Xin vui lòng kiểm tra Email, Rất mong sớm nhận được báo giá từ Quý công ty!";
 
-                _SendZaloToSelectedGroupsMPR(selected, msg);
+                _SendZaloToSelectedGroupsMPR(selected, msg, mpr.MPR_No);
             };
 
             dlg.ShowDialog(this);
         }
 
-        private async void _SendZaloToSelectedGroupsMPR(
-            List<MPR_Managerment.Models.Supplier> selected, string msg)
+        private void _SendZaloToSelectedGroupsMPR(
+            List<MPR_Managerment.Models.Supplier> selected, string msg, string mprNo)
         {
             void SetSt(string text) { if (lblStatus != null && !lblStatus.IsDisposed) lblStatus.Text = text; }
 
-            var cfg = Helpers.ZaloHelper.LoadSettings();
-            int ok = 0, fail = 0;
-            bool first = true;
-
-            SetSt($"⏳ Đang gửi thông báo Zalo ({selected.Count} nhóm)...");
+            SetSt($"⏳ Đang đặt {selected.Count} tin nhắn Zalo vào hàng đợi...");
 
             foreach (var sup in selected)
             {
-                if (!first)
-                {
-                    for (int i = 15; i > 0; i--)
-                    {
-                        SetSt($"⏳ Gửi Zalo — chờ {i}s trước nhóm tiếp theo...");
-                        await Task.Delay(1000);
-                    }
-                }
-                first = false;
-
-                SetSt($"⏳ Đang gửi đến nhóm '{sup.Zalo_Group_ID}'...");
-                try
-                {
-                    var (sent, err) = await Helpers.ZaloHelper.SendToGroupAsync(cfg, sup.Zalo_Group_ID, msg);
-                    if (sent) ok++;
-                    else { fail++; SetSt($"❌ Lỗi Zalo '{sup.Zalo_Group_ID}': {err}"); }
-                }
-                catch (Exception ex)
-                {
-                    fail++;
-                    SetSt($"❌ Zalo exception: {ex.Message}");
-                }
+                // Lấy tên nhóm từ Zalo_Group_ID (giữ nguyên để dễ debug)
+                string groupName = sup.Zalo_Group_ID ?? sup.Company_Name ?? "Unknown";
+                ZaloNotificationService.Instance.Enqueue(groupName, msg, $"MPR: {mprNo}");
             }
 
-            if (fail == 0)
-                SetSt($"🔔 Đã gửi thông báo Zalo thành công ({ok}/{selected.Count} nhóm)");
-            else
-                SetSt($"🔔 Gửi Zalo xong: {ok} thành công, {fail} lỗi");
+            SetSt($"🔔 Đã đặt {selected.Count} tin nhắn Zalo vào hàng đợi (sẽ gửi theo thứ tự)");
         }
 
         // =====================================================================
@@ -6516,12 +6490,12 @@ ORDER BY DisplayName";
                     $"🔹 Dự án   : {h.Project_Name}\n" +
                     $"🔹 Thời gian: {sentAt:dd/MM/yyyy HH:mm}\n" +
                     $"Xin vui lòng kiểm tra Email, Rất mong sớm nhận được báo giá từ Quý công ty!";
-                _SendZaloMPRNotify(suppliers, zaloMsg);
+                _SendZaloMPRNotify(suppliers, zaloMsg, h.MPR_No);
             }
         }
 
-        private async void _SendZaloMPRNotify(
-            List<MPR_Managerment.Models.Supplier> suppliers, string msg)
+        private void _SendZaloMPRNotify(
+            List<MPR_Managerment.Models.Supplier> suppliers, string msg, string mprNo = "")
         {
             void SetSt(string text) { if (lblStatus != null) lblStatus.Text = text; }
 
@@ -6539,30 +6513,16 @@ ORDER BY DisplayName";
                 return;
             }
 
-            SetSt($"✅ Email MPR đã gửi  |  ⏳ Đang gửi Zalo ({targets.Count} nhóm)...");
+            SetSt($"✅ Email MPR đã gửi  |  ⏳ Đang đặt {targets.Count} tin nhắn Zalo vào hàng đợi...");
 
-            int ok = 0, fail = 0;
-            bool first = true;
             foreach (var sup in targets)
             {
-                if (!first) await Task.Delay(8000);
-                first = false;
-
-                try
-                {
-                    var (sent, err) = await Helpers.ZaloHelper.SendToGroupAsync(cfg, sup.Zalo_Group_ID, msg);
-                    if (sent) ok++;
-                    else { fail++; SetSt($"✅ Email MPR đã gửi  |  ❌ Zalo lỗi '{sup.Zalo_Group_ID}': {err}"); }
-                }
-                catch (Exception ex)
-                {
-                    fail++;
-                    SetSt($"✅ Email MPR đã gửi  |  ❌ Zalo exception: {ex.Message}");
-                }
+                // Lấy tên nhóm từ Zalo_Group_ID (giữ nguyên để dễ debug)
+                string groupName = sup.Zalo_Group_ID ?? sup.Company_Name ?? "Unknown";
+                ZaloNotificationService.Instance.Enqueue(groupName, msg, $"MPR: {mprNo}");
             }
 
-            if (fail == 0)
-                SetSt($"✅ Email MPR đã gửi  |  🔔 Đã gửi Zalo thành công ({ok} nhóm)");
+            SetSt($"✅ Email MPR đã gửi  |  🔔 Đã đặt {targets.Count} tin nhắn Zalo vào hàng đợi (sẽ gửi theo thứ tự)");
         }
 
         private bool _CheckSentItemsFolder(string subject)

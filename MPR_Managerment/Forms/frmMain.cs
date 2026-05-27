@@ -63,6 +63,9 @@ namespace MPR_Managerment.Forms
             this.WindowState = FormWindowState.Maximized;
             this.BackColor = Color.FromArgb(245, 245, 245);
 
+            // Khởi tạo ZaloNotificationService trên UI thread
+            // để đảm bảo Timer và WebView2 chạy đúng trên UI thread
+            _ = ZaloNotificationService.Instance;
 
             BuildHeader();
             BuildMenu();
@@ -371,6 +374,7 @@ namespace MPR_Managerment.Forms
                 if (MessageBox.Show(this, "Bạn có chắc muốn thoát?", "Xác nhận",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
+                    ZaloNotificationService.Instance.Dispose();
                     AppSession.Clear();
                     Application.Exit();
                 }

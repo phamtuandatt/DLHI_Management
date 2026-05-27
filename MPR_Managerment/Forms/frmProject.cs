@@ -27,6 +27,8 @@ namespace MPR_Managerment.Forms
         private TextBox txtProjectName, txtProjectCode, txtWorkorderNo, txtCustomer;
         private TextBox txtPOCode, txtMPRCode, txtNotes;
         private TextBox txtPOLink, txtRIRLink, txtMPRLink, txtINVLink, txtDeliveryNoteLink;
+        private TextBox txtZaloGroupId, txtZaloGroupName, txtZaloGroupLink;
+        private CheckBox chkEnableZaloNotification;
         private NumericUpDown nudWeight, nudBudget;
         private ComboBox cboStatus;
 
@@ -297,7 +299,31 @@ namespace MPR_Managerment.Forms
             txtDeliveryNoteLink = AddTxt(panelForm, 560, y, 300);
             txtDeliveryNoteLink.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            // Row 5
+            // Row 5 - Zalo Group Info
+            y += 38;
+            AddLabel(panelForm, "Zalo Group ID:", 10, y);
+            txtZaloGroupId = AddTxt(panelForm, 120, y, 280);
+
+            AddLabel(panelForm, "Tên nhóm Zalo:", 415, y);
+            txtZaloGroupName = AddTxt(panelForm, 515, y, 340);
+
+            chkEnableZaloNotification = new CheckBox
+            {
+                Location = new Point(870, y + 3),
+                Size = new Size(250, 20),
+                Font = new Font("Segoe UI", 9),
+                Text = "✓ Bật thông báo Zalo",
+                AutoSize = true
+            };
+            panelForm.Controls.Add(chkEnableZaloNotification);
+
+            // Row 6 - Zalo Group Link
+            y += 38;
+            AddLabel(panelForm, "Zalo Group Link:", 10, y);
+            txtZaloGroupLink = AddTxt(panelForm, 120, y, 1110);
+            txtZaloGroupLink.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+            // Row 7 - Notes
             y += 38;
             AddLabel(panelForm, "Ghi chú:", 10, y);
             txtNotes = new TextBox
@@ -384,6 +410,7 @@ namespace MPR_Managerment.Forms
             txtNotes.Width = panelForm.Width - txtNotes.Left - 20;
             txtMPRLink.Width = panelForm.Width - txtMPRLink.Left - 20;
             txtDeliveryNoteLink.Width = panelForm.Width - txtDeliveryNoteLink.Left - 20;
+            txtZaloGroupLink.Width = panelForm.Width - txtZaloGroupLink.Left - 20;
         }
 
         // ===== LOAD DỮ LIỆU =====
@@ -541,6 +568,10 @@ namespace MPR_Managerment.Forms
             txtMPRLink.Text = p.MPR_Link;
             txtINVLink.Text = p.INV_Link;
             txtDeliveryNoteLink.Text = p.DeliveryNote_Link;
+            txtZaloGroupId.Text = p.ZaloGroupId;
+            txtZaloGroupName.Text = p.ZaloGroupName;
+            txtZaloGroupLink.Text = p.ZaloGroupLink;
+            chkEnableZaloNotification.Checked = p.EnableZaloNotification;
             nudWeight.Value = p.PJWeight > nudWeight.Maximum ? nudWeight.Maximum : p.PJWeight;
             nudBudget.Value = p.PJBudget > nudBudget.Maximum ? nudBudget.Maximum : p.PJBudget;
 
@@ -612,18 +643,36 @@ namespace MPR_Managerment.Forms
                     RIR_Link = txtRIRLink.Text.Trim(),
                     MPR_Link = txtMPRLink.Text.Trim(),
                     INV_Link = txtINVLink.Text.Trim(),
-                    DeliveryNote_Link = txtDeliveryNoteLink.Text.Trim()
+                    DeliveryNote_Link = txtDeliveryNoteLink.Text.Trim(),
+                    ZaloGroupId = txtZaloGroupId.Text.Trim(),
+                    ZaloGroupName = txtZaloGroupName.Text.Trim(),
+                    ZaloGroupLink = txtZaloGroupLink.Text.Trim(),
+                    EnableZaloNotification = chkEnableZaloNotification.Checked
                 };
 
                 if (_selectedId == 0)
                 {
                     _service.Insert(p, _currentUser);
                     MessageBox.Show(TopOwner, "Thêm dự án thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // --- ZALO NOTIFICATION ---
+                    if (p.EnableZaloNotification && !string.IsNullOrWhiteSpace(p.ZaloGroupName))
+                    {
+                        string msg = $"📢 [DỰ ÁN MỚI]\n- Tên: {p.ProjectName}\n- Mã DA: {p.ProjectCode}\n- Khách hàng: {p.Customer}\n- Cập nhật lúc: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                        MPR_Managerment.Services.ZaloNotificationService.Instance.Enqueue(p.ZaloGroupName, msg, p.ProjectCode);
+                    }
                 }
                 else
                 {
                     _service.Update(p);
                     MessageBox.Show(TopOwner, "Cập nhật thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // --- ZALO NOTIFICATION ---
+                    if (p.EnableZaloNotification && !string.IsNullOrWhiteSpace(p.ZaloGroupName))
+                    {
+                        string msg = $"📝 [CẬP NHẬT DỰ ÁN]\n- Tên: {p.ProjectName}\n- Mã DA: {p.ProjectCode}\n- Trạng thái: {p.Status}\n- Ghi chú: {p.Notes}\n- Cập nhật lúc: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                        MPR_Managerment.Services.ZaloNotificationService.Instance.Enqueue(p.ZaloGroupName, msg, p.ProjectCode);
+                    }
                 }
 
                 LoadProjects();
@@ -684,6 +733,10 @@ namespace MPR_Managerment.Forms
             txtMPRLink.Text = "";
             txtINVLink.Text = "";
             txtDeliveryNoteLink.Text = "";
+            txtZaloGroupId.Text = "";
+            txtZaloGroupName.Text = "";
+            txtZaloGroupLink.Text = "";
+            chkEnableZaloNotification.Checked = false;
             nudWeight.Value = 0;
             nudBudget.Value = 0;
             cboStatus.SelectedIndex = 0;

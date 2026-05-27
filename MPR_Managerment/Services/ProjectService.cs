@@ -78,10 +78,12 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand(@"
                     INSERT INTO ProjectInfo 
                         (ProjectName, ProjectCode, WorkorderNo, Customer, PJWeight, PJBudget,
-                         POCode, MPRCode, Status, Notes, PO_Link, RIR_link, MPR_link, INV_Link, DeliveryNote_Link, CreatedDate)
+                         POCode, MPRCode, Status, Notes, PO_Link, RIR_link, MPR_link, INV_Link, DeliveryNote_Link, 
+                         ZaloGroupId, ZaloGroupName, ZaloGroupLink, EnableZaloNotification, CreatedDate)
                     VALUES 
                         (@ProjectName, @ProjectCode, @WorkorderNo, @Customer, @PJWeight, @PJBudget,
-                         @POCode, @MPRCode, @Status, @Notes, @PO_Link, @RIR_link, @MPR_link, @INV_Link, @DeliveryNote_Link, GETDATE());
+                         @POCode, @MPRCode, @Status, @Notes, @PO_Link, @RIR_link, @MPR_link, @INV_Link, @DeliveryNote_Link,
+                         @ZaloGroupId, @ZaloGroupName, @ZaloGroupLink, @EnableZaloNotification, GETDATE());
                     SELECT SCOPE_IDENTITY();", conn);
 
                 cmd.Parameters.AddWithValue("@ProjectName", p.ProjectName);
@@ -99,6 +101,10 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@MPR_link", p.MPR_Link ?? "");
                 cmd.Parameters.AddWithValue("@INV_Link", p.INV_Link ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@DeliveryNote_Link", p.DeliveryNote_Link ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@ZaloGroupId", p.ZaloGroupId ?? "");
+                cmd.Parameters.AddWithValue("@ZaloGroupName", p.ZaloGroupName ?? "");
+                cmd.Parameters.AddWithValue("@ZaloGroupLink", p.ZaloGroupLink ?? "");
+                cmd.Parameters.AddWithValue("@EnableZaloNotification", p.EnableZaloNotification);
 
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
@@ -126,6 +132,10 @@ namespace MPR_Managerment.Services
                         MPR_link     = @MPR_link,
                         INV_Link     = @INV_Link,
                         DeliveryNote_Link = @DeliveryNote_Link,
+                        ZaloGroupId  = @ZaloGroupId,
+                        ZaloGroupName = @ZaloGroupName,
+                        ZaloGroupLink = @ZaloGroupLink,
+                        EnableZaloNotification = @EnableZaloNotification,
                         ModifiedDate = GETDATE()
                     WHERE Id = @Id", conn);
 
@@ -145,6 +155,10 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@MPR_link", p.MPR_Link ?? "");
                 cmd.Parameters.AddWithValue("@INV_Link", p.INV_Link ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@DeliveryNote_Link", p.DeliveryNote_Link ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@ZaloGroupId", p.ZaloGroupId ?? "");
+                cmd.Parameters.AddWithValue("@ZaloGroupName", p.ZaloGroupName ?? "");
+                cmd.Parameters.AddWithValue("@ZaloGroupLink", p.ZaloGroupLink ?? "");
+                cmd.Parameters.AddWithValue("@EnableZaloNotification", p.EnableZaloNotification);
 
                 cmd.ExecuteNonQuery();
             }
@@ -199,10 +213,38 @@ namespace MPR_Managerment.Services
                 MPR_Link = r["MPR_link"]?.ToString() ?? "",
                 INV_Link = r["INV_Link"]?.ToString() ?? "",
                 DeliveryNote_Link = r["DeliveryNote_Link"]?.ToString() ?? "",
+                ZaloGroupId = GetValueSafe(r, "ZaloGroupId"),
+                ZaloGroupName = GetValueSafe(r, "ZaloGroupName"),
+                ZaloGroupLink = GetValueSafe(r, "ZaloGroupLink"),
+                EnableZaloNotification = GetBoolSafe(r, "EnableZaloNotification"),
                 CreatedDate = r["CreatedDate"] != DBNull.Value ? Convert.ToDateTime(r["CreatedDate"]) : null,
                 ModifiedDate = r["ModifiedDate"] != DBNull.Value ? Convert.ToDateTime(r["ModifiedDate"]) : null,
                 PNK_Link = r["PNK_LINK"]?.ToString() ?? "",
             };
+        }
+
+        private string GetValueSafe(SqlDataReader r, string columnName)
+        {
+            try
+            {
+                return r[columnName]?.ToString() ?? "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private bool GetBoolSafe(SqlDataReader r, string columnName)
+        {
+            try
+            {
+                return r[columnName] != DBNull.Value && Convert.ToBoolean(r[columnName]);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

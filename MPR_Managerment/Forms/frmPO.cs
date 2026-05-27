@@ -6644,59 +6644,33 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
                 string msg =
                     $"📋 DLHI Thông báo:\n" +
-                    $"Chúng tôi đã gửi Đơn Đặt Hàng (PO) đến Quý công ty:\n" +
-                    $"🔹 Số PO    : {po.PONo}\n" +
-                    $"🔹 Dự án   : {po.Project_Name}\n" +
+                    $"Chúng tôi đã gửi đơn đặt hàng (PO) cho:\n" +
+                    $"🔹 Số PO     : {po.PONo}\n" +
+                    $"🔹 Dự án    : {po.Project_Name}\n" +
                     $"🔹 Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}\n" +
                     $"Xin vui lòng kiểm tra Email, Rất mong sớm nhận được xác nhận từ Quý công ty!";
 
-                _SendZaloToSelectedGroupsPO(selected, msg);
+                _SendZaloToSelectedGroupsPO(selected, msg, po.PONo);
             };
 
             dlg.ShowDialog(this);
         }
 
-        private async void _SendZaloToSelectedGroupsPO(
-            List<MPR_Managerment.Models.Supplier> selected, string msg)
+        private void _SendZaloToSelectedGroupsPO(
+            List<MPR_Managerment.Models.Supplier> selected, string msg, string poNo)
         {
             void SetSt(string text) { if (lblStatus != null && !lblStatus.IsDisposed) lblStatus.Text = text; }
 
-            var cfg = Helpers.ZaloHelper.LoadSettings();
-            int ok = 0, fail = 0;
-            bool first = true;
-
-            SetSt($"⏳ Đang gửi thông báo Zalo ({selected.Count} nhóm)...");
+            SetSt($"⏳ Đang đặt {selected.Count} tin nhắn Zalo vào hàng đợi...");
 
             foreach (var sup in selected)
             {
-                if (!first)
-                {
-                    for (int i = 15; i > 0; i--)
-                    {
-                        SetSt($"⏳ Gửi Zalo — chờ {i}s trước nhóm tiếp theo...");
-                        await Task.Delay(1000);
-                    }
-                }
-                first = false;
-
-                SetSt($"⏳ Đang gửi đến nhóm '{sup.Zalo_Group_ID}'...");
-                try
-                {
-                    var (sent, err) = await Helpers.ZaloHelper.SendToGroupAsync(cfg, sup.Zalo_Group_ID, msg);
-                    if (sent) ok++;
-                    else { fail++; SetSt($"❌ Lỗi Zalo '{sup.Zalo_Group_ID}': {err}"); }
-                }
-                catch (Exception ex)
-                {
-                    fail++;
-                    SetSt($"❌ Zalo exception: {ex.Message}");
-                }
+                // Lấy tên nhóm từ Zalo_Group_ID (giữ nguyên để dễ debug)
+                string groupName = sup.Zalo_Group_ID ?? sup.Company_Name ?? "Unknown";
+                ZaloNotificationService.Instance.Enqueue(groupName, msg, $"PO: {poNo}");
             }
 
-            if (fail == 0)
-                SetSt($"🔔 Đã gửi thông báo Zalo thành công ({ok}/{selected.Count} nhóm)");
-            else
-                SetSt($"🔔 Gửi Zalo xong: {ok} thành công, {fail} lỗi");
+            SetSt($"🔔 Đã đặt {selected.Count} tin nhắn Zalo vào hàng đợi (sẽ gửi theo thứ tự)");
         }
 
         // =====================================================================
@@ -7093,38 +7067,26 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             }
         }
 
-        private async void _SendZaloPONotify(
+        private void _SendZaloPONotify(
             MPR_Managerment.Models.Supplier supplier, string msg)
         {
             void SetSt(string text) { if (lblStatus != null) lblStatus.Text = text; }
 
-            var cfg = Helpers.ZaloHelper.LoadSettings();
-
-            if (!cfg.Enabled)
-            {
-                SetSt("✅ Email PO đã gửi  |  ⚠ Zalo chưa bật — vào 🔔 Zalo trên tiêu đề để bật");
-                return;
-            }
             if (string.IsNullOrWhiteSpace(supplier?.Zalo_Group_ID))
             {
                 SetSt("✅ Email PO đã gửi  |  ⚠ NCC chưa có tên nhóm Zalo — vào Nhà Cung Cấp để điền");
                 return;
             }
 
-            SetSt($"✅ Email PO đã gửi  |  ⏳ Đang gửi Zalo đến '{supplier.Zalo_Group_ID}'...");
-
-            try
-            {
-                var (ok, err) = await Helpers.ZaloHelper.SendToGroupAsync(cfg, supplier.Zalo_Group_ID, msg);
-                if (ok)
-                    SetSt("✅ Email PO đã gửi  |  🔔 Đã gửi thông báo Zalo thành công");
-                else
-                    SetSt($"✅ Email PO đã gửi  |  ❌ Zalo lỗi: {err}");
-            }
-            catch (Exception ex)
-            {
-                SetSt($"✅ Email PO đã gửi  |  ❌ Zalo exception: {ex.Message}");
-            }
+            SetSt("✅ Email PO đã gửi  |  ⏳ Đang đưa thông báo Zalo vào hàng đợi...");
+            
+            string groupName = supplier.Zalo_Group_ID;
+            // Lấy PO No để làm tag
+            string poNo = _selectedPO_ID > 0 ? _poList.Find(p => p.PO_ID == _selectedPO_ID)?.PONo : "N/A";
+            
+            ZaloNotificationService.Instance.Enqueue(groupName, msg, $"PO: {poNo}");
+            
+            SetSt("✅ Email PO đã gửi  |  🔔 Thông báo Zalo đã được xếp hàng gửi");
         }
 
         private bool _POCheckSentItemsFolder(string subject)
