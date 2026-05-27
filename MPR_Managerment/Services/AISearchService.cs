@@ -15,13 +15,13 @@ namespace MPR_Managerment.Services
     /// </summary>
     public class AISearchService
     {
-        // ── Cấu hình Local LLM Proxy (OpenAI-compatible) ──────────────────
+        // ── Cấu hình 9Router Proxy (OpenAI-compatible) ────────────────────
         // Proxy chạy local tại: http://localhost:20128/v1/chat/completions
-        private const string DS_API_URL = "http://localhost:20128/v1/chat/completions";
-        private const string DS_MODEL = "ForVSCode";
+        private const string ROUTER_API_URL = "http://localhost:20128/v1/chat/completions";
+        private const string ROUTER_MODEL = "ForVSCode";
 
-        // API key cho local proxy — để trống nếu proxy không yêu cầu xác thực
-        private const string DS_API_KEY = "";
+        // API key cho 9Router Proxy — để trống nếu proxy không yêu cầu xác thực
+        private const string ROUTER_API_KEY = "sk-be73dd5e6a579e85-suubtl-b7961654";
 
         private static readonly HttpClient _http = new HttpClient
         {
@@ -327,7 +327,7 @@ Quy tắc:
 JSON:";
 
             // Gọi Gemini 1 lần để lấy intent
-            string raw = await CallDeepseekAsync(prompt, temperature: 0.1f);
+            string raw = await CallRouterAsync(prompt, temperature: 0.1f);
 
             // Parse JSON response
             raw = raw.Trim().TrimStart('`').TrimEnd('`');
@@ -543,7 +543,7 @@ Schema đúng:
 Hãy sửa lại SQL cho đúng tên bảng/cột. Chỉ trả về SQL đã sửa, không giải thích.
 SQL đã sửa:";
 
-                return await CallDeepseekAsync(fixPrompt, temperature: 0.1f);
+                return await CallRouterAsync(fixPrompt, temperature: 0.1f);
             }
             catch { return badSql; }
         }
@@ -608,19 +608,19 @@ Trả lời:";
 
             // Streaming response nếu có callback
             if (onChunk != null)
-                return await CallDeepseekStreamAsync(prompt, onChunk);
+                return await CallRouterStreamAsync(prompt, onChunk);
             else
-                return await CallDeepseekAsync(prompt, temperature: 0.7f);
+                return await CallRouterAsync(prompt, temperature: 0.7f);
         }
 
-        // ── Groq API call (non-stream) ────────────────────────────────────
-        private async Task<string> CallDeepseekAsync(string prompt, float temperature = 0.5f)
+        // ── 9Router API call (non-stream) ────────────────────────────────
+        private async Task<string> CallRouterAsync(string prompt, float temperature = 0.5f)
         {
             try
             {
                 var body = new
                 {
-                    model = DS_MODEL,
+                    model = ROUTER_MODEL,
                     messages = new[] { new { role = "user", content = prompt } },
                     temperature,
                     max_tokens = 2048,
@@ -628,19 +628,19 @@ Trả lời:";
                 };
 
                 string json = JsonSerializer.Serialize(body);
-                var request = new HttpRequestMessage(HttpMethod.Post, DS_API_URL)
+                var request = new HttpRequestMessage(HttpMethod.Post, ROUTER_API_URL)
                 {
                     Content = new StringContent(json, Encoding.UTF8, "application/json")
                 };
                 // Thêm API key vào header nếu có
-                if (!string.IsNullOrEmpty(DS_API_KEY))
-                    request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
+                if (!string.IsNullOrEmpty(ROUTER_API_KEY))
+                    request.Headers.Add("Authorization", $"Bearer {ROUTER_API_KEY}");
 
                 var resp = await _http.SendAsync(request);
                 if (!resp.IsSuccessStatusCode)
                 {
                     string err = await resp.Content.ReadAsStringAsync();
-                    return $"[Lỗi Deepseek {resp.StatusCode}: {err.Substring(0, Math.Min(200, err.Length))}]";
+                    return $"[Lỗi 9Router {resp.StatusCode}: {err.Substring(0, Math.Min(200, err.Length))}]";
                 }
 
                 string raw = await resp.Content.ReadAsStringAsync();
@@ -653,20 +653,20 @@ Trả lời:";
             }
             catch (Exception ex)
             {
-                return $"[Lỗi Deepseek: {ex.Message}]";
+                return $"[Lỗi 9Router: {ex.Message}]";
             }
         }
 
-        // ── Groq API call (streaming) ─────────────────────────────────────
-        // Groq hỗ trợ SSE streaming — format giống OpenAI/Deepseek
-        private async Task<string> CallDeepseekStreamAsync(string prompt, Action<string> onChunk)
+        // ── 9Router API call (streaming) ──────────────────────────────────
+        // 9Router hỗ trợ SSE streaming — format giống OpenAI-compatible
+        private async Task<string> CallRouterStreamAsync(string prompt, Action<string> onChunk)
         {
             var sb = new StringBuilder();
             try
             {
                 var body = new
                 {
-                    model = DS_MODEL,
+                    model = ROUTER_MODEL,
                     messages = new[] { new { role = "user", content = prompt } },
                     temperature = 0.7,
                     max_tokens = 2048,
@@ -674,20 +674,20 @@ Trả lời:";
                 };
 
                 string json = JsonSerializer.Serialize(body);
-                var request = new HttpRequestMessage(HttpMethod.Post, DS_API_URL)
+                var request = new HttpRequestMessage(HttpMethod.Post, ROUTER_API_URL)
                 {
                     Content = new StringContent(json, Encoding.UTF8, "application/json")
                 };
                 // Thêm API key vào header nếu có
-                if (!string.IsNullOrEmpty(DS_API_KEY))
-                    request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
+                if (!string.IsNullOrEmpty(ROUTER_API_KEY))
+                    request.Headers.Add("Authorization", $"Bearer {ROUTER_API_KEY}");
 
                 using var resp = await _http.SendAsync(request,
                     HttpCompletionOption.ResponseHeadersRead);
 
                 if (!resp.IsSuccessStatusCode)
                 {
-                    string fallback = await CallDeepseekAsync(prompt, 0.7f);
+                    string fallback = await CallRouterAsync(prompt, 0.7f);
                     onChunk?.Invoke(fallback);
                     return fallback;
                 }
@@ -725,7 +725,7 @@ Trả lời:";
             }
             catch (Exception ex)
             {
-                string errMsg = $"\n[Lỗi Deepseek: {ex.Message}]";
+                string errMsg = $"\n[Lỗi 9Router: {ex.Message}]";
                 onChunk?.Invoke(errMsg);
                 sb.Append(errMsg);
             }
@@ -790,9 +790,9 @@ Trả lời:";
 
             string answer;
             if (onChunk != null)
-                answer = await CallDeepseekStreamAsync(prompt, onChunk);
+                answer = await CallRouterStreamAsync(prompt, onChunk);
             else
-                answer = await CallDeepseekAsync(prompt, temperature: 0.8f);
+                answer = await CallRouterAsync(prompt, temperature: 0.8f);
 
             _history.Add(("user", userQuestion));
             _history.Add(("model", answer));
