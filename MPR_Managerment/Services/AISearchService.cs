@@ -11,21 +11,17 @@ using MPR_Managerment.Helpers;
 namespace MPR_Managerment.Services
 {
     /// <summary>
-    /// Dịch vụ AI tìm kiếm toàn hệ thống — dùng Deepseek API + truy vấn DB thông minh.
-    /// Deepseek tương thích OpenAI format, rất rẻ (~$0.14/1M token), hỗ trợ tiếng Việt tốt.
+    /// Dịch vụ AI tìm kiếm toàn hệ thống — dùng Local LLM Proxy (OpenAI-compatible) + truy vấn DB thông minh.
     /// </summary>
     public class AISearchService
     {
-        // ── Cấu hình Deepseek API ─────────────────────────────────────────
-        // Lấy API key tại: https://platform.deepseek.com/api_keys
-        private const string DS_API_URL = "https://api.deepseek.com/chat/completions";
-        private const string DS_MODEL = "deepseek-chat";
-        // Models hiện tại:
-        // "deepseek-chat"     — nhanh, rẻ, dùng hàng ngày ✅
-        // "deepseek-reasoner" — suy luận sâu, dùng cho câu hỏi phức tạp
+        // ── Cấu hình Local LLM Proxy (OpenAI-compatible) ──────────────────
+        // Proxy chạy local tại: http://localhost:20128/v1/chat/completions
+        private const string DS_API_URL = "http://localhost:20128/v1/chat/completions";
+        private const string DS_MODEL = "ForVSCode";
 
-        // ⚠ Thay bằng API key thực từ https://platform.deepseek.com/api_keys
-        private const string DS_API_KEY = "sk-419f6cb2d61240cda8d4db6fb93cd2ff";
+        // API key cho local proxy — thay bằng key thực từ proxy settings
+        private const string DS_API_KEY = "sk-be73dd5e6a579e85-0wpj7r-36c92eaf";
 
         private static readonly HttpClient _http = new HttpClient
         {
@@ -636,7 +632,9 @@ Trả lời:";
                 {
                     Content = new StringContent(json, Encoding.UTF8, "application/json")
                 };
-                request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
+                // Thêm API key vào header nếu có
+                if (!string.IsNullOrEmpty(DS_API_KEY))
+                    request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
 
                 var resp = await _http.SendAsync(request);
                 if (!resp.IsSuccessStatusCode)
@@ -680,7 +678,9 @@ Trả lời:";
                 {
                     Content = new StringContent(json, Encoding.UTF8, "application/json")
                 };
-                request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
+                // Thêm API key vào header nếu có
+                if (!string.IsNullOrEmpty(DS_API_KEY))
+                    request.Headers.Add("Authorization", $"Bearer {DS_API_KEY}");
 
                 using var resp = await _http.SendAsync(request,
                     HttpCompletionOption.ResponseHeadersRead);

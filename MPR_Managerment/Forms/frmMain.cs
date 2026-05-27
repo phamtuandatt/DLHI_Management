@@ -5,6 +5,7 @@ using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using System;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace MPR_Managerment.Forms
@@ -42,6 +43,8 @@ namespace MPR_Managerment.Forms
         private System.Collections.Generic.List<string> _starredMsgs
             = new System.Collections.Generic.List<string>(); // quan trong
         private Button _btnTabStar;  // de cap nhat so luong Q Trong
+        private Button _btnZalo;
+        private ToolTip _zaloTip = new ToolTip();
         // ── Menu cố định 190px ──
         private const int MENU_FULL = 190;
 
@@ -69,6 +72,64 @@ namespace MPR_Managerment.Forms
             BuildNotifyPanel();
             StartNotifyTimer();
             ShowDashboard();
+
+            // Đăng ký lắng nghe trạng thái Zalo một lần duy nhất
+            ZaloSession.StatusChanged += status =>
+            {
+                if (_btnZalo == null || _btnZalo.IsDisposed) return;
+                if (_btnZalo.InvokeRequired)
+                    _btnZalo.Invoke(() => _UpdateZaloButton(status));
+                else
+                    _UpdateZaloButton(status);
+            };
+
+            // Khởi động session Zalo nền ngay khi mở app (nếu đã bật)
+            _ = _WarmUpZaloSessionAsync();
+        }
+
+        private async Task _WarmUpZaloSessionAsync()
+        {
+            var cfg = ZaloHelper.LoadSettings();
+            if (!cfg.Enabled)
+            {
+                _UpdateZaloButton(ZaloStatus.Disabled);
+                return;
+            }
+            try
+            {
+                await ZaloSession.EnsureAsync(cfg);
+            }
+            catch
+            {
+                _UpdateZaloButton(ZaloStatus.Error);
+            }
+        }
+
+        private void _UpdateZaloButton(ZaloStatus status)
+        {
+            switch (status)
+            {
+                case ZaloStatus.Ready:
+                    _btnZalo.BackColor = Color.FromArgb(0, 140, 70);
+                    _btnZalo.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
+                    _zaloTip.SetToolTip(_btnZalo, "✅ Zalo đang kết nối — nhấn để cài đặt");
+                    break;
+                case ZaloStatus.Connecting:
+                    _btnZalo.BackColor = Color.FromArgb(200, 130, 0);
+                    _btnZalo.FlatAppearance.MouseOverBackColor = Color.FromArgb(160, 100, 0);
+                    _zaloTip.SetToolTip(_btnZalo, "⏳ Đang kết nối Zalo...");
+                    break;
+                case ZaloStatus.Error:
+                    _btnZalo.BackColor = Color.FromArgb(180, 30, 30);
+                    _btnZalo.FlatAppearance.MouseOverBackColor = Color.FromArgb(140, 20, 20);
+                    _zaloTip.SetToolTip(_btnZalo, "❌ Zalo mất kết nối hoặc chưa đăng nhập — nhấn để kiểm tra");
+                    break;
+                default: // Disabled
+                    _btnZalo.BackColor = Color.FromArgb(120, 120, 120);
+                    _btnZalo.FlatAppearance.MouseOverBackColor = Color.FromArgb(90, 90, 90);
+                    _zaloTip.SetToolTip(_btnZalo, "⚠ Zalo chưa bật — nhấn để bật");
+                    break;
+            }
         }
 
         // =====================================================================
@@ -130,30 +191,30 @@ namespace MPR_Managerment.Forms
             panelHeader.Controls.Add(_btnRefresh);
 
             // Nút cài đặt Zalo
-            var btnZalo = new Button
+            _btnZalo = new Button
             {
                 Text = "🔔 Zalo",
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.White,
-                BackColor = Color.FromArgb(0, 140, 70),
+                BackColor = Color.FromArgb(120, 120, 120), // xám mặc định cho đến khi biết trạng thái
                 FlatStyle = FlatStyle.Flat,
                 Size = new Size(90, 30),
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            btnZalo.FlatAppearance.BorderSize = 0;
-            btnZalo.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
-            new ToolTip().SetToolTip(btnZalo, "Cài đặt thông báo Zalo OA");
-            btnZalo.Location = new Point(panelHeader.Width - 515, 12);
-            btnZalo.Click += (s, e) => ShowZaloSettingsDialog();
-            panelHeader.Controls.Add(btnZalo);
+            _btnZalo.FlatAppearance.BorderSize = 0;
+            _btnZalo.FlatAppearance.MouseOverBackColor = Color.FromArgb(90, 90, 90);
+            _zaloTip.SetToolTip(_btnZalo, "Cài đặt thông báo Zalo");
+            _btnZalo.Location = new Point(panelHeader.Width - 515, 12);
+            _btnZalo.Click += (s, e) => ShowZaloSettingsDialog();
+            panelHeader.Controls.Add(_btnZalo);
 
             panelHeader.Resize += (s, ev) =>
             {
                 panelHeader.Width = this.ClientSize.Width;
                 lblUser.Left = panelHeader.Width - 300;
                 _btnRefresh.Left = panelHeader.Width - 415;
-                btnZalo.Left = panelHeader.Width - 515;
+                _btnZalo.Left = panelHeader.Width - 515;
             };
 
             this.Controls.Add(panelHeader);
@@ -1945,7 +2006,7 @@ namespace MPR_Managerment.Forms
 
             var dlg = new Form
             {
-                Text = "Cài đặt thông báo Zalo (Selenium)",
+                Text = "Cài đặt thông báo Zalo",
                 Size = new Size(560, 400),
                 StartPosition = FormStartPosition.CenterParent,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -2046,9 +2107,15 @@ namespace MPR_Managerment.Forms
 
             btnSave.Click += (s, e) =>
             {
-                ZaloHelper.SaveSettings(CurrentSettings());
+                var cfg = CurrentSettings();
+                ZaloHelper.SaveSettings(cfg);
                 lblResult.ForeColor = Color.Green;
                 lblResult.Text = "✅ Đã lưu cài đặt.";
+                if (!cfg.Enabled)
+                {
+                    ZaloSession.Shutdown();
+                    _UpdateZaloButton(ZaloStatus.Disabled);
+                }
             };
 
             btnLogin.Click += (s, e) =>
@@ -2084,6 +2151,13 @@ namespace MPR_Managerment.Forms
 
             btnClose.Click += (s, e) => dlg.Close();
             dlg.ShowDialog(this);
+
+            // Sau khi dialog đóng: restart session nếu đã bật nhưng session bị tắt (vd sau đăng nhập lại)
+            var saved = ZaloHelper.LoadSettings();
+            if (saved.Enabled && !ZaloSession.IsReady)
+                _ = _WarmUpZaloSessionAsync();
+            else if (!saved.Enabled)
+                _UpdateZaloButton(ZaloStatus.Disabled);
         }
 
     }

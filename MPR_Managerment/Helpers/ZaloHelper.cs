@@ -16,6 +16,138 @@ namespace MPR_Managerment.Helpers
         public string UserDataDir { get; set; } = "";
     }
 
+    public enum ZaloStatus { Disabled, Connecting, Ready, Error }
+
+    // ── Phiên WebView2 duy trì suốt vòng đời ứng dụng ──────────────────────
+    public static class ZaloSession
+    {
+        private static Form?    _form;
+        private static WebView2? _wv2;
+        private static System.Windows.Forms.Timer? _keepAlive;
+        private static bool _ready = false;
+        private static ZaloStatus _lastFired = ZaloStatus.Disabled;
+
+        public static bool      IsReady => _ready && _wv2 != null && !_wv2.IsDisposed;
+        public static WebView2? WebView => _wv2;
+
+        // Đăng ký để nhận thông báo khi trạng thái Zalo thay đổi
+        public static event Action<ZaloStatus>? StatusChanged;
+
+        private static void _Fire(ZaloStatus s)
+        {
+            if (_lastFired == s) return;
+            _lastFired = s;
+            StatusChanged?.Invoke(s);
+        }
+
+        // Gọi trên UI thread — khởi tạo nếu chưa có session
+        public static async Task<(bool ok, string error)> EnsureAsync(ZaloSettings settings)
+        {
+            if (IsReady) { _Fire(ZaloStatus.Ready); return (true, ""); }
+
+            _Fire(ZaloStatus.Connecting);
+
+            string dir = string.IsNullOrWhiteSpace(settings.UserDataDir)
+                ? ZaloHelper.DefaultUserDataDir : settings.UserDataDir;
+            Directory.CreateDirectory(dir);
+
+            _form = new Form
+            {
+                Text          = "Zalo Background Session",
+                Size          = new System.Drawing.Size(960, 680),
+                StartPosition = FormStartPosition.Manual,
+                Location      = new System.Drawing.Point(-9999, -9999),
+                ShowInTaskbar = false
+            };
+            _wv2 = new WebView2 { Dock = DockStyle.Fill };
+            _form.Controls.Add(_wv2);
+
+            _form.FormClosed += (s, e) =>
+            {
+                _ready = false;
+                _keepAlive?.Stop();
+                _keepAlive?.Dispose();
+                _keepAlive = null;
+                _wv2  = null;
+                _form = null;
+                _Fire(ZaloStatus.Error);
+            };
+
+            _form.Show();
+
+            try
+            {
+                var env = await CoreWebView2Environment.CreateAsync(null, dir);
+                await _wv2.EnsureCoreWebView2Async(env);
+
+                var navTcs = new TaskCompletionSource<bool>();
+                void Handler(object? s, CoreWebView2NavigationCompletedEventArgs e)
+                {
+                    _wv2!.NavigationCompleted -= Handler;
+                    navTcs.TrySetResult(e.IsSuccess);
+                }
+                _wv2.NavigationCompleted += Handler;
+                _wv2.Source = new Uri("https://chat.zalo.me/");
+
+                await Task.WhenAny(navTcs.Task, Task.Delay(20_000));
+                await Task.Delay(4_500); // chờ SPA render xong
+
+                _StartKeepAlive();
+                _ready = true;
+                _Fire(ZaloStatus.Ready);
+                return (true, "");
+            }
+            catch (Exception ex)
+            {
+                _ready = false;
+                _Fire(ZaloStatus.Error);
+                return (false, $"Lỗi WebView2: {ex.Message}");
+            }
+        }
+
+        // Keep-alive kiểm tra login thực sự mỗi 2 phút
+        private static void _StartKeepAlive()
+        {
+            _keepAlive = new System.Windows.Forms.Timer { Interval = 120_000 };
+            _keepAlive.Tick += async (s, e) =>
+            {
+                try
+                {
+                    if (_wv2 == null || _wv2.IsDisposed) return;
+
+                    string result = await _wv2.ExecuteScriptAsync(@"
+                        (function() {
+                            var inputs = document.querySelectorAll('input');
+                            for (var i = 0; i < inputs.length; i++)
+                                if (inputs[i].offsetParent !== null) return 'ok';
+                            return 'logged_out';
+                        })()");
+
+                    bool loggedIn = result.Trim('"') == "ok";
+                    _ready = loggedIn;
+                    _Fire(loggedIn ? ZaloStatus.Ready : ZaloStatus.Error);
+                }
+                catch
+                {
+                    _ready = false;
+                    _Fire(ZaloStatus.Error);
+                }
+            };
+            _keepAlive.Start();
+        }
+
+        // Gọi trước khi mở login browser (tránh xung đột userDataDir)
+        public static void Shutdown()
+        {
+            _ready = false;
+            _keepAlive?.Stop();
+            _keepAlive?.Dispose();
+            _keepAlive = null;
+            try { _form?.Close(); } catch { }
+            _Fire(ZaloStatus.Disabled);
+        }
+    }
+
     public static class ZaloHelper
     {
         private const string SETTINGS_FILE = "zalo_settings.json";
@@ -51,13 +183,16 @@ namespace MPR_Managerment.Helpers
         // ── Mở trình duyệt để đăng nhập lần đầu ────────────────────────────
         public static void OpenBrowserForLogin(ZaloSettings settings)
         {
+            // Phải tắt session nền trước vì cả hai không thể dùng cùng userDataDir
+            ZaloSession.Shutdown();
+
             string dir = GetUserDataDir(settings);
             Directory.CreateDirectory(dir);
 
             var form = new Form
             {
                 Text = "Đăng nhập Zalo Web — Đóng cửa sổ này sau khi đăng nhập xong",
-                Size = new Size(960, 680),
+                Size = new System.Drawing.Size(960, 680),
                 StartPosition = FormStartPosition.CenterScreen
             };
             var wv2 = new WebView2 { Dock = DockStyle.Fill };
@@ -78,6 +213,8 @@ namespace MPR_Managerment.Helpers
                 }
             };
 
+            // Khi đóng login browser: session nền sẽ được khởi tạo lại vào lần gửi kế tiếp
+            // (ZaloSession.IsReady = false sau Shutdown)
             form.Show();
         }
 
@@ -86,75 +223,24 @@ namespace MPR_Managerment.Helpers
         public static async Task<(bool ok, string error)> SendToGroupAsync(
             ZaloSettings settings, string groupName, string message)
         {
-            string dir = GetUserDataDir(settings);
-            Directory.CreateDirectory(dir);
-
-            var tcs = new TaskCompletionSource<(bool, string)>();
-
-            var form = new Form
+            // Đảm bảo session nền đã chạy
+            if (!ZaloSession.IsReady)
             {
-                Text          = $"Zalo — đang gửi thông báo đến '{groupName}'...",
-                Size          = new Size(960, 680),
-                StartPosition = FormStartPosition.Manual,
-                Location      = new System.Drawing.Point(-9999, -9999), // ẩn ngoài màn hình
-                ShowInTaskbar = false
-            };
-            var wv2 = new WebView2 { Dock = DockStyle.Fill };
-            form.Controls.Add(wv2);
+                var (initOk, initErr) = await ZaloSession.EnsureAsync(settings);
+                if (!initOk) return (false, initErr);
+            }
 
-            form.FormClosed += (s, e) =>
-                tcs.TrySetResult((false, "Cửa sổ bị đóng trước khi gửi xong."));
+            var wv2 = ZaloSession.WebView;
+            if (wv2 == null) return (false, "WebView2 không khả dụng");
 
-            form.Load += async (s, e) =>
+            try
             {
-                try
-                {
-                    var env = await CoreWebView2Environment.CreateAsync(null, dir);
-                    await wv2.EnsureCoreWebView2Async(env);
-
-                    // Hook event sau khi CoreWebView2 sẵn sàng
-                    bool handled = false;
-                    wv2.NavigationCompleted += async (s2, e2) =>
-                    {
-                        if (handled) return;
-                        handled = true;
-
-                        await Task.Delay(5000); // Chờ Zalo SPA render xong
-
-                        try
-                        {
-                            var result = await PerformSendAsync(wv2, groupName, message);
-                            tcs.TrySetResult(result);
-
-                            if (result.ok)
-                            {
-                                await Task.Delay(800);
-                                form.BeginInvoke(() => form.Close());
-                            }
-                            else
-                            {
-                                form.BeginInvoke(() =>
-                                    form.Text = $"❌ {result.error}  —  Đóng cửa sổ khi xong");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            tcs.TrySetResult((false, ex.Message));
-                            form.BeginInvoke(() => form.Close());
-                        }
-                    };
-
-                    wv2.Source = new Uri("https://chat.zalo.me/");
-                }
-                catch (Exception ex)
-                {
-                    tcs.TrySetResult((false, $"Lỗi WebView2: {ex.Message}"));
-                    form.Close();
-                }
-            };
-
-            form.Show();
-            return await tcs.Task;
+                return await PerformSendAsync(wv2, groupName, message);
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
         }
 
         // ── Tự động tìm nhóm và gửi tin nhắn bằng JavaScript ───────────────
@@ -173,7 +259,7 @@ namespace MPR_Managerment.Helpers
             if (loginCheck.Trim('"') == "not_logged_in")
                 return (false, "Chưa đăng nhập Zalo Web. Hãy bấm 'Mở trình duyệt & đăng nhập' trước.");
 
-            // Gõ tên nhóm vào ô tìm kiếm
+            // Xoá tìm kiếm cũ, gõ tên nhóm mới vào ô tìm kiếm
             string safe = EscapeJs(groupName);
             string searchRes = await wv2.ExecuteScriptAsync($@"
                 (function() {{
@@ -183,6 +269,8 @@ namespace MPR_Managerment.Helpers
                         if (el.offsetParent === null) continue;
                         el.focus();
                         var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                        setter.call(el, '');
+                        el.dispatchEvent(new Event('input', {{ bubbles: true }}));
                         setter.call(el, '{safe}');
                         el.dispatchEvent(new Event('input',  {{ bubbles: true }}));
                         el.dispatchEvent(new Event('change', {{ bubbles: true }}));
@@ -287,7 +375,6 @@ namespace MPR_Managerment.Helpers
             {
                 if (string.IsNullOrWhiteSpace(sup.Zalo_Group_ID)) continue;
 
-                // Delay giữa các NCC để tránh bị Zalo giới hạn / khóa tài khoản
                 if (!first) await Task.Delay(8000);
                 first = false;
 

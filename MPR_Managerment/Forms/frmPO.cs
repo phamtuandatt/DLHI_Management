@@ -6633,6 +6633,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
                 // Chuẩn hoá token tìm kiếm
                 string poNo      = Normalize(po.PONo);
+
                 string suppShort = Normalize(supplier?.Short_Name ?? "");
 
                 // Lấy tất cả PDF trong thư mục
