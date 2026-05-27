@@ -137,7 +137,7 @@ namespace MPR_Managerment.Forms
             var (success, message) = _svc.ChangePassword(_userId, txtOld.Text, txtNew.Text);
             if (success)
             {
-                MessageBox.Show("✅ " + message, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "✅ " + message, "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.DialogResult = DialogResult.OK;
                 this.Close();
             }

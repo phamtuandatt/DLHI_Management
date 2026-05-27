@@ -26,6 +26,7 @@ namespace MPR_Managerment.Forms
 
         private string _targetPoNo = "";
         private string _importMprNo = "";
+        private int _importMprId = 0;
 
         private DataGridView dgvPO;
         private DataGridView dgvDocPO; // Document: INV + Delivery theo PO đang chọn
@@ -109,8 +110,35 @@ namespace MPR_Managerment.Forms
             BuildUI();
             LoadPO();
             this.Resize += FrmPO_Resize;
-            this.Shown += (s, e) => ImportMPRByNo(_importMprNo);
+            // Dùng Timer để đợi form render xong, sau đó chạy ImportMPRByNo trên UI thread
+            // nhưng có try-catch bảo vệ để tránh dialog ẩn
+            this.Shown += (s, e) =>
+            {
+                var t = new System.Windows.Forms.Timer { Interval = 100 };
+                t.Tick += (_, _2) =>
+                {
+                    t.Stop(); t.Dispose();
+                    try
+                    {
+                        this.Cursor = Cursors.WaitCursor;
+                        ImportMPRByNo(_importMprNo, _importMprId);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this,
+                            "Lỗi khi tự động import MPR '" + _importMprNo + "':\n\n" + ex.Message,
+                            "Lỗi Import MPR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        this.Cursor = Cursors.Default;
+                    }
+                };
+                t.Start();
+            };
         }
+
+        public void SetImportMprId(int id) { _importMprId = id; }
 
         private void SelectPOByNo(string poNo)
         {
@@ -259,7 +287,11 @@ namespace MPR_Managerment.Forms
                     ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout);
                 }
             };
-            dgvPO.DataBindingComplete += (s, ev) => dgvPO.ClearSelection();
+            dgvPO.DataBindingComplete += (s, ev) =>
+            {
+                dgvPO.ClearSelection();
+                try { dgvPO.CurrentCell = null; } catch { }
+            };
 
             // Click chuột trái vào bất kỳ ô nào → copy số PO vào clipboard
             dgvPO.CellClick += (s, ev) =>
@@ -4690,22 +4722,24 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             }
         }
 
-        public void ImportMPRByNo(string mprNo)
+        public void ImportMPRByNo(string mprNo, int mprId = 0)
         {
             if (string.IsNullOrEmpty(mprNo)) return;
             try
             {
                 var mprService = new MPR_Managerment.Services.MPRService();
-                var mpr = mprService.GetAll().Find(m => m.MPR_No == mprNo);
+                var mpr = mprId > 0
+                    ? mprService.GetAll().Find(m => m.MPR_ID == mprId)
+                    : mprService.GetAll().Find(m => m.MPR_No == mprNo);
                 if (mpr == null)
                 {
-                    MessageBox.Show(GetActiveOwner(), $"Không tìm thấy MPR: {mprNo}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, $"Không tìm thấy MPR: {mprNo}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 var details = mprService.GetDetails(mpr.MPR_ID);
                 if (details == null || details.Count == 0)
                 {
-                    MessageBox.Show(GetActiveOwner(), $"MPR {mprNo} chưa có chi tiết vật tư!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, $"MPR {mprNo} chưa có chi tiết vật tư!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 ClearHeader();
@@ -4743,12 +4777,17 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     r.Cells["Calc_Method"].Value = "Theo KG"; r.Cells["Ordered_PO"].Value = orderedPo; r.Cells["PO_Detail_ID"].Value = 0; r.Cells["MPR_Detail_ID"].Value = d.Detail_ID;
                 }
                 UpdateTotal(); AutoAdjustColumnWidths();
+                // Ngăn dgvPO tự chọn lại hàng đầu khi form lấy lại focus sau MessageBox
+                dgvPO.SelectionChanged -= DgvPO_SelectionChanged;
+                dgvPO.ClearSelection();
+                try { dgvPO.CurrentCell = null; } catch { }
+                dgvPO.SelectionChanged += DgvPO_SelectionChanged;
                 string skipNote = skipped > 0 ? $"\n(Đã bỏ qua {skipped} dòng chỉ đọc)" : "";
-                MessageBox.Show(GetActiveOwner(), $"✅ Đã import {activeDetails.Count} dòng từ MPR {mpr.MPR_No}!\nPO No: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}{skipNote}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, $"✅ Đã import {activeDetails.Count} dòng từ MPR {mpr.MPR_No}!\nPO No: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}{skipNote}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(GetActiveOwner(), "Lỗi import MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, "Lỗi import MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

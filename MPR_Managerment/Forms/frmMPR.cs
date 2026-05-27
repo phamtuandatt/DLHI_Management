@@ -3777,7 +3777,8 @@ namespace MPR_Managerment.Forms
 
             string mprNo = mpr.MPR_No;
             var frm = new frmPO(mprNo, true);
-            frm.Show();
+            frm.SetImportMprId(mpr.MPR_ID);
+            frm.Show(this);
         }
 
         private void BtnAddDetail_Click(object sender, EventArgs e)
@@ -3817,7 +3818,7 @@ namespace MPR_Managerment.Forms
             dgvDetails.BeginEdit(true);
         }
 
-        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
         private void SafeMsg(string text, string caption, MessageBoxIcon icon = MessageBoxIcon.Error)
         { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, caption, MessageBoxButtons.OK, icon); }
         private DialogResult SafeConfirm(string text, string caption)

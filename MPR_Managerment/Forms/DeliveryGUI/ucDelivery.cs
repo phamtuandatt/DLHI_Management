@@ -352,7 +352,7 @@ namespace MPR_Managerment.Forms.DeliveryGUI
                 // Nếu không có gì hợp lệ
                 if (pdfPath == null && pdfBytes == null)
                 {
-                    MessageBox.Show("Chỉ hỗ trợ file PDF!", "Thông báo",
+                    MessageBox.Show(this.FindForm(), "Chỉ hỗ trợ file PDF!", "Thông báo",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning); return;
                 }
 
@@ -413,19 +413,19 @@ namespace MPR_Managerment.Forms.DeliveryGUI
             pDeliveryLeft.DragOver += (s, e) => handleDragEnter(e);
             pDeliveryLeft.DragDrop += (s, e) => handleDrop(e);
 
-            // ── Lưu hóa đơn ──
-            btnSaveDelivery.Click += (s, e) =>
-            {
-                if (string.IsNullOrEmpty(_pendingDropPath) || !System.IO.File.Exists(_pendingDropPath))
-                { MessageBox.Show("Không có file nào chờ lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+             // ── Lưu hóa đơn ──
+             btnSaveDelivery.Click += (s, e) =>
+             {
+                 if (string.IsNullOrEmpty(_pendingDropPath) || !System.IO.File.Exists(_pendingDropPath))
+                 { MessageBox.Show(this.FindForm(), "Không có file nào chờ lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
-                if (!System.IO.Directory.Exists(_invFolderPath))
-                { MessageBox.Show("Thư mục INV Link không tồn tại!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+                 if (!System.IO.Directory.Exists(_invFolderPath))
+                 { MessageBox.Show(this.FindForm(), "Thư mục INV Link không tồn tại!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
 
-                // Lấy PO No từ bộ lọc trong tab hóa đơn
-                string poNo = txtPONo.Text;
-                if (string.IsNullOrEmpty(poNo) || poNo == "-- Chọn PO No --")
-                { MessageBox.Show("Vui lòng chọn số PO trước khi lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                 // Lấy PO No từ bộ lọc trong tab hóa đơn
+                 string poNo = txtPONo.Text;
+                 if (string.IsNullOrEmpty(poNo) || poNo == "-- Chọn PO No --")
+                 { MessageBox.Show(this.FindForm(), "Vui lòng chọn số PO trước khi lưu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
                 // Tạo tên file: INV_PONo.pdf, nếu trùng → INV_PONo_2.pdf, _3.pdf...
                 string baseName = $"Delivery_{poNo}";
@@ -438,31 +438,31 @@ namespace MPR_Managerment.Forms.DeliveryGUI
                     counter++;
                 }
 
-                try
-                {
-                    System.IO.File.Copy(_pendingDropPath, destPath, false);
-                    MessageBox.Show(
-                        $"✅ Đã lưu hóa đơn thành công!\nFile: {System.IO.Path.GetFileName(destPath)}",
-                        "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                 try
+                 {
+                     System.IO.File.Copy(_pendingDropPath, destPath, false);
+                     MessageBox.Show(this.FindForm(),
+                         $"✅ Đã lưu hóa đơn thành công!\nFile: {System.IO.Path.GetFileName(destPath)}",
+                         "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    _pendingDropPath = "";
-                    _pendingDropName = "";
-                    //btnSaveDelivery.Enabled = false;
-                    loadDeliveryList();
+                     _pendingDropPath = "";
+                     _pendingDropName = "";
+                     //btnSaveDelivery.Enabled = false;
+                     loadDeliveryList();
 
-                    // WIN 11
-                    // Preview file vừa lưu
-                    //webView.Navigate(destPath);
+                     // WIN 11
+                     // Preview file vừa lưu
+                     //webView.Navigate(destPath);
 
-                    // WIN 10
-                    if (webView != null && webView.CoreWebView2 != null)
-                        webView.CoreWebView2.Navigate(destPath);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Lỗi lưu file: " + ex.Message, "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                     // WIN 10
+                     if (webView != null && webView.CoreWebView2 != null)
+                         webView.CoreWebView2.Navigate(destPath);
+                 }
+                 catch (Exception ex)
+                 {
+                     MessageBox.Show(this.FindForm(), "Lỗi lưu file: " + ex.Message, "Lỗi",
+                         MessageBoxButtons.OK, MessageBoxIcon.Error);
+                 }
             };
 
             // Load lần đầu

@@ -85,7 +85,7 @@ namespace MPR_Managerment.Forms
             new ModuleDef("Material Inspector Request", "Kiểm tra vật tư (QC)",
                 new[]{ "Xem","Tìm kiếm RIR","Lưu chi tiết" }),
         };
-        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
         public frmUserManagement()
         {

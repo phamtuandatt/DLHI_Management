@@ -12,6 +12,7 @@ namespace MPR_Managerment.Forms
     {
         private MPRService _service = new MPRService();
         private List<MPRHeader> _mprList = new List<MPRHeader>();
+        private Form TopOwner { get { if (!IsDisposed) { BringToFront(); Activate(); } return this; } }
 
         public MPRHeader SelectedMPR { get; private set; }
         public List<MPRDetail> SelectedDetails { get; private set; }
@@ -167,7 +168,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -175,7 +176,7 @@ namespace MPR_Managerment.Forms
         {
             if (dgvMPR.SelectedRows.Count == 0)
             {
-                MessageBox.Show("Vui lòng chọn một phiếu MPR!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(TopOwner, "Vui lòng chọn một phiếu MPR!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             int mprId = Convert.ToInt32(dgvMPR.SelectedRows[0].Cells["ID"].Value);

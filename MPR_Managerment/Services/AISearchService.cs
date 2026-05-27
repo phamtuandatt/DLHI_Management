@@ -20,8 +20,8 @@ namespace MPR_Managerment.Services
         private const string DS_API_URL = "http://localhost:20128/v1/chat/completions";
         private const string DS_MODEL = "ForVSCode";
 
-        // API key cho local proxy — thay bằng key thực từ proxy settings
-        private const string DS_API_KEY = "sk-be73dd5e6a579e85-0wpj7r-36c92eaf";
+        // API key cho local proxy — để trống nếu proxy không yêu cầu xác thực
+        private const string DS_API_KEY = "";
 
         private static readonly HttpClient _http = new HttpClient
         {

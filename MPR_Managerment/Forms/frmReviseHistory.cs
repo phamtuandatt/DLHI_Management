@@ -10,6 +10,7 @@ namespace MPR_Managerment
     public class frmReviseHistory : Form
     {
         private readonly string _poNo;
+        private Form TopOwner { get { if (!IsDisposed) { BringToFront(); Activate(); } return this; } }
         private DataGridView dgv;
         private Label lblTitle, lblCount;
         private TextBox txtSearch;
@@ -225,7 +226,7 @@ namespace MPR_Managerment
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải lịch sử: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi tải lịch sử: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

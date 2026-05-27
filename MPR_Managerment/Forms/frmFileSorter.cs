@@ -76,7 +76,7 @@ namespace MPR_Managerment.Forms
             public string MPRLink { get; set; }
         }
 
-        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
         // ═════════════════════════════════════════════════════════════════
         // CONSTRUCTOR

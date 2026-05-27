@@ -367,7 +367,8 @@ namespace MPR_Managerment.Forms
             }
             else if (tag.Contains("Thoát"))
             {
-                if (MessageBox.Show("Bạn có chắc muốn thoát?", "Xác nhận",
+                this.BringToFront(); this.Activate();
+                if (MessageBox.Show(this, "Bạn có chắc muốn thoát?", "Xác nhận",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
                     AppSession.Clear();
@@ -1420,7 +1421,8 @@ namespace MPR_Managerment.Forms
                                   StringComparison.OrdinalIgnoreCase) == true;
                 if (!isAdmin)
                 {
-                    MessageBox.Show("Chi tai khoan Admin moi xem duoc chi tiet thong bao!",
+                    this.BringToFront(); this.Activate();
+                    MessageBox.Show(this, "Chi tai khoan Admin moi xem duoc chi tiet thong bao!",
                         "Khong co quyen", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }

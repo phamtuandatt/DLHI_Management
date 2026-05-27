@@ -2615,7 +2615,7 @@ namespace MPR_Managerment.Forms
             return val;
         }
 
-        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
         private void Warn(string msg)
         { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, msg, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         private void Err(string msg)

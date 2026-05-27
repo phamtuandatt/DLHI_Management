@@ -44,7 +44,7 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvRIRFolders;     // Danh sách thư mục trong RIR_Link
         private DataTable _projectTable;        // DataTable: ProjectCode | RIR_Link
         private bool _isProjectSearching = false;
-        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
         public frmRIR()
         {

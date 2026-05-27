@@ -37,6 +37,7 @@ namespace MPR_Managerment.Forms
 
         // ── Trạng thái lọc ────────────────────────────────────────────────────
         private bool _loading = false;
+        private Form TopOwner { get { if (!IsDisposed) { BringToFront(); Activate(); } return this; } }
 
         // =====================================================================
         public frmSearchPOBySupplier(List<POHead> allPO)
@@ -244,7 +245,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi tải dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -352,7 +353,7 @@ namespace MPR_Managerment.Forms
         private void BtnSelect_Click(object sender, EventArgs e)
         {
             if (dgv.SelectedRows.Count == 0)
-            { MessageBox.Show("Vui lòng chọn một đơn PO!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            { MessageBox.Show(TopOwner, "Vui lòng chọn một đơn PO!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             ConfirmSelection(dgv.SelectedRows[0].Index);
         }
 

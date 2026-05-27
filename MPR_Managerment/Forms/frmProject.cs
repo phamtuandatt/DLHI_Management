@@ -38,7 +38,7 @@ namespace MPR_Managerment.Forms
 
         // Stats labels — dự án đang chọn
         private Label lblMPRProject, lblPOProject, lblRIRProject, lblWeightProject, lblBudgetProject;
-        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
         public frmProject()
         {

@@ -81,7 +81,7 @@ namespace MPR_Managerment.Forms
         private List<SelectedItemModel> _selectedItem = new List<SelectedItemModel>();
 
         private List<string> originalPOList = new List<string>();
-        private Form TopOwner => (this.TopLevelControl as Form) ?? this;
+        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
         public frmWarehouses_v2(string targetPONo = "")
         {

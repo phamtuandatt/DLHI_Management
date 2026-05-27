@@ -157,7 +157,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi xuất kho: " + ex.Message + " - " + value, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this.FindForm(), "Lỗi xuất kho: " + ex.Message + " - " + value, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
 
             }
@@ -306,7 +306,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                 {
                     if (num.Value > maxQty)
                     {
-                        MessageBox.Show("Số lượng xuất không được lớn hơn số lượng tồn của dòng này!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show(frm, "Số lượng xuất không được lớn hơn số lượng tồn của dòng này!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                     if (num.Value <= 0) return;
@@ -331,12 +331,12 @@ namespace MPR_Managerment.Forms.ExportGUI
             // 1. Kiểm tra xem có dòng nào đang được chọn ở Grid 2 không
             if (dgvExportQue.CurrentRow == null || dgvExportQue.CurrentRow.Index < 0)
             {
-                MessageBox.Show("Vui lòng chọn một dòng trong danh sách xuất để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this.FindForm(), "Vui lòng chọn một dòng trong danh sách xuất để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             // 2. Xác nhận trước khi xóa
-            var result = MessageBox.Show("Bạn có chắc chắn muốn xóa dòng này khỏi danh sách xuất không?",
+            var result = MessageBox.Show(this.FindForm(), "Bạn có chắc chắn muốn xóa dòng này khỏi danh sách xuất không?",
                                          "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
             if (result == DialogResult.Yes)
@@ -366,11 +366,11 @@ namespace MPR_Managerment.Forms.ExportGUI
                     // Vì ID không còn trong _exportQue, dòng ở Grid 1 sẽ tự động quay về màu trắng.
                     dgvKho.Invalidate();
 
-                    MessageBox.Show("Đã xóa dòng khỏi danh sách chờ xuất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this.FindForm(), "Đã xóa dòng khỏi danh sách chờ xuất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi khi xóa dòng: " + ex.Message);
+                    MessageBox.Show(this.FindForm(), "Lỗi khi xóa dòng: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -481,13 +481,13 @@ namespace MPR_Managerment.Forms.ExportGUI
                 var rs = await _warehouseServies.SaveExportList(dtSelected, "", "Admin");
                 if (rs)
                 {
-                    MessageBox.Show("Đã xuất vật tư !.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this.FindForm(), "Đã xuất vật tư !.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
 
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Lỗi xuất vật tư: {ex.Message}", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this.FindForm(), $"Lỗi xuất vật tư: {ex.Message}", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
         }

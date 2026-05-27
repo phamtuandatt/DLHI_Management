@@ -13,6 +13,7 @@ namespace MPR_Managerment.Forms
         private List<Warehouse> _warehouses = new List<Warehouse>();
         private int _selectedID = 0;
         private string _currentUser = "Admin";
+        private Form TopOwner { get { if (!IsDisposed) { BringToFront(); Activate(); } return this; } }
 
         private DataGridView dgvWarehouses;
         private TextBox txtSearch, txtWarehouseName, txtDeptAbbr, txtManager, txtNotes;
@@ -379,7 +380,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải danh sách kho: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi tải danh sách kho: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -485,28 +486,28 @@ namespace MPR_Managerment.Forms
             // Validate
             if (cboProjectCode.SelectedIndex <= 0)
             {
-                MessageBox.Show("Vui lòng chọn Dự án!", "Thiếu thông tin",
+                MessageBox.Show(TopOwner, "Vui lòng chọn Dự án!", "Thiếu thông tin",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 cboProjectCode.Focus();
                 return;
             }
             if (cboWarehouseType.SelectedIndex <= 0)
             {
-                MessageBox.Show("Vui lòng chọn Loại kho!", "Thiếu thông tin",
+                MessageBox.Show(TopOwner, "Vui lòng chọn Loại kho!", "Thiếu thông tin",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 cboWarehouseType.Focus();
                 return;
             }
             if (string.IsNullOrWhiteSpace(txtDeptAbbr.Text))
             {
-                MessageBox.Show("Vui lòng nhập Viết tắt bộ phận!", "Thiếu thông tin",
+                MessageBox.Show(TopOwner, "Vui lòng nhập Viết tắt bộ phận!", "Thiếu thông tin",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtDeptAbbr.Focus();
                 return;
             }
             if (string.IsNullOrWhiteSpace(txtWarehouseName.Text))
             {
-                MessageBox.Show("Vui lòng nhập Tên kho!", "Thiếu thông tin",
+                MessageBox.Show(TopOwner, "Vui lòng nhập Tên kho!", "Thiếu thông tin",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtWarehouseName.Focus();
                 return;
@@ -558,7 +559,7 @@ namespace MPR_Managerment.Forms
                     };
 
                     _service.Update(w, _currentUser);
-                    MessageBox.Show("✅ Cập nhật kho thành công!",
+                    MessageBox.Show(TopOwner, "✅ Cập nhật kho thành công!",
                         "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
 
@@ -567,7 +568,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi lưu kho: " + ex.Message, "Lỗi",
+                MessageBox.Show(TopOwner, "Lỗi lưu kho: " + ex.Message, "Lỗi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -576,7 +577,7 @@ namespace MPR_Managerment.Forms
         {
             if (_selectedID == 0)
             {
-                MessageBox.Show("Vui lòng chọn kho cần xóa!", "Thông báo",
+                MessageBox.Show(TopOwner, "Vui lòng chọn kho cần xóa!", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -589,7 +590,7 @@ namespace MPR_Managerment.Forms
                 try
                 {
                     _service.Delete(_selectedID);
-                    MessageBox.Show("Đã vô hiệu hóa kho!", "Thông báo",
+                    MessageBox.Show(TopOwner, "Đã vô hiệu hóa kho!", "Thông báo",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                     _selectedID = 0;
                     ClearForm();
@@ -597,7 +598,7 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi: " + ex.Message, "Lỗi",
+                    MessageBox.Show(TopOwner, "Lỗi: " + ex.Message, "Lỗi",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
