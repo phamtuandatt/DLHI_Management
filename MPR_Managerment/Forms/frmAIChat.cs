@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using MPR_Managerment.Services;
@@ -8,81 +10,204 @@ using MPR_Managerment.Services;
 namespace MPR_Managerment.Forms
 {
     // ════════════════════════════════════════════════════════════════════════
-    // frmAIToggleBtn — Form chỉ chứa nút nổi ✦ góc dưới phải
-    // Tách riêng để không cần WS_EX_TRANSPARENT (tránh block input)
+    // frmAIToggleBtn — Form nổi chứa icon robot 3D AI — có thể kéo tùy ý
+    // Hiển thị full icon 128x128 PNG trên app
     // ════════════════════════════════════════════════════════════════════════
     public class frmAIToggleBtn : Form
     {
-        private const int BTN_SIZE = 52;
-        private const int MARGIN = 20;
+        private const int ICON_SIZE = 72;   // Kích thước hiển thị icon trên form
+        private const int MARGIN = 18;
 
-        private static readonly Color C_BTN = Color.FromArgb(99, 102, 241);
-        private static readonly Color C_HOV = Color.FromArgb(79, 82, 221);
-
-        private Button _btn;
+        private PictureBox _pic;
+        private Label _lblClose;            // Dấu X khi chat mở
         private Action _onToggle;
+        private Image _robotIcon;
+        private bool _chatOpen = false;
 
         public frmAIToggleBtn(Action onToggle)
         {
             _onToggle = onToggle;
 
+            // ── Load icon robot 3D từ Resources ──
+            _robotIcon = LoadRobotIcon();
+
+            // ── Form trong suốt, không viền ──
             FormBorderStyle = FormBorderStyle.None;
-            BackColor = C_BTN;
             ShowInTaskbar = false;
             TopMost = true;
             StartPosition = FormStartPosition.Manual;
-            Size = new Size(BTN_SIZE, BTN_SIZE);
-            Opacity = 0.95;
+            Size = new Size(ICON_SIZE, ICON_SIZE);
+            BackColor = Color.Magenta;
+            TransparencyKey = Color.Magenta;
 
-            // Bo tròn form
-            Region = Region.FromHrgn(
-                CreateRoundRectRgn(0, 0, BTN_SIZE, BTN_SIZE, 26, 26));
-
-            _btn = new Button
+            // ── PictureBox hiển thị icon robot 3D ──
+            _pic = new PictureBox
             {
-                Dock = DockStyle.Fill,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = C_BTN,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI Emoji", 20),
-                Text = "✦",
+                Size = new Size(ICON_SIZE, ICON_SIZE),
+                Location = new Point(0, 0),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                TabStop = false
+                Image = _robotIcon
             };
-            _btn.FlatAppearance.BorderSize = 0;
-            _btn.FlatAppearance.MouseOverBackColor = C_HOV;
-            _btn.Click += (s, e) => _onToggle?.Invoke();
+            _pic.Click += (s, e) => _onToggle?.Invoke();
 
-            // Kéo nút để đổi vị trí
+            // ── Label "✕" hiển thị khi chat đang mở ──
+            _lblClose = new Label
+            {
+                Size = new Size(22, 22),
+                Location = new Point(ICON_SIZE - 22, 0),
+                BackColor = Color.FromArgb(220, 50, 50),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Text = "✕",
+                TextAlign = ContentAlignment.MiddleCenter,
+                Visible = false,
+                Cursor = Cursors.Hand
+            };
+            _lblClose.Click += (s, e) => _onToggle?.Invoke();
+
+            // ── Kéo icon để đổi vị trí (drag) ──
             bool dragging = false;
             Point dragStart = Point.Empty;
-            _btn.MouseDown += (s, e) =>
+            _pic.MouseDown += (s, e) =>
             {
                 if (e.Button == MouseButtons.Left) { dragging = true; dragStart = e.Location; }
             };
-            _btn.MouseMove += (s, e) =>
+            _pic.MouseMove += (s, e) =>
             {
                 if (dragging)
                     Location = new Point(Location.X + e.X - dragStart.X,
                                          Location.Y + e.Y - dragStart.Y);
             };
-            _btn.MouseUp += (s, e) => dragging = false;
+            _pic.MouseUp += (s, e) => dragging = false;
 
-            Controls.Add(_btn);
+            // ── Hiệu ứng hover: phóng to nhẹ ──
+            _pic.MouseEnter += (s, e) =>
+            {
+                _pic.Size = new Size(ICON_SIZE + 6, ICON_SIZE + 6);
+                _pic.Location = new Point(-3, -3);
+            };
+            _pic.MouseLeave += (s, e) =>
+            {
+                _pic.Size = new Size(ICON_SIZE, ICON_SIZE);
+                _pic.Location = new Point(0, 0);
+            };
+
+            Controls.Add(_lblClose);
+            Controls.Add(_pic);
+            _lblClose.BringToFront();
         }
 
-        public void SetIcon(bool chatOpen) => _btn.Text = chatOpen ? "✕" : "✦";
+        /// <summary>Đổi trạng thái icon: chat mở → hiện X, chat đóng → hiện robot</summary>
+        public void SetIcon(bool chatOpen)
+        {
+            _chatOpen = chatOpen;
+            _lblClose.Visible = chatOpen;
+        }
 
         public void SnapToCorner()
         {
             var scr = Screen.PrimaryScreen.WorkingArea;
-            Location = new Point(scr.Right - BTN_SIZE - MARGIN,
-                                 scr.Bottom - BTN_SIZE - MARGIN);
+            Location = new Point(scr.Right - ICON_SIZE - MARGIN,
+                                 scr.Bottom - ICON_SIZE - MARGIN);
         }
 
-        [System.Runtime.InteropServices.DllImport("Gdi32.dll")]
-        private static extern IntPtr CreateRoundRectRgn(
-            int x1, int y1, int x2, int y2, int cx, int cy);
+        /// <summary>Load icon robot 3D từ file Resources/ai_robot_icon.png</summary>
+        private Image LoadRobotIcon()
+        {
+            try
+            {
+                // Tìm file icon trong thư mục Resources cạnh exe
+                string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                string iconPath = Path.Combine(exeDir, "Resources", "ai_robot_icon.png");
+
+                // Nếu không có cạnh exe, thử tìm từ thư mục gốc project
+                if (!File.Exists(iconPath))
+                {
+                    string projectDir = exeDir;
+                    // Lùi lên tìm thư mục Resources (bin/Debug/net... → project root)
+                    for (int i = 0; i < 5; i++)
+                    {
+                        projectDir = Path.GetDirectoryName(projectDir);
+                        if (projectDir == null) break;
+                        string tryPath = Path.Combine(projectDir, "Resources", "ai_robot_icon.png");
+                        if (File.Exists(tryPath)) { iconPath = tryPath; break; }
+                    }
+                }
+
+                if (File.Exists(iconPath))
+                    return Image.FromFile(iconPath);
+            }
+            catch { /* fallback bên dưới */ }
+
+            // Fallback: vẽ icon đơn giản nếu không tìm thấy file
+            return CreateFallbackIcon();
+        }
+
+        /// <summary>Tạo icon fallback nếu không load được file PNG</summary>
+        private Image CreateFallbackIcon()
+        {
+            var bmp = new Bitmap(ICON_SIZE, ICON_SIZE);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+
+                // Vẽ hình tròn gradient nền
+                using (var brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, ICON_SIZE, ICON_SIZE),
+                    Color.FromArgb(99, 102, 241), Color.FromArgb(60, 63, 180),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(brush, 4, 4, ICON_SIZE - 8, ICON_SIZE - 8);
+                }
+
+                // Vẽ đầu robot đơn giản
+                int cx = ICON_SIZE / 2, cy = ICON_SIZE / 2;
+                // Đầu
+                using (var headBrush = new SolidBrush(Color.FromArgb(140, 145, 255)))
+                    g.FillRoundedRectangle(headBrush, cx - 18, cy - 16, 36, 28, 8);
+                // Mắt trái
+                g.FillEllipse(Brushes.White, cx - 12, cy - 8, 10, 10);
+                g.FillEllipse(Brushes.Black, cx - 9, cy - 5, 4, 4);
+                // Mắt phải
+                g.FillEllipse(Brushes.White, cx + 2, cy - 8, 10, 10);
+                g.FillEllipse(Brushes.Black, cx + 5, cy - 5, 4, 4);
+                // Miệng
+                using (var pen = new Pen(Color.FromArgb(0, 220, 255), 2))
+                    g.DrawLine(pen, cx - 8, cy + 8, cx + 8, cy + 8);
+                // Antenna
+                using (var pen = new Pen(Color.FromArgb(180, 185, 210), 2))
+                    g.DrawLine(pen, cx, cy - 16, cx, cy - 24);
+                g.FillEllipse(Brushes.Orange, cx - 4, cy - 28, 8, 8);
+            }
+            return bmp;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _robotIcon?.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    // Extension method để vẽ rounded rectangle (cho fallback icon)
+    internal static class GraphicsExtensions
+    {
+        public static void FillRoundedRectangle(this Graphics g, Brush brush,
+            float x, float y, float w, float h, float r)
+        {
+            using (var path = new GraphicsPath())
+            {
+                path.AddArc(x, y, r * 2, r * 2, 180, 90);
+                path.AddArc(x + w - r * 2, y, r * 2, r * 2, 270, 90);
+                path.AddArc(x + w - r * 2, y + h - r * 2, r * 2, r * 2, 0, 90);
+                path.AddArc(x, y + h - r * 2, r * 2, r * 2, 90, 90);
+                path.CloseFigure();
+                g.FillPath(brush, path);
+            }
+        }
     }
 
 

@@ -6423,7 +6423,280 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             var po = _poList.Find(p => p.PO_ID == poId);
             if (po == null) return;
 
+            // Nếu đã gửi email → hỏi người dùng muốn làm gì
+            if (po.Email_Status?.Equals("done", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                ShowEmailOrZaloChoicePO(po);
+                return;
+            }
+
             ShowEmailComposePopup(po);
+        }
+
+        // =====================================================================
+        //  EMAIL ĐÃ GỬI — hỏi "Tiếp tục gửi Email" hay "Gửi tin nhắn thông báo"
+        // =====================================================================
+        private void ShowEmailOrZaloChoicePO(POHead po)
+        {
+            var dlg = new Form
+            {
+                Text = $"PO {po.PONo} — Đã gửi email",
+                Size = new Size(410, 175),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.White, Font = new Font("Segoe UI", 9.5f)
+            };
+
+            dlg.Controls.Add(new Label
+            {
+                Text = "✔ Email đã được gửi. Bạn muốn làm gì?",
+                Location = new Point(16, 18), Size = new Size(370, 22),
+                Font = new Font("Segoe UI", 9.5f)
+            });
+
+            var btnEmail = new Button
+            {
+                Text = "📧 Tiếp tục gửi Email",
+                Location = new Point(16, 55), Size = new Size(175, 40),
+                BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold)
+            };
+            btnEmail.FlatAppearance.BorderSize = 0;
+
+            var btnZalo = new Button
+            {
+                Text = "🔔 Gửi tin nhắn thông báo",
+                Location = new Point(208, 55), Size = new Size(175, 40),
+                BackColor = Color.FromArgb(0, 150, 136), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold)
+            };
+            btnZalo.FlatAppearance.BorderSize = 0;
+
+            dlg.Controls.AddRange(new Control[] { btnEmail, btnZalo });
+
+            btnEmail.Click += (s, ev) => { dlg.Close(); ShowEmailComposePopup(po); };
+            btnZalo.Click  += (s, ev) => { dlg.Close(); ShowZaloGroupSelectAndSendPO(po); };
+
+            dlg.ShowDialog(this);
+        }
+
+        // =====================================================================
+        //  CHỌN NHÓM ZALO & GỬI THÔNG BÁO (PO)
+        // =====================================================================
+        private void ShowZaloGroupSelectAndSendPO(POHead po)
+        {
+            var cfg = Helpers.ZaloHelper.LoadSettings();
+            if (!cfg.Enabled)
+            {
+                SafeWarn("Zalo chưa được bật.\nVào 🔔 Zalo trên thanh tiêu đề để bật.", "Zalo chưa bật");
+                return;
+            }
+
+            var allGroups = new SupplierService().GetAll()
+                .Where(s => !string.IsNullOrWhiteSpace(s.Zalo_Group_ID))
+                .OrderBy(s => s.Company_Name)
+                .ToList();
+
+            if (allGroups.Count == 0)
+            {
+                SafeWarn("Không có nhà cung cấp nào có nhóm Zalo được cấu hình.\nVào 🏢 Nhà Cung Cấp để điền tên nhóm.", "Không có nhóm Zalo");
+                return;
+            }
+
+            // checkedIds giữ Supplier_ID được tích — không bị mất khi lọc
+            var checkedIds = new HashSet<int>();
+            // filteredGroups là danh sách hiện tại đang hiển thị trong clb
+            var filteredGroups = new List<MPR_Managerment.Models.Supplier>(allGroups);
+
+            var dlg = new Form
+            {
+                Text = $"Chọn nhóm Zalo — PO {po.PONo}",
+                Size = new Size(440, 570),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.White, Font = new Font("Segoe UI", 9f)
+            };
+
+            dlg.Controls.Add(new Label
+            {
+                Text = "Chọn một hoặc nhiều nhóm Zalo để gửi thông báo:",
+                Location = new Point(12, 12), Size = new Size(400, 20)
+            });
+
+            // ── Thanh tìm kiếm ───────────────────────────────────────────────
+            var txtSearch = new TextBox
+            {
+                Location = new Point(12, 36), Size = new Size(404, 26),
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.Gray, Text = "🔍  Tìm kiếm nhóm...",
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            dlg.Controls.Add(txtSearch);
+
+            var clb = new CheckedListBox
+            {
+                Location = new Point(12, 68),
+                Size = new Size(404, 370),
+                CheckOnClick = true,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 9f)
+            };
+            foreach (var s in allGroups)
+                clb.Items.Add($"{s.Company_Name}  [{s.Zalo_Group_ID}]", false);
+            dlg.Controls.Add(clb);
+
+            // Rebuild clb theo keyword, giữ checkmark qua checkedIds
+            void Refilter(string keyword)
+            {
+                // Flush trạng thái check hiện tại vào checkedIds trước khi rebuild
+                for (int i = 0; i < clb.Items.Count; i++)
+                {
+                    int sid = filteredGroups[i].Supplier_ID;
+                    if (clb.GetItemChecked(i)) checkedIds.Add(sid);
+                    else checkedIds.Remove(sid);
+                }
+
+                filteredGroups = string.IsNullOrWhiteSpace(keyword)
+                    ? new List<MPR_Managerment.Models.Supplier>(allGroups)
+                    : allGroups.Where(s =>
+                        s.Company_Name.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                        s.Zalo_Group_ID.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                      .ToList();
+
+                clb.ItemCheck -= ClbItemCheck;
+                clb.Items.Clear();
+                foreach (var s in filteredGroups)
+                    clb.Items.Add($"{s.Company_Name}  [{s.Zalo_Group_ID}]", checkedIds.Contains(s.Supplier_ID));
+                clb.ItemCheck += ClbItemCheck;
+            }
+
+            void ClbItemCheck(object sender, ItemCheckEventArgs e)
+            {
+                int sid = filteredGroups[e.Index].Supplier_ID;
+                if (e.NewValue == CheckState.Checked) checkedIds.Add(sid);
+                else checkedIds.Remove(sid);
+            }
+
+            clb.ItemCheck += ClbItemCheck;
+
+            // Placeholder logic
+            txtSearch.GotFocus  += (s, ev) => { if (txtSearch.ForeColor == Color.Gray) { txtSearch.Text = ""; txtSearch.ForeColor = Color.Black; } };
+            txtSearch.LostFocus += (s, ev) => { if (string.IsNullOrWhiteSpace(txtSearch.Text)) { txtSearch.ForeColor = Color.Gray; txtSearch.Text = "🔍  Tìm kiếm nhóm..."; } };
+            txtSearch.TextChanged += (s, ev) =>
+            {
+                if (txtSearch.ForeColor == Color.Gray) return; // đang hiện placeholder
+                Refilter(txtSearch.Text.Trim());
+            };
+
+            var btnSend = new Button
+            {
+                Text = "🔔 Gửi thông báo",
+                Location = new Point(12, 455), Size = new Size(185, 38),
+                BackColor = Color.FromArgb(0, 150, 136), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold)
+            };
+            btnSend.FlatAppearance.BorderSize = 0;
+
+            var btnAll = new Button
+            {
+                Text = "Chọn tất cả",
+                Location = new Point(213, 455), Size = new Size(100, 38),
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
+            };
+            var btnCancel = new Button
+            {
+                Text = "Huỷ",
+                Location = new Point(328, 455), Size = new Size(88, 38),
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
+            };
+            dlg.Controls.AddRange(new Control[] { btnSend, btnAll, btnCancel });
+
+            btnAll.Click += (s, ev) =>
+            {
+                // Tích tất cả item đang hiện (filtered)
+                for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true);
+            };
+            btnCancel.Click += (s, ev) => dlg.Close();
+
+            btnSend.Click += (s, ev) =>
+            {
+                // Flush lần cuối trước khi lấy kết quả
+                for (int i = 0; i < clb.Items.Count; i++)
+                {
+                    int sid = filteredGroups[i].Supplier_ID;
+                    if (clb.GetItemChecked(i)) checkedIds.Add(sid);
+                    else checkedIds.Remove(sid);
+                }
+
+                var selected = allGroups.Where(s => checkedIds.Contains(s.Supplier_ID)).ToList();
+                if (selected.Count == 0)
+                {
+                    MessageBox.Show(dlg, "Vui lòng chọn ít nhất một nhóm.",
+                        "Chưa chọn nhóm", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                dlg.Close();
+
+                string msg =
+                    $"📋 DLHI Thông báo:\n" +
+                    $"Chúng tôi đã gửi Đơn Đặt Hàng (PO) đến Quý công ty:\n" +
+                    $"🔹 Số PO    : {po.PONo}\n" +
+                    $"🔹 Dự án   : {po.Project_Name}\n" +
+                    $"🔹 Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}\n" +
+                    $"Xin vui lòng kiểm tra Email, Rất mong sớm nhận được xác nhận từ Quý công ty!";
+
+                _SendZaloToSelectedGroupsPO(selected, msg);
+            };
+
+            dlg.ShowDialog(this);
+        }
+
+        private async void _SendZaloToSelectedGroupsPO(
+            List<MPR_Managerment.Models.Supplier> selected, string msg)
+        {
+            void SetSt(string text) { if (lblStatus != null && !lblStatus.IsDisposed) lblStatus.Text = text; }
+
+            var cfg = Helpers.ZaloHelper.LoadSettings();
+            int ok = 0, fail = 0;
+            bool first = true;
+
+            SetSt($"⏳ Đang gửi thông báo Zalo ({selected.Count} nhóm)...");
+
+            foreach (var sup in selected)
+            {
+                if (!first)
+                {
+                    for (int i = 15; i > 0; i--)
+                    {
+                        SetSt($"⏳ Gửi Zalo — chờ {i}s trước nhóm tiếp theo...");
+                        await Task.Delay(1000);
+                    }
+                }
+                first = false;
+
+                SetSt($"⏳ Đang gửi đến nhóm '{sup.Zalo_Group_ID}'...");
+                try
+                {
+                    var (sent, err) = await Helpers.ZaloHelper.SendToGroupAsync(cfg, sup.Zalo_Group_ID, msg);
+                    if (sent) ok++;
+                    else { fail++; SetSt($"❌ Lỗi Zalo '{sup.Zalo_Group_ID}': {err}"); }
+                }
+                catch (Exception ex)
+                {
+                    fail++;
+                    SetSt($"❌ Zalo exception: {ex.Message}");
+                }
+            }
+
+            if (fail == 0)
+                SetSt($"🔔 Đã gửi thông báo Zalo thành công ({ok}/{selected.Count} nhóm)");
+            else
+                SetSt($"🔔 Gửi Zalo xong: {ok} thành công, {fail} lỗi");
         }
 
         // =====================================================================
