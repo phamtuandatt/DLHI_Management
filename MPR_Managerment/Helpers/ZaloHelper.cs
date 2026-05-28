@@ -363,6 +363,29 @@ namespace MPR_Managerment.Helpers
                .Replace("\r",   "\\n")
                .Replace("\n",   "\\n");
 
+        // ── Kiểm tra Zalo đã được cấu hình chưa ─────────────────────────────
+        public static bool IsConfigured()
+        {
+            var s = LoadSettings();
+            return s.Enabled && ZaloSession.IsReady;
+        }
+
+        // ── Gửi tin nhắn nhanh (dùng cho Dashboard) ─────────────────────────
+        public static async void SendMessage(string message)
+        {
+            var settings = LoadSettings();
+            if (!settings.Enabled) return;
+
+            // Gửi vào nhóm mặc định "Giao hàng" nếu có
+            string groupName = settings.UserDataDir; // fallback
+            // Tìm nhóm "Giao hàng" hoặc nhóm đầu tiên có sẵn
+            var (ok, err) = await SendToGroupAsync(settings, "Giao hàng", message);
+            if (!ok)
+            {
+                System.Diagnostics.Debug.WriteLine($"ZaloHelper.SendMessage failed: {err}");
+            }
+        }
+
         // ── Gửi đến nhiều nhà cung cấp ──────────────────────────────────────
         public static async Task SendNotificationsToSuppliersAsync(
             IEnumerable<Supplier> suppliers, string messageText)

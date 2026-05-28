@@ -659,9 +659,9 @@ namespace MPR_Managerment.Forms
             cboSupplier.KeyDown += CboSupplier_KeyDown;
             LoadSupplierCombo();
             dtpPODate = new DateTimePicker { Width = 108, Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
-            cboStatus = new ComboBox { Width = 108, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
+            cboStatus = new ComboBox { Width = 108, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
             cboStatus.Items.AddRange(new[] { "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
-            cboStatus.SelectedIndex = 1; // Pending
+            cboStatus.SelectedIndex = 0; // Draft
             nudRevise = new NumericUpDown { Width = 52, Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
             flowRow2.Controls.Add(MakeField("Nhà CC:", cboSupplier, 50));
             flowRow2.Controls.Add(MakeField("Ngày PO:", dtpPODate, 60));
@@ -4948,8 +4948,27 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     cmd.Parameters.AddWithValue("@note", receiverNote);
                     cmd.Parameters.AddWithValue("@id", trackId);
                     cmd.ExecuteNonQuery();
+
+                    // Check if all deliveries for this PO are done
+                    var cmdCheck = new Microsoft.Data.SqlClient.SqlCommand(
+                        "SELECT COUNT(*) FROM PO_DeliveryTracking WHERE PO_ID = (SELECT PO_ID FROM PO_DeliveryTracking WHERE TrackID = @id) AND Status != 'Done'", conn);
+                    cmdCheck.Parameters.AddWithValue("@id", trackId);
+                    int pendingCount = (int)cmdCheck.ExecuteScalar();
+
+                    if (pendingCount == 0)
+                    {
+                        var cmdUpdateStatus = new Microsoft.Data.SqlClient.SqlCommand(
+                            "UPDATE PO_head SET Status = 'Completed' WHERE PO_ID = (SELECT PO_ID FROM PO_DeliveryTracking WHERE TrackID = @id)", conn);
+                        cmdUpdateStatus.Parameters.AddWithValue("@id", trackId);
+                        cmdUpdateStatus.ExecuteNonQuery();
+                        
+                        // Update local list to reflect change in UI
+                        var po = _poList.Find(p => p.PO_ID == _selectedPO_ID);
+                        if (po != null) po.Status = "Completed";
+                    }
                 }
                 LoadDeliveries();
+                BindPOGrid(_poList); // Refresh the main grid to show "Completed"
             }
             catch (Exception ex)
             {
@@ -5838,7 +5857,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
         {
             txtPONo.Text = ""; txtProjectName.Text = ""; txtWorkorderNo.Text = ""; txtMPRNo.Text = "";
             txtNotes.Text = "";
-            nudRevise.Value = 0; dtpPODate.Value = DateTime.Today; cboStatus.SelectedIndex = 1; // Pending
+            nudRevise.Value = 0; dtpPODate.Value = DateTime.Today; cboStatus.SelectedIndex = 0; // Draft
             cboPaymentTerm.SelectedIndex = 0;
             // Reset Nha CC ve rong
             _isSearching = true; cboSupplier.Text = ""; cboSupplier.SelectedIndex = -1;
@@ -7052,6 +7071,23 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             BindPOGrid(_poList);
             if (lblStatus != null)
                 lblStatus.Text = "✅ Email PO đã được gửi thành công!";
+
+            // Tự động chuyển trạng thái PO thành "Pending" sau khi gửi mail
+            try
+            {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                    "UPDATE PO_head SET Status = 'Pending' WHERE PO_ID = @poId", conn);
+                cmd.Parameters.AddWithValue("@poId", poId);
+                cmd.ExecuteNonQuery();
+            }
+            catch { }
+            
+            // Cập nhật UI và list
+            var poPending = _poList.Find(p => p.PO_ID == poId);
+            if (poPending != null) poPending.Status = "Pending";
+            BindPOGrid(_poList);
 
             // Gửi thông báo Zalo vào nhóm NCC
             if (supplier != null && h != null)

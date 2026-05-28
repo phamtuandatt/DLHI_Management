@@ -56,10 +56,62 @@ namespace MPR_Managerment.Forms
         private Button btnNotifyToggle;
         private Panel _toastPanel;
 
+        // Lưu trạng thái đã gửi Zalo để không bị mất khi làm mới (trong 1 session)
+        private HashSet<int> _sentZaloPOs = new HashSet<int>();
+
+        private void EnsureZaloNotificationTable()
+        {
+            try
+            {
+                using (var conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string checkSql = @"
+                        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PO_ZaloNotification' AND xtype='U')
+                        BEGIN
+                            CREATE TABLE PO_ZaloNotification (
+                                PO_ID INT PRIMARY KEY,
+                                SentDate DATETIME DEFAULT GETDATE()
+                            )
+                        END";
+                    using (var cmd = new SqlCommand(checkSql, conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("EnsureZaloNotificationTable error: " + ex.Message);
+            }
+        }
+
+        private void SaveZaloSentStatus(int poId)
+        {
+            try
+            {
+                using (var conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = "IF NOT EXISTS (SELECT 1 FROM PO_ZaloNotification WHERE PO_ID = @poId) INSERT INTO PO_ZaloNotification (PO_ID) VALUES (@poId)";
+                    using (var cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@poId", poId);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("SaveZaloSentStatus error: " + ex.Message);
+            }
+        }
+
         public frmDashboard()
         {
             InitializeComponent();
             BuildUI();
+            EnsureZaloNotificationTable();
             LoadData();
             BuildNotificationPanel();
             StartNotifyTimer();
@@ -276,6 +328,7 @@ namespace MPR_Managerment.Forms
             dgvPO.DefaultCellStyle.SelectionForeColor = Color.Black;
             dgvPO.RowPrePaint += DgvPO_RowPrePaint;
             dgvPO.SelectionChanged += DgvPO_SelectionChanged;
+            dgvPO.CellClick += DgvPO_CellClick;
             tabPO.Controls.Add(dgvPO);
 
             // TIÊU ĐỀ BẢNG BÊN PHẢI
@@ -327,18 +380,19 @@ namespace MPR_Managerment.Forms
             // ── Cấu hình độ rộng từng cột — chỉnh số ở đây ──
             var colWidths = new Dictionary<string, int>
             {
-                { "PO No",                 160 },
+                { "PO No",                 130 },
                 { "Dự án",                  50 },
-                { "MPR No",                130 },
-                { "Ngày PO",                90 },
-                { "Rev",                    40 },
-                { "Tổng items",             70 },
-                { "Tổng SL đặt",            80 },
-                { "Tổng SL nhận",           80 },
-                { "Ngày giao sớm nhất",    110 },
-                { "Trạng thái",            100 },
-                { "% Giao hàng",            85 },
-                { "Cảnh báo",               90 },
+                { "MPR No",                120 },
+                { "Ngày PO",                85 },
+                { "Rev",                    35 },
+                { "Tổng items",             65 },
+                { "Tổng SL đặt",            75 },
+                { "Tổng SL nhận",           75 },
+                { "Ngày giao sớm nhất",    105 },
+                { "Trạng thái",             85 },
+                { "% Giao hàng",            80 },
+                { "Cảnh báo",               80 },
+                { "Gửi Zalo",              80 },
             };
 
             foreach (DataGridViewColumn col in dgvPO.Columns)
@@ -1320,6 +1374,26 @@ namespace MPR_Managerment.Forms
                 using (var conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+
+                    // Load sent Zalo POs from DB
+                    _sentZaloPOs.Clear();
+                    try
+                    {
+                        string sqlZalo = "SELECT PO_ID FROM PO_ZaloNotification";
+                        using (var cmdZalo = new SqlCommand(sqlZalo, conn))
+                        using (var drZalo = cmdZalo.ExecuteReader())
+                        {
+                            while (drZalo.Read())
+                            {
+                                _sentZaloPOs.Add(Convert.ToInt32(drZalo["PO_ID"]));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Load sent Zalo error: " + ex.Message);
+                    }
+
                     var dt = new DataTable();
                     dt.Load(new SqlCommand(sql, conn).ExecuteReader());
                     dgvPO.DataSource = dt;
@@ -1328,6 +1402,26 @@ namespace MPR_Managerment.Forms
 
                     dgvPO.CellFormatting -= DgvPO_CellFormatting;
                     dgvPO.CellFormatting += DgvPO_CellFormatting;
+
+                    // Thêm cột nút Gửi Zalo nếu chưa có
+                    if (!dgvPO.Columns.Contains("Gửi Zalo"))
+                    {
+                        var colZalo = new DataGridViewButtonColumn
+                        {
+                            Name = "Gửi Zalo",
+                            HeaderText = "Gửi Zalo",
+                            Text = "📱 Zalo",
+                            UseColumnTextForButtonValue = true,
+                            Width = 80,
+                            FlatStyle = FlatStyle.Flat,
+                            DisplayIndex = dgvPO.Columns.Count
+                        };
+                        colZalo.DefaultCellStyle.BackColor = Color.FromArgb(40, 167, 69);
+                        colZalo.DefaultCellStyle.ForeColor = Color.White;
+                        colZalo.DefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+                        colZalo.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                        dgvPO.Columns.Add(colZalo);
+                    }
 
                     AutoAdjustPOColumns(); // Gọi hàm auto giãn cột
 
@@ -1380,6 +1474,134 @@ namespace MPR_Managerment.Forms
                 if (val == "Completed") e.CellStyle.ForeColor = Color.FromArgb(40, 167, 69);
                 else if (val == "Pending") e.CellStyle.ForeColor = Color.FromArgb(255, 140, 0);
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
+            else if (col == "Gửi Zalo")
+            {
+                // Lấy PO_ID từ dòng hiện tại
+                int poId = Convert.ToInt32(dgvPO.Rows[e.RowIndex].Cells["PO_ID"].Value);
+
+                // Giữ nút xanh lá mặc định, chỉ xám nếu ID nằm trong danh sách đã gửi
+                if (_sentZaloPOs.Contains(poId))
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(180, 180, 180);
+                    e.CellStyle.SelectionBackColor = Color.FromArgb(180, 180, 180);
+                }
+                else
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(40, 167, 69);
+                    e.CellStyle.SelectionBackColor = Color.FromArgb(40, 167, 69);
+                }
+                e.CellStyle.ForeColor = Color.White;
+                e.CellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+            }
+        }
+
+        // ── Xử lý click nút Gửi Zalo trong dgvPO ──
+        private async void DgvPO_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            if (dgvPO.Columns[e.ColumnIndex].Name != "Gửi Zalo") return;
+
+            var row = dgvPO.Rows[e.RowIndex];
+            int poId = Convert.ToInt32(row.Cells["PO_ID"].Value);
+            string poNo = row.Cells["PO No"].Value?.ToString()?.Replace("🔥 ", "").Replace(" (Mới)", "") ?? "";
+            string duan = row.Cells["Dự án"].Value?.ToString() ?? "";
+            string trangThai = row.Cells["Trạng thái"].Value?.ToString() ?? "";
+            string pctGiao = row.Cells["% Giao hàng"].Value?.ToString() ?? "0";
+            string canhBao = row.Cells["Cảnh báo"].Value?.ToString() ?? "";
+
+            try
+            {
+                // Mở form cấu hình giao hàng Zalo
+                using (var configForm = new frmZaloDeliveryConfig(poId))
+                {
+                    if (configForm.ShowDialog() != DialogResult.OK) return;
+
+                    // 1. Lấy Tên nhóm Zalo từ bảng Project
+                    string zaloGroupName = "";
+                    using (var conn = DatabaseHelper.GetConnection())
+                    {
+                        conn.Open();
+                        string sqlProj = "SELECT ZaloGroupName FROM ProjectInfo WHERE ProjectName = @proj";
+                        using var cmdProj = new SqlCommand(sqlProj, conn);
+                        cmdProj.Parameters.AddWithValue("@proj", duan);
+                        zaloGroupName = cmdProj.ExecuteScalar()?.ToString() ?? "";
+                    }
+
+                    // 2. Định dạng danh sách chi tiết các hạng mục được chọn để giao
+                    string detailsMsg = "";
+                    foreach (var item in configForm.SelectedItems)
+                    {
+                        if (item.DeliveryQtyNow <= 0) continue; // Bỏ qua nếu số lượng giao lần này = 0
+                        detailsMsg += $"\n- {item.ItemName}: Giao {item.DeliveryQtyNow:G29} (Đã giao: {item.DeliveredQty:G29} / Tổng: {item.TotalQty:G29}) | Còn lại: {item.RemainingQty:G29}";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(detailsMsg))
+                    {
+                        ShowToast("⚠ Vui lòng cấu hình số lượng giao hàng lớn hơn 0 cho ít nhất 1 hạng mục!", true);
+                        return;
+                    }
+
+                    // 3. Tự động chuyển trạng thái thành "Giao hàng lần 2" nếu % giao hàng thuộc (0%, 100%)
+                    decimal pctGiaoVal = 0;
+                    string pctClean = pctGiao.Replace("%", "").Trim();
+                    decimal.TryParse(pctClean, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pctGiaoVal);
+
+                    string dynamicTrangThai = trangThai;
+                    if (pctGiaoVal > 0 && pctGiaoVal < 100)
+                    {
+                        dynamicTrangThai = "Giao hàng lần 2";
+                    }
+                    else if (pctGiaoVal == 0)
+                    {
+                        dynamicTrangThai = "Giao hàng lần 1";
+                    }
+
+                    string msg = $"📦 THÔNG BÁO GIAO HÀNG\n" +
+                                 $"━━━━━━━━━━━━━━━━━━\n" +
+                                 $"📋 PO: {poNo}\n" +
+                                 $"🏗 Dự án: {duan}\n" +
+                                 $"📊 Trạng thái: {dynamicTrangThai}\n" +
+                                 $"📈 % Giao hàng: {pctGiao}%\n" +
+                                 $"📅 Ngày giao: {configForm.SelectedDate:dd/MM/yyyy}\n" +
+                                 $"⚡ Cảnh báo: {canhBao}\n" +
+                                 $"📦 Chi tiết:\n{detailsMsg}\n" +
+                                 $"━━━━━━━━━━━━━━━━━━\n" +
+                                 $"🕐 Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}";
+
+                    if (Helpers.ZaloHelper.IsConfigured())
+                    {
+                        var settings = Helpers.ZaloHelper.LoadSettings();
+                        // Gửi đến nhóm Zalo của dự án (nếu không có thì gửi nhóm mặc định "Giao hàng")
+                        string targetGroup = !string.IsNullOrWhiteSpace(zaloGroupName) ? zaloGroupName : "Giao hàng";
+
+                        var result = await Helpers.ZaloHelper.SendToGroupAsync(settings, targetGroup, msg);
+                        if (result.ok)
+                        {
+                            ShowToast($"✅ Đã gửi thông báo Zalo đến nhóm {targetGroup} cho PO: {poNo}");
+                            _sentZaloPOs.Add(poId);
+                            SaveZaloSentStatus(poId);
+                        }
+                        else
+                        {
+                            ShowToast($"⚠ Lỗi gửi Zalo: {result.error}", true);
+                        }
+                    }
+                    else
+                    {
+                        Clipboard.SetText(msg);
+                        ShowToast($"📋 Đã copy thông báo PO: {poNo} vào clipboard (Zalo chưa cấu hình)");
+                        _sentZaloPOs.Add(poId);
+                        SaveZaloSentStatus(poId);
+                    }
+
+                    dgvPO.InvalidateRow(e.RowIndex);
+                }
+            }
+            catch (Exception ex)
+            {
+                try { Clipboard.SetText("Lỗi xử lý thông báo giao hàng"); } catch { }
+                ShowToast($"⚠ Lỗi: {ex.Message}", true);
             }
         }
 

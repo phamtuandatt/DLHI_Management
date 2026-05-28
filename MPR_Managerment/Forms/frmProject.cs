@@ -2,9 +2,12 @@
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using OfficeOpenXml;
+using OfficeOpenXml.Style;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace MPR_Managerment.Forms
@@ -19,7 +22,7 @@ namespace MPR_Managerment.Forms
         // Controls - List
         private DataGridView dgvProjects;
         private TextBox txtSearch;
-        private Button btnSearch, btnNew, btnSave, btnDelete, btnClear;
+    private Button btnSearch, btnNew, btnSave, btnDelete, btnClear, btnExportExcel, btnExportAll;
         private Label lblStatus;
         private ComboBox cboFilterStatus;
 
@@ -156,22 +159,30 @@ namespace MPR_Managerment.Forms
             cboFilterStatus.SelectedIndexChanged += (s, e) => LoadProjects();
             panelTop.Controls.Add(cboFilterStatus);
 
-            btnNew = CreateButton("➕ Thêm mới", Color.FromArgb(40, 167, 69), new Point(615, 45), 110, 30);
-            btnDelete = CreateButton("🗑 Xóa", Color.FromArgb(220, 53, 69), new Point(735, 45), 80, 30);
-            btnClear = CreateButton("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(825, 45), 100, 30);
+            btnNew = CreateButton("➕ Thêm mới", Color.FromArgb(40, 167, 69), new Point(615, 45), 100, 30);
+            btnDelete = CreateButton("🗑 Xóa", Color.FromArgb(220, 53, 69), new Point(720, 45), 80, 30);
+            btnClear = CreateButton("🔄 Làm mới", Color.FromArgb(108, 117, 125), new Point(805, 45), 100, 30);
+            btnExportExcel = CreateButton("📊 Xuất Excel (Lọc)", Color.FromArgb(32, 136, 0), new Point(910, 45), 130, 30);
+            btnExportAll = CreateButton("📊 Xuất Tất Cả", Color.FromArgb(0, 100, 0), new Point(1045, 45), 115, 30);
 
             btnNew.Click += BtnNew_Click;
             btnDelete.Click += BtnDelete_Click;
             btnClear.Click += BtnClear_Click;
+            btnExportExcel.Click += BtnExportExcel_Click;
+            btnExportAll.Click += BtnExportAll_Click;
 
             panelTop.Controls.Add(btnNew);
             panelTop.Controls.Add(btnDelete);
             panelTop.Controls.Add(btnClear);
+            panelTop.Controls.Add(btnExportExcel);
+            panelTop.Controls.Add(btnExportAll);
+            btnExportExcel.BringToFront();
+            btnExportAll.BringToFront();
 
             lblStatus = new Label
             {
-                Location = new Point(940, 50),
-                Size = new Size(300, 22),
+                Location = new Point(1165, 50),
+                Size = new Size(180, 22),
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.Gray
             };
@@ -749,6 +760,157 @@ namespace MPR_Managerment.Forms
             lblWeightProject.Text = "0";
             lblBudgetProject.Text = "0%";
         }
+        // =====================================================
+        //  XUẤT EXCEL
+        // =====================================================
+        private void BtnExportExcel_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (_projects == null || _projects.Count == 0)
+                {
+                    MessageBox.Show(TopOwner, "Không có dữ liệu dự án để xuất!", "Thông báo",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                ExportExcelData(_projects, "DanhSachDuAnLoc");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(TopOwner, $"Lỗi khi xuất Excel: {ex.Message}", "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnExportAll_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var allProjects = _service.GetAll();
+                if (allProjects == null || allProjects.Count == 0)
+                {
+                    MessageBox.Show(TopOwner, "Không có dữ liệu dự án nào trong hệ thống!", "Thông báo",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                ExportExcelData(allProjects, "DanhSachTatCaDuAn");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(TopOwner, $"Lỗi khi xuất tất cả Excel: {ex.Message}", "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ExportExcelData(List<ProjectInfo> dataToExport, string prefix)
+        {
+            using (SaveFileDialog sfd = new SaveFileDialog())
+            {
+                sfd.Filter = "Excel Files|*.xlsx";
+                sfd.Title = "Xuất danh sách dự án";
+                sfd.FileName = $"{prefix}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                if (sfd.ShowDialog(TopOwner) == DialogResult.OK)
+                {
+                    ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                    using (var package = new ExcelPackage())
+                    {
+                        var ws = package.Workbook.Worksheets.Add("Danh sách dự án");
+
+                        // ── Tiêu đề ──
+                        var headers = new string[]
+                        {
+                            "STT", "Tên dự án", "Mã dự án", "Workorder No", "Khách hàng",
+                            "Mã PO", "Mã MPR", "Tổng KG", "Budget",
+                            "Trạng thái", "PO Link", "RIR Link", "MPR Link", "INV Link", "Delivery Link",
+                            "Zalo Group ID", "Tên nhóm Zalo", "Link nhóm Zalo", "Bật thông báo",
+                            "Ngày tạo", "Ngày sửa đổi", "Ghi chú"
+                        };
+
+                        for (int i = 0; i < headers.Length; i++)
+                        {
+                            var cell = ws.Cells[1, i + 1];
+                            cell.Value = headers[i];
+                            cell.Style.Font.Bold = true;
+                            cell.Style.Font.Color.SetColor(Color.White);
+                            cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212));
+                            cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                            cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                            cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+                        }
+                        ws.Row(1).Height = 28;
+
+                        // ── Dữ liệu ──
+                        int row = 2;
+                        int stt = 1;
+                        foreach (var p in dataToExport)
+                        {
+                            ws.Cells[row, 1].Value = stt++;
+                            ws.Cells[row, 2].Value = p.ProjectName ?? "";
+                            ws.Cells[row, 3].Value = p.ProjectCode ?? "";
+                            ws.Cells[row, 4].Value = p.WorkorderNo ?? "";
+                            ws.Cells[row, 5].Value = p.Customer ?? "";
+                            ws.Cells[row, 6].Value = p.POCode ?? "";
+                            ws.Cells[row, 7].Value = p.MPRCode ?? "";
+                            ws.Cells[row, 8].Value = p.PJWeight;
+                            ws.Cells[row, 8].Style.Numberformat.Format = "#,##0.00";
+                            ws.Cells[row, 9].Value = p.PJBudget;
+                            ws.Cells[row, 9].Style.Numberformat.Format = "#,##0";
+                            ws.Cells[row, 10].Value = p.Status ?? "";
+                            ws.Cells[row, 11].Value = p.PO_Link ?? "";
+                            ws.Cells[row, 12].Value = p.RIR_Link ?? "";
+                            ws.Cells[row, 13].Value = p.MPR_Link ?? "";
+                            ws.Cells[row, 14].Value = p.INV_Link ?? "";
+                            ws.Cells[row, 15].Value = p.DeliveryNote_Link ?? "";
+                            ws.Cells[row, 16].Value = p.ZaloGroupId ?? "";
+                            ws.Cells[row, 17].Value = p.ZaloGroupName ?? "";
+                            ws.Cells[row, 18].Value = p.ZaloGroupLink ?? "";
+                            ws.Cells[row, 19].Value = p.EnableZaloNotification ? "Có" : "Không";
+                            ws.Cells[row, 20].Value = p.CreatedDate?.ToString("dd/MM/yyyy") ?? "";
+                            ws.Cells[row, 21].Value = p.ModifiedDate?.ToString("dd/MM/yyyy") ?? "";
+                            ws.Cells[row, 22].Value = p.Notes ?? "";
+
+                            // Border cho từng ô
+                            for (int col = 1; col <= headers.Length; col++)
+                                ws.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+
+                            // Màu xen kẽ
+                            if (row % 2 == 0)
+                            {
+                                for (int col = 1; col <= headers.Length; col++)
+                                {
+                                    ws.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                                    ws.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 248, 255));
+                                }
+                            }
+                            row++;
+                        }
+
+                        // Auto-fit
+                        ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                        // Đặt width tối thiểu cho một số cột
+                        if (ws.Column(1).Width < 5) ws.Column(1).Width = 5;
+                        if (ws.Column(2).Width < 25) ws.Column(2).Width = 25;
+                        if (ws.Column(5).Width < 18) ws.Column(5).Width = 18;
+                        if (ws.Column(22).Width < 20) ws.Column(22).Width = 20;
+
+                        File.WriteAllBytes(sfd.FileName, package.GetAsByteArray());
+                    }
+
+                    MessageBox.Show(TopOwner, $"Xuất Excel thành công!\nFile: {sfd.FileName}",
+                        "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // Mở file
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = sfd.FileName,
+                        UseShellExecute = true
+                    });
+                }
+            }
+        }
+
         // =====================================================
         //  ÁP DỤNG PHÂN QUYỀN
         // =====================================================

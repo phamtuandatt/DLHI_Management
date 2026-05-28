@@ -162,6 +162,9 @@ namespace MPR_Managerment.Services
             File.WriteAllText(_settingsFile, json);
         }
 
+        // ── Số lần retry tổng thể tối đa trước khi bỏ qua item ──────────
+        private const int MAX_TOTAL_RETRIES = 20;
+
         // ==============================================================
         //  PROCESS QUEUE — chạy trên UI thread
         // ==============================================================
@@ -184,11 +187,20 @@ namespace MPR_Managerment.Services
             // Nếu có UI context, đảm bảo xử lý trên UI thread
             if (_uiContext != null && _uiContext != SynchronizationContext.Current)
             {
-                // Gửi công việc về UI thread
-                _uiContext.Post(async _ =>
+                // [FIX #2] Bọc Post trong try-catch — nếu Post fail, reset _isProcessing
+                // để tránh bị kẹt true mãi mãi
+                try
                 {
-                    await ProcessNextItemCore();
-                }, null);
+                    _uiContext.Post(async _ =>
+                    {
+                        await ProcessNextItemCore();
+                    }, null);
+                }
+                catch (Exception ex)
+                {
+                    _isProcessing = false;
+                    Log($"[ERROR] _uiContext.Post failed: {ex.Message}");
+                }
                 return;
             }
 
@@ -220,7 +232,8 @@ namespace MPR_Managerment.Services
                                 break;
                             }
 
-                            Log($"[SENDING] Project={item.ProjectCode} Group={item.GroupName} attempt={attempts}/{queueSettings.MaxRetries}");
+                            Log($"[SENDING] Project={item.ProjectCode} Group={item.GroupName} " +
+                                $"attempt={attempts}/{queueSettings.MaxRetries} totalRetried={item.RetryCount}");
 
                             // Gửi tin nhắn — ZaloHelper sẽ đảm bảo chạy trên UI thread
                             var (ok, err) = await ZaloHelper.SendToGroupAsync(
@@ -230,7 +243,8 @@ namespace MPR_Managerment.Services
                             {
                                 sent = true;
                                 _lastSendTime = DateTime.Now;
-                                Log($"[SENT] Project={item.ProjectCode} Group={item.GroupName} attempt={attempts}");
+                                Log($"[SENT] Project={item.ProjectCode} Group={item.GroupName} " +
+                                    $"attempt={attempts} totalRetried={item.RetryCount}");
                             }
                             else
                             {
@@ -239,15 +253,12 @@ namespace MPR_Managerment.Services
 
                                 if (attempts < queueSettings.MaxRetries)
                                 {
-                                    // Chờ trước khi thử lại
+                                    // [FIX #4] Bỏ Application.DoEvents() — tránh reentrancy
                                     await Task.Delay(queueSettings.RetryDelayMs);
-                                    Application.DoEvents();
                                 }
                                 else
                                 {
-                                    // Đã hết lần thử, đưa lại vào queue để thử lại sau
-                                    _queue.Enqueue(item);
-                                    Log($"[REQUEUE] Project={item.ProjectCode} — sẽ thử lại sau");
+                                    _RequeueOrDrop(item, $"send failed: {err}");
                                 }
                             }
                         }
@@ -256,14 +267,12 @@ namespace MPR_Managerment.Services
                             Log($"[ERROR] Project={item.ProjectCode} attempt={attempts} {ex.Message}");
                             if (attempts < queueSettings.MaxRetries)
                             {
+                                // [FIX #4] Bỏ Application.DoEvents()
                                 await Task.Delay(queueSettings.RetryDelayMs);
-                                Application.DoEvents();
                             }
                             else
                             {
-                                // Đã hết lần thử, đưa lại vào queue
-                                _queue.Enqueue(item);
-                                Log($"[REQUEUE] Project={item.ProjectCode} — lỗi exception, sẽ thử lại sau");
+                                _RequeueOrDrop(item, $"exception: {ex.Message}");
                             }
                         }
                     }
@@ -280,6 +289,34 @@ namespace MPR_Managerment.Services
             {
                 _isProcessing = false;
             }
+        }
+
+        /// <summary>
+        /// [FIX #1 + #3 + #5] Đưa item lại vào queue sau khi hết lần retry trong một chu kỳ.
+        /// - Tăng RetryCount để track tổng số lần đã thử
+        /// - Nếu vượt MAX_TOTAL_RETRIES thì bỏ qua (tránh loop vô tận)
+        /// - Cập nhật _lastSendTime để áp dụng 15s cooldown trước lần retry tiếp theo
+        /// </summary>
+        private void _RequeueOrDrop(ZaloNotificationItem item, string reason)
+        {
+            item.RetryCount++;  // [FIX #3] Tăng RetryCount
+
+            if (item.RetryCount >= MAX_TOTAL_RETRIES)
+            {
+                // [FIX #5] Đã vượt giới hạn tổng thể → bỏ qua
+                Log($"[DROPPED] Project={item.ProjectCode} Group={item.GroupName} " +
+                    $"totalRetried={item.RetryCount} — vượt giới hạn {MAX_TOTAL_RETRIES} lần, bỏ qua.");
+                return;
+            }
+
+            // [FIX #1] Cập nhật _lastSendTime khi re-queue để áp dụng 15s cooldown
+            // Không để item bị retry ngay lập tức trong tick kế tiếp
+            _lastSendTime = DateTime.Now;
+
+            _queue.Enqueue(item);
+            Log($"[REQUEUE] Project={item.ProjectCode} Group={item.GroupName} " +
+                $"totalRetried={item.RetryCount}/{MAX_TOTAL_RETRIES} reason={reason} " +
+                $"— sẽ thử lại sau 15s");
         }
 
         // ==============================================================

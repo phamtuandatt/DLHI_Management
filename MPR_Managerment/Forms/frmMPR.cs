@@ -6175,16 +6175,37 @@ ORDER BY DisplayName";
 
             var txtFilter = new TextBox { Location = new Point(10, 36), Size = new Size(490, 24), PlaceholderText = "Lọc nhanh theo tên / email..." };
             var clb = new CheckedListBox { Location = new Point(10, 66), Size = new Size(490, 310), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 9) };
+            var checkedEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in allSuppliers)
                 clb.Items.Add($"{s.Company_Name}  <{s.Email}>", false);
+
+            clb.ItemCheck += (sender, e) =>
+            {
+                string itemText = clb.Items[e.Index].ToString() ?? "";
+                int lt = itemText.IndexOf('<'), gt = itemText.IndexOf('>');
+                if (lt >= 0 && gt > lt)
+                {
+                    string email = itemText.Substring(lt + 1, gt - lt - 1).Trim();
+                    if (e.NewValue == CheckState.Checked)
+                        checkedEmails.Add(email);
+                    else
+                        checkedEmails.Remove(email);
+                }
+            };
 
             txtFilter.TextChanged += (s, e) =>
             {
                 string kw = txtFilter.Text.Trim().ToLower();
                 clb.Items.Clear();
                 foreach (var sup in allSuppliers)
+                {
                     if (string.IsNullOrEmpty(kw) || sup.Company_Name.ToLower().Contains(kw) || sup.Email.ToLower().Contains(kw))
-                        clb.Items.Add($"{sup.Company_Name}  <{sup.Email}>", false);
+                    {
+                        int idx = clb.Items.Add($"{sup.Company_Name}  <{sup.Email}>");
+                        if (!string.IsNullOrEmpty(sup.Email) && checkedEmails.Contains(sup.Email))
+                            clb.SetItemChecked(idx, true);
+                    }
+                }
             };
 
             var btnAll      = new Button { Text = "Chọn tất cả",   Location = new Point(10,  382), Size = new Size(110, 28), FlatStyle = FlatStyle.Flat };
