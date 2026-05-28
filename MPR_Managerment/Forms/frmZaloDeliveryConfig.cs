@@ -13,6 +13,11 @@ namespace MPR_Managerment.Forms
     {
         public int DetailId { get; set; }
         public string ItemName { get; set; }
+        public string Material { get; set; }
+        public string Asize { get; set; }
+        public string Bsize { get; set; }
+        public string Csize { get; set; }
+        public string Unit { get; set; }
         public decimal TotalQty { get; set; }
         public decimal DeliveredQty { get; set; }
         public decimal RemainingQty { get; set; }
@@ -136,6 +141,9 @@ namespace MPR_Managerment.Forms
                         SELECT 
                             pod.PO_Detail_ID, 
                             pod.item_name, 
+                            pod.Material,
+                            pod.Asize, pod.Bsize, pod.Csize,
+                            pod.Unit,
                             pod.Qty_Per_Sheet AS TotalQty,
                             ISNULL((SELECT SUM(Qty_Import) FROM Warehouse_Import WHERE PO_Detail_ID = pod.PO_Detail_ID), 0) AS DeliveredQty
                         FROM PO_Detail pod
@@ -148,6 +156,11 @@ namespace MPR_Managerment.Forms
                     DataTable dt = new DataTable();
                     dt.Columns.Add("ID", typeof(int));
                     dt.Columns.Add("Tên hàng", typeof(string));
+                    dt.Columns.Add("Vật liệu", typeof(string));
+                    dt.Columns.Add("A", typeof(string));
+                    dt.Columns.Add("B", typeof(string));
+                    dt.Columns.Add("C", typeof(string));
+                    dt.Columns.Add("ĐVT", typeof(string));
                     dt.Columns.Add("Tổng SL", typeof(decimal));
                     dt.Columns.Add("Đã giao", typeof(decimal));
                     dt.Columns.Add("Còn lại", typeof(decimal));
@@ -157,17 +170,27 @@ namespace MPR_Managerment.Forms
                     {
                         int id = Convert.ToInt32(dr["PO_Detail_ID"]);
                         string name = dr["item_name"]?.ToString() ?? "N/A";
+                        string mat = dr["Material"]?.ToString() ?? "";
+                        string a = dr["Asize"]?.ToString() ?? "";
+                        string b = dr["Bsize"]?.ToString() ?? "";
+                        string c = dr["Csize"]?.ToString() ?? "";
+                        string unit = dr["Unit"]?.ToString() ?? "";
                         decimal total = Convert.ToDecimal(dr["TotalQty"]);
                         decimal delivered = Convert.ToDecimal(dr["DeliveredQty"]);
                         decimal remaining = total - delivered;
 
-                        dt.Rows.Add(id, name, total, delivered, remaining, remaining);
+                        dt.Rows.Add(id, name, mat, a, b, c, unit, total, delivered, remaining, remaining);
                     }
                     dgvItems.DataSource = dt;
                     dgvItems.Columns["ID"].Visible = false;
                     
                     // Lock read-only columns
                     dgvItems.Columns["Tên hàng"].ReadOnly = true;
+                    dgvItems.Columns["Vật liệu"].ReadOnly = true;
+                    dgvItems.Columns["A"].ReadOnly = true;
+                    dgvItems.Columns["B"].ReadOnly = true;
+                    dgvItems.Columns["C"].ReadOnly = true;
+                    dgvItems.Columns["ĐVT"].ReadOnly = true;
                     dgvItems.Columns["Tổng SL"].ReadOnly = true;
                     dgvItems.Columns["Đã giao"].ReadOnly = true;
                     dgvItems.Columns["Còn lại"].ReadOnly = true;
@@ -192,6 +215,11 @@ namespace MPR_Managerment.Forms
                 {
                     DetailId = Convert.ToInt32(row.Cells["ID"].Value),
                     ItemName = row.Cells["Tên hàng"].Value?.ToString() ?? "",
+                    Material = row.Cells["Vật liệu"].Value?.ToString() ?? "",
+                    Asize = row.Cells["A"].Value?.ToString() ?? "",
+                    Bsize = row.Cells["B"].Value?.ToString() ?? "",
+                    Csize = row.Cells["C"].Value?.ToString() ?? "",
+                    Unit = row.Cells["ĐVT"].Value?.ToString() ?? "",
                     TotalQty = Convert.ToDecimal(row.Cells["Tổng SL"].Value),
                     DeliveredQty = Convert.ToDecimal(row.Cells["Đã giao"].Value),
                     RemainingQty = Convert.ToDecimal(row.Cells["Còn lại"].Value),

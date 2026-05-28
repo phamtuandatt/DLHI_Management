@@ -1533,7 +1533,25 @@ namespace MPR_Managerment.Forms
                     foreach (var item in configForm.SelectedItems)
                     {
                         if (item.DeliveryQtyNow <= 0) continue; // Bỏ qua nếu số lượng giao lần này = 0
-                        detailsMsg += $"\n- {item.ItemName}: Giao {item.DeliveryQtyNow:G29} (Đã giao: {item.DeliveredQty:G29} / Tổng: {item.TotalQty:G29}) | Còn lại: {item.RemainingQty:G29}";
+
+                        string techInfo = "";
+                        if (!string.IsNullOrEmpty(item.Material)) techInfo += item.Material;
+
+                        string sizeStr = "";
+                        if (!string.IsNullOrEmpty(item.Asize)) sizeStr += item.Asize;
+                        if (!string.IsNullOrEmpty(item.Bsize)) sizeStr += " x " + item.Bsize;
+                        if (!string.IsNullOrEmpty(item.Csize)) sizeStr += " x " + item.Csize;
+
+                        if (!string.IsNullOrEmpty(sizeStr))
+                        {
+                            if (!string.IsNullOrEmpty(techInfo)) techInfo += " | ";
+                            techInfo += sizeStr;
+                        }
+
+                        string itemHeader = item.ItemName;
+                        if (!string.IsNullOrEmpty(techInfo)) itemHeader += $" ({techInfo})";
+
+                        detailsMsg += $"\n- {itemHeader}: {item.TotalQty:G29} {item.Unit}";
                     }
 
                     if (string.IsNullOrWhiteSpace(detailsMsg))
@@ -1562,12 +1580,10 @@ namespace MPR_Managerment.Forms
                                  $"📋 PO: {poNo}\n" +
                                  $"🏗 Dự án: {duan}\n" +
                                  $"📊 Trạng thái: {dynamicTrangThai}\n" +
-                                 $"📈 % Giao hàng: {pctGiao}%\n" +
                                  $"📅 Ngày giao: {configForm.SelectedDate:dd/MM/yyyy}\n" +
                                  $"⚡ Cảnh báo: {canhBao}\n" +
                                  $"📦 Chi tiết:\n{detailsMsg}\n" +
-                                 $"━━━━━━━━━━━━━━━━━━\n" +
-                                 $"🕐 Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                                 $"━━━━━━━━━━━━━━━━━━";
 
                     if (Helpers.ZaloHelper.IsConfigured())
                     {

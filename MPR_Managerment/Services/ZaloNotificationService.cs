@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using MPR_Managerment.Helpers;
+using MPR_Managerment.Models;
 
 namespace MPR_Managerment.Services
 {
@@ -60,6 +61,8 @@ namespace MPR_Managerment.Services
         private static readonly Lazy<ZaloNotificationService> _instance =
             new(() => new ZaloNotificationService());
         public static ZaloNotificationService Instance => _instance.Value;
+
+        private readonly NotificationLogService _logService = new();
 
         // ── Hàng đợi bộ nhớ ────────────────────────────────────────────
         private readonly ConcurrentQueue<ZaloNotificationItem> _queue = new();
@@ -245,6 +248,17 @@ namespace MPR_Managerment.Services
                                 _lastSendTime = DateTime.Now;
                                 Log($"[SENT] Project={item.ProjectCode} Group={item.GroupName} " +
                                     $"attempt={attempts} totalRetried={item.RetryCount}");
+
+                                _logService.AddLog(new NotificationLog
+                                {
+                                    Sent_At = DateTime.Now,
+                                    Sent_By = AppSession.CurrentUser?.Full_Name ?? "System",
+                                    Recipient = item.GroupName,
+                                    Type = "Zalo",
+                                    Content = item.Message,
+                                    Status = "Success",
+                                    Project_Code = item.ProjectCode
+                                });
                             }
                             else
                             {
@@ -300,6 +314,20 @@ namespace MPR_Managerment.Services
         private void _RequeueOrDrop(ZaloNotificationItem item, string reason)
         {
             item.RetryCount++;  // [FIX #3] Tăng RetryCount
+            
+            // Log the failure/drop to DB
+            string status = (item.RetryCount >= MAX_TOTAL_RETRIES) ? "Dropped" : "Failed";
+            _logService.AddLog(new NotificationLog
+            {
+                Sent_At = DateTime.Now,
+                Sent_By = AppSession.CurrentUser?.Full_Name ?? "System",
+                Recipient = item.GroupName,
+                Type = "Zalo",
+                Content = item.Message,
+                Status = status,
+                Error_Message = reason,
+                Project_Code = item.ProjectCode
+            });
 
             if (item.RetryCount >= MAX_TOTAL_RETRIES)
             {

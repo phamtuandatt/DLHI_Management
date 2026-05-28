@@ -32,7 +32,7 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvDocPO; // Document: INV + Delivery theo PO đang chọn
         private TextBox txtSearch;
         private Button btnSearch, btnNewPO, btnDeletePO, btnClearHeader, btnExport, btnSavePO;
-        private Button btnSearchBySupp;
+        private Button btnSearchBySupp, btnPOStatus;
         private Label lblStatus;
 
         private TextBox txtPONo, txtProjectName, txtWorkorderNo, txtMPRNo;
@@ -223,15 +223,17 @@ namespace MPR_Managerment.Forms
             btnNewPO = CreateButton("+ Tạo PO", Color.FromArgb(40, 167, 69), Point.Empty, 100, 30); btnNewPO.Tag = "100,30";
             btnDeletePO = CreateButton("Xóa PO", Color.FromArgb(220, 53, 69), Point.Empty, 90, 30); btnDeletePO.Tag = "90,30";
             btnSearchBySupp = CreateButton("🔍 Tìm theo NCC", Color.FromArgb(102, 51, 153), Point.Empty, 130, 30); btnSearchBySupp.Tag = "130,30";
+            btnPOStatus = CreateButton("📊 PO status", Color.FromArgb(255, 140, 0), Point.Empty, 110, 30); btnPOStatus.Tag = "110,30";
             var btnPaymentTop = CreateButton("💳 Payment", Color.FromArgb(0, 150, 100), Point.Empty, 110, 30); btnPaymentTop.Tag = "110,30";
 
-            foreach (var b in new[] { btnSearch, btnNewPO, btnDeletePO, btnSearchBySupp, btnPaymentTop })
+            foreach (var b in new[] { btnSearch, btnNewPO, btnDeletePO, btnSearchBySupp, btnPOStatus, btnPaymentTop })
                 b.Margin = new Padding(0, 0, 4, 0);
 
             btnSearch.Click += BtnSearch_Click;
             btnNewPO.Click += BtnNewPO_Click;
             btnDeletePO.Click += BtnDeletePO_Click;
             btnSearchBySupp.Click += BtnSearchBySupp_Click;
+            btnPOStatus.Click += BtnPOStatus_Click;
             btnPaymentTop.Click += (s, ev) =>
             {
                 string poNo = dgvPO.SelectedRows.Count > 0 ? dgvPO.SelectedRows[0].Cells["PO_No"].Value?.ToString() ?? "" : "";
@@ -242,6 +244,7 @@ namespace MPR_Managerment.Forms
             flowTop.Controls.Add(btnNewPO);
             flowTop.Controls.Add(btnDeletePO);
             flowTop.Controls.Add(btnSearchBySupp);
+            flowTop.Controls.Add(btnPOStatus);
             flowTop.Controls.Add(btnPaymentTop);
 
             // Đặt flowTop ngay sau txtSearch
@@ -3184,6 +3187,108 @@ namespace MPR_Managerment.Forms
                 }
             }
             catch { }
+        }
+
+        private void BtnPOStatus_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (dgvPO == null || dgvPO.SelectedRows.Count == 0)
+                {
+                    SafeWarn("Vui lòng chọn 1 PO để xem trạng thái.");
+                    return;
+                }
+
+                var row = dgvPO.SelectedRows[0];
+                int poId = 0;
+                string poNo = row.Cells["PO_No"]?.Value?.ToString() ?? "";
+                string emailStatus = row.Cells["Email_Status"]?.Value?.ToString() ?? "";
+
+                if (row.Cells["ID"]?.Value == null || !int.TryParse(row.Cells["ID"].Value.ToString(), out poId))
+                {
+                    SafeWarn("Không đọc được thông tin PO_ID.");
+                    return;
+                }
+
+                var head = _poList?.FirstOrDefault(x => x.PO_ID == poId);
+                var details = new POService().GetDetails(poId);
+
+                decimal totalOrdered = details.Sum(d => d.Qty_Per_Sheet);
+                decimal totalReceived = details.Sum(d => d.Received_Qty);
+                decimal deliveryPercent = totalOrdered <= 0 ? 0 : Math.Round((totalReceived / totalOrdered) * 100m, 2);
+
+                int rirCount = 0;
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        "SELECT COUNT(1) FROM RIR_head WHERE PONo = @poNo", conn);
+                    cmd.Parameters.AddWithValue("@poNo", poNo);
+                    var obj = cmd.ExecuteScalar();
+                    rirCount = obj != null && obj != DBNull.Value ? Convert.ToInt32(obj) : 0;
+                }
+
+                string rirStatus = rirCount > 0 ? $"Đã tạo ({rirCount})" : "Chưa tạo";
+
+                var frm = new Form
+                {
+                    Text = $"PO status - {poNo}",
+                    Size = new Size(900, 600),
+                    StartPosition = FormStartPosition.CenterParent,
+                    BackColor = Color.White
+                };
+
+                var lblSummary = new Label
+                {
+                    Dock = DockStyle.Top,
+                    Height = 95,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(40, 40, 40),
+                    Padding = new Padding(10),
+                    Text =
+                        $"PO No: {poNo}\r\n" +
+                        $"Email: {emailStatus}\r\n" +
+                        $"% Giao hàng: {deliveryPercent:N2}% ({totalReceived:N2}/{totalOrdered:N2})\r\n" +
+                        $"RIR status: {rirStatus}"
+                };
+
+                var tree = new TreeView
+                {
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Segoe UI", 9),
+                    HideSelection = false
+                };
+
+                var root = new TreeNode($"PO {poNo} ({details.Count} dòng)");
+                if (head != null)
+                {
+                    root.Nodes.Add($"Project: {head.Project_Name}");
+                    root.Nodes.Add($"MPR No: {head.MPR_No}");
+                    root.Nodes.Add($"Status: {head.Status}");
+                }
+
+                foreach (var d in details.OrderBy(x => x.Item_No))
+                {
+                    var n = new TreeNode($"Item {d.Item_No}: {d.Item_Name}");
+                    n.Nodes.Add($"Material: {d.Material}");
+                    n.Nodes.Add($"Size: {d.Asize} x {d.Bsize} x {d.Csize}");
+                    n.Nodes.Add($"Ordered: {d.Qty_Per_Sheet:N2} {d.UNIT}");
+                    n.Nodes.Add($"Received: {d.Received_Qty:N2} {d.UNIT}");
+                    n.Nodes.Add($"Delivery %: {(d.Qty_Per_Sheet <= 0 ? 0 : (d.Received_Qty / d.Qty_Per_Sheet) * 100):N2}%");
+                    root.Nodes.Add(n);
+                }
+
+                root.Expand();
+                tree.Nodes.Add(root);
+
+                frm.Controls.Add(tree);
+                frm.Controls.Add(lblSummary);
+                frm.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                SafeErr("Lỗi mở PO status: " + ex.Message);
+            }
         }
 
         private void LoadPO()
