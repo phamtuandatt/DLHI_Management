@@ -223,6 +223,10 @@ namespace MPR_Managerment.Helpers
         public static async Task<(bool ok, string error)> SendToGroupAsync(
             ZaloSettings settings, string groupName, string message)
         {
+            // ── Kiểm tra quyền gửi tin nhắn Zalo ──
+            if (!AppSession.IsAdmin && !AppSession.HasPermission("ZALO", "Gửi tin nhắn"))
+                return (false, "Bạn không có quyền gửi tin nhắn Zalo. Vui lòng liên hệ Admin để được cấp quyền.");
+
             // Đảm bảo session nền đã chạy
             if (!ZaloSession.IsReady)
             {

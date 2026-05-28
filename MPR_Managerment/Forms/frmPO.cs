@@ -652,7 +652,7 @@ namespace MPR_Managerment.Forms
 
             // ── Row 2 (y=71): Nhà CC | Ngày PO | Trạng thái | Revise ──
             var flowRow2 = MakeRow(71);
-            cboSupplier = new ComboBox { Width = 195, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.None };
+            cboSupplier = new ComboBox { Width = 250, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.None, DropDownWidth = 600, MaxDropDownItems = 20 };
             cboSupplier.Validating += CboSupplier_Validating;
             cboSupplier.SelectedIndexChanged += CboSupplier_SelectedIndexChanged;
             cboSupplier.TextChanged += CboSupplier_TextChanged;
@@ -2436,9 +2436,13 @@ namespace MPR_Managerment.Forms
                 var empty = new System.Data.DataTable();
                 empty.Columns.Add("ID", typeof(int)); empty.Columns.Add("Name", typeof(string)); empty.Rows.Add(0, "-- Không tìm thấy --"); BindSupplierCombo(empty);
             }
-            else BindSupplierCombo(filtered);
+            else
+            {
+                BindSupplierCombo(filtered);
+            }
             _isSearching = true; cboSupplier.Text = keyword;
-            cboSupplier.SelectionStart = keyword.Length; cboSupplier.DroppedDown = true; _isSearching = false;
+            cboSupplier.SelectionStart = keyword.Length; 
+            cboSupplier.DroppedDown = true; _isSearching = false;
         }
 
         private string RemoveDiacritics(string text)

@@ -84,6 +84,9 @@ namespace MPR_Managerment.Forms
 
             new ModuleDef("Material Inspector Request", "Kiểm tra vật tư (QC)",
                 new[]{ "Xem","Tìm kiếm RIR","Lưu chi tiết" }),
+
+            new ModuleDef("ZALO", "Gửi tin nhắn Zalo",
+                new[]{ "Gửi tin nhắn" }),
         };
         private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 

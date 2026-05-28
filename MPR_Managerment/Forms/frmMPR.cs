@@ -1064,6 +1064,13 @@ namespace MPR_Managerment.Forms
             int rsl = dgvMPR.CurrentRow.Index;
             int mprId = Convert.ToInt32(dgvMPR.Rows[rsl].Cells["ID"].Value.ToString().Trim());
 
+            var mpr = _mprList.Find(x => x.MPR_ID == mprId);
+            if (mpr != null && mpr.Status == "Hủy")
+            {
+                SafeMsg("Phiếu MPR này đã bị Hủy, không thể in báo cáo!", "Thông báo", MessageBoxIcon.Warning);
+                return;
+            }
+
             var projectName = dgvMPR.CurrentRow.Cells["Ten_Du_An"].Value.ToString().Trim();
             var mprNo = dgvMPR.CurrentRow.Cells["MPR_No"].Value.ToString().Trim();
             var mpr_detail = _service.GetActiveDetails(mprId);
@@ -1551,7 +1558,11 @@ namespace MPR_Managerment.Forms
                 string key = projCode + "||" + baseNo;
                 int maxRev = groups.TryGetValue(key, out var gp) ? gp.MaxRev : revVal;
 
-                bool shouldGray = !isLatest && revVal > 1 && revVal < maxRev;
+                // Lấy trạng thái để xem có bị Hủy không
+                string status = row.Cells["Trang_Thai"].Value?.ToString() ?? "";
+                bool isCancelled = status == "Hủy";
+
+                bool shouldGray = (!isLatest && revVal > 1 && revVal < maxRev) || isCancelled;
                 if (shouldGray)
                 {
                     row.ReadOnly = true;
@@ -1559,7 +1570,7 @@ namespace MPR_Managerment.Forms
                     {
                         cell.Style.ForeColor = Color.FromArgb(160, 160, 160);
                         cell.Style.BackColor = Color.FromArgb(245, 245, 245);
-                        cell.Style.Font = new Font("Segoe UI", 9, FontStyle.Italic);
+                        cell.Style.Font = new Font("Segoe UI", 9, isCancelled ? FontStyle.Bold : FontStyle.Italic);
                     }
                 }
                 else
@@ -1822,6 +1833,24 @@ namespace MPR_Managerment.Forms
 
             int idx = cboStatus.Items.IndexOf(m.Status);
             cboStatus.SelectedIndex = idx >= 0 ? idx : 0;
+
+            // Xử lý Read-only nếu trạng thái là "Hủy"
+            bool isCancelled = m.Status == "Hủy";
+            txtMPRNo.ReadOnly = isCancelled;
+            txtProjectName.ReadOnly = isCancelled;
+            txtProjectCode.ReadOnly = isCancelled;
+            txtDepartment.ReadOnly = isCancelled;
+            txtRequestor.ReadOnly = isCancelled;
+            txtRev.ReadOnly = isCancelled;
+            txtNotes.ReadOnly = isCancelled;
+            cboStatus.Enabled = !isCancelled;
+            dtpRequiredDate.Enabled = !isCancelled;
+            dgvDetails.ReadOnly = isCancelled;
+
+            btnSaveHeader.Enabled = !isCancelled && PermissionHelper.Check("MPR", "Lưu Header", "Lưu Header");
+            btnAddDetail.Enabled = !isCancelled && PermissionHelper.Check("MPR", "Thêm dòng", "Thêm dòng");
+            btnDeleteDetail.Enabled = !isCancelled && PermissionHelper.Check("MPR", "Xóa dòng", "Xóa dòng");
+            btnSaveDetail.Enabled = !isCancelled && PermissionHelper.Check("MPR", "Lưu chi tiết", "Lưu chi tiết");
 
             LoadDetails(_selectedMPR_ID);
             LoadPOProgress(m.MPR_No);
@@ -4232,6 +4261,7 @@ namespace MPR_Managerment.Forms
                                    ORDER BY TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) DESC, MPR_ID DESC
                                ) AS rn
                         FROM MPR_Header
+                        WHERE ISNULL(Status, '') <> N'Hủy'
                     ),
                     PO_Flat AS (
                         SELECT DISTINCT sd.CurrID, ph.PONo
@@ -5286,7 +5316,7 @@ WITH FilteredMPR AS (
                ORDER BY TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT) DESC, h.MPR_ID DESC
            ) AS rn
     FROM MPR_Header h
-    WHERE ISNULL(h.Is_Deleted,0) = 0
+    WHERE ISNULL(h.Is_Deleted,0) = 0 AND ISNULL(h.Status, '') <> N'Hủy'
 ),
 PO_Flat AS (
     SELECT DISTINCT sd.CurrID, ph.PONo
@@ -5435,6 +5465,13 @@ ORDER BY DisplayName";
         // =====================================================================
         private void BtnExportDetail_Click(object sender, EventArgs e)
         {
+            var m = _mprList.Find(x => x.MPR_ID == _selectedMPR_ID);
+            if (m != null && m.Status == "Hủy")
+            {
+                SafeMsg("Phiếu MPR này đã bị Hủy, không thể xuất chi tiết!", "Thông báo", MessageBoxIcon.Warning);
+                return;
+            }
+
             if (dgvDetails.Rows.Count == 0)
             {
                 MessageBox.Show(TopOwner, "Khong co du lieu de xuat!", "Thong bao",
