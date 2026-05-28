@@ -7,6 +7,8 @@ using System.Linq;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
+using MPR_Managerment.Models;
+using MPR_Managerment.Services;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 
@@ -1597,6 +1599,22 @@ namespace MPR_Managerment.Forms
                             ShowToast($"✅ Đã gửi thông báo Zalo đến nhóm {targetGroup} cho PO: {poNo}");
                             _sentZaloPOs.Add(poId);
                             SaveZaloSentStatus(poId);
+
+                            // Ghi log vào lịch sử
+                            try
+                            {
+                                new NotificationLogService().AddLog(new NotificationLog
+                                {
+                                    Sent_At = DateTime.Now,
+                                    Sent_By = AppSession.CurrentUser?.Full_Name ?? "System",
+                                    Recipient = targetGroup,
+                                    Type = "Zalo",
+                                    Content = msg,
+                                    Status = "Success",
+                                    Project_Code = duan
+                                });
+                            }
+                            catch { }
                         }
                         else
                         {

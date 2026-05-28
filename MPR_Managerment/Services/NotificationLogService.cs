@@ -37,7 +37,7 @@ namespace MPR_Managerment.Services
             cmd.ExecuteNonQuery();
         }
 
-        public void AddLog(NotificationLog log)
+        public int AddLog(NotificationLog log)
         {
             try
             {
@@ -45,23 +45,75 @@ namespace MPR_Managerment.Services
                 conn.Open();
                 string sql = @"
                     INSERT INTO Notification_Logs (Sent_At, Sent_By, Recipient, Type, Content, Status, Error_Message, Project_Code)
-                    VALUES (@sentAt, @sentBy, @recipient, @type, @content, @status, @err, @proj)";
+                    VALUES (@sentAt, @sentBy, @recipient, @type, @content, @status, @err, @proj);
+                    SELECT SCOPE_IDENTITY();";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.AddWithValue("@sentAt", log.Sent_At);
-                cmd.Parameters.AddWithValue("@sentBy", log.Sent_By ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@recipient", log.Recipient ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@type", log.Type ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@content", log.Content ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@status", log.Status ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@err", log.Error_Message ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@proj", log.Project_Code ?? (object)DBNull.Value);
-                cmd.ExecuteNonQuery();
+                cmd.Parameters.AddWithValue("@sentBy", (object)log.Sent_By ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@recipient", (object)log.Recipient ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@type", (object)log.Type ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@content", (object)log.Content ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@status", (object)log.Status ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@err", (object)log.Error_Message ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@proj", (object)log.Project_Code ?? DBNull.Value);
+                
+                int newId = Convert.ToInt32(cmd.ExecuteScalar());
+
+                // Keep only latest 200 logs
+                CleanupOldLogs(conn);
+                return newId;
             }
             catch (Exception ex)
             {
-                // Fallback to file log if DB fails
-                System.IO.File.AppendAllText("notification_service_errors.log", $"{DateTime.Now}: {ex.Message}{Environment.NewLine}");
+                // Log to Desktop for easier debugging access
+                try
+                {
+                    string logPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "notification_error.log");
+                    System.IO.File.AppendAllText(logPath, $"{DateTime.Now}: {ex.Message}{Environment.NewLine}");
+                }
+                catch { }
+                return 0;
             }
+        }
+
+        public void UpdateLogStatus(int logId, string status, string errorMessage = "")
+        {
+            if (logId <= 0) return;
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                string sql = @"
+                    UPDATE Notification_Logs 
+                    SET Status = @status, 
+                        Error_Message = @err,
+                        Sent_At = @now
+                    WHERE Log_ID = @id";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@status", status);
+                cmd.Parameters.AddWithValue("@err", (object)errorMessage ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@now", DateTime.Now);
+                cmd.Parameters.AddWithValue("@id", logId);
+                cmd.ExecuteNonQuery();
+            }
+            catch { }
+        }
+
+        private void CleanupOldLogs(SqlConnection conn)
+        {
+            try
+            {
+                string sql = @"
+                    DELETE FROM Notification_Logs 
+                    WHERE Log_ID NOT IN (
+                        SELECT TOP 200 Log_ID 
+                        FROM Notification_Logs 
+                        ORDER BY Sent_At DESC
+                    )";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.ExecuteNonQuery();
+            }
+            catch { /* Ignore cleanup errors */ }
         }
 
         public List<NotificationLog> GetLogs(string userFilter, DateTime? fromDate, DateTime? toDate)

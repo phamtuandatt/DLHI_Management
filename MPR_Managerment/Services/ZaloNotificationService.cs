@@ -37,6 +37,7 @@ namespace MPR_Managerment.Services
         public DateTime QueuedAt { get; set; } = DateTime.Now;
         public string ProjectCode { get; set; } = "";  // Để log / debug
         public int RetryCount { get; set; } = 0;
+        public int LogId { get; set; } = 0; // ID của entry trong Notification_Logs
     }
 
     // =====================================================
@@ -124,17 +125,31 @@ namespace MPR_Managerment.Services
             if (string.IsNullOrWhiteSpace(groupName) || string.IsNullOrWhiteSpace(message))
                 return;
 
+            // 1. Ghi lại lịch sử thông báo với trạng thái Pending trước để lấy LogId
+            int logId = _logService.AddLog(new NotificationLog
+            {
+                Sent_At = DateTime.Now,
+                Sent_By = AppSession.CurrentUser?.Full_Name ?? "System",
+                Recipient = groupName,
+                Type = "Zalo",
+                Content = message,
+                Status = "Pending",
+                Project_Code = projectCode
+            });
+
+            // 2. Tạo item và đưa vào queue
             var item = new ZaloNotificationItem
             {
                 GroupName = groupName,
                 Message = message,
                 ProjectCode = projectCode,
-                QueuedAt = DateTime.Now
+                QueuedAt = DateTime.Now,
+                LogId = logId
             };
 
             _queue.Enqueue(item);
             SaveQueue(); // persist to file
-            Log($"[QUEUED] Project={projectCode} Group={groupName} QueueSize={_queue.Count}");
+            Log($"[QUEUED] Project={projectCode} Group={groupName} QueueSize={_queue.Count} LogId={logId}");
         }
 
         /// <summary>
@@ -177,12 +192,23 @@ namespace MPR_Managerment.Services
             if (_isProcessing) return;
             if (_queue.IsEmpty) return;
 
-            // Kiểm tra khoảng cách thời gian: 15 giây giữa các tin nhắn
-            TimeSpan elapsed = DateTime.Now - _lastSendTime;
-            if (elapsed.TotalSeconds < 15)
+            // 1. Kiểm tra khoảng cách thời gian giữa 2 lần gửi: 60 giây (1 phút) để tránh spam
+            TimeSpan elapsedSinceLast = DateTime.Now - _lastSendTime;
+            if (elapsedSinceLast.TotalSeconds < 60)
             {
-                // Chưa đủ 15 giây, chờ lần sau
+                // Chưa đủ 60 giây kể từ tin nhắn trước
                 return;
+            }
+
+            // 2. Kiểm tra tin nhắn đầu tiên đã chờ đủ 60 giây kể từ khi được tạo chưa
+            if (_queue.TryPeek(out var firstItem))
+            {
+                TimeSpan waitTime = DateTime.Now - firstItem.QueuedAt;
+                if (waitTime.TotalSeconds < 60)
+                {
+                    // Tin nhắn chưa chờ đủ 1 phút kể từ lúc vào hàng đợi
+                    return;
+                }
             }
 
             _isProcessing = true;
@@ -190,8 +216,6 @@ namespace MPR_Managerment.Services
             // Nếu có UI context, đảm bảo xử lý trên UI thread
             if (_uiContext != null && _uiContext != SynchronizationContext.Current)
             {
-                // [FIX #2] Bọc Post trong try-catch — nếu Post fail, reset _isProcessing
-                // để tránh bị kẹt true mãi mãi
                 try
                 {
                     _uiContext.Post(async _ =>
@@ -232,6 +256,7 @@ namespace MPR_Managerment.Services
                             {
                                 Log($"[SKIP] Zalo chưa bật — Project={item.ProjectCode}");
                                 sent = true;
+                                _logService.UpdateLogStatus(item.LogId, "Failed", "Zalo integration is disabled.");
                                 break;
                             }
 
@@ -249,16 +274,7 @@ namespace MPR_Managerment.Services
                                 Log($"[SENT] Project={item.ProjectCode} Group={item.GroupName} " +
                                     $"attempt={attempts} totalRetried={item.RetryCount}");
 
-                                _logService.AddLog(new NotificationLog
-                                {
-                                    Sent_At = DateTime.Now,
-                                    Sent_By = AppSession.CurrentUser?.Full_Name ?? "System",
-                                    Recipient = item.GroupName,
-                                    Type = "Zalo",
-                                    Content = item.Message,
-                                    Status = "Success",
-                                    Project_Code = item.ProjectCode
-                                });
+                                _logService.UpdateLogStatus(item.LogId, "Success");
                             }
                             else
                             {
@@ -267,7 +283,6 @@ namespace MPR_Managerment.Services
 
                                 if (attempts < queueSettings.MaxRetries)
                                 {
-                                    // [FIX #4] Bỏ Application.DoEvents() — tránh reentrancy
                                     await Task.Delay(queueSettings.RetryDelayMs);
                                 }
                                 else
@@ -281,7 +296,6 @@ namespace MPR_Managerment.Services
                             Log($"[ERROR] Project={item.ProjectCode} attempt={attempts} {ex.Message}");
                             if (attempts < queueSettings.MaxRetries)
                             {
-                                // [FIX #4] Bỏ Application.DoEvents()
                                 await Task.Delay(queueSettings.RetryDelayMs);
                             }
                             else
@@ -306,45 +320,33 @@ namespace MPR_Managerment.Services
         }
 
         /// <summary>
-        /// [FIX #1 + #3 + #5] Đưa item lại vào queue sau khi hết lần retry trong một chu kỳ.
+        /// Đưa item lại vào queue sau khi hết lần retry trong một chu kỳ.
         /// - Tăng RetryCount để track tổng số lần đã thử
         /// - Nếu vượt MAX_TOTAL_RETRIES thì bỏ qua (tránh loop vô tận)
-        /// - Cập nhật _lastSendTime để áp dụng 15s cooldown trước lần retry tiếp theo
+        /// - Cập nhật _lastSendTime để áp dụng 60s cooldown trước lần retry tiếp theo
         /// </summary>
         private void _RequeueOrDrop(ZaloNotificationItem item, string reason)
         {
-            item.RetryCount++;  // [FIX #3] Tăng RetryCount
+            item.RetryCount++;  
             
-            // Log the failure/drop to DB
-            string status = (item.RetryCount >= MAX_TOTAL_RETRIES) ? "Dropped" : "Failed";
-            _logService.AddLog(new NotificationLog
-            {
-                Sent_At = DateTime.Now,
-                Sent_By = AppSession.CurrentUser?.Full_Name ?? "System",
-                Recipient = item.GroupName,
-                Type = "Zalo",
-                Content = item.Message,
-                Status = status,
-                Error_Message = reason,
-                Project_Code = item.ProjectCode
-            });
+            // Log the failure/drop status to DB
+            string status = (item.RetryCount >= MAX_TOTAL_RETRIES) ? "Dropped" : "Pending"; // Vẫn là Pending nếu còn thử lại
+            _logService.UpdateLogStatus(item.LogId, status, reason);
 
             if (item.RetryCount >= MAX_TOTAL_RETRIES)
             {
-                // [FIX #5] Đã vượt giới hạn tổng thể → bỏ qua
                 Log($"[DROPPED] Project={item.ProjectCode} Group={item.GroupName} " +
                     $"totalRetried={item.RetryCount} — vượt giới hạn {MAX_TOTAL_RETRIES} lần, bỏ qua.");
                 return;
             }
 
-            // [FIX #1] Cập nhật _lastSendTime khi re-queue để áp dụng 15s cooldown
-            // Không để item bị retry ngay lập tức trong tick kế tiếp
+            // Cập nhật _lastSendTime khi re-queue để áp dụng 60s cooldown
             _lastSendTime = DateTime.Now;
 
             _queue.Enqueue(item);
             Log($"[REQUEUE] Project={item.ProjectCode} Group={item.GroupName} " +
                 $"totalRetried={item.RetryCount}/{MAX_TOTAL_RETRIES} reason={reason} " +
-                $"— sẽ thử lại sau 15s");
+                $"— sẽ thử lại sau 60s");
         }
 
         // ==============================================================

@@ -2636,8 +2636,8 @@ namespace MPR_Managerment.Forms
             foreach (var s in scheds)
             {
                 decimal net = s.Amount_Plan;
-                decimal vat = Math.Round(net * 0.1m, 2);
-                decimal total = net + vat;
+                decimal vat = Math.Round(net * 0.1m, 0);
+                decimal total = Math.Round(net + vat, 0);
                 string dot = s.Dot_TT == 1 ? "1st" : s.Dot_TT == 2 ? "2nd" :
                                 s.Dot_TT == 3 ? "3rd" : $"{s.Dot_TT}th";
 
@@ -2977,8 +2977,8 @@ namespace MPR_Managerment.Forms
                         {
                             var s = scheds[i];
                             decimal net = s.Amount_Plan;
-                            decimal vat = Math.Round(net * 0.1m, 2);
-                            decimal tot = net + vat;
+                            decimal vat = Math.Round(net * 0.1m, 0);
+                            decimal tot = Math.Round(net + vat, 0);
                             sumNet += net;
                             sumVat += vat;
                             sumTotal += tot;
@@ -3010,8 +3010,8 @@ namespace MPR_Managerment.Forms
                             }
 
                             ReplaceCell(ws, $"<<Số tiền đợt {i + 1}>>", FormatAmt(net));
-                            ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", FormatAmt(vat));
-                            ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", FormatAmt(tot));
+                            ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", FormatAmt0(vat));
+                            ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", FormatAmt0(tot));
                             ReplaceCell(ws, $"<<Ngày yêu cầu lần {i + 1}>>", dateValue);
                         }
                         else
@@ -3027,15 +3027,15 @@ namespace MPR_Managerment.Forms
                     ReplaceCellAll(ws, "<<Sum>>", new[]
                     {
                         FormatAmt(sumNet),
-                        FormatAmt(sumVat),
-                        FormatAmt(sumTotal)
+                        FormatAmt0(sumVat),
+                        FormatAmt0(sumTotal)
                     });
 
                     // Row 19 — Balance
                     decimal balNet = Math.Max(totalBeforeVat - sumNet, 0);
-                    decimal balTotal = Math.Max(totalBeforeVat * 1.1m - sumTotal - totalPaid, 0);
+                    decimal balTotal = Math.Round(Math.Max(totalBeforeVat * 1.1m - sumTotal - totalPaid, 0), 0);
                     ReplaceCell(ws, "<<Tổng số tiền trước thuế còn lại>>", FormatAmt(balNet));
-                    ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", FormatAmt(balTotal));
+                    ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", FormatAmt0(balTotal));
 
                     // A26 — Ngày yêu cầu (ngày ký)
                     ReplaceCell(ws, "<<Ngày yêu cầu>>", DateTime.Today.ToString("dd/MM/yyyy"));
@@ -3257,6 +3257,11 @@ namespace MPR_Managerment.Forms
             return value == Math.Floor(value)
                 ? value.ToString("N0")
                 : value.ToString("N2");
+        }
+
+        private static string FormatAmt0(decimal value)
+        {
+            return value.ToString("N0");
         }
 
     }
