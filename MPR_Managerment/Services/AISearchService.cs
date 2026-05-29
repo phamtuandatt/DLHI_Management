@@ -403,6 +403,8 @@ Quy tắc:
 - SQL chỉ SELECT, Is_Latest=1, Is_Deleted=0, không giới hạn TOP khi xuất Excel.
 - export_excel=true khi câu hỏi có: xuất/export/tạo file/báo cáo/danh sách/tổng hợp/thống kê.
 - Yêu cầu xóa/sửa: need_sql=false, giải thích AI chỉ đọc.
+- Nếu câu hỏi chứa tên bảng/cột hoặc mô tả truy vấn dữ liệu → LUÔN need_sql=true, sinh SQL đầy đủ.
+- KHÔNG trả về need_sql=false với answer trống — nếu không chắc chắn, cứ sinh SQL thử.
 
 JSON:";
 
@@ -446,6 +448,18 @@ JSON:";
             catch
             {
                 directAnswer = raw;
+            }
+
+            // ── Retry: AI trả về need_sql=false với answer trống → thử sinh SQL thẳng ──
+            // Xảy ra khi câu hỏi quá dài/phức tạp, AI bị nhầm sang "chat mode"
+            if (!needSql && string.IsNullOrWhiteSpace(directAnswer))
+            {
+                string retrySql = await ForceSQLGenerationAsync(userQuestion);
+                if (!string.IsNullOrEmpty(retrySql))
+                {
+                    needSql = true;
+                    sql = retrySql;
+                }
             }
 
             string answer;
@@ -630,6 +644,55 @@ JSON:";
         // ── Placeholder để không break code cũ ───────────────────────────
         private async Task<string> AskAsync_unused() => "";
 
+        /// <summary>
+        /// Bỏ qua bước intent-detection, sinh SQL trực tiếp cho câu hỏi.
+        /// Dùng khi AI trả về need_sql=false với answer trống (câu hỏi quá phức tạp).
+        /// </summary>
+        private async Task<string> ForceSQLGenerationAsync(string question)
+        {
+            try
+            {
+                string prompt = $@"Bạn là SQL generator cho SQL Server. Sinh SELECT SQL cho yêu cầu dữ liệu dưới đây.
+
+{DB_SCHEMA_SHORT}
+
+Yêu cầu:
+{question}
+
+Quy tắc bắt buộc:
+- Chỉ SELECT, không INSERT/UPDATE/DELETE
+- Dùng đúng tên bảng/cột theo schema ở trên
+- Is_Latest=1 cho MPR_Header, Is_Deleted=0 cho MPR_Details
+- LEFT JOIN PO_Detail ON MPR_Detail_ID = Detail_ID (khi cần kiểm tra đã đặt hàng chưa)
+- Nếu kiểm tra ""chưa đặt"": WHERE pd.MPR_Detail_ID IS NULL (sau LEFT JOIN)
+- Nếu cột dimension = 0 thì dùng NULLIF(col, 0) hoặc CASE WHEN col > 0 THEN col END
+- KHÔNG giới hạn TOP nếu yêu cầu đầy đủ, thêm ORDER BY phù hợp
+- Chỉ trả về SQL thuần túy, KHÔNG markdown, KHÔNG giải thích
+
+SQL:";
+
+                string result = await CallRouterAsync(prompt, temperature: 0.05f);
+                result = result.Trim();
+
+                // Strip markdown fences nếu model bọc ```sql ... ```
+                if (result.StartsWith("```"))
+                {
+                    int firstNewline = result.IndexOf('\n');
+                    int lastFence    = result.LastIndexOf("```");
+                    if (firstNewline >= 0 && lastFence > firstNewline)
+                        result = result.Substring(firstNewline + 1, lastFence - firstNewline - 1).Trim();
+                }
+
+                // Chỉ chấp nhận nếu bắt đầu bằng SELECT hoặc WITH
+                if (result.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) ||
+                    result.StartsWith("WITH",   StringComparison.OrdinalIgnoreCase))
+                    return result;
+
+                return "";
+            }
+            catch { return ""; }
+        }
+
         // ── Tự động sửa SQL khi gặp lỗi — tối đa 3 lần, tích lũy lỗi ──
         private async Task<string> FixSQLAsync(string badSql, string errorMsg, int attempt = 1)
         {
@@ -748,7 +811,7 @@ Trả lời:";
                     model = ROUTER_MODEL,
                     messages = new[] { new { role = "user", content = prompt } },
                     temperature,
-                    max_tokens = 2048,
+                    max_tokens = 4096,
                     stream = false
                 };
 
@@ -794,7 +857,7 @@ Trả lời:";
                     model = ROUTER_MODEL,
                     messages = new[] { new { role = "user", content = prompt } },
                     temperature = 0.7,
-                    max_tokens = 2048,
+                    max_tokens = 4096,
                     stream = true
                 };
 

@@ -383,11 +383,11 @@ namespace MPR_Managerment.Forms
             var colWidths = new Dictionary<string, int>
             {
                 { "PO No",                 130 },
+                { "NCC",                   100 },
                 { "Dự án",                  50 },
                 { "MPR No",                120 },
                 { "Ngày PO",                85 },
                 { "Rev",                    35 },
-                { "Tổng items",             65 },
                 { "Tổng SL đặt",            75 },
                 { "Tổng SL nhận",           75 },
                 { "Ngày giao sớm nhất",    105 },
@@ -1332,21 +1332,23 @@ namespace MPR_Managerment.Forms
                             h.Project_Name                     AS [Dự án],
                             h.MPR_No                           AS [MPR No],
                             h.PO_Date                          AS [Ngày PO],
+                            s.Short_Name                       AS [NCC],
                             h.Revise                           AS [Rev],
-                            COUNT(d.PO_Detail_ID)              AS [Tổng items],
                             ISNULL(SUM(d.Qty_Per_Sheet), 0)    AS [Tổng SL đặt],
                             ISNULL((SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID), ISNULL(SUM(d.Received), 0)) AS [Tổng SL nhận],
                             MIN(d.RequestDay)                  AS [Ngày giao sớm nhất],
                             h.Status                           AS [TrangThaiDB]
-                        FROM PO_head h
-                        LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
+FROM PO_head h
+LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
+LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
                         WHERE 1=1 {searchCondition}
-                        GROUP BY h.PO_ID, h.PONo, h.Project_Name, h.MPR_No, h.PO_Date, h.Status, h.Revise
+                        GROUP BY h.PO_ID, h.PONo, h.Project_Name, h.MPR_No, h.PO_Date, h.Status, h.Revise, s.Short_Name
                     ),
                     CalculatedPO AS (
                         SELECT
                             PO_ID,
                             [PO No],
+                            [NCC],
                             [Dự án],
                             [MPR No],
                             [Ngày PO],
@@ -1356,7 +1358,6 @@ namespace MPR_Managerment.Forms
                                 ELSE [TrangThaiDB]
                             END AS [Trạng thái],
                             [Rev],
-                            [Tổng items],
                             [Tổng SL đặt],
                             [Tổng SL nhận],
                             CASE

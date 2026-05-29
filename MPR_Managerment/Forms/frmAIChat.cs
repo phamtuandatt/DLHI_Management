@@ -303,7 +303,10 @@ namespace MPR_Managerment.Forms
         private Panel _skillStrip;
         private ListBox _slashPopup;
         private Label _slashHeader;        // tiêu đề popup level 2
-        private string _slashLevel2Parent; // lệnh cha đang mở level 2 (null = level 1)
+        private string _slashLevel2Parent;    // lệnh cha đang mở level 2 (null = level 1)
+        private bool   _slashLevel3Active;    // đang ở level 3 (chọn sub-skill sau khi chọn dự án)
+        private string _slashSelectedProject; // mã dự án đã chọn ở level 2 (dùng cho display text)
+        private string _pendingDisplayText;   // text ngắn gọn hiện trong [Bạn] thay vì full template
 
         // ─────────────────────────────────────────────────────────────────
         public frmAIChat()
@@ -728,7 +731,11 @@ namespace MPR_Managerment.Forms
             _txtInput.Clear();
             _txtInput.Focus();
             _btnExport.Visible = false;
-            AppendMsg("Bạn", q, C_USER_MSG);
+
+            // Dùng display text ngắn gọn (tên skill) nếu có, ngược lại dùng q gốc
+            string chatDisplay   = _pendingDisplayText ?? q;
+            _pendingDisplayText  = null; // clear sau khi dùng
+            AppendMsg("Bạn", chatDisplay, C_USER_MSG);
 
             // ── Xử lý lệnh ghi nhớ: "nhớ: ..." ──────────────────────────
             string qLower = q.ToLower();
@@ -791,7 +798,7 @@ namespace MPR_Managerment.Forms
                     AppendMsg("AI", "❌ Đã hủy chọn dự án.", Color.FromArgb(156, 163, 175));
                     return;
                 }
-                q = q.Replace("{project_code}", code);
+                q = ApplyProjectCodeToTemplate(q, code);
             }
 
             SetThinking(true);
@@ -1174,16 +1181,20 @@ namespace MPR_Managerment.Forms
                 chip.FlatAppearance.MouseOverBackColor = Color.FromArgb(60, 65, 95);
                 if (!string.IsNullOrEmpty(sk.Description))
                     new ToolTip().SetToolTip(chip, sk.Description);
+                string chipName = sk.Icon + " " + sk.Name; // capture trước khi vào lambda
                 chip.Click += (s, e) =>
                 {
                     string resolved = tmpl;
+                    string displayName = chipName;
                     if (resolved.Contains("{project_code}"))
                     {
                         string code = PromptProjectCode();
                         if (code == null) return; // user nhấn Hủy
-                        resolved = resolved.Replace("{project_code}", code);
+                        resolved    = ApplyProjectCodeToTemplate(resolved, code);
+                        displayName = chipName + (string.IsNullOrEmpty(code) ? "" : $" — {code}");
                     }
-                    _txtInput.Text = resolved;
+                    _pendingDisplayText = displayName;
+                    _txtInput.Text      = resolved;
                     SendMessage();
                 };
                 _skillStrip.Controls.Add(chip);
@@ -1195,7 +1206,7 @@ namespace MPR_Managerment.Forms
 
         // ── Slash popup ───────────────────────────────────────────────────
         private record SlashEntry(string Display, string Template, string Type,
-                                  string Slash = "", string ParentSlash = "");
+                                  string Slash = "", string ParentSlash = "", string Tag = "");
 
         /// <summary>
         /// Lệnh slash có Level 2 là danh sách dự án (thay vì sub-skills).
@@ -1205,26 +1216,61 @@ namespace MPR_Managerment.Forms
             new(StringComparer.OrdinalIgnoreCase) { "/po", "/mpr" };
 
         /// <summary>
+        /// Thay thế {project_code} trong bất kỳ template nào.
+        /// Xóa phần filter cũ mơ hồ ("Nếu X trống..."), thêm filter prefix BẮT BUỘC ở đầu prompt.
+        /// Dùng cho quick chip, ApplySlashPopupSelection, và SendMessage fallback.
+        /// </summary>
+        private static string ApplyProjectCodeToTemplate(string template, string projectCode)
+        {
+            bool isAll = string.IsNullOrWhiteSpace(projectCode)
+                      || projectCode.Equals("All", StringComparison.OrdinalIgnoreCase);
+
+            // Xóa phần filter cũ mơ hồ trong template DB
+            string cleaned = template
+                .Replace(" Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.", "")
+                .Replace("{project_code}", isAll ? "" : projectCode);
+
+            if (isAll) return cleaned;
+
+            // Prefix BẮT BUỘC ở đầu — AI đọc trước câu hỏi, không bỏ qua được
+            string prefix = $"⚠️ BẮT BUỘC: Chỉ lấy dữ liệu dự án '{projectCode}'. " +
+                            $"SQL PHẢI có điều kiện: ProjectCode = '{projectCode}' (PO_head) " +
+                            $"hoặc Project_Code = '{projectCode}' (MPR_Header). " +
+                            $"KHÔNG được trả về dữ liệu dự án khác.\n";
+            return prefix + cleaned;
+        }
+
+        /// <summary>
         /// Tạo prompt AI dành riêng cho truy vấn danh sách PO/MPR theo dự án.
         /// projectCode rỗng = tất cả dự án (All).
+        /// Filter đặt ĐẦU TIÊN + ngôn ngữ bắt buộc để AI không bỏ qua.
         /// </summary>
         private static string BuildProjectTemplate(string slash, string projectCode)
         {
             bool isAll = string.IsNullOrWhiteSpace(projectCode)
                       || projectCode.Equals("All", StringComparison.OrdinalIgnoreCase);
-            string desc    = isAll ? "tất cả dự án" : $"dự án {projectCode}";
-            string filter  = isAll ? "" : $" Trong SQL thêm điều kiện: AND (ProjectCode = '{projectCode}' OR Project_Code = '{projectCode}').";
+
+            // Filter prefix: đặt trước câu hỏi chính, dùng ngôn ngữ BẮT BUỘC + tên cột chính xác
+            string filterPrefix = isAll
+                ? ""
+                : $"⚠️ BẮT BUỘC: Chỉ lấy dữ liệu dự án '{projectCode}'. " +
+                  $"SQL PHẢI có điều kiện: ph.ProjectCode = '{projectCode}' (bảng PO_head) " +
+                  $"hoặc mh.Project_Code = '{projectCode}' (bảng MPR_Header). " +
+                  $"KHÔNG được trả về dữ liệu của dự án khác.\n";
+
+            string desc = isAll ? "tất cả dự án" : $"dự án {projectCode}";
 
             return slash.Equals("/po", StringComparison.OrdinalIgnoreCase)
-                ? $"Danh sách tất cả PO của {desc}, kèm PONo, tên nhà cung cấp (Company_Name), " +
-                  $"Total_Amount, Status, Expected_Delivery. Sắp xếp theo PO_Date giảm dần.{filter}"
-                : $"Danh sách tất cả MPR (Is_Latest=1) của {desc}, kèm MPR_No, Status, " +
+                ? $"{filterPrefix}Danh sách tất cả PO của {desc}, kèm PONo, tên nhà cung cấp (Company_Name), " +
+                  $"Total_Amount, Status, Expected_Delivery. Sắp xếp theo PO_Date giảm dần."
+                : $"{filterPrefix}Danh sách tất cả MPR (Is_Latest=1) của {desc}, kèm MPR_No, Status, " +
                   $"Required_Date, số lượng item trong MPR_Details (Is_Deleted=0). " +
-                  $"Sắp xếp theo Created_Date giảm dần.{filter}";
+                  $"Sắp xếp theo Created_Date giảm dần.";
         }
 
         private void UpdateSlashPopup()
         {
+            _slashLevel3Active = false; // user typed → Level 3 flow bị ngắt
             string text = _txtInput.Text;
             if (!text.StartsWith("/")) { HideSlashPopup(); return; }
 
@@ -1259,7 +1305,7 @@ namespace MPR_Managerment.Forms
                             entries.Add(new SlashEntry(
                                 "📂  Tất cả dự án",
                                 BuildProjectTemplate(firstWord, ""),
-                                "slash"));
+                                "slash", Tag: ""));
 
                         // Project codes khớp filter
                         foreach (var code in allCodes)
@@ -1268,7 +1314,7 @@ namespace MPR_Managerment.Forms
                                 entries.Add(new SlashEntry(
                                     $"📁  {code}",
                                     BuildProjectTemplate(firstWord, code),
-                                    "slash"));
+                                    "slash", Tag: code));
 
                         if (entries.Count > 0)
                         {
@@ -1361,7 +1407,10 @@ namespace MPR_Managerment.Forms
         {
             _slashPopup?.Hide();
             _slashHeader?.Hide();
-            _slashLevel2Parent = null;
+            _slashLevel2Parent    = null;
+            _slashLevel3Active    = false;
+            _slashSelectedProject = null;
+            // _pendingDisplayText KHÔNG clear ở đây — cần sống đến khi SendMessage() đọc
         }
 
         private void ApplySlashPopupSelection()
@@ -1370,7 +1419,23 @@ namespace MPR_Managerment.Forms
             if (_slashPopup.Tag is not System.Collections.Generic.List<SlashEntry> entries) return;
             var entry = entries[_slashPopup.SelectedIndex];
 
-            // Level 1: nếu là slash có sub-skill → gõ "/lệnh " rồi hiện Level 2
+            // ── Level 3 đang hiển thị: template đã embedded project code → gửi ngay ──
+            if (_slashLevel3Active)
+            {
+                // Hiện tên ngắn gọn trong chat thay vì full template
+                string proj = string.IsNullOrEmpty(_slashSelectedProject) ? "Tất cả dự án"
+                                                                           : _slashSelectedProject;
+                _pendingDisplayText = $"{entry.Display.Trim()} — {proj}";
+
+                HideSlashPopup();
+                _txtInput.Text = entry.Template;
+                _txtInput.SelectionStart = _txtInput.Text.Length;
+                _txtInput.Focus();
+                SendMessage();
+                return;
+            }
+
+            // ── Level 1: slash có sub-skill → gõ "/lệnh " để hiện Level 2 ──
             if (string.IsNullOrEmpty(entry.ParentSlash) && entry.Type == "slash"
                 && !string.IsNullOrEmpty(entry.Slash)
                 && AISearchService.GetSubSkills(entry.Slash).Count > 0)
@@ -1378,32 +1443,29 @@ namespace MPR_Managerment.Forms
                 _txtInput.Text = entry.Slash + " ";
                 _txtInput.SelectionStart = _txtInput.Text.Length;
                 _txtInput.Focus();
-                // TextChanged sẽ tự gọi UpdateSlashPopup() → hiện Level 2
+                // TextChanged tự gọi UpdateSlashPopup() → hiện Level 2 (project codes hoặc sub-skills)
                 return;
             }
 
-            // Lưu lại trước khi HideSlashPopup() xóa _slashLevel2Parent
-            string savedLevel2Parent = _slashLevel2Parent;
+            // ── Level 2 /po hoặc /mpr: dự án được chọn → hiện Level 3 sub-skills ──
+            if (PROJECT_SLASH_COMMANDS.Contains(_slashLevel2Parent ?? ""))
+            {
+                ShowLevel3ProjectSubSkills(_slashLevel2Parent, entry.Tag);
+                return;
+            }
 
+            // ── Các trường hợp còn lại (Level 2 sub-skill thường, hoặc Level 1 quick) ──
             HideSlashPopup();
             string resolvedEntry = entry.Template.Replace("{param}", "");
 
-            // ── /po và /mpr: template đã có project code nhúng sẵn → gửi ngay
-            if (PROJECT_SLASH_COMMANDS.Contains(savedLevel2Parent ?? ""))
-            {
-                _txtInput.Text = resolvedEntry;
-                _txtInput.SelectionStart = _txtInput.Text.Length;
-                _txtInput.Focus();
-                SendMessage();
-                return;
-            }
-
-            // ── Các skill khác có {project_code}: hiện dialog chọn dự án ──
+            // Skill có {project_code}: hiện dialog chọn dự án
             if (resolvedEntry.Contains("{project_code}"))
             {
                 string code = PromptProjectCode();
                 if (code == null) { _txtInput.Focus(); return; }
-                resolvedEntry = resolvedEntry.Replace("{project_code}", code);
+                resolvedEntry = ApplyProjectCodeToTemplate(resolvedEntry, code);
+                _pendingDisplayText = entry.Display.Trim() +
+                    (string.IsNullOrEmpty(code) ? "" : $" — {code}");
                 _txtInput.Text = resolvedEntry;
                 _txtInput.SelectionStart = _txtInput.Text.Length;
                 _txtInput.Focus();
@@ -1411,9 +1473,58 @@ namespace MPR_Managerment.Forms
                 return;
             }
 
+            // Skill không có project code — hiện tên skill ngắn gọn
+            _pendingDisplayText = entry.Display.Trim();
             _txtInput.Text = resolvedEntry;
             _txtInput.SelectionStart = _txtInput.Text.Length;
             _txtInput.Focus();
+        }
+
+        /// <summary>
+        /// Hiện Level 3 popup: danh sách các loại kiểm tra cho /po hoặc /mpr
+        /// sau khi đã chọn mã dự án ở Level 2.
+        /// </summary>
+        private void ShowLevel3ProjectSubSkills(string slash, string projectCode)
+        {
+            _slashLevel3Active    = true;
+            _slashSelectedProject = projectCode; // lưu để dùng trong display text
+
+            bool isAll = string.IsNullOrEmpty(projectCode)
+                      || projectCode.Equals("All", StringComparison.OrdinalIgnoreCase);
+            string listName    = slash.Equals("/po", StringComparison.OrdinalIgnoreCase) ? "PO" : "MPR";
+            string projectDesc = isAll ? "Tất cả dự án" : $"Dự án {projectCode}";
+
+            var entries = new System.Collections.Generic.List<SlashEntry>();
+
+            // ── Mục đầu: "Tất cả [PO/MPR]" — lấy danh sách đầy đủ của dự án ──
+            entries.Add(new SlashEntry(
+                $"📋  Tất cả {listName}",
+                BuildProjectTemplate(slash, projectCode),
+                "slash"));
+
+            // Filter prefix mạnh cho sub-skills — đặt ĐẦU prompt, tên cột chính xác
+            // isAll = rỗng hoặc "All" → không lọc; ngược lại → bắt buộc lọc
+            string subFilterPrefix = isAll
+                ? ""
+                : $"⚠️ BẮT BUỘC: Chỉ lấy dữ liệu dự án '{projectCode}'. " +
+                  $"SQL PHẢI có điều kiện: ph.ProjectCode = '{projectCode}' (PO_head) " +
+                  $"hoặc mh.Project_Code = '{projectCode}' (MPR_Header). " +
+                  $"KHÔNG được trả về dữ liệu dự án khác.\n";
+
+            // ── Sub-skills từ DB (Parent_Slash = slash) ──────────────────────────
+            var subs = AISearchService.GetSubSkills(slash);
+            foreach (var sub in subs)
+            {
+                // Xóa phần filter cũ mơ hồ trong template DB (tránh "Nếu PROJ-001 trống...")
+                string tmpl = sub.Template
+                    .Replace(" Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.", "")
+                    .Replace("{project_code}", projectCode); // fallback cho template chưa chuẩn hóa
+
+                // Ghép filter prefix vào ĐẦU prompt
+                entries.Add(new SlashEntry($"{sub.Icon}  {sub.Name}", subFilterPrefix + tmpl, sub.Type));
+            }
+
+            ShowPopup(entries, $"  ↳ 📁 {projectDesc}  —  chọn loại kiểm tra:");
         }
 
         // ── Chọn mã dự án — dialog tối màu, dropdown từ DB ───────────────
