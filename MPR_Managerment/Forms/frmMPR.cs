@@ -6542,12 +6542,15 @@ ORDER BY DisplayName";
             }
 
             // Dùng Dispatcher hoặc BeginInvoke để tránh lặp vô tận trong sự kiện UI
-            this.BeginInvoke(new Action(() =>
+            if (this.IsHandleCreated)
             {
-                BindMPRGrid(_mprList);
-                if (lblStatus != null && !lblStatus.IsDisposed)
-                    lblStatus.Text = "✅ Email MPR đã được gửi thành công!";
-            }));
+                this.BeginInvoke(new Action(() =>
+                {
+                    BindMPRGrid(_mprList);
+                    if (lblStatus != null && !lblStatus.IsDisposed)
+                        lblStatus.Text = "✅ Email MPR đã được gửi thành công!";
+                }));
+            }
 
             // Gửi thông báo Zalo vào nhóm của từng NCC
             if (suppliers != null && suppliers.Count > 0 && h != null)

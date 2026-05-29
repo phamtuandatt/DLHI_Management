@@ -252,39 +252,111 @@ vw_Warehouse_Stock_V2   — tồn kho hiện tại
             var mems = GetMemories();
             if (mems.Count == 0) return "";
             var sb = new StringBuilder();
-            sb.AppendLine("=== QUY TẮC TRUY XUẤT DỮ LIỆU (bắt buộc tuân theo khi viết SQL) ===");
+            sb.AppendLine("=== QUY TẮC BẮT BUỘC (PHẢI ĐỌC VÀ ÁP DỤNG TRƯỚC KHI TRẢ LỜI) ===");
+            sb.AppendLine("TRƯỚC KHI viết SQL hoặc trả lời, bắt buộc phải:");
+            sb.AppendLine("1. Đọc từng quy tắc dưới đây.");
+            sb.AppendLine("2. Kiểm tra câu hỏi có liên quan đến quy tắc nào không.");
+            sb.AppendLine("3. Nếu có → áp dụng quy tắc đó vào SQL/câu trả lời, KHÔNG bỏ qua.");
+            sb.AppendLine();
+            sb.AppendLine("DANH SÁCH QUY TẮC:");
+            int i = 1;
             foreach (var (_, rule) in mems)
-                sb.AppendLine($"- {rule}");
-            sb.AppendLine("==========================================================");
+                sb.AppendLine($"  [{i++}] {rule}");
+            sb.AppendLine("=======================================================");
             return sb.ToString();
         }
 
 
         private const string DB_SCHEMA_SHORT = @"
-Bảng SQL Server (chỉ SELECT):
-MPR_Header: MPR_ID, MPR_No, Project_Name, Project_Code, Rev(varchar), Required_Date, Status, Is_Latest, Created_Date
-MPR_Details: Detail_ID, MPR_ID, Item_No(varchar), item_name, Material, Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm, UNIT, Qty_Per_Sheet, Weight_kg, REV, Is_Deleted, Remarks
-PO_head: PO_ID, PONo, MPR_No, Supplier_ID, PO_Date, Total_Amount, Status, Expected_Delivery, Payment_Term, Project_Name
-PO_Detail: PO_Detail_ID, PO_ID, item_name, Qty_Per_Sheet, Weight_kg, Price, Amount, VAT, Received_Qty, MPR_Detail_ID, Status_Delivery, RequestDay
-Suppliers: Supplier_ID, Company_Name, Short_Name, Contact_Person, Contact_Phone, IsActive
-RIR_head: RIR_ID, RIR_No, Issue_Date, PONo, MPR_No, Status, Project_Name
-RIR_detail: RIR_Detail_ID, RIR_ID, item_name, Qty_Required, Qty_Received, Inspect_Result
-PO_PrintRequestHistory: Print_ID, PONo, Project_Name, Amount_Net, Amount_VAT, Amount_Total, Printed_By, Printed_Date, Supplier_Short
-PO_PaymentProgress: Progress_ID, Print_ID, PONo, PR_Status, PR_Paid, Amount_Total, EC_Status, Updated_At
-PO_DeliveryTracking: TrackID, PONo, ExpDelivery, Status, GhiChu
-Warehouse_Import: Import_ID, Import_Date, PO_ID, Item_Name, Qty_Import, Weight_kg, Project_Code
-Views: vw_PO_FullInfo, vw_MPR_Full_Info, vw_Supplier_FullInfo, vw_PO_Payment_Summary, vw_Supplier_Debt_Summary
+=== BẢNG SQL SERVER (chỉ SELECT) ===
 
-⚠ TÊN CỘT QUAN TRỌNG — PHẢI DÙNG ĐÚNG:
-- PO_head: cột số PO là [PONo] KHÔNG phải PO_No hay PO_Number
-- RIR_head: cột số RIR là [RIR_No] KHÔNG phải RIR_Number
-- MPR_Details: cột tên vật tư là [item_name] KHÔNG phải Item_Name
-- PO_head: cột ngày giao là [Expected_Delivery] KHÔNG phải Delivery_Date
-- Suppliers: KHÔNG có bảng Supplier (phải có chữ 's' cuối)
-- Is_Latest=1 → MPR bản mới nhất; Is_Deleted=0 → MPR_Details còn hiệu lực
-- JOIN NCC: PO_head.Supplier_ID = Suppliers.Supplier_ID
-- Lịch sử thanh toán: PO_PrintRequestHistory JOIN PO_PaymentProgress ON Print_ID
-- Rev/Item_No là VARCHAR → dùng TRY_CAST(TRY_CAST(col AS DECIMAL(10,2)) AS INT)
+MPR_Header: MPR_ID, MPR_No, Project_Name, Project_Code, Department, Requestor,
+  Rev(varchar — dùng TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT) khi so sánh số),
+  Required_Date(date), Status, Is_Latest(bit), Created_Date(datetime), Notes
+  ↳ Status hợp lệ: 'Draft' | 'Submitted' | 'Approved' | 'In Progress' | 'Completed' | 'Cancelled' | 'Closed'
+
+MPR_Details: Detail_ID, MPR_ID, Item_No(varchar), item_name, Description_Line1, Description_Line2,
+  Material, Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm,
+  Usage_Location, UNIT, Qty_Per_Sheet(int), Weight_kg, REV(varchar), Is_Deleted(bit),
+  DWG_BOQ_Receive_Date, Issue_Date, Remarks
+  ↳ Is_Deleted=0 → còn hiệu lực; Item_No là VARCHAR
+
+PO_head: PO_ID, PONo, MPR_No, Supplier_ID, PO_Date(date), Total_Amount(decimal),
+  Status, Expected_Delivery(datetime), Payment_Term, Project_Name, ProjectCode,
+  Notes, Created_Date, Created_By
+  ↳ Status hợp lệ: 'Draft' | 'Approved' | 'Sent' | 'Partial' | 'Completed' | 'Cancelled' | 'Closed'
+  ↳ Số PO dùng cột [PONo] (KHÔNG phải PO_No hay PO_Number)
+
+PO_Detail: PO_Detail_ID, PO_ID, Item_No(int), item_name, Material, Qty_Per_Sheet(decimal),
+  UNIT, Weight_kg, Price(decimal), Amount(decimal), VAT(decimal),
+  Received(int), Received_Qty(decimal), Status_Delivery(bit),
+  MPR_Detail_ID, Supplier_ID, RequestDay(date), DeliveryLocation
+  ↳ item_name viết thường; Status_Delivery=1 → đã giao đủ
+
+Suppliers: Supplier_ID, Company_Name, Short_Name, Supplier_Type,
+  Cert, Email, Contact_Person, Contact_Phone, Company_Address,
+  Bank_Account, Bank_Name, Tax_Code, Website, Notes,
+  Zalo_Group_ID, IsActive(bit), Created_Date, Created_By
+  ↳ Bảng tên [Suppliers] có chữ s (KHÔNG phải Supplier)
+  ↳ Tài khoản ngân hàng: Bank_Account + Bank_Name (trực tiếp trong Suppliers)
+  ↳ Chứng chỉ: cột [Cert] trong Suppliers
+
+RIR_head: RIR_ID, RIR_No, Issue_Date(date), Project_Name, PONo, MPR_No,
+  Status, Created_Date, Created_By
+  ↳ Status hợp lệ: 'Draft' | 'Inspecting' | 'Passed' | 'Failed' | 'Completed'
+  ↳ Số RIR dùng cột [RIR_No] (KHÔNG phải RIR_Number)
+
+RIR_detail: RIR_Detail_ID, RIR_ID, PO_Detail_ID, Item_No(int), item_name, Material,
+  UNIT, Qty_Required(decimal), Qty_Received(decimal), Inspect_Result(nvarchar), Remarks
+
+PO_Payment_Schedule: Schedule_ID, PO_ID, Dot_TT(int), Payment_Type, Pay_Method,
+  Percent_TT(decimal), Amount_Plan(decimal), Due_Date(date), Delivery_Ref,
+  Description, Status, Created_Date, Created_By
+  ↳ Kế hoạch thanh toán từng đợt; JOIN PO_head ON PO_ID
+  ↳ Status: 'Pending' | 'Paid' | 'Overdue' | 'Cancelled'
+
+PO_Payment_History: Payment_ID, Schedule_ID, PO_ID, Supplier_ID,
+  Payment_Date(date), Amount_Paid(decimal), Payment_Method, Bank_Name,
+  Transaction_No, Currency, Exchange_Rate, Notes, Created_By
+  ↳ Lịch sử thanh toán thực tế; JOIN PO_Payment_Schedule ON Schedule_ID
+
+PO_PrintRequestHistory: Print_ID, PONo, Project_Name, Dot_TT(int), Dot_Label,
+  Amount_Net, Amount_VAT, Amount_Total, Printed_By, Printed_Date, Supplier_Short
+PO_PaymentProgress: Progress_ID, Print_ID, PONo, PR_Status, PR_Paid(bit),
+  Amount_Total, Dot_TT, EC_Status, PR_Note, Updated_At
+PO_DeliveryTracking: TrackID, PONo, ExpDelivery(date), Status, GhiChu, ReceiverNote, Created_Date
+
+Warehouse_Import: Import_ID, Import_No, Import_Date(date), PO_ID, PO_Detail_ID, RIR_ID,
+  Item_Name, Material, UNIT, Qty_Import(decimal), Weight_kg,
+  Project_Code, Location, Created_By, Created_Date
+Warehouse_Export: Export_ID, Export_No, Export_Date(date), Import_ID, Item_Name, Material,
+  Size, UNIT, Qty_Export(decimal), Weight_kg, ID_Code, Project_Code,
+  WorkorderNo, Export_To, Purpose, Notes, Created_By, Created_Date
+
+ProjectMaterialTransformTransaction:
+  New_Value_Location, Old_Value_Location, Item_Name, Size, Number_Tranform
+  ↳ Lịch sử chuyển kho giữa các vị trí
+
+ProjectInfo: Project_Code(PK,varchar), Project_Name, WorkorderNo, PO_Link
+
+=== VIEWS (dùng ưu tiên cho báo cáo) ===
+vw_PO_FullInfo          — PO + Supplier: PONo, Project_Name, Company_Name, Short_Name, Total_Amount, Status, PO_Date, Expected_Delivery
+vw_MPR_Full_Info        — MPR + chi tiết: MPR_No, Project_Name, item_name, Status, Is_Latest, Rev, Required_Date
+vw_Supplier_FullInfo    — Supplier + contacts: Supplier_ID, Company_Name, Email, Contact_Person, Bank_Account, Bank_Name, Cert
+vw_PO_Payment_Summary   — Thanh toán PO: PO_ID, PONo, Total_Amount, Amount_Paid, Amount_Remaining, PO_Date
+vw_Supplier_Debt_Summary — Công nợ NCC: Supplier_ID, Company_Name, Total_Debt, PO_Count
+vw_Warehouse_Stock_V2   — Tồn kho: Item_Name, Material, UNIT, Qty_Stock, Project_Code, Location, Import_Date
+
+=== QUY TẮC BẮT BUỘC KHI VIẾT SQL ===
+1. PO_head: [PONo]  |  RIR_head: [RIR_No]  |  MPR_Details: [item_name] (chữ thường)
+2. Is_Latest=1 → MPR bản mới nhất  |  Is_Deleted=0 → MPR_Details còn hiệu lực
+3. JOIN NCC: PO_head.Supplier_ID = Suppliers.Supplier_ID
+4. Kế hoạch TT: PO_Payment_Schedule JOIN PO_head ON PO_ID
+5. Lịch sử TT: PO_Payment_History JOIN PO_Payment_Schedule ON Schedule_ID
+6. Tồn kho: dùng vw_Warehouse_Stock_V2 (Qty_Stock > 0)
+7. Rev/Item_No là VARCHAR → TRY_CAST(TRY_CAST(col AS DECIMAL(10,2)) AS INT) khi so sánh số
+8. KHÔNG dùng bảng Supplier_Certificates, Supplier_Bank_Accounts (không tồn tại)
+9. Ngày giao PO: [Expected_Delivery]  |  Ngày đến hạn TT: [Due_Date]
 ";
 
 
@@ -295,15 +367,15 @@ Views: vw_PO_FullInfo, vw_MPR_Full_Info, vw_Supplier_FullInfo, vw_PO_Payment_Sum
         public async Task<string> AskAsync(string userQuestion,
             Action<string> onChunk = null)
         {
-            string historyCtx = BuildHistoryContext(4);
+            string historyCtx = BuildHistoryContext(6);
 
             // ── Prompt all-in-one: Ollama quyết định có cần DB không ──────
             // Dùng schema rút gọn để giảm token, tăng tốc độ phản hồi
             string prompt = $@"Bạn là trợ lý AI của phần mềm quản lý vật tư MPR_Management.
 Trả lời tiếng Việt. Trò chuyện bình thường VÀ tra cứu DB khi cần.
 
-{DB_SCHEMA_SHORT}
 {BuildMemoryContext()}
+{DB_SCHEMA_SHORT}
 Lịch sử:{historyCtx}
 
 Câu hỏi: ""{userQuestion}""
@@ -319,8 +391,13 @@ Trả về JSON (không markdown), 1 trong các dạng sau:
 3. Không cần DB:
 {{""need_sql"":false,""export_excel"":false,""answer"":""trả lời ngắn gọn""}}
 
-LƯU Ý ĐẶC BIỆT VỀ GHI NHỚ TỰ ĐỘNG (AUTO-LEARN):
-Nếu người dùng cung cấp thông tin về cấu trúc bảng, quy tắc nghiệp vụ hoặc yêu cầu ghi nhớ điều gì đó (ví dụ: ""hãy nhớ cột X là Y"", ""nhớ là..."", ""từ nay hãy..."", ""khi tìm... thì...""), hãy thêm trường ""new_memory"" vào JSON chứa quy tắc ngắn gọn để lưu lại vĩnh viễn (ví dụ: {{""need_sql"":false,""export_excel"":false,""answer"":""Tôi đã ghi nhớ quy tắc này."",""new_memory"":""Khi truy xuất vật tư, dùng cột XYZ thay vì ABC""}}).
+LƯU Ý VỀ GHI NHỚ TỰ ĐỘNG (AUTO-LEARN — ÁP DỤNG TIÊU CHÍ NGHIÊM NGẶT):
+Chỉ thêm trường ""new_memory"" khi người dùng YÊU CẦU RÕ RÀNG ghi nhớ (""hãy nhớ..."", ""từ nay..."", ""lưu lại..."") VÀ nội dung cần nhớ phải là:
+  ✅ Tên cột/bảng thực tế khác với schema (vd: ""cột ngày giao dùng Ship_Date không phải Expected_Delivery"")
+  ✅ Quy tắc nghiệp vụ cụ thể (vd: ""Dự án DVFT luôn tính theo đơn vị kg không phải tấn"")
+  ✅ Mapping tên tiếng Việt → tên DB (vd: ""'nhà thầu' = bảng Suppliers"")
+KHÔNG ghi nhớ: chào hỏi, câu hỏi thông thường, yêu cầu không liên quan đến dữ liệu, thông tin mơ hồ.
+Nếu đủ tiêu chí: {{""need_sql"":false,""export_excel"":false,""answer"":""✅ Đã ghi nhớ."",""new_memory"":""<quy tắc ngắn gọn cụ thể>""}}
 
 Quy tắc:
 - SQL chỉ SELECT, Is_Latest=1, Is_Deleted=0, không giới hạn TOP khi xuất Excel.
@@ -387,11 +464,25 @@ JSON:";
 
                 if (dbContext.StartsWith("[Lỗi truy vấn DB:"))
                 {
-                    // Tự động sửa SQL khi gặp lỗi tên cột
-                    string fixedSql = await FixSQLAsync(sql, dbContext);
-                    if (!string.IsNullOrEmpty(fixedSql) && fixedSql != sql)
+                    // Tự động sửa SQL — thử tối đa 3 lần, mỗi lần tích lũy lỗi cũ
+                    string currentSql = sql;
+                    string accumulatedErrors = dbContext;
+                    for (int fixAttempt = 1; fixAttempt <= 3; fixAttempt++)
                     {
+                        string fixedSql = await FixSQLAsync(currentSql, accumulatedErrors, fixAttempt);
+                        if (string.IsNullOrEmpty(fixedSql) || fixedSql == currentSql) break;
+
                         var (dbContext2, dt2) = await RunSQLWithTableAsync(fixedSql);
+                        if (!dbContext2.StartsWith("[Lỗi truy vấn DB:"))
+                        {
+                            // Sửa thành công
+                            dbContext = dbContext2;
+                            dt = dt2;
+                            break;
+                        }
+                        // Lần sau sẽ nhận cả lỗi cũ lẫn lỗi mới để AI có thêm context
+                        accumulatedErrors = $"Lần {fixAttempt}: {accumulatedErrors}\nLần {fixAttempt + 1}: {dbContext2}";
+                        currentSql = fixedSql;
                         dbContext = dbContext2;
                         dt = dt2;
                     }
@@ -539,23 +630,45 @@ JSON:";
         // ── Placeholder để không break code cũ ───────────────────────────
         private async Task<string> AskAsync_unused() => "";
 
-        // ── Tự động sửa SQL khi gặp lỗi tên cột ─────────────────────────
-        private async Task<string> FixSQLAsync(string badSql, string errorMsg)
+        // ── Tự động sửa SQL khi gặp lỗi — tối đa 3 lần, tích lũy lỗi ──
+        private async Task<string> FixSQLAsync(string badSql, string errorMsg, int attempt = 1)
         {
             try
             {
-                string fixPrompt = $@"SQL sau gặp lỗi: {errorMsg}
+                string attemptNote = attempt > 1
+                    ? $"\n⚠️ Đây là lần sửa thứ {attempt}. Các lỗi trước chưa giải quyết được — hãy xem xét kỹ hơn.\n"
+                    : "";
+
+                string fixPrompt = $@"SQL sau gặp lỗi khi chạy trên SQL Server:{attemptNote}
+
+Lỗi:
+{errorMsg}
 
 SQL lỗi:
 {badSql}
 
-Schema đúng:
+Schema chính xác (tên bảng và cột thực tế):
 {DB_SCHEMA_SHORT}
 
-Hãy sửa lại SQL cho đúng tên bảng/cột. Chỉ trả về SQL đã sửa, không giải thích.
+Yêu cầu:
+1. Sửa đúng tên bảng/cột theo schema ở trên.
+2. Nếu bảng/cột không tồn tại trong schema → dùng bảng/cột thay thế phù hợp nhất.
+3. Giữ nguyên logic truy vấn — chỉ sửa tên bảng/cột sai.
+4. Chỉ trả về SQL thuần túy, không markdown, không giải thích.
+
 SQL đã sửa:";
 
-                return await CallRouterAsync(fixPrompt, temperature: 0.1f);
+                string result = await CallRouterAsync(fixPrompt, temperature: 0.05f);
+                // Loại bỏ markdown nếu model trả về có bọc ```sql ... ```
+                result = result.Trim();
+                if (result.StartsWith("```"))
+                {
+                    int firstNewline = result.IndexOf('\n');
+                    int lastBacktick = result.LastIndexOf("```");
+                    if (firstNewline >= 0 && lastBacktick > firstNewline)
+                        result = result.Substring(firstNewline + 1, lastBacktick - firstNewline - 1).Trim();
+                }
+                return result;
             }
             catch { return badSql; }
         }
@@ -594,7 +707,7 @@ SQL đã sửa:";
         private async Task<string> GenerateAnswerAsync(string question,
             string dbContext, Action<string> onChunk)
         {
-            string historyCtx = BuildHistoryContext(4);
+            string historyCtx = BuildHistoryContext(6);
 
             string dataSection = string.IsNullOrEmpty(dbContext)
                 ? ""
@@ -749,8 +862,11 @@ Trả lời:";
         private string DataTableToText(DataTable dt, int maxRows = 150)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"Kết quả: {Math.Min(dt.Rows.Count, maxRows)} dòng / " +
-                          $"{dt.Columns.Count} cột");
+            if (dt.Rows.Count > maxRows)
+                sb.AppendLine($"[QUAN TRỌNG: Truy vấn trả về {dt.Rows.Count} dòng — AI chỉ đọc được {maxRows} dòng đầu tiên. " +
+                              $"Các con số tổng hợp (SUM, COUNT...) phải được tính trong SQL, không đếm tay từ danh sách này]");
+            else
+                sb.AppendLine($"Kết quả: {dt.Rows.Count} dòng / {dt.Columns.Count} cột");
 
             // Header
             var cols = new List<string>();
@@ -775,7 +891,7 @@ Trả lời:";
             }
 
             if (dt.Rows.Count > maxRows)
-                sb.AppendLine($"... (còn {dt.Rows.Count - maxRows} dòng nữa, chỉ hiển thị {maxRows})");
+                sb.AppendLine($"--- [HẾT {maxRows} dòng hiển thị / tổng {dt.Rows.Count} dòng] ---");
 
             return sb.ToString();
         }
@@ -786,7 +902,7 @@ Trả lời:";
 
         public async Task<string> AskFreeAsync(string userQuestion, Action<string> onChunk = null)
         {
-            string historyCtx = BuildHistoryContext(4);
+            string historyCtx = BuildHistoryContext(6);
             string memCtx = BuildMemoryContext();
 
             string prompt = $@"Bạn là trợ lý AI thông minh, hữu ích và thân thiện.
@@ -905,8 +1021,8 @@ Trả lời:";
             {
                 var (role, text) = _history[i];
                 string label = role == "user" ? "Người dùng" : "AI";
-                string truncated = text.Length > 300
-                    ? text.Substring(0, 297) + "..."
+                string truncated = text.Length > 500
+                    ? text.Substring(0, 497) + "..."
                     : text;
                 sb.AppendLine($"{label}: {truncated}");
             }
@@ -959,10 +1075,11 @@ Trả lời:";
                           )", conn);
                     int mprNoPO = Convert.ToInt32(cmdMPR.ExecuteScalar());
 
-                    // 4. PO chờ thanh toán
+                    // 4. Đợt thanh toán đã đến hạn nhưng chưa trả
                     var cmdPay = new SqlCommand(@"
-                        SELECT COUNT(DISTINCT PONo) FROM PO_PaymentProgress
-                        WHERE PR_Paid = 0 OR PR_Paid IS NULL", conn);
+                        SELECT COUNT(*) FROM PO_Payment_Schedule
+                        WHERE Status NOT IN ('Paid','Cancelled')
+                          AND Due_Date <= GETDATE()", conn);
                     int payPending = Convert.ToInt32(cmdPay.ExecuteScalar());
 
                     // 5. RIR mới trong tuần
@@ -985,8 +1102,8 @@ Trả lời:";
                         : "✅ Tất cả MPR đã có PO");
 
                     sb.AppendLine(payPending > 0
-                        ? $"💰 **{payPending} đợt thanh toán** đang chờ xử lý"
-                        : "✅ Không có khoản thanh toán nào chờ");
+                        ? $"💰 **{payPending} đợt thanh toán** đã đến hạn, chưa thanh toán"
+                        : "✅ Không có đợt thanh toán nào đến hạn");
 
                     sb.AppendLine($"📦 **{rirWeek} RIR** mới trong 7 ngày qua");
 
@@ -1100,6 +1217,362 @@ Trả lời:";
             });
         }
 
+        // ════════════════════════════════════════════════════════════════════
+        // AI SKILL — lưu skill (nút nhanh / lệnh tắt / workflow) vào bảng AI_Skill
+        // ════════════════════════════════════════════════════════════════════
+
+        public record SkillItem(int Id, string Name, string Type, string Slash,
+                                string Template, string Description, string Icon, int Order,
+                                string ParentSlash = "");
+
+        private static List<SkillItem> _skillCache = null;
+        private static DateTime _skillCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan SKILL_CACHE_TTL = TimeSpan.FromMinutes(5);
+        private static void InvalidateSkillCache() => _skillCache = null;
+
+        private static SqlConnection CreateSkillConn()
+        {
+            var b = new SqlConnectionStringBuilder(
+                DatabaseHelper.GetConnection().ConnectionString)
+            { MultipleActiveResultSets = true, ApplicationName = "MPR_AI_Skill" };
+            return new SqlConnection(b.ConnectionString);
+        }
+
+        public static List<SkillItem> GetSkills(string type = null, bool forceRefresh = false)
+        {
+            if (!forceRefresh && _skillCache != null
+                && DateTime.Now - _skillCacheTime < SKILL_CACHE_TTL)
+            {
+                return type == null ? _skillCache
+                    : _skillCache.FindAll(s => s.Type == type);
+            }
+            var result = new List<SkillItem>();
+            try
+            {
+                using var conn = CreateSkillConn();
+                conn.Open();
+                var dt = new DataTable();
+                new SqlDataAdapter(new SqlCommand(
+                    "SELECT Skill_ID, Skill_Name, Skill_Type, Slash_Command, " +
+                    "Prompt_Template, Description, Icon, Sort_Order, Parent_Slash " +
+                    "FROM AI_Skill WHERE Is_Active = 1 ORDER BY Sort_Order, Skill_ID", conn)).Fill(dt);
+                foreach (DataRow r in dt.Rows)
+                    result.Add(new SkillItem(
+                        Convert.ToInt32(r["Skill_ID"]),
+                        r["Skill_Name"].ToString(),
+                        r["Skill_Type"].ToString(),
+                        r["Slash_Command"] == DBNull.Value ? "" : r["Slash_Command"].ToString(),
+                        r["Prompt_Template"].ToString(),
+                        r["Description"] == DBNull.Value ? "" : r["Description"].ToString(),
+                        r["Icon"].ToString(),
+                        Convert.ToInt32(r["Sort_Order"]),
+                        r["Parent_Slash"] == DBNull.Value ? "" : r["Parent_Slash"].ToString()));
+                _skillCache = result;
+                _skillCacheTime = DateTime.Now;
+            }
+            catch (Exception ex)
+            { System.Diagnostics.Debug.WriteLine($"[AI_Skill] GetSkills: {ex.Message}"); }
+            return type == null ? result : result.FindAll(s => s.Type == type);
+        }
+
+        public static SkillItem GetBySlashCommand(string slash)
+        {
+            if (string.IsNullOrWhiteSpace(slash)) return null;
+            slash = slash.Trim();
+            return GetSkills()?.Find(s =>
+                s.Type == "slash" &&
+                !string.IsNullOrEmpty(s.Slash) &&
+                s.Slash.Equals(slash, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Lấy danh sách sub-skill thuộc một lệnh cha.</summary>
+        public static List<SkillItem> GetSubSkills(string parentSlash)
+        {
+            if (string.IsNullOrWhiteSpace(parentSlash)) return [];
+            return GetSkills()?.FindAll(s =>
+                !string.IsNullOrEmpty(s.ParentSlash) &&
+                s.ParentSlash.Equals(parentSlash.Trim(), StringComparison.OrdinalIgnoreCase))
+                ?? [];
+        }
+
+        public static string AddSkill(string name, string type, string template,
+            string icon = "⚡", string desc = "", string slashCmd = "", int order = 0,
+            string parentSlash = "")
+        {
+            name = name?.Trim() ?? ""; template = template?.Trim() ?? "";
+            if (string.IsNullOrEmpty(name)) return "⚠️ Tên skill không được trống.";
+            if (string.IsNullOrEmpty(template)) return "⚠️ Template không được trống.";
+            try
+            {
+                using var conn = CreateSkillConn();
+                conn.Open();
+                var chk = new SqlCommand(
+                    "SELECT COUNT(*) FROM AI_Skill WHERE Skill_Name = @n AND Is_Active = 1", conn);
+                chk.Parameters.AddWithValue("@n", name);
+                if (Convert.ToInt32(chk.ExecuteScalar()) > 0)
+                    return $"⚠️ Skill \"{name}\" đã tồn tại.";
+                var ins = new SqlCommand(
+                    "INSERT INTO AI_Skill (Skill_Name, Skill_Type, Slash_Command, Prompt_Template, " +
+                    "Description, Icon, Sort_Order, Parent_Slash) " +
+                    "VALUES (@n, @t, @sl, @pt, @d, @ic, @so, @ps)", conn);
+                ins.Parameters.AddWithValue("@n", name);
+                ins.Parameters.AddWithValue("@t", type);
+                ins.Parameters.AddWithValue("@sl", string.IsNullOrEmpty(slashCmd) ? (object)DBNull.Value : slashCmd);
+                ins.Parameters.AddWithValue("@pt", template);
+                ins.Parameters.AddWithValue("@d", string.IsNullOrEmpty(desc) ? (object)DBNull.Value : desc);
+                ins.Parameters.AddWithValue("@ic", string.IsNullOrEmpty(icon) ? "⚡" : icon);
+                ins.Parameters.AddWithValue("@so", order);
+                ins.Parameters.AddWithValue("@ps", string.IsNullOrEmpty(parentSlash) ? (object)DBNull.Value : parentSlash);
+                ins.ExecuteNonQuery();
+                InvalidateSkillCache();
+                return $"✅ Đã thêm skill: \"{name}\"";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi: {ex.Message}"; }
+        }
+
+        public static string RemoveSkill(int skillId)
+        {
+            try
+            {
+                using var conn = CreateSkillConn();
+                conn.Open();
+                var get = new SqlCommand(
+                    "SELECT Skill_Name FROM AI_Skill WHERE Skill_ID = @id", conn);
+                get.Parameters.AddWithValue("@id", skillId);
+                string name = get.ExecuteScalar()?.ToString() ?? "";
+                var del = new SqlCommand(
+                    "UPDATE AI_Skill SET Is_Active = 0 WHERE Skill_ID = @id", conn);
+                del.Parameters.AddWithValue("@id", skillId);
+                del.ExecuteNonQuery();
+                InvalidateSkillCache();
+                return $"✅ Đã xóa skill: \"{name}\"";
+            }
+            catch (Exception ex) { return $"⚠️ Lỗi: {ex.Message}"; }
+        }
+
+        public static void EnsureSkillTableAndSeed()
+        {
+            try
+            {
+                using var conn = CreateSkillConn();
+                conn.Open();
+
+                // Tạo bảng nếu chưa có (bao gồm cột Parent_Slash)
+                new SqlCommand(@"
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'AI_Skill')
+BEGIN
+    CREATE TABLE AI_Skill (
+        Skill_ID        int IDENTITY(1,1) PRIMARY KEY,
+        Skill_Name      nvarchar(100)  NOT NULL,
+        Skill_Type      nvarchar(20)   NOT NULL,
+        Slash_Command   nvarchar(50)   NULL,
+        Prompt_Template nvarchar(max)  NOT NULL,
+        Description     nvarchar(200)  NULL,
+        Icon            nvarchar(10)   NOT NULL DEFAULT N'⚡',
+        Sort_Order      int            NOT NULL DEFAULT 0,
+        Is_Active       bit            NOT NULL DEFAULT 1,
+        Parent_Slash    nvarchar(50)   NULL,
+        Created_By      nvarchar(100)  NOT NULL DEFAULT 'User',
+        Created_Date    datetime       NOT NULL DEFAULT GETDATE()
+    )
+END", conn).ExecuteNonQuery();
+
+                // Thêm cột Parent_Slash nếu bảng cũ chưa có
+                new SqlCommand(@"
+IF NOT EXISTS (
+    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'AI_Skill' AND COLUMN_NAME = 'Parent_Slash'
+)
+    ALTER TABLE AI_Skill ADD Parent_Slash nvarchar(50) NULL", conn).ExecuteNonQuery();
+
+                // ── Patch: thêm {project_code} filter vào các skill MPR/PO (chạy mỗi startup) ──
+                new SqlCommand(@"
+UPDATE AI_Skill
+SET Prompt_Template = Prompt_Template
+    + N' Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.'
+WHERE Is_Active = 1
+  AND CHARINDEX(N'{project_code}', Prompt_Template) = 0
+  AND Skill_Name IN (
+    N'📋 MPR chưa có PO', N'🚨 PO quá hạn giao', N'💰 Thanh toán quá hạn',
+    N'PO tháng này', N'PO quá hạn giao', N'PO chưa thanh toán',
+    N'PO đang giao hàng', N'PO theo dự án',
+    N'MPR chưa đặt hàng', N'MPR đặt hàng một phần',
+    N'MPR revision mới nhất', N'MPR theo trạng thái',
+    N'Thanh toán tháng này', N'Lịch thanh toán sắp tới',
+    N'📈 KPI tháng này', N'📊 /sosanh', N'🔎 /vattu'
+  )", conn).ExecuteNonQuery();
+
+                // Seed chỉ khi bảng còn trống
+                var count = Convert.ToInt32(
+                    new SqlCommand("SELECT COUNT(*) FROM AI_Skill", conn).ExecuteScalar());
+                if (count > 0) return;
+
+                // (name, type, slash, template, desc, icon, order, parentSlash)
+                var seeds = new[]
+                {
+                    // ── Quick ──────────────────────────────────────────────
+                    ("📋 MPR chưa có PO",       "quick",    "",         "Danh sách MPR mới nhất (Is_Latest=1) chưa có PO nào được tạo. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",                       "MPR chưa được đặt hàng",     "📋", 1,  ""),
+                    ("🚨 PO quá hạn giao",      "quick",    "",         "Danh sách PO chưa giao đủ và đã quá ngày Expected_Delivery, kèm tên nhà cung cấp và số ngày trễ. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",           "PO trễ hạn giao hàng",       "🚨", 2,  ""),
+                    ("💰 Thanh toán quá hạn",   "quick",    "",         "Danh sách PO có lịch thanh toán (PO_Payment_Schedule) đã quá Due_Date nhưng Status chưa hoàn thành, kèm số tiền và tên NCC. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.", "Thanh toán chờ duyệt",       "💰", 3,  ""),
+                    ("✅ RIR chờ QC",            "quick",    "",         "Danh sách RIR_head có Status chưa hoàn thành, kèm PONo và ngày tạo, sắp xếp mới nhất trước",                                                                    "RIR chờ kiểm tra",           "✅", 4,  ""),
+
+                    // ── Slash cha ──────────────────────────────────────────
+                    ("📦 /po",                  "slash",    "/po",      "Danh sách tất cả PO của dự án {param}, kèm PONo, tên nhà cung cấp, Total_Amount, Status, Expected_Delivery, sắp xếp theo PO_Date giảm dần. Nếu {param} trống hoặc {param}='All' thì lấy tất cả dự án.", "Danh sách PO theo dự án",    "📦", 10, ""),
+                    ("🔍 /mpr",                 "slash",    "/mpr",     "Danh sách tất cả MPR (Is_Latest=1) của dự án {param}, kèm MPR_No, Status, Required_Date, số lượng item, sắp xếp theo Created_Date giảm dần. Nếu {param} trống hoặc {param}='All' thì lấy tất cả dự án.",          "Danh sách MPR theo dự án",   "🔍", 11, ""),
+                    ("🏭 /ncc",                 "slash",    "/ncc",     "Danh sách nhà cung cấp đang hoạt động (IsActive=1) kèm số PO đang mở và tổng giá trị",                                                                           "Nhà cung cấp hoạt động",     "🏭", 12, ""),
+                    ("📊 /kho",                 "slash",    "/kho",     "Tồn kho hiện tại từ vw_Warehouse_Stock_V2, nhóm theo vật tư và dự án",                                                                                           "Tồn kho hiện tại",           "📊", 13, ""),
+                    ("💳 /tt",                  "slash",    "/tt",      "Tiến độ thanh toán từ vw_PO_Payment_Summary: % đã trả, còn lại, ngày đến hạn tiếp theo",                                                                        "Tiến độ thanh toán",         "💳", 14, ""),
+                    ("🧾 /rir",                 "slash",    "/rir",     "Danh sách RIR tháng này kèm kết quả kiểm tra và PONo",                                                                                                           "RIR kiểm tra nhập hàng",     "🧾", 15, ""),
+
+                    // ── Sub-skill của /po ─────────────────────────────────
+                    ("PO tháng này",            "slash",    "",         "Danh sách PO được tạo trong tháng này, kèm tên NCC, tổng giá trị và trạng thái. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",                            "PO trong tháng hiện tại",    "📅", 20, "/po"),
+                    ("PO quá hạn giao",         "slash",    "",         "Danh sách PO đã quá Expected_Delivery nhưng chưa giao đủ hàng (Received_Qty < Qty_Per_Sheet), kèm số ngày trễ và tên NCC. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.", "PO trễ hạn giao hàng",       "🚨", 21, "/po"),
+                    ("PO chưa thanh toán",      "slash",    "",         "Danh sách PO chưa thanh toán đủ (Amount_Remaining > 0 từ vw_PO_Payment_Summary), kèm số tiền còn lại. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",      "PO còn nợ thanh toán",       "💸", 22, "/po"),
+                    ("PO đang giao hàng",       "slash",    "",         "Danh sách PO có hàng đang giao (có trong PO_DeliveryTracking với Status chưa hoàn thành). Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",                  "PO đang trong quá trình giao","🚚", 23, "/po"),
+                    ("PO theo dự án",           "slash",    "",         "Thống kê số PO và tổng giá trị theo từng dự án (Project_Name) trong PO_head. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",                              "PO nhóm theo dự án",         "📁", 24, "/po"),
+
+                    // ── Sub-skill của /mpr ────────────────────────────────
+                    ("MPR chưa đặt hàng",       "slash",    "",         "Danh sách MPR (Is_Latest=1) chưa có PO nào liên kết, kèm tên dự án và ngày cần hàng. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",                      "MPR chưa có PO",             "❌", 30, "/mpr"),
+                    ("MPR đặt hàng một phần",   "slash",    "",         "Danh sách MPR có một số item đã có PO nhưng chưa đặt hết, kèm % item đã đặt. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",                              "MPR đặt hàng chưa đủ",       "⚠️", 31, "/mpr"),
+                    ("MPR revision mới nhất",   "slash",    "",         "Danh sách MPR có nhiều revision, chỉ lấy bản mới nhất (Is_Latest=1), kèm số Rev và ngày tạo. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",               "MPR bản revision cuối",      "🔄", 32, "/mpr"),
+                    ("MPR theo trạng thái",     "slash",    "",         "Thống kê số lượng MPR theo từng trạng thái (Status), kèm danh sách chi tiết. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",                              "MPR nhóm theo trạng thái",   "📊", 33, "/mpr"),
+
+                    // ── Sub-skill của /ncc ────────────────────────────────
+                    ("NCC có công nợ",          "slash",    "",         "Danh sách NCC có công nợ chưa thanh toán (Total_Debt > 0 từ vw_Supplier_Debt_Summary), sắp xếp theo nợ cao nhất",                                               "NCC còn nợ",                 "💰", 40, "/ncc"),
+                    ("NCC theo loại",           "slash",    "",         "Thống kê nhà cung cấp nhóm theo Supplier_Type, kèm số PO và tổng giá trị mỗi loại",                                                                             "NCC phân loại",              "🏷️", 41, "/ncc"),
+                    ("NCC chứng chỉ",           "slash",    "",         "Danh sách NCC kèm cột Cert trong bảng Suppliers (KHÔNG dùng Supplier_Certificates — không tồn tại). Chỉ lấy NCC có Cert không rỗng, hiển thị Company_Name, Short_Name, Cert, Contact_Person, Contact_Phone",                      "Chứng chỉ nhà cung cấp",     "📜", 42, "/ncc"),
+                    ("NCC tài khoản ngân hàng", "slash",    "",         "Danh sách NCC kèm thông tin tài khoản ngân hàng trực tiếp từ bảng Suppliers: Bank_Account, Bank_Name (KHÔNG dùng Supplier_Bank_Accounts — không tồn tại). Chỉ lấy NCC có Bank_Account không rỗng, kèm Company_Name, Tax_Code, Contact_Person",                      "Tài khoản thanh toán NCC",   "🏦", 43, "/ncc"),
+
+                    // ── Sub-skill của /kho ────────────────────────────────
+                    ("Tồn kho hiện tại",        "slash",    "",         "Tồn kho hiện tại từ vw_Warehouse_Stock_V2 (Qty_Stock > 0), nhóm theo vật tư và vị trí lưu kho",                                                                 "Vật tư đang tồn kho",        "📦", 50, "/kho"),
+                    ("Vào kho tháng này",       "slash",    "",         "Danh sách vật tư nhập kho (Warehouse_Import) trong tháng này, kèm PO nguồn và dự án",                                                                           "Nhập kho tháng hiện tại",    "📥", 51, "/kho"),
+                    ("Xuất kho tháng này",      "slash",    "",         "Danh sách vật tư xuất kho (Warehouse_Export) trong tháng này, kèm mục đích xuất và dự án",                                                                      "Xuất kho tháng hiện tại",    "📤", 52, "/kho"),
+                    ("Chuyển kho",              "slash",    "",         "Danh sách giao dịch chuyển kho (ProjectMaterialTransformTransaction) trong tháng này, kèm vị trí cũ, vị trí mới và số lượng",                                   "Lịch sử chuyển kho",         "🔄", 53, "/kho"),
+
+                    // ── Sub-skill của /tt (thanh toán) ────────────────────
+                    ("Thanh toán tháng này",    "slash",    "",         "Danh sách các lần thanh toán (PO_Payment_History) đã thực hiện trong tháng này, kèm số tiền, ngân hàng và số giao dịch. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.", "Thanh toán trong tháng",     "💳", 60, "/tt"),
+                    ("Lịch thanh toán sắp tới", "slash",    "",         "Danh sách kế hoạch thanh toán (PO_Payment_Schedule) chưa hoàn thành, sắp đến hạn trong 30 ngày tới, kèm PO và số tiền. Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.", "Kế hoạch TT sắp đến hạn",   "📅", 61, "/tt"),
+                    ("Công nợ theo NCC",        "slash",    "",         "Tổng hợp công nợ nhà cung cấp từ vw_Supplier_Debt_Summary, kèm tổng nợ, số PO và ngày thanh toán gần nhất",                                                     "Công nợ NCC",                "🧾", 62, "/tt"),
+
+                    // ── Workflow ───────────────────────────────────────────
+                    ("🔬 Phân tích NCC",        "workflow", "",         "Phân tích toàn diện nhà cung cấp {param}: danh sách PO, tổng giá trị, tiến độ giao hàng, tình trạng thanh toán và công nợ. Nếu {param} trống hãy hỏi tên NCC.", "Phân tích tổng hợp NCC",     "🔬", 70, ""),
+                    ("📁 Theo dõi dự án",       "workflow", "",         "Toàn bộ thông tin dự án {param}: danh sách MPR, PO liên quan, tổng giá trị đặt hàng, tiến độ nhập kho. Nếu {param} trống hãy hỏi mã hoặc tên dự án.",           "Tổng hợp theo dự án",        "📁", 71, ""),
+                    ("📦 Theo dõi PO",          "workflow", "",         "Theo dõi chi tiết PO {param}: từng dòng vật tư, tiến độ giao hàng, lịch thanh toán và nhập kho. Nếu {param} trống hãy hỏi số PO.",                              "Chi tiết một PO",            "📦", 72, ""),
+
+                    // ── Quick: KPI tổng quan ───────────────────────────────
+                    ("📈 KPI tháng này",        "quick",    "",
+                        "Tổng hợp KPI tháng hiện tại: (1) số PO mới tạo và tổng giá trị, (2) số MPR mới, " +
+                        "(3) số RIR hoàn thành, (4) tổng tiền đã thanh toán (PO_Payment_History tháng này), " +
+                        "(5) số PO quá hạn giao. Mỗi KPI là 1 dòng với số liệu cụ thể. " +
+                        "Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",
+                        "KPI tổng quan tháng này",    "📈", 5,  ""),
+
+                    // ── Quick: tồn kho dưới ngưỡng ────────────────────────
+                    ("⚠️ Tồn kho thấp",         "quick",    "",
+                        "Danh sách vật tư từ vw_Warehouse_Stock_V2 có Qty_Stock > 0 nhưng nhỏ hơn 50 " +
+                        "(hoặc dưới ngưỡng bình thường), kèm vị trí kho và dự án. Sắp xếp theo Qty_Stock tăng dần.",
+                        "Cảnh báo tồn kho thấp",      "⚠️", 6,  ""),
+
+                    // ── Slash: so sánh tháng này vs tháng trước ───────────
+                    ("📊 /sosanh",              "slash",    "/sosanh",
+                        "So sánh tháng này vs tháng trước: số PO mới, tổng giá trị PO, " +
+                        "số RIR, số MPR, tổng tiền thanh toán. " +
+                        "Dùng MONTH/YEAR(GETDATE()) và MONTH/YEAR(DATEADD(MONTH,-1,GETDATE())) để lọc. " +
+                        "Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",
+                        "So sánh tháng này vs tháng trước","📊", 16, ""),
+
+                    // ── Slash: tìm kiếm vật tư ────────────────────────────
+                    ("🔎 /vattu",               "slash",    "/vattu",
+                        "Tìm kiếm vật tư trong hệ thống: tìm trong MPR_Details (item_name, Material, Is_Deleted=0) " +
+                        "VÀ Warehouse_Import (Item_Name, Material) VÀ vw_Warehouse_Stock_V2 (Item_Name). " +
+                        "Tổng hợp: đã đặt bao nhiêu, đã nhập kho bao nhiêu, còn tồn bao nhiêu. " +
+                        "Lọc dự án: {project_code}. Nếu {project_code} trống thì lấy tất cả dự án.",
+                        "Tìm kiếm và tổng hợp vật tư",  "🔎", 17, ""),
+
+                    // ── Workflow: tiến độ dự án ────────────────────────────
+                    ("🏗️ Tiến độ dự án",        "workflow", "",
+                        "Báo cáo tiến độ đầy đủ cho dự án {param}: " +
+                        "Tổng MPR → đã có PO / chưa có PO, " +
+                        "PO theo trạng thái (Draft/Approved/Sent/Partial/Completed), " +
+                        "% item đã nhập kho vs tổng đặt, " +
+                        "đợt thanh toán còn nợ. " +
+                        "Nếu {param} trống hãy hỏi mã dự án (Project_Code).",
+                        "Tiến độ tổng thể dự án",     "🏗️", 73, ""),
+                };
+
+                foreach (var (name, type, slash, template, desc, icon, order, parentSlash) in seeds)
+                {
+                    var ins = new SqlCommand(
+                        "INSERT INTO AI_Skill (Skill_Name, Skill_Type, Slash_Command, Prompt_Template, Description, Icon, Sort_Order, Parent_Slash) " +
+                        "VALUES (@n, @t, @sl, @pt, @d, @ic, @so, @ps)", conn);
+                    ins.Parameters.AddWithValue("@n", name);
+                    ins.Parameters.AddWithValue("@t", type);
+                    ins.Parameters.AddWithValue("@sl", string.IsNullOrEmpty(slash) ? (object)DBNull.Value : slash);
+                    ins.Parameters.AddWithValue("@pt", template);
+                    ins.Parameters.AddWithValue("@d", (object)desc ?? DBNull.Value);
+                    ins.Parameters.AddWithValue("@ic", icon);
+                    ins.Parameters.AddWithValue("@so", order);
+                    ins.Parameters.AddWithValue("@ps", string.IsNullOrEmpty(parentSlash) ? (object)DBNull.Value : parentSlash);
+                    ins.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            { System.Diagnostics.Debug.WriteLine($"[AI_Skill] EnsureTableAndSeed: {ex.Message}"); }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // DANH SÁCH DỰ ÁN — dùng cho project picker dialog
+        // ════════════════════════════════════════════════════════════════════
+
+        // ── Cache project codes — tránh query DB mỗi lần gõ phím ──────
+        private static List<string> _projectCodesCache = null;
+        private static DateTime _projectCodesCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan PROJECT_CODES_CACHE_TTL = TimeSpan.FromMinutes(3);
+
+        /// <summary>
+        /// Lấy danh sách mã dự án từ DB (MPR_Header + PO_head), bỏ trùng, sắp xếp A-Z.
+        /// Kết quả được cache 3 phút để popup không bị lag khi gõ phím.
+        /// </summary>
+        public static List<string> GetProjectCodes(bool forceRefresh = false)
+        {
+            if (!forceRefresh && _projectCodesCache != null
+                && DateTime.Now - _projectCodesCacheTime < PROJECT_CODES_CACHE_TTL)
+                return _projectCodesCache;
+
+            var result = new List<string>();
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(
+                    DatabaseHelper.GetConnection().ConnectionString)
+                { MultipleActiveResultSets = true, ApplicationName = "MPR_AI_ProjectCodes" };
+                using var conn = new SqlConnection(builder.ConnectionString);
+                conn.Open();
+                var dt = new DataTable();
+                new SqlDataAdapter(new SqlCommand(@"
+                    SELECT DISTINCT LTRIM(RTRIM(ProjectCode)) AS Code
+                    FROM PO_head
+                    WHERE ProjectCode IS NOT NULL AND LTRIM(RTRIM(ProjectCode)) <> ''
+                    UNION
+                    SELECT DISTINCT LTRIM(RTRIM(Project_Code))
+                    FROM MPR_Header
+                    WHERE Project_Code IS NOT NULL AND LTRIM(RTRIM(Project_Code)) <> ''
+                    ORDER BY Code", conn)).Fill(dt);
+                foreach (DataRow r in dt.Rows)
+                {
+                    string v = r[0]?.ToString()?.Trim();
+                    if (!string.IsNullOrEmpty(v)) result.Add(v);
+                }
+                _projectCodesCache = result;
+                _projectCodesCacheTime = DateTime.Now;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GetProjectCodes] {ex.Message}");
+            }
+            return result;
+        }
+
+        // ════════════════════════════════════════════════════════════════════
         /// <summary>Xuất DataTable cuối cùng ra file Excel.</summary>
         public string ExportLastResultToExcel(string question)
         {

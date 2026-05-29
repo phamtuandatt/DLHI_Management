@@ -2890,9 +2890,18 @@ private void BtnAddSched_Click(object sender, EventArgs e)
                 if (po == null) { Warn("Không tìm thấy thông tin PO!"); return; }
 
                 var poHead = _poSvc.GetAll().Find(x => x.PO_ID == _selectedPO_ID);
-                var scheds = _allSchedulesCache.ContainsKey(_selectedPO_ID)
-                              ? _allSchedulesCache[_selectedPO_ID]
-                              : _svc.GetSchedules(_selectedPO_ID);
+
+                // Luôn lấy schedule mới nhất từ DB để tránh cache cũ/thiếu dữ liệu khi in request
+                var scheds = _svc.GetSchedules(_selectedPO_ID) ?? new List<PaymentSchedule>();
+
+                // Chuẩn hóa thứ tự đợt để map đúng vào các placeholder đợt 1..5
+                scheds = scheds
+                    .OrderBy(s => s.Dot_TT)
+                    .ThenBy(s => s.Due_Date ?? DateTime.MaxValue)
+                    .ToList();
+
+                // Đồng bộ lại cache sau khi lấy mới
+                _allSchedulesCache[_selectedPO_ID] = scheds;
 
                 // Tìm Supplier
                 Supplier supp = null;

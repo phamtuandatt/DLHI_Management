@@ -128,32 +128,36 @@ namespace MPR_Managerment.Forms
 
                 if (this.IsDisposed) return;
 
-                this.Invoke(new MethodInvoker(() =>
+                if (this.IsHandleCreated && !this.IsDisposed)
                 {
-                    int scrollIdx = dgvLogs.FirstDisplayedScrollingRowIndex;
-
-                    dgvLogs.DataSource = null;
-                    dgvLogs.DataSource = logs;
-
-                    if (dgvLogs.Columns["Log_ID"] != null) dgvLogs.Columns["Log_ID"].Visible = false;
-
-                    // Rename columns and fix widths
-                    dgvLogs.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-
-                    if (dgvLogs.Columns["Sent_At"] != null) { dgvLogs.Columns["Sent_At"].HeaderText = "Thời gian"; dgvLogs.Columns["Sent_At"].Width = 140; }
-                    if (dgvLogs.Columns["Sent_By"] != null) { dgvLogs.Columns["Sent_By"].HeaderText = "Người gửi"; dgvLogs.Columns["Sent_By"].Width = 150; }
-                    if (dgvLogs.Columns["Recipient"] != null) { dgvLogs.Columns["Recipient"].HeaderText = "Người nhận/Nhóm"; dgvLogs.Columns["Recipient"].Width = 150; }
-                    if (dgvLogs.Columns["Type"] != null) { dgvLogs.Columns["Type"].HeaderText = "Loại"; dgvLogs.Columns["Type"].Width = 60; }
-                    if (dgvLogs.Columns["Content"] != null) { dgvLogs.Columns["Content"].HeaderText = "Nội dung"; dgvLogs.Columns["Content"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; }
-                    if (dgvLogs.Columns["Status"] != null) { dgvLogs.Columns["Status"].HeaderText = "Trạng thái"; dgvLogs.Columns["Status"].Width = 80; }
-                    if (dgvLogs.Columns["Error_Message"] != null) { dgvLogs.Columns["Error_Message"].HeaderText = "Lỗi"; dgvLogs.Columns["Error_Message"].Width = 100; }
-                    if (dgvLogs.Columns["Project_Code"] != null) { dgvLogs.Columns["Project_Code"].HeaderText = "Mã dự án"; dgvLogs.Columns["Project_Code"].Width = 80; }
-
-                    if (scrollIdx >= 0 && scrollIdx < dgvLogs.RowCount)
+                    this.Invoke(new MethodInvoker(() =>
                     {
-                        dgvLogs.FirstDisplayedScrollingRowIndex = scrollIdx;
-                    }
-                }));
+                        if (this.IsDisposed) return;
+                        int scrollIdx = dgvLogs.FirstDisplayedScrollingRowIndex;
+
+                        dgvLogs.DataSource = null;
+                        dgvLogs.DataSource = logs;
+
+                        if (dgvLogs.Columns["Log_ID"] != null) dgvLogs.Columns["Log_ID"].Visible = false;
+
+                        // Rename columns and fix widths
+                        dgvLogs.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+
+                        if (dgvLogs.Columns["Sent_At"] != null) { dgvLogs.Columns["Sent_At"].HeaderText = "Thời gian"; dgvLogs.Columns["Sent_At"].Width = 140; }
+                        if (dgvLogs.Columns["Sent_By"] != null) { dgvLogs.Columns["Sent_By"].HeaderText = "Người gửi"; dgvLogs.Columns["Sent_By"].Width = 150; }
+                        if (dgvLogs.Columns["Recipient"] != null) { dgvLogs.Columns["Recipient"].HeaderText = "Người nhận/Nhóm"; dgvLogs.Columns["Recipient"].Width = 150; }
+                        if (dgvLogs.Columns["Type"] != null) { dgvLogs.Columns["Type"].HeaderText = "Loại"; dgvLogs.Columns["Type"].Width = 60; }
+                        if (dgvLogs.Columns["Content"] != null) { dgvLogs.Columns["Content"].HeaderText = "Nội dung"; dgvLogs.Columns["Content"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; }
+                        if (dgvLogs.Columns["Status"] != null) { dgvLogs.Columns["Status"].HeaderText = "Trạng thái"; dgvLogs.Columns["Status"].Width = 80; }
+                        if (dgvLogs.Columns["Error_Message"] != null) { dgvLogs.Columns["Error_Message"].HeaderText = "Lỗi"; dgvLogs.Columns["Error_Message"].Width = 100; }
+                        if (dgvLogs.Columns["Project_Code"] != null) { dgvLogs.Columns["Project_Code"].HeaderText = "Mã dự án"; dgvLogs.Columns["Project_Code"].Width = 80; }
+
+                        if (scrollIdx >= 0 && scrollIdx < dgvLogs.RowCount)
+                        {
+                            dgvLogs.FirstDisplayedScrollingRowIndex = scrollIdx;
+                        }
+                    }));
+                }
             }
             catch (Exception ex)
             {

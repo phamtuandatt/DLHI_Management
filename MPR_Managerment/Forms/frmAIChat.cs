@@ -300,6 +300,10 @@ namespace MPR_Managerment.Forms
 
         // ── Tính năng 2: Bookmark query ───────────────────────────────────
         private bool _summaryShown = false;
+        private Panel _skillStrip;
+        private ListBox _slashPopup;
+        private Label _slashHeader;        // tiêu đề popup level 2
+        private string _slashLevel2Parent; // lệnh cha đang mở level 2 (null = level 1)
 
         // ─────────────────────────────────────────────────────────────────
         public frmAIChat()
@@ -322,6 +326,8 @@ namespace MPR_Managerment.Forms
 
             BuildUI();
             RegisterHotkey();
+            AISearchService.EnsureSkillTableAndSeed();
+            RefreshSkillStrip();
             ShowGreeting();
         }
 
@@ -384,10 +390,13 @@ namespace MPR_Managerment.Forms
             new ToolTip().SetToolTip(btnBookmark, "Bookmark & tra cứu nhanh");
             btnBookmark.Click += (s, e) => ShowBookmarkMenu();
 
-
+            // Nút Skill
+            var btnSkill = HeaderBtn("⚡", PANEL_W - 152);
+            new ToolTip().SetToolTip(btnSkill, "Quản lý AI Skill");
+            btnSkill.Click += (s, e) => ShowSkillMenu();
 
             // Nút bộ nhớ AI
-            var btnMemory = HeaderBtn("🧠", PANEL_W - 152);
+            var btnMemory = HeaderBtn("🧠", PANEL_W - 188);
             new ToolTip().SetToolTip(btnMemory, "Xem / quản lý bộ nhớ AI");
             btnMemory.Click += (s, e) => ShowMemoryMenu();
 
@@ -397,7 +406,7 @@ namespace MPR_Managerment.Forms
             new ToolTip().SetToolTip(btnClose, "Đóng  (Ctrl+Space)");
             btnClose.Click += (s, e) => ToggleChat();
 
-            header.Controls.AddRange(new Control[] { btnClear, btnMemory, btnBookmark, btnClose });
+            header.Controls.AddRange(new Control[] { btnClear, btnSkill, btnMemory, btnBookmark, btnClose });
 
             // Kéo panel qua header
             bool drag = false; Point dragPt = default;
@@ -532,11 +541,75 @@ namespace MPR_Managerment.Forms
             };
             _txtInput.KeyDown += (s, e) =>
             {
+                if (_slashPopup.Visible)
+                {
+                    if (e.KeyCode == Keys.Down)
+                    {
+                        e.SuppressKeyPress = true;
+                        if (_slashPopup.SelectedIndex < _slashPopup.Items.Count - 1)
+                            _slashPopup.SelectedIndex++;
+                        return;
+                    }
+                    if (e.KeyCode == Keys.Up)
+                    {
+                        e.SuppressKeyPress = true;
+                        if (_slashPopup.SelectedIndex > 0)
+                            _slashPopup.SelectedIndex--;
+                        return;
+                    }
+                    if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Tab)
+                    {
+                        e.SuppressKeyPress = true;
+                        ApplySlashPopupSelection();
+                        return;
+                    }
+                    if (e.KeyCode == Keys.Escape)
+                    {
+                        e.SuppressKeyPress = true;
+                        HideSlashPopup();
+                        return;
+                    }
+                }
+
                 if (e.KeyCode == Keys.Enter && !e.Shift)
                 {
                     e.SuppressKeyPress = true;
                     SendMessage();
                 }
+            };
+            _txtInput.TextChanged += (s, e) => UpdateSlashPopup();
+
+            // ── Slash popup — ListBox nổi hiển thị khi gõ "/" ────────────
+            _slashPopup = new ListBox
+            {
+                Visible = false,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.FromArgb(35, 40, 58),
+                ForeColor = Color.FromArgb(226, 232, 240),
+                Font = new Font("Segoe UI", 9.5f),
+                SelectionMode = SelectionMode.One,
+                ItemHeight = 26,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                IntegralHeight = false
+            };
+            _slashPopup.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0) return;
+                bool sel = (e.State & DrawItemState.Selected) != 0;
+                e.Graphics.FillRectangle(
+                    sel ? new SolidBrush(Color.FromArgb(99, 102, 241))
+                        : new SolidBrush(Color.FromArgb(35, 40, 58)),
+                    e.Bounds);
+                e.Graphics.DrawString(
+                    _slashPopup.Items[e.Index].ToString(),
+                    e.Font, new SolidBrush(Color.FromArgb(226, 232, 240)),
+                    e.Bounds.Left + 6, e.Bounds.Top + 4);
+            };
+            _slashPopup.MouseClick += (s, e) => ApplySlashPopupSelection();
+            _slashPopup.MouseMove += (s, e) =>
+            {
+                int idx = _slashPopup.IndexFromPoint(e.Location);
+                if (idx >= 0) _slashPopup.SelectedIndex = idx;
             };
 
             _btnSend = new Button
@@ -575,8 +648,35 @@ namespace MPR_Managerment.Forms
 
             _inputPanel.Controls.AddRange(new Control[] { _txtInput, _btnSend, _btnExport });
 
+            // Header label hiển thị trên popup khi ở Level 2
+            _slashHeader = new Label
+            {
+                Visible = false,
+                BackColor = Color.FromArgb(60, 65, 95),
+                ForeColor = Color.FromArgb(199, 210, 254),
+                Font = new Font("Segoe UI Semibold", 8.5f),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 0, 0),
+                Height = 22
+            };
+
+            // Popup nổi — thêm vào form chính để có thể vẽ đè lên inputPanel
+            Controls.Add(_slashHeader);
+            Controls.Add(_slashPopup);
+
+            // ── Skill Strip — hàng chip nút nhanh ────────────────────────
+            _skillStrip = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 38,
+                BackColor = Color.FromArgb(22, 27, 42),
+                Padding = new Padding(6, 4, 6, 4),
+                Visible = false
+            };
+
             // ── Ghép lại ────────────────────────────────────────────────
             Controls.Add(chatWrap);
+            Controls.Add(_skillStrip);
             Controls.Add(_inputPanel);
             Controls.Add(modePanel);
             Controls.Add(header);
@@ -660,6 +760,38 @@ namespace MPR_Managerment.Forms
                       string.Join("\n", mems.Select(m => $"  #{m.Id}. {m.Rule}"));
                 AppendMsg("🧠 Bộ nhớ", memList, Color.FromArgb(168, 85, 247));
                 return;
+            }
+
+            // ── Detect /slash_command ─────────────────────────────────────
+            if (q.StartsWith("/"))
+            {
+                string slashCmd = q.Split(' ')[0];
+                string param = q.Length > slashCmd.Length ? q.Substring(slashCmd.Length).Trim() : "";
+                var skill = AISearchService.GetBySlashCommand(slashCmd);
+
+                // ── /po và /mpr: dùng BuildProjectTemplate với param là project code ──
+                if (skill != null && PROJECT_SLASH_COMMANDS.Contains(slashCmd))
+                {
+                    q = BuildProjectTemplate(slashCmd, param); // param có thể rỗng = All
+                    _isDbMode = true;
+                }
+                else if (skill != null)
+                {
+                    q = skill.Template.Replace("{param}", param);
+                    _isDbMode = true;
+                }
+            }
+
+            // ── Resolve {project_code} — fallback cho slash/template gõ tay ──
+            if (q.Contains("{project_code}"))
+            {
+                string code = PromptProjectCode();
+                if (code == null)
+                {
+                    AppendMsg("AI", "❌ Đã hủy chọn dự án.", Color.FromArgb(156, 163, 175));
+                    return;
+                }
+                q = q.Replace("{project_code}", code);
             }
 
             SetThinking(true);
@@ -942,6 +1074,430 @@ namespace MPR_Managerment.Forms
             }
 
             menu.Show(this, new Point(PANEL_W - 120, 54));
+        }
+
+        // ── AI Skill ─────────────────────────────────────────────────────
+        private void ShowSkillMenu()
+        {
+            var menu = new ContextMenuStrip();
+            menu.BackColor = Color.FromArgb(35, 40, 58);
+            menu.ForeColor = Color.FromArgb(226, 232, 240);
+            menu.RenderMode = ToolStripRenderMode.System;
+
+            var skills = AISearchService.GetSkills(forceRefresh: true);
+            var typeLabels = new[] {
+                ("quick",    "⚡ Câu hỏi nhanh"),
+                ("slash",    "/ Lệnh gõ tắt"),
+                ("workflow", "🔬 Workflow"),
+            };
+
+            bool hasAny = false;
+            foreach (var (type, sectionLabel) in typeLabels)
+            {
+                var group = skills.FindAll(s => s.Type == type);
+                if (group.Count == 0) continue;
+                if (hasAny) menu.Items.Add(new ToolStripSeparator());
+                menu.Items.Add(new ToolStripMenuItem(sectionLabel) { Enabled = false });
+                foreach (var sk in group)
+                {
+                    int skId = sk.Id;
+                    string tmpl = sk.Template;
+                    string slashHint = !string.IsNullOrEmpty(sk.Slash) ? $"  [{sk.Slash}]" : "";
+                    string lbl = (sk.Name.Length > 40 ? sk.Name.Substring(0, 37) + "..." : sk.Name) + slashHint;
+                    var item = new ToolStripMenuItem($"  {lbl}");
+                    if (!string.IsNullOrEmpty(sk.Description))
+                        item.ToolTipText = sk.Description;
+                    item.Click += (s, e) =>
+                    {
+                        _txtInput.Text = tmpl.Replace("{param}", "");
+                        _txtInput.Focus();
+                        _txtInput.SelectAll();
+                    };
+                    var del = new ToolStripMenuItem("🗑 Xóa skill này");
+                    del.Click += (s2, e2) =>
+                    {
+                        string res = AISearchService.RemoveSkill(skId);
+                        AppendMsg("⚡ Skill", res, Color.FromArgb(251, 191, 36));
+                        RefreshSkillStrip();
+                    };
+                    item.DropDownItems.Add(del);
+                    menu.Items.Add(item);
+                }
+                hasAny = true;
+            }
+
+            if (!hasAny)
+                menu.Items.Add(new ToolStripMenuItem("(Chưa có skill nào)") { Enabled = false });
+
+            menu.Items.Add(new ToolStripSeparator());
+            var addNew = new ToolStripMenuItem("➕ Thêm skill mới...");
+            addNew.Click += (s, e) =>
+            {
+                var dlg = new Forms.frmAddSkill();
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    AppendMsg("⚡ Skill", $"✅ Đã thêm skill: \"{dlg.SkillName}\"", Color.FromArgb(251, 191, 36));
+                    RefreshSkillStrip();
+                }
+            };
+            menu.Items.Add(addNew);
+            menu.Show(this, new Point(PANEL_W - 152, 54));
+        }
+
+        private void RefreshSkillStrip()
+        {
+            if (_skillStrip == null) return;
+            _skillStrip.Controls.Clear();
+            var quickSkills = AISearchService.GetSkills("quick", forceRefresh: true);
+            if (quickSkills.Count == 0) { _skillStrip.Visible = false; return; }
+
+            int x = 6;
+            foreach (var sk in quickSkills)
+            {
+                string tmpl = sk.Template;
+                string label = sk.Icon + " " + (sk.Name.Length > 18 ? sk.Name.Substring(0, 15) + "…" : sk.Name);
+                var chip = new Button
+                {
+                    Text = label,
+                    Font = new Font("Segoe UI", 8f),
+                    ForeColor = Color.FromArgb(226, 232, 240),
+                    BackColor = Color.FromArgb(44, 50, 72),
+                    FlatStyle = FlatStyle.Flat,
+                    Location = new Point(x, 5),
+                    Height = 26,
+                    AutoSize = true,
+                    Cursor = Cursors.Hand,
+                    TabStop = false
+                };
+                chip.FlatAppearance.BorderColor = Color.FromArgb(80, 99, 102, 241);
+                chip.FlatAppearance.BorderSize = 1;
+                chip.FlatAppearance.MouseOverBackColor = Color.FromArgb(60, 65, 95);
+                if (!string.IsNullOrEmpty(sk.Description))
+                    new ToolTip().SetToolTip(chip, sk.Description);
+                chip.Click += (s, e) =>
+                {
+                    string resolved = tmpl;
+                    if (resolved.Contains("{project_code}"))
+                    {
+                        string code = PromptProjectCode();
+                        if (code == null) return; // user nhấn Hủy
+                        resolved = resolved.Replace("{project_code}", code);
+                    }
+                    _txtInput.Text = resolved;
+                    SendMessage();
+                };
+                _skillStrip.Controls.Add(chip);
+                chip.PerformLayout();
+                x += chip.Width + 6;
+            }
+            _skillStrip.Visible = true;
+        }
+
+        // ── Slash popup ───────────────────────────────────────────────────
+        private record SlashEntry(string Display, string Template, string Type,
+                                  string Slash = "", string ParentSlash = "");
+
+        /// <summary>
+        /// Lệnh slash có Level 2 là danh sách dự án (thay vì sub-skills).
+        /// Khi gõ "/po " hoặc "/mpr ", popup hiển thị project codes.
+        /// </summary>
+        private static readonly HashSet<string> PROJECT_SLASH_COMMANDS =
+            new(StringComparer.OrdinalIgnoreCase) { "/po", "/mpr" };
+
+        /// <summary>
+        /// Tạo prompt AI dành riêng cho truy vấn danh sách PO/MPR theo dự án.
+        /// projectCode rỗng = tất cả dự án (All).
+        /// </summary>
+        private static string BuildProjectTemplate(string slash, string projectCode)
+        {
+            bool isAll = string.IsNullOrWhiteSpace(projectCode)
+                      || projectCode.Equals("All", StringComparison.OrdinalIgnoreCase);
+            string desc    = isAll ? "tất cả dự án" : $"dự án {projectCode}";
+            string filter  = isAll ? "" : $" Trong SQL thêm điều kiện: AND (ProjectCode = '{projectCode}' OR Project_Code = '{projectCode}').";
+
+            return slash.Equals("/po", StringComparison.OrdinalIgnoreCase)
+                ? $"Danh sách tất cả PO của {desc}, kèm PONo, tên nhà cung cấp (Company_Name), " +
+                  $"Total_Amount, Status, Expected_Delivery. Sắp xếp theo PO_Date giảm dần.{filter}"
+                : $"Danh sách tất cả MPR (Is_Latest=1) của {desc}, kèm MPR_No, Status, " +
+                  $"Required_Date, số lượng item trong MPR_Details (Is_Deleted=0). " +
+                  $"Sắp xếp theo Created_Date giảm dần.{filter}";
+        }
+
+        private void UpdateSlashPopup()
+        {
+            string text = _txtInput.Text;
+            if (!text.StartsWith("/")) { HideSlashPopup(); return; }
+
+            var skills = AISearchService.GetSkills();
+
+            // ── Phát hiện "đã gõ đúng lệnh cha + space" → hiện Level 2 ──
+            string[] parts = text.Split(' ');
+            string firstWord = parts[0].ToLower();  // e.g. "/po"
+            bool hasSpace = text.Contains(' ');
+
+            if (hasSpace)
+            {
+                // Tìm skill cha khớp chính xác
+                var parent = skills.Find(s =>
+                    s.Type == "slash" && !string.IsNullOrEmpty(s.Slash) &&
+                    s.Slash.Equals(firstWord, StringComparison.OrdinalIgnoreCase));
+
+                if (parent != null)
+                {
+                    string filter = text.Substring(firstWord.Length).Trim().ToLower();
+
+                    // ── /po và /mpr: Level 2 hiện danh sách mã dự án ────────
+                    if (PROJECT_SLASH_COMMANDS.Contains(firstWord))
+                    {
+                        var allCodes = AISearchService.GetProjectCodes();
+                        var entries  = new System.Collections.Generic.List<SlashEntry>();
+
+                        // Mục "Tất cả dự án" luôn đứng đầu
+                        bool showAll = string.IsNullOrEmpty(filter)
+                            || "tất cả".Contains(filter) || "all".Contains(filter);
+                        if (showAll)
+                            entries.Add(new SlashEntry(
+                                "📂  Tất cả dự án",
+                                BuildProjectTemplate(firstWord, ""),
+                                "slash"));
+
+                        // Project codes khớp filter
+                        foreach (var code in allCodes)
+                            if (string.IsNullOrEmpty(filter) ||
+                                code.ToLower().Contains(filter, StringComparison.OrdinalIgnoreCase))
+                                entries.Add(new SlashEntry(
+                                    $"📁  {code}",
+                                    BuildProjectTemplate(firstWord, code),
+                                    "slash"));
+
+                        if (entries.Count > 0)
+                        {
+                            string icon = parent.Icon;
+                            string name = firstWord == "/po" ? "PO" : "MPR";
+                            ShowPopup(entries, $"  ↳ {icon} Chọn dự án để xem danh sách {name}:");
+                            _slashLevel2Parent = parent.Slash;
+                            return;
+                        }
+                        HideSlashPopup();
+                        return;
+                    }
+
+                    // ── Các lệnh khác: Level 2 hiện sub-skills như cũ ────────
+                    var subs = AISearchService.GetSubSkills(parent.Slash);
+                    var filtered = string.IsNullOrEmpty(filter)
+                        ? subs
+                        : subs.FindAll(s => s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                                         || s.Description.Contains(filter, StringComparison.OrdinalIgnoreCase));
+                    if (filtered.Count > 0)
+                    {
+                        ShowPopup(filtered.ConvertAll(s =>
+                            new SlashEntry($"{s.Icon}  {s.Name}", s.Template, s.Type, s.Slash, s.ParentSlash)),
+                            $"  ↳ {parent.Icon} {parent.Name}  —  chọn tùy chọn:");
+                        _slashLevel2Parent = parent.Slash;
+                        return;
+                    }
+                }
+            }
+
+            // ── Level 1: lọc theo những gì đã gõ ──────────────────────────
+            _slashLevel2Parent = null;
+            string typed = firstWord;
+            var matches = new System.Collections.Generic.List<SlashEntry>();
+
+            foreach (var sk in skills)
+            {
+                // Chỉ hiện skill cha (không có Parent) ở level 1
+                if (!string.IsNullOrEmpty(sk.ParentSlash)) continue;
+
+                bool isSlash = sk.Type == "slash" && !string.IsNullOrEmpty(sk.Slash);
+                bool isQuick = sk.Type == "quick";
+                bool isWorkflow = sk.Type == "workflow";
+                if (!isSlash && !isQuick && !isWorkflow) continue;
+
+                string cmd = isSlash ? sk.Slash : "";
+                string typeTag = isSlash ? "lệnh" : (isWorkflow ? "workflow" : "nhanh");
+                string slashPart = isSlash ? $"{sk.Slash}  " : "";
+                string display = $"{sk.Icon}  {slashPart}{sk.Name}   [{typeTag}]";
+
+                bool show = typed == "/" ||
+                            (!string.IsNullOrEmpty(cmd) && cmd.StartsWith(typed, StringComparison.OrdinalIgnoreCase)) ||
+                            sk.Name.Contains(text.Substring(1), StringComparison.OrdinalIgnoreCase);
+                if (show) matches.Add(new SlashEntry(display, sk.Template, sk.Type, sk.Slash, sk.ParentSlash));
+            }
+
+            if (matches.Count == 0) { HideSlashPopup(); return; }
+            ShowPopup(matches, header: null);
+        }
+
+        private void ShowPopup(System.Collections.Generic.List<SlashEntry> entries, string header)
+        {
+            _slashPopup.Tag = entries;
+            _slashPopup.Items.Clear();
+            foreach (var m in entries) _slashPopup.Items.Add(m.Display);
+            if (_slashPopup.Items.Count > 0) _slashPopup.SelectedIndex = 0;
+
+            bool hasHeader = !string.IsNullOrEmpty(header);
+            int headerH = hasHeader ? 22 : 0;
+            int popupH = Math.Min(entries.Count, 7) * 26 + 2;
+            int totalH = headerH + popupH;
+            int baseY = _inputPanel.Top - totalH - 2;
+
+            if (hasHeader)
+            {
+                _slashHeader.Text = header;
+                _slashHeader.SetBounds(0, baseY, PANEL_W, headerH);
+                _slashHeader.BringToFront();
+                _slashHeader.Visible = true;
+            }
+            else
+                _slashHeader.Visible = false;
+
+            _slashPopup.SetBounds(0, baseY + headerH, PANEL_W, popupH);
+            _slashPopup.BringToFront();
+            _slashPopup.Visible = true;
+        }
+
+        private void HideSlashPopup()
+        {
+            _slashPopup?.Hide();
+            _slashHeader?.Hide();
+            _slashLevel2Parent = null;
+        }
+
+        private void ApplySlashPopupSelection()
+        {
+            if (_slashPopup.SelectedIndex < 0) return;
+            if (_slashPopup.Tag is not System.Collections.Generic.List<SlashEntry> entries) return;
+            var entry = entries[_slashPopup.SelectedIndex];
+
+            // Level 1: nếu là slash có sub-skill → gõ "/lệnh " rồi hiện Level 2
+            if (string.IsNullOrEmpty(entry.ParentSlash) && entry.Type == "slash"
+                && !string.IsNullOrEmpty(entry.Slash)
+                && AISearchService.GetSubSkills(entry.Slash).Count > 0)
+            {
+                _txtInput.Text = entry.Slash + " ";
+                _txtInput.SelectionStart = _txtInput.Text.Length;
+                _txtInput.Focus();
+                // TextChanged sẽ tự gọi UpdateSlashPopup() → hiện Level 2
+                return;
+            }
+
+            // Lưu lại trước khi HideSlashPopup() xóa _slashLevel2Parent
+            string savedLevel2Parent = _slashLevel2Parent;
+
+            HideSlashPopup();
+            string resolvedEntry = entry.Template.Replace("{param}", "");
+
+            // ── /po và /mpr: template đã có project code nhúng sẵn → gửi ngay
+            if (PROJECT_SLASH_COMMANDS.Contains(savedLevel2Parent ?? ""))
+            {
+                _txtInput.Text = resolvedEntry;
+                _txtInput.SelectionStart = _txtInput.Text.Length;
+                _txtInput.Focus();
+                SendMessage();
+                return;
+            }
+
+            // ── Các skill khác có {project_code}: hiện dialog chọn dự án ──
+            if (resolvedEntry.Contains("{project_code}"))
+            {
+                string code = PromptProjectCode();
+                if (code == null) { _txtInput.Focus(); return; }
+                resolvedEntry = resolvedEntry.Replace("{project_code}", code);
+                _txtInput.Text = resolvedEntry;
+                _txtInput.SelectionStart = _txtInput.Text.Length;
+                _txtInput.Focus();
+                SendMessage();
+                return;
+            }
+
+            _txtInput.Text = resolvedEntry;
+            _txtInput.SelectionStart = _txtInput.Text.Length;
+            _txtInput.Focus();
+        }
+
+        // ── Chọn mã dự án — dialog tối màu, dropdown từ DB ───────────────
+        /// <summary>
+        /// Hiển thị dialog chọn mã dự án. Trả về mã đã chọn (chuỗi rỗng = tất cả dự án),
+        /// hoặc null nếu người dùng nhấn Hủy.
+        /// </summary>
+        private string PromptProjectCode()
+        {
+            var codes = AISearchService.GetProjectCodes();
+
+            using var dlg = new Form
+            {
+                Text            = "🔍 Chọn dự án",
+                Size            = new Size(340, 150),
+                MinimumSize     = new Size(340, 150),
+                MaximumSize     = new Size(600, 150),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition   = FormStartPosition.CenterScreen,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                TopMost         = true,
+                BackColor       = Color.FromArgb(22, 27, 42)
+            };
+
+            var lbl = new Label
+            {
+                Text      = "Mã dự án (để trống = tất cả dự án):",
+                ForeColor = Color.FromArgb(148, 163, 184),
+                AutoSize  = true,
+                Font      = new Font("Segoe UI", 9f),
+                Location  = new Point(14, 16)
+            };
+
+            var cb = new ComboBox
+            {
+                Location           = new Point(14, 40),
+                Width              = 298,
+                BackColor          = Color.FromArgb(35, 40, 58),
+                ForeColor          = Color.FromArgb(226, 232, 240),
+                FlatStyle          = FlatStyle.Flat,
+                Font               = new Font("Segoe UI", 10f),
+                AutoCompleteMode   = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems
+            };
+            cb.Items.Add(""); // để trống = tất cả
+            foreach (var c in codes) cb.Items.Add(c);
+            cb.SelectedIndex = 0;
+
+            var btnOk = new Button
+            {
+                Text         = "✔ Xác nhận",
+                DialogResult = DialogResult.OK,
+                Location     = new Point(140, 82),
+                Width        = 90,
+                BackColor    = Color.FromArgb(79, 70, 229),
+                ForeColor    = Color.White,
+                FlatStyle    = FlatStyle.Flat,
+                Cursor       = Cursors.Hand,
+                Font         = new Font("Segoe UI", 9f)
+            };
+            btnOk.FlatAppearance.BorderSize = 0;
+
+            var btnCancel = new Button
+            {
+                Text         = "Hủy",
+                DialogResult = DialogResult.Cancel,
+                Location     = new Point(238, 82),
+                Width        = 74,
+                BackColor    = Color.FromArgb(50, 55, 80),
+                ForeColor    = Color.FromArgb(148, 163, 184),
+                FlatStyle    = FlatStyle.Flat,
+                Cursor       = Cursors.Hand,
+                Font         = new Font("Segoe UI", 9f)
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+
+            dlg.Controls.AddRange(new Control[] { lbl, cb, btnOk, btnCancel });
+            dlg.AcceptButton = btnOk;
+            dlg.CancelButton = btnCancel;
+
+            return dlg.ShowDialog(this) == DialogResult.OK
+                ? (cb.Text?.Trim() ?? "")
+                : null;
         }
 
         // ── Tính năng 3: Xuất Excel ──────────────────────────────────────

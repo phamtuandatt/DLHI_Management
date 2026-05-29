@@ -192,23 +192,26 @@ namespace MPR_Managerment.Services
             if (_isProcessing) return;
             if (_queue.IsEmpty) return;
 
-            // 1. Kiểm tra khoảng cách thời gian giữa 2 lần gửi: 60 giây (1 phút) để tránh spam
+            var queueSettings = LoadQueueSettings();
+            int delayMs = Math.Max(queueSettings.DelayBetweenMessagesMs, 2000); // Tối thiểu 2s
+
+            // 1. Kiểm tra khoảng cách thời gian giữa 2 lần gửi
             TimeSpan elapsedSinceLast = DateTime.Now - _lastSendTime;
-            if (elapsedSinceLast.TotalSeconds < 60)
+            if (elapsedSinceLast.TotalMilliseconds < delayMs)
             {
-                // Chưa đủ 60 giây kể từ tin nhắn trước
                 return;
             }
 
-            // 2. Kiểm tra tin nhắn đầu tiên đã chờ đủ 60 giây kể từ khi được tạo chưa
+            // 2. Kiểm tra tin nhắn đầu tiên đã chờ đủ thời gian chưa (tránh gửi ngay lập tức khi vừa enqueue nếu muốn)
+            // Tuy nhiên thường thì enqueue xong gửi luôn là mong muốn của user, 
+            // nên ta chỉ cần đảm bảo delay giữa 2 tin nhắn là đủ.
             if (_queue.TryPeek(out var firstItem))
             {
+                // Cho phép gửi ngay nếu là tin nhắn đầu tiên sau một khoảng nghỉ dài
+                // hoặc đã đợi ít nhất delayMs
                 TimeSpan waitTime = DateTime.Now - firstItem.QueuedAt;
-                if (waitTime.TotalSeconds < 60)
-                {
-                    // Tin nhắn chưa chờ đủ 1 phút kể từ lúc vào hàng đợi
-                    return;
-                }
+                // Nếu muốn tin nhắn đầu tiên cũng phải đợi thì uncomment bên dưới
+                // if (waitTime.TotalMilliseconds < 500) return; 
             }
 
             _isProcessing = true;
@@ -323,7 +326,7 @@ namespace MPR_Managerment.Services
         /// Đưa item lại vào queue sau khi hết lần retry trong một chu kỳ.
         /// - Tăng RetryCount để track tổng số lần đã thử
         /// - Nếu vượt MAX_TOTAL_RETRIES thì bỏ qua (tránh loop vô tận)
-        /// - Cập nhật _lastSendTime để áp dụng 60s cooldown trước lần retry tiếp theo
+        /// - Cập nhật _lastSendTime để áp dụng cooldown trước lần retry tiếp theo
         /// </summary>
         private void _RequeueOrDrop(ZaloNotificationItem item, string reason)
         {
@@ -340,13 +343,13 @@ namespace MPR_Managerment.Services
                 return;
             }
 
-            // Cập nhật _lastSendTime khi re-queue để áp dụng 60s cooldown
+            // Cập nhật _lastSendTime khi re-queue để áp dụng cooldown
             _lastSendTime = DateTime.Now;
 
             _queue.Enqueue(item);
             Log($"[REQUEUE] Project={item.ProjectCode} Group={item.GroupName} " +
                 $"totalRetried={item.RetryCount}/{MAX_TOTAL_RETRIES} reason={reason} " +
-                $"— sẽ thử lại sau 60s");
+                $"— sẽ thử lại sau chu kỳ delay");
         }
 
         // ==============================================================
