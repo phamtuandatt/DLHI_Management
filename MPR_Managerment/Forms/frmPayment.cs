@@ -1679,10 +1679,21 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        private void BtnAddSched_Click(object sender, EventArgs e)
-        {
-            if (!PermissionHelper.Check("PAYMENT", "Thêm đợt", "Thêm đợt thanh toán")) return;
-            if (_selectedPO_ID == 0) { Warn("Vui lòng chọn PO!"); return; }
+private void BtnAddSched_Click(object sender, EventArgs e)
+{
+    if (!PermissionHelper.Check("PAYMENT", "Thêm đợt", "Thêm đợt thanh toán")) return;
+    if (_selectedPO_ID == 0) { Warn("Vui lòng chọn PO!"); return; }
+
+    // Kiểm tra trạng thái Email của PO, chỉ cho phép thêm khi Email = "done"
+    var poInfo = _poSvc.GetPOByPONo(_selectedPO_ID);
+    if (poInfo == null || poInfo.PO_ID == 0) { Warn("Không tìm thấy thông tin chi tiết PO!"); return; }
+    
+    var emailStatus = poInfo.Email_Status ?? "";
+    if (!emailStatus.Equals("done", StringComparison.OrdinalIgnoreCase))
+    {
+        Warn("Không thể thêm đợt thanh toán Vui lòng gửi Email cho nhà cung cấp trước khi thực hiện thanh toán.");
+        return;
+    }
 
             // Lấy tổng PO sau thuế của PO đang chọn
             var po = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);

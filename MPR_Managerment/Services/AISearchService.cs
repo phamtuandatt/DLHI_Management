@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Net.Http;
@@ -308,7 +308,7 @@ Lịch sử:{historyCtx}
 
 Câu hỏi: ""{userQuestion}""
 
-Trả về JSON (không markdown), 1 trong 3 dạng:
+Trả về JSON (không markdown), 1 trong các dạng sau:
 
 1. Cần DB, KHÔNG xuất Excel:
 {{""need_sql"":true,""export_excel"":false,""sql"":""SELECT TOP 100 ...""}}
@@ -318,6 +318,9 @@ Trả về JSON (không markdown), 1 trong 3 dạng:
 
 3. Không cần DB:
 {{""need_sql"":false,""export_excel"":false,""answer"":""trả lời ngắn gọn""}}
+
+LƯU Ý ĐẶC BIỆT VỀ GHI NHỚ TỰ ĐỘNG (AUTO-LEARN):
+Nếu người dùng cung cấp thông tin về cấu trúc bảng, quy tắc nghiệp vụ hoặc yêu cầu ghi nhớ điều gì đó (ví dụ: ""hãy nhớ cột X là Y"", ""nhớ là..."", ""từ nay hãy..."", ""khi tìm... thì...""), hãy thêm trường ""new_memory"" vào JSON chứa quy tắc ngắn gọn để lưu lại vĩnh viễn (ví dụ: {{""need_sql"":false,""export_excel"":false,""answer"":""Tôi đã ghi nhớ quy tắc này."",""new_memory"":""Khi truy xuất vật tư, dùng cột XYZ thay vì ABC""}}).
 
 Quy tắc:
 - SQL chỉ SELECT, Is_Latest=1, Is_Deleted=0, không giới hạn TOP khi xuất Excel.
@@ -347,6 +350,15 @@ JSON:";
                 needSql = root.TryGetProperty("need_sql", out var ns) && ns.GetBoolean();
                 exportExcel = root.TryGetProperty("export_excel", out var ex) && ex.GetBoolean();
                 reportName = root.TryGetProperty("report_name", out var rn) ? rn.GetString() ?? "" : userQuestion;
+
+                if (root.TryGetProperty("new_memory", out var nm))
+                {
+                    string newMem = nm.GetString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(newMem))
+                    {
+                        AddMemory(newMem, "AI_AutoLearn");
+                    }
+                }
 
                 if (needSql)
                     sql = root.TryGetProperty("sql", out var s) ? s.GetString() ?? "" : "";

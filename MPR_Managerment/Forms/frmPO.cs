@@ -108,12 +108,14 @@ namespace MPR_Managerment.Forms
             _importMprNo = mprNo;
             InitializeComponent();
             BuildUI();
+            ApplyPermissions();
             LoadPO();
+            LoadDeliveries();
             this.Resize += FrmPO_Resize;
-            // Dùng Timer để đợi form render xong, sau đó chạy ImportMPRByNo trên UI thread
-            // nhưng có try-catch bảo vệ để tránh dialog ẩn
             this.Shown += (s, e) =>
             {
+                this.BringToFront();
+                this.Activate();
                 var t = new System.Windows.Forms.Timer { Interval = 100 };
                 t.Tick += (_, _2) =>
                 {
@@ -125,6 +127,7 @@ namespace MPR_Managerment.Forms
                     }
                     catch (Exception ex)
                     {
+                        this.BringToFront(); this.Activate();
                         MessageBox.Show(this,
                             "Lỗi khi tự động import MPR '" + _importMprNo + "':\n\n" + ex.Message,
                             "Lỗi Import MPR", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -4842,13 +4845,13 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     : mprService.GetAll().Find(m => m.MPR_No == mprNo);
                 if (mpr == null)
                 {
-                    MessageBox.Show(this, $"Không tìm thấy MPR: {mprNo}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    SafeWarn($"Không tìm thấy MPR: {mprNo}");
                     return;
                 }
                 var details = mprService.GetDetails(mpr.MPR_ID);
                 if (details == null || details.Count == 0)
                 {
-                    MessageBox.Show(this, $"MPR {mprNo} chưa có chi tiết vật tư!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    SafeWarn($"MPR {mprNo} chưa có chi tiết vật tư!");
                     return;
                 }
                 ClearHeader();
@@ -4892,11 +4895,11 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                 try { dgvPO.CurrentCell = null; } catch { }
                 dgvPO.SelectionChanged += DgvPO_SelectionChanged;
                 string skipNote = skipped > 0 ? $"\n(Đã bỏ qua {skipped} dòng chỉ đọc)" : "";
-                MessageBox.Show(this, $"✅ Đã import {activeDetails.Count} dòng từ MPR {mpr.MPR_No}!\nPO No: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}{skipNote}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                SafeInfo($"✅ Đã import {activeDetails.Count} dòng từ MPR {mpr.MPR_No}!\nPO No: {txtPONo.Text}\nWorkorder: {txtWorkorderNo.Text}{skipNote}", "Thành công");
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Lỗi import MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                SafeErr("Lỗi import MPR: " + ex.Message);
             }
         }
 

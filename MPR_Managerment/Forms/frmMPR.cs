@@ -1005,7 +1005,8 @@ namespace MPR_Managerment.Forms
             dgvDetails.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgvDetails.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             dgvDetails.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            dgvDetails.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgvDetails.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvDetails.ColumnHeadersHeight = 45;
             dgvDetails.EnableHeadersVisualStyles = false;
             dgvDetails.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
             dgvDetails.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
@@ -1170,7 +1171,7 @@ namespace MPR_Managerment.Forms
             {
                 Name = "Item_No",
                 HeaderText = "STT",
-                Width = 45,
+                Width = 35,
                 ReadOnly = true,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
@@ -1178,119 +1179,119 @@ namespace MPR_Managerment.Forms
             {
                 Name = "Item_Name",
                 HeaderText = "Tên vật tư",
-                Width = 180,
+                Width = 120,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Description",
                 HeaderText = "Mô tả",
-                Width = 100,
+                Width = 110,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Material",
                 HeaderText = "Vật liệu",
-                Width = 85,
+                Width = 130,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Thickness_mm",
-                HeaderText = "A-Dày(mm)",
-                Width = 45,
+                HeaderText = "Dày\n(mm)",
+                Width = 38,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Depth_mm",
-                HeaderText = "B-Sâu(mm)",
-                Width = 45,
+                HeaderText = "-Sâu\n(mm)",
+                Width = 38,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "C_Width_mm",
-                HeaderText = "C-Rộng(mm)",
-                Width = 45,
+                HeaderText = "Rộng\n(mm)",
+                Width = 38,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "D_Web_mm",
-                HeaderText = "D-Bụng(mm)",
-                Width = 45,
+                HeaderText = "Bụng\n(mm)",
+                Width = 38,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "E_Flange_mm",
-                HeaderText = "E-Cánh(mm)",
-                Width = 45,
+                HeaderText = "Cánh\n(mm)",
+                Width = 38,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "F_Length_mm",
-                HeaderText = "F-Dài(mm)",
-                Width = 75,
+                HeaderText = "F-Dài\n(mm)",
+                Width = 65,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "UNIT",
                 HeaderText = "ĐVT",
-                Width = 50,
+                Width = 40,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Qty",
                 HeaderText = "SL",
-                Width = 50,
+                Width = 35,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Weight",
                 HeaderText = "KG",
-                Width = 55,
+                Width = 35,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "MPS_Info",
                 HeaderText = "MPS Info",
-                Width = 100,
+                Width = 60,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Usage_Location",
                 HeaderText = "Vị trí dùng",
-                Width = 110,
+                Width = 70,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "REV",
                 HeaderText = "REV",
-                Width = 45,
+                Width = 35,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Remarks",
                 HeaderText = "Ghi chú",
-                FillWeight = 100,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "PO_No",
                 HeaderText = "Đã lên PO",
-                Width = 120,
+                Width = 100,
                 ReadOnly = true,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
@@ -6540,9 +6541,13 @@ ORDER BY DisplayName";
                 h.Email_Sent_At = sentAt;
             }
 
-            BindMPRGrid(_mprList);
-            if (lblStatus != null)
-                lblStatus.Text = "✅ Email MPR đã được gửi thành công!";
+            // Dùng Dispatcher hoặc BeginInvoke để tránh lặp vô tận trong sự kiện UI
+            this.BeginInvoke(new Action(() =>
+            {
+                BindMPRGrid(_mprList);
+                if (lblStatus != null && !lblStatus.IsDisposed)
+                    lblStatus.Text = "✅ Email MPR đã được gửi thành công!";
+            }));
 
             // Gửi thông báo Zalo vào nhóm của từng NCC
             if (suppliers != null && suppliers.Count > 0 && h != null)
