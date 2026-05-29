@@ -179,6 +179,14 @@ namespace MPR_Managerment.Forms
                 MessageBox.Show(TopOwner, "Vui lòng chọn một phiếu MPR!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
+            string status = dgvMPR.SelectedRows[0].Cells["Trang_Thai"].Value?.ToString();
+            if (status == "Hủy")
+            {
+                MessageBox.Show(TopOwner, "Phiếu MPR này đã bị Hủy, không thể chọn để tạo PO!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             int mprId = Convert.ToInt32(dgvMPR.SelectedRows[0].Cells["ID"].Value);
             SelectedMPR = _mprList.Find(x => x.MPR_ID == mprId);
             SelectedDetails = _service.GetDetails(mprId);

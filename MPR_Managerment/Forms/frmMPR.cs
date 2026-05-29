@@ -3824,6 +3824,12 @@ namespace MPR_Managerment.Forms
             var mpr = _mprList.Find(m => m.MPR_ID == _selectedMPR_ID);
             if (mpr == null) return;
 
+            if (mpr.Status == "Hủy")
+            {
+                SafeMsg("Phiếu MPR này đã bị Hủy, không thể tạo PO!", "Thông báo", MessageBoxIcon.Warning);
+                return;
+            }
+
             string mprNo = mpr.MPR_No;
             var frm = new frmPO(mprNo, true);
             frm.SetImportMprId(mpr.MPR_ID);

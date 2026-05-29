@@ -1813,10 +1813,18 @@ namespace MPR_Managerment.Forms
                             if (row.IsNewRow) continue;
                             int rev = 0; int.TryParse(row.Cells["Rev"].Value?.ToString() ?? "0", out rev);
                             int maxRev = 0; int.TryParse(row.Cells["MaxRev"]?.Value?.ToString() ?? "0", out maxRev);
-                            if (maxRev > 0 && rev < maxRev)
+
+                            string status = row.Cells["Trạng thái"]?.Value?.ToString() ?? "";
+                            bool isCancelled = status == "Hủy";
+
+                            if ((maxRev > 0 && rev < maxRev) || isCancelled)
                             {
                                 row.ReadOnly = true;
                                 row.DefaultCellStyle = grayStyle;
+                                if (isCancelled)
+                                {
+                                    row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout | FontStyle.Bold);
+                                }
                             }
                             else
                             {
@@ -2058,6 +2066,10 @@ namespace MPR_Managerment.Forms
             foreach (DataGridViewRow row in dgvMPR.Rows)
             {
                 if (row.IsNewRow || !row.Visible) continue;
+
+                string status = row.Cells["Trạng thái"]?.Value?.ToString() ?? "";
+                if (status == "Hủy") continue;
+
                 string mno = row.Cells["MPR No"].Value?.ToString();
                 if (!string.IsNullOrEmpty(mno)) mprNos.Add(mno);
             }
