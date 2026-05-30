@@ -41,7 +41,10 @@ namespace MPR_Managerment.Forms.RIRGUI
         private DataTable _dtProjectMaterial = new DataTable();
         private DataTable _dtProjectPaint = new DataTable();
         private DataTable _dtProjectWelding = new DataTable();
+
         private bool _isLoaded = false;
+        private bool _dtPaintIsLoaded = false;
+        private bool _dtWeldingIsLoaded = false;
 
         public ucRIRForQC()
         {
@@ -76,7 +79,62 @@ namespace MPR_Managerment.Forms.RIRGUI
             cboProjectMaterial.DisplayMember = "ProjectCode";
             cboProjectMaterial.ValueMember = "Id";
             cboProjectMaterial.DataSource = dt.Copy();
+
+            cboProjectForPain.DisplayMember = "ProjectCode";
+            cboProjectForPain.ValueMember = "Id";
+            cboProjectForPain.DataSource = dt.Copy();
+
+            cboProjectForWelding.DisplayMember = "ProjectCode";
+            cboProjectForWelding.ValueMember = "Id";
+            cboProjectForWelding.DataSource = dt.Copy();
+
             _isLoaded = true;
+
+            LoadDataPaint();
+            LoadDataWelding();
+        }
+
+        private async void LoadDataPaint(string projectCode = "")
+        {
+            if (string.IsNullOrEmpty(projectCode) && !_dtPaintIsLoaded)
+            {
+                _dtProjectPaint = await _warehouseServies.GetImportPaint();
+                dgvPaint.DataSource = _dtProjectPaint.Copy();
+                _dtPaintIsLoaded = true;
+            }
+            else
+            {
+                _dtProjectPaint = await _warehouseServies.GetImportPaint(cboProjectForPain.Text.Trim());
+                dgvPaint.DataSource = _dtProjectPaint;
+            }
+
+            dgvPaint.Columns["Import_ID"].Visible = false;
+            dgvPaint.Columns["PO_Detail_ID"].Visible = false;
+            dgvPaint.RowPostPaint += (s, e) =>
+            {
+                Common.Common.RenderNumbering(s, e);
+            };
+        }
+
+        private async void LoadDataWelding(string projectCode = "")
+        {
+            if (string.IsNullOrEmpty(projectCode) && !_dtWeldingIsLoaded)
+            {
+                _dtProjectWelding = await _warehouseServies.GetImportWelding();
+                dgvWelding.DataSource = _dtProjectWelding;
+            }
+            else
+            {
+                _dtProjectWelding = await _warehouseServies.GetImportWelding(cboProjectForWelding.Text.Trim());
+                dgvWelding.DataSource = _dtProjectWelding;
+            }
+
+            dgvWelding.Columns["Import_ID"].Visible = false;
+            dgvWelding.Columns["PO_Detail_ID"].Visible = false;
+            dgvWelding.RowPostPaint += (s, e) =>
+            {
+                Common.Common.RenderNumbering(s, e);
+            };
         }
 
         private void CreateContextMenuStripForGrid()
@@ -686,7 +744,7 @@ namespace MPR_Managerment.Forms.RIRGUI
                             {
                                 ws.Cells[currentRow, 38, currentRow, 44].Merge = true;
                                 ws.Cells[currentRow, 38].Value = "Accept";               // Cột AL -> AR: Result.
-                            } 
+                            }
                             else
                             {
                                 ws.Cells[currentRow, 38, currentRow, 44].Merge = true;
@@ -718,10 +776,22 @@ namespace MPR_Managerment.Forms.RIRGUI
         }
         private void ReplaceCell(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string value)
         {
-            for (int r = 1; r <= ws.Dimension.End.Row; r++) 
-                for (int c = 1; c <= ws.Dimension.End.Column; c++) 
-                    if (ws.Cells[r, c].Value?.ToString() == placeholder) 
-                        ws.Cells[r, c].Value = value; 
+            for (int r = 1; r <= ws.Dimension.End.Row; r++)
+                for (int c = 1; c <= ws.Dimension.End.Column; c++)
+                    if (ws.Cells[r, c].Value?.ToString() == placeholder)
+                        ws.Cells[r, c].Value = value;
+        }
+
+        private void cboProjectForPain_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!Common.Common.IsComboBoxValid(cboProjectForPain)) return;
+            LoadDataPaint(cboProjectForPain.Text.Trim());
+        }
+
+        private void cboProjectForWelding_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!Common.Common.IsComboBoxValid(cboProjectForWelding)) return;
+            LoadDataWelding(cboProjectForWelding.Text.Trim());
         }
     }
 }
