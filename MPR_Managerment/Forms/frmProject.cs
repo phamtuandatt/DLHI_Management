@@ -48,6 +48,8 @@ namespace MPR_Managerment.Forms
         public frmProject()
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             BuildUI();
             ApplyPermissions();
             LoadProjects();

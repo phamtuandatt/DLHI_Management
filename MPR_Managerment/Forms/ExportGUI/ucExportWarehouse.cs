@@ -33,6 +33,8 @@ namespace MPR_Managerment.Forms.ExportGUI
         public ucExportWarehouse()
         {
             InitializeComponent();
+            //frmAIChat.Attach(this); // Bỏ dòng này vì đây là UserControl, không phải Form chính
+
             LoadProject();
             InitGridSelected();
 

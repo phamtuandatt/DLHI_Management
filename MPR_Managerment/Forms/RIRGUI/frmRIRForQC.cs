@@ -15,6 +15,8 @@ namespace MPR_Managerment.Forms.RIRGUI
         public frmRIRForQC()
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             ucRIRForQC ucRIRForQC = new ucRIRForQC();
             ucRIRForQC.Dock = DockStyle.Fill;
             this.Controls.Add(ucRIRForQC);

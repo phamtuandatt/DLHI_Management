@@ -33,6 +33,8 @@ namespace MPR_Managerment.Forms.MPRGUI
         public frmSelectItem()
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             SetSearchPlaceholder();
             Common.Common.CreateButtonRefresh(btnRefresh);
             Common.Common.CreateButtonSave(btnSelect);

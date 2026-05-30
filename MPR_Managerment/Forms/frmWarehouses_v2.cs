@@ -85,6 +85,8 @@ namespace MPR_Managerment.Forms
 
         public frmWarehouses_v2(string targetPONo = "")
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             _targetPONo = targetPONo; // Tham số nhận từ màn hình Dashboard
             InitializeComponent();
             _dtProject = new ProjectService().GetAll();

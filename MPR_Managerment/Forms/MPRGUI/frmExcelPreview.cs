@@ -22,6 +22,8 @@ namespace MPR_Managerment.Forms.MPRGUI
         public frmExcelPreview(string filePath, string title = "Xem trước tài liệu")
         {
             InitializeComponentInternal(); // Tự khởi tạo giao diện bằng code
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             this._filePath = filePath;
             this.Text = title;
 

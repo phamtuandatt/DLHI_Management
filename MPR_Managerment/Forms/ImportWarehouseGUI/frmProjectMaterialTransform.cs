@@ -19,6 +19,8 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         public frmProjectMaterialTransform(List<ProjectInfo> dtProject, int importId, decimal maxQty)
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
 
             Common.Common.CreateButtonSave(btnSave);
             Common.Common.CreateButtonCancel(btnCancel, "🔄 Hủy");

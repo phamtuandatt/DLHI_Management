@@ -31,6 +31,8 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         public ucFillInvoiceNo()
         {
             InitializeComponent();
+            //frmAIChat.Attach(this); // Bỏ dòng này vì đây là UserControl, không phải Form chính
+
             LoadProjects();
 
             InitGridSelected();

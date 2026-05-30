@@ -17,6 +17,8 @@ namespace MPR_Managerment.Forms.MPRGUI
 
         public frmMPR_V2()
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             this.Text = "Yêu cầu mua hàng mới";
             this.Size = new Size(1100, 800);
             this.MinimumSize = new Size(1000, 700);

@@ -21,6 +21,8 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         public frmAddMaterialDetail(DataTable dtOrigin, MaterialAddViewModel materialDetailAdd)
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             this.dtOrigin = dtOrigin;
             this.MaterialDetailAdd = materialDetailAdd;
             lblName.Text = $"Thêm vật tư cho: {materialDetailAdd.MaterialCode}";

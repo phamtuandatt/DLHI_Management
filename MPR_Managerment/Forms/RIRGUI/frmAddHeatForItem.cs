@@ -24,6 +24,8 @@ namespace MPR_Managerment.Forms.RIRGUI
         public frmAddHeatForItem(string MRTNo)
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             txtMTR.Text = MRTNo;
 
             Common.Common.CreateButtonSave(btnSave);

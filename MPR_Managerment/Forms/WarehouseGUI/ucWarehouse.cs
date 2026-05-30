@@ -43,6 +43,8 @@ namespace MPR_Managerment.Forms.WarehouseGUI
         public ucWarehouse()
         {
             InitializeComponent();
+            //frmAIChat.Attach(this); // Bỏ dòng này vì đây là UserControl, không phải Form chính
+
             BuidUI();
         }
 

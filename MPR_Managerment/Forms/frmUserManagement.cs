@@ -93,6 +93,8 @@ namespace MPR_Managerment.Forms
         public frmUserManagement()
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             BuildUI();
             LoadData();
             ApplyPermissions();

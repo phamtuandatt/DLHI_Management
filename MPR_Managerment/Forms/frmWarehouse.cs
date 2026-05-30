@@ -62,6 +62,8 @@ namespace MPR_Managerment.Forms
         public frmWarehouse()
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             BuildUI();
             this.Resize += FrmWarehouse_Resize;
             this.Load += FrmWarehouse_Load;

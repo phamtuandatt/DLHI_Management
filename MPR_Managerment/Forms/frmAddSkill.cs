@@ -28,6 +28,8 @@ namespace MPR_Managerment.Forms
 
         public frmAddSkill()
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             Text = "Thêm AI Skill mới";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterParent;

@@ -108,9 +108,17 @@ namespace MPR_Managerment.Forms
 
         public void SnapToCorner()
         {
-            var scr = Screen.PrimaryScreen.WorkingArea;
-            Location = new Point(scr.Right - ICON_SIZE - MARGIN,
-                                 scr.Bottom - ICON_SIZE - MARGIN);
+            if (Parent != null)
+            {
+                Location = new Point(Parent.Width - Width - MARGIN,
+                                     Parent.Height - Height - MARGIN);
+            }
+            else
+            {
+                var scr = Screen.PrimaryScreen.WorkingArea;
+                Location = new Point(scr.Right - Width - MARGIN,
+                                     scr.Bottom - Height - MARGIN);
+            }
         }
 
         /// <summary>Load icon robot 3D từ file Resources/ai_robot_icon.png</summary>
@@ -221,26 +229,79 @@ namespace MPR_Managerment.Forms
         private static frmAIChat _chatInst;
         private static frmAIToggleBtn _btnInst;
 
-        /// <summary>Gắn AI Chat vào form — gọi trong constructor của mọi Form.</summary>
+        /// <summary>Gắn AI Chat vào form — Đảm bảo chỉ có 1 instance duy nhất trên toàn hệ thống.</summary>
         public static void Attach(Form parentForm)
         {
-            parentForm.Shown += (s, e) =>
+            if (parentForm == null) return;
+
+            // Logic để di chuyển AI sang form đang active
+            Action ensureAttached = () =>
             {
-                // Nút toggle
+                if (parentForm.IsDisposed) return;
+
+                // Khởi tạo hoặc tái tạo nếu đã bị Dispose (do WinForms tự động Dispose con khi cha đóng)
                 if (_btnInst == null || _btnInst.IsDisposed)
                 {
                     _btnInst = new frmAIToggleBtn(ToggleChat);
-                    _btnInst.Show(parentForm);
-                    _btnInst.SnapToCorner();
+                    _btnInst.TopLevel = false;
                 }
-                // Panel chat
                 if (_chatInst == null || _chatInst.IsDisposed)
                 {
                     _chatInst = new frmAIChat();
-                    _chatInst.Show(parentForm);
-                    _chatInst.Visible = false;
+                    _chatInst.TopLevel = false;
+                    _chatInst.FormBorderStyle = FormBorderStyle.None;
+                }
+
+                // 1. Gắn Button AI
+                if (_btnInst.Parent != parentForm)
+                {
+                    _btnInst.Hide(); // Ẩn tạm thời khi chuyển parent
+                    parentForm.Controls.Add(_btnInst);
+                    _btnInst.BringToFront();
+                    _btnInst.Show();
+                }
+                _btnInst.SnapToCorner();
+
+                // 2. Gắn Chat Panel
+                if (_chatInst.Parent != parentForm)
+                {
+                    bool wasVisible = _chatInst.Visible;
+                    _chatInst.Hide();
+                    parentForm.Controls.Add(_chatInst);
+                    if (wasVisible)
+                    {
+                        _chatInst.PositionNearButton();
+                        _chatInst.Show();
+                        _chatInst.BringToFront();
+                    }
                 }
             };
+
+            // Đăng ký các sự kiện để AI luôn bám theo form hiện hành
+            parentForm.Load += (s, e) => ensureAttached();
+            parentForm.Activated += (s, e) => ensureAttached();
+            parentForm.Resize += (s, e) => {
+                if (_btnInst != null && !_btnInst.IsDisposed && _btnInst.Parent == parentForm)
+                    _btnInst.SnapToCorner();
+            };
+
+            // Khi form đóng: gỡ Parent ra để tránh bị tự động Dispose child controls
+            parentForm.FormClosed += (s, e) =>
+            {
+                if (_btnInst != null && !_btnInst.IsDisposed && _btnInst.Parent == parentForm)
+                {
+                    _btnInst.Hide();
+                    _btnInst.Parent = null;
+                }
+                if (_chatInst != null && !_chatInst.IsDisposed && _chatInst.Parent == parentForm)
+                {
+                    _chatInst.Hide();
+                    _chatInst.Parent = null;
+                }
+            };
+
+            // Gắn ngay nếu form đã hiển thị
+            if (parentForm.Visible) ensureAttached();
         }
 
         private static void ToggleChat()
@@ -330,6 +391,7 @@ namespace MPR_Managerment.Forms
             BuildUI();
             RegisterHotkey();
             AISearchService.EnsureSkillTableAndSeed();
+            AISearchService.EnsureNccV2SkillsSeed();
             RefreshSkillStrip();
             ShowGreeting();
         }
@@ -1216,6 +1278,13 @@ namespace MPR_Managerment.Forms
             new(StringComparer.OrdinalIgnoreCase) { "/po", "/mpr" };
 
         /// <summary>
+        /// Lệnh slash có Level 2 là danh sách NCC short names.
+        /// Khi gõ "/ncc ", popup hiển thị tên viết tắt NCC.
+        /// </summary>
+        private static readonly HashSet<string> NCC_SLASH_COMMANDS =
+            new(StringComparer.OrdinalIgnoreCase) { "/ncc" };
+
+        /// <summary>
         /// Thay thế {project_code} trong bất kỳ template nào.
         /// Xóa phần filter cũ mơ hồ ("Nếu X trống..."), thêm filter prefix BẮT BUỘC ở đầu prompt.
         /// Dùng cho quick chip, ApplySlashPopupSelection, và SendMessage fallback.
@@ -1328,6 +1397,38 @@ namespace MPR_Managerment.Forms
                         return;
                     }
 
+                    // ── /ncc: Level 2 hiện danh sách NCC short names ─────────
+                    if (NCC_SLASH_COMMANDS.Contains(firstWord))
+                    {
+                        var allNames = AISearchService.GetSupplierShortNames();
+                        var entries  = new System.Collections.Generic.List<SlashEntry>();
+
+                        bool showAllNcc = string.IsNullOrEmpty(filter)
+                            || "tất cả".Contains(filter) || "all".Contains(filter);
+                        if (showAllNcc)
+                            entries.Add(new SlashEntry(
+                                "🏭  Tất cả NCC",
+                                "Danh sách tất cả nhà cung cấp đang hoạt động (IsActive=1): Company_Name, Short_Name, Supplier_Type, Email, Contact_Person, Contact_Phone, Tax_Code. Sắp xếp theo Company_Name.",
+                                "slash", Tag: ""));
+
+                        foreach (var nccName in allNames)
+                            if (string.IsNullOrEmpty(filter) ||
+                                nccName.ToLower().Contains(filter, StringComparison.OrdinalIgnoreCase))
+                                entries.Add(new SlashEntry(
+                                    $"🏭  {nccName}",
+                                    "",
+                                    "slash", Tag: nccName));
+
+                        if (entries.Count > 0)
+                        {
+                            ShowPopup(entries, $"  ↳ 🏭 Chọn nhà cung cấp:");
+                            _slashLevel2Parent = parent.Slash;
+                            return;
+                        }
+                        HideSlashPopup();
+                        return;
+                    }
+
                     // ── Các lệnh khác: Level 2 hiện sub-skills như cũ ────────
                     var subs = AISearchService.GetSubSkills(parent.Slash);
                     var filtered = string.IsNullOrEmpty(filter)
@@ -1419,26 +1520,47 @@ namespace MPR_Managerment.Forms
             if (_slashPopup.Tag is not System.Collections.Generic.List<SlashEntry> entries) return;
             var entry = entries[_slashPopup.SelectedIndex];
 
-            // ── Level 3 đang hiển thị: template đã embedded project code → gửi ngay ──
+            // ── Level 3 đang hiển thị ────────────────────────────────────────
             if (_slashLevel3Active)
             {
-                // Hiện tên ngắn gọn trong chat thay vì full template
-                string proj = string.IsNullOrEmpty(_slashSelectedProject) ? "Tất cả dự án"
-                                                                           : _slashSelectedProject;
-                _pendingDisplayText = $"{entry.Display.Trim()} — {proj}";
+                string template = entry.Template;
+
+                // Template cần mã dự án → hiện dialog chọn dự án
+                if (template.Contains("{project_code}"))
+                {
+                    string code = PromptProjectCode();
+                    if (code == null) return; // user nhấn Hủy
+                    template = ApplyProjectCodeToTemplate(template, code);
+                }
+
+                // Template cần khoảng thời gian → hiện dialog chọn ngày
+                if (template.Contains("{date_from}") || template.Contains("{date_to}"))
+                {
+                    var (dateFrom, dateTo) = PromptDateRange();
+                    if (dateFrom == null) return; // user nhấn Hủy
+                    template = template
+                        .Replace("{date_from}", dateFrom)
+                        .Replace("{date_to}", dateTo);
+                }
+
+                string entity = string.IsNullOrEmpty(_slashSelectedProject) ? "Tất cả"
+                                                                             : _slashSelectedProject;
+                _pendingDisplayText = $"{entry.Display.Trim()} — {entity}";
 
                 HideSlashPopup();
-                _txtInput.Text = entry.Template;
+                _txtInput.Text = template;
                 _txtInput.SelectionStart = _txtInput.Text.Length;
                 _txtInput.Focus();
                 SendMessage();
                 return;
             }
 
-            // ── Level 1: slash có sub-skill → gõ "/lệnh " để hiện Level 2 ──
+            // ── Level 1: slash có sub-skill hoặc là lệnh có Level 2 entity picker ──
             if (string.IsNullOrEmpty(entry.ParentSlash) && entry.Type == "slash"
                 && !string.IsNullOrEmpty(entry.Slash)
-                && AISearchService.GetSubSkills(entry.Slash).Count > 0)
+                && (AISearchService.GetSubSkills(entry.Slash).Count > 0
+                    || PROJECT_SLASH_COMMANDS.Contains(entry.Slash)
+                    || NCC_SLASH_COMMANDS.Contains(entry.Slash)))
             {
                 _txtInput.Text = entry.Slash + " ";
                 _txtInput.SelectionStart = _txtInput.Text.Length;
@@ -1451,6 +1573,24 @@ namespace MPR_Managerment.Forms
             if (PROJECT_SLASH_COMMANDS.Contains(_slashLevel2Parent ?? ""))
             {
                 ShowLevel3ProjectSubSkills(_slashLevel2Parent, entry.Tag);
+                return;
+            }
+
+            // ── Level 2 /ncc: NCC được chọn → hiện Level 3 sub-skills hoặc gửi trực tiếp ──
+            if (NCC_SLASH_COMMANDS.Contains(_slashLevel2Parent ?? ""))
+            {
+                if (string.IsNullOrEmpty(entry.Tag))
+                {
+                    // "Tất cả NCC" → gửi query trực tiếp
+                    _pendingDisplayText = "🏭  Tất cả NCC";
+                    HideSlashPopup();
+                    _txtInput.Text = entry.Template;
+                    SendMessage();
+                }
+                else
+                {
+                    ShowLevel3NccSubSkills(entry.Tag);
+                }
                 return;
             }
 
@@ -1525,6 +1665,40 @@ namespace MPR_Managerment.Forms
             }
 
             ShowPopup(entries, $"  ↳ 📁 {projectDesc}  —  chọn loại kiểm tra:");
+        }
+
+        /// <summary>
+        /// Hiện Level 3 popup: danh sách các loại thông tin cho /ncc
+        /// sau khi đã chọn tên NCC ở Level 2.
+        /// </summary>
+        private void ShowLevel3NccSubSkills(string nccCode)
+        {
+            _slashLevel3Active    = true;
+            _slashSelectedProject = nccCode; // lưu để dùng trong display text
+
+            string nccDesc = $"NCC {nccCode}";
+
+            // Filter prefix BẮT BUỘC — đặt trước mọi template
+            string nccPrefix =
+                $"⚠️ BẮT BUỘC: Chỉ lấy dữ liệu của NCC có Short_Name = '{nccCode}'. " +
+                $"SQL PHẢI JOIN Suppliers ON PO_head.Supplier_ID = Suppliers.Supplier_ID " +
+                $"WHERE Suppliers.Short_Name = '{nccCode}'. " +
+                $"KHÔNG được trả về dữ liệu của NCC khác.\n";
+
+            var entries = new System.Collections.Generic.List<SlashEntry>();
+            var subs = AISearchService.GetSubSkills("/ncc");
+
+            foreach (var sub in subs)
+            {
+                // Thay thế {ncc_code} trong template; để {project_code}/{date_from}/{date_to} cho bước sau
+                string tmpl = sub.Template.Replace("{ncc_code}", nccCode);
+                entries.Add(new SlashEntry($"{sub.Icon}  {sub.Name}", nccPrefix + tmpl, sub.Type));
+            }
+
+            if (entries.Count > 0)
+                ShowPopup(entries, $"  ↳ 🏭 {nccDesc}  —  chọn thông tin:");
+            else
+                HideSlashPopup();
         }
 
         // ── Chọn mã dự án — dialog tối màu, dropdown từ DB ───────────────
@@ -1611,6 +1785,95 @@ namespace MPR_Managerment.Forms
                 : null;
         }
 
+        /// <summary>
+        /// Hiển thị dialog chọn khoảng thời gian (từ ngày — đến ngày).
+        /// Trả về (dateFrom, dateTo) dạng "yyyy-MM-dd", hoặc (null, null) nếu hủy.
+        /// </summary>
+        private (string? from, string? to) PromptDateRange()
+        {
+            using var dlg = new Form
+            {
+                Text            = "📅 Chọn khoảng thời gian",
+                Size            = new Size(370, 190),
+                MinimumSize     = new Size(370, 190),
+                MaximumSize     = new Size(600, 190),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition   = FormStartPosition.CenterScreen,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                TopMost         = true,
+                BackColor       = Color.FromArgb(22, 27, 42)
+            };
+
+            var lblFrom = new Label
+            {
+                Text      = "Từ ngày:",
+                ForeColor = Color.FromArgb(148, 163, 184),
+                AutoSize  = true,
+                Font      = new Font("Segoe UI", 9f),
+                Location  = new Point(14, 14)
+            };
+            var dtpFrom = new DateTimePicker
+            {
+                Location = new Point(14, 36),
+                Width    = 155,
+                Format   = DateTimePickerFormat.Short,
+                Value    = DateTime.Today.AddMonths(-1)
+            };
+
+            var lblTo = new Label
+            {
+                Text      = "Đến ngày:",
+                ForeColor = Color.FromArgb(148, 163, 184),
+                AutoSize  = true,
+                Font      = new Font("Segoe UI", 9f),
+                Location  = new Point(188, 14)
+            };
+            var dtpTo = new DateTimePicker
+            {
+                Location = new Point(188, 36),
+                Width    = 155,
+                Format   = DateTimePickerFormat.Short,
+                Value    = DateTime.Today
+            };
+
+            var btnOk = new Button
+            {
+                Text         = "✔ Xác nhận",
+                DialogResult = DialogResult.OK,
+                Location     = new Point(116, 118),
+                Width        = 110,
+                BackColor    = Color.FromArgb(79, 70, 229),
+                ForeColor    = Color.White,
+                FlatStyle    = FlatStyle.Flat,
+                Cursor       = Cursors.Hand,
+                Font         = new Font("Segoe UI", 9f)
+            };
+            btnOk.FlatAppearance.BorderSize = 0;
+
+            var btnCancel = new Button
+            {
+                Text         = "Hủy",
+                DialogResult = DialogResult.Cancel,
+                Location     = new Point(234, 118),
+                Width        = 74,
+                BackColor    = Color.FromArgb(50, 55, 80),
+                ForeColor    = Color.FromArgb(148, 163, 184),
+                FlatStyle    = FlatStyle.Flat,
+                Cursor       = Cursors.Hand,
+                Font         = new Font("Segoe UI", 9f)
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+
+            dlg.Controls.AddRange(new Control[] { lblFrom, dtpFrom, lblTo, dtpTo, btnOk, btnCancel });
+            dlg.AcceptButton = btnOk;
+            dlg.CancelButton = btnCancel;
+
+            if (dlg.ShowDialog(this) == DialogResult.OK)
+                return (dtpFrom.Value.ToString("yyyy-MM-dd"), dtpTo.Value.ToString("yyyy-MM-dd"));
+            return (null, null);
+        }
+
         // ── Tính năng 3: Xuất Excel ──────────────────────────────────────
         private void ExportToExcel()
         {
@@ -1647,20 +1910,34 @@ namespace MPR_Managerment.Forms
 
         public void PositionNearButton()
         {
-            var scr = Screen.PrimaryScreen.WorkingArea;
             int x, y;
 
             if (_btnInst != null && !_btnInst.IsDisposed)
             {
-                x = Math.Max(scr.Left + 8,
-                    Math.Min(_btnInst.Left + BTN_SIZE - PANEL_W,
-                             scr.Right - PANEL_W - 8));
-                y = Math.Max(scr.Top + 8, _btnInst.Top - PANEL_H - 8);
+                // Vị trí tương đối so với parent form (vì cả 2 đều là child control)
+                x = _btnInst.Right - PANEL_W;
+                y = _btnInst.Top - PANEL_H - 10;
+
+                // Đảm bảo không tràn ra khỏi form cha
+                if (Parent != null)
+                {
+                    if (x < 10) x = 10;
+                    if (y < 10) y = 10;
+                }
             }
             else
             {
-                x = scr.Right - PANEL_W - MARGIN;
-                y = scr.Bottom - PANEL_H - BTN_SIZE - MARGIN - 8;
+                if (Parent != null)
+                {
+                    x = Parent.Width - PANEL_W - 20;
+                    y = Parent.Height - PANEL_H - 80;
+                }
+                else
+                {
+                    var scr = Screen.PrimaryScreen.WorkingArea;
+                    x = scr.Right - PANEL_W - 20;
+                    y = scr.Bottom - PANEL_H - 80;
+                }
             }
             Location = new Point(x, y);
         }

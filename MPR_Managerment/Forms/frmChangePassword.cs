@@ -22,6 +22,8 @@ namespace MPR_Managerment.Forms
 
         public frmChangePassword(int userId, bool isForced = false)
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             _userId = userId;
             _isForced = isForced;
             InitializeComponent();

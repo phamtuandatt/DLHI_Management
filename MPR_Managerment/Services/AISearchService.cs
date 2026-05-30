@@ -1583,6 +1583,83 @@ WHERE Is_Active = 1
             { System.Diagnostics.Debug.WriteLine($"[AI_Skill] EnsureTableAndSeed: {ex.Message}"); }
         }
 
+        /// <summary>
+        /// Migration + seed cho các NCC skill v2 (có {ncc_code} placeholder).
+        /// Chạy mỗi lần khởi động — dùng IF NOT EXISTS để an toàn trên DB đã có dữ liệu.
+        /// </summary>
+        public static void EnsureNccV2SkillsSeed()
+        {
+            try
+            {
+                using var conn = CreateSkillConn();
+                conn.Open();
+
+                // ── Vô hiệu hóa các NCC sub-skill cũ (không có {ncc_code}) ──
+                new SqlCommand(@"
+UPDATE AI_Skill SET Is_Active = 0
+WHERE Parent_Slash = N'/ncc'
+  AND Is_Active = 1
+  AND Skill_Name IN (N'NCC có công nợ', N'NCC theo loại', N'NCC chứng chỉ', N'NCC tài khoản ngân hàng')",
+                    conn).ExecuteNonQuery();
+
+                // ── Seed NCC sub-skill v2 (chỉ khi chưa có) ──────────────
+                var nccSeeds = new[]
+                {
+                    // (name, template, icon, order)
+                    ("Liên hệ",
+                     "Lấy tất cả thông tin liên hệ của NCC '{ncc_code}' từ bảng Suppliers hoặc vw_Supplier_FullInfo: Company_Name, Short_Name, Supplier_Type, Email, Contact_Person, Contact_Phone, Tax_Code, IsActive. Không xuất file.",
+                     "📋", 44),
+
+                    ("Công nợ - Tất cả",
+                     "Tổng hợp công nợ của NCC '{ncc_code}' từ vw_Supplier_Debt_Summary hoặc PO_head JOIN Suppliers WHERE Short_Name = '{ncc_code}': tổng giá trị PO, đã thanh toán, còn nợ. Nhóm theo PONo.",
+                     "💰", 45),
+
+                    ("Công nợ - Theo dự án",
+                     "Công nợ của NCC '{ncc_code}' trong dự án {project_code}: lọc PO_head JOIN Suppliers WHERE Short_Name = '{ncc_code}' AND ProjectCode = '{project_code}'. Hiển thị PONo, Total_Amount, đã thanh toán, còn nợ.",
+                     "💰", 46),
+
+                    ("PO theo dự án - Tóm tắt",
+                     "Tóm tắt PO của NCC '{ncc_code}' trong dự án {project_code}: số PO, tổng giá trị, PO đã hoàn thành và chưa hoàn thành. JOIN Suppliers WHERE Short_Name = '{ncc_code}' AND PO_head.ProjectCode = '{project_code}'.",
+                     "📦", 47),
+
+                    ("PO theo dự án - Chi tiết",
+                     "Danh sách chi tiết tất cả PO của NCC '{ncc_code}' trong dự án {project_code}: PONo, PO_Date, Total_Amount, Status, Expected_Delivery. JOIN Suppliers WHERE Short_Name = '{ncc_code}' AND PO_head.ProjectCode = '{project_code}'. Sắp xếp theo PO_Date giảm dần.",
+                     "📑", 48),
+
+                    ("PO gần đây - Tóm tắt",
+                     "Tóm tắt PO của NCC '{ncc_code}' từ ngày {date_from} đến {date_to}: số PO, tổng giá trị, nhóm theo ProjectCode. JOIN Suppliers WHERE Short_Name = '{ncc_code}' AND PO_head.PO_Date BETWEEN '{date_from}' AND '{date_to}'.",
+                     "🕐", 49),
+
+                    ("PO gần đây - Chi tiết",
+                     "Danh sách chi tiết PO của NCC '{ncc_code}' từ ngày {date_from} đến {date_to}: PONo, ProjectCode, PO_Date, Total_Amount, Status, Expected_Delivery. JOIN Suppliers WHERE Short_Name = '{ncc_code}' AND PO_head.PO_Date BETWEEN '{date_from}' AND '{date_to}'. Sắp xếp theo PO_Date giảm dần.",
+                     "📋", 50),
+                };
+
+                foreach (var (name, tmpl, icon, order) in nccSeeds)
+                {
+                    var ins = new SqlCommand(@"
+IF NOT EXISTS (SELECT 1 FROM AI_Skill WHERE Skill_Name = @n AND Parent_Slash = N'/ncc')
+    INSERT INTO AI_Skill (Skill_Name, Skill_Type, Slash_Command, Prompt_Template, Description, Icon, Sort_Order, Parent_Slash)
+    VALUES (@n, N'slash', NULL, @pt, @n, @ic, @so, N'/ncc')", conn);
+                    ins.Parameters.AddWithValue("@n", name);
+                    ins.Parameters.AddWithValue("@pt", tmpl);
+                    ins.Parameters.AddWithValue("@ic", icon);
+                    ins.Parameters.AddWithValue("@so", order);
+                    ins.ExecuteNonQuery();
+                }
+
+                // ── Seed "Danh sách NCC" standalone quick skill ──────────
+                new SqlCommand(@"
+IF NOT EXISTS (SELECT 1 FROM AI_Skill WHERE Skill_Name = N'Danh sách NCC' AND Skill_Type = N'quick' AND ISNULL(Parent_Slash,'') = '')
+    INSERT INTO AI_Skill (Skill_Name, Skill_Type, Slash_Command, Prompt_Template, Description, Icon, Sort_Order, Parent_Slash)
+    VALUES (N'Danh sách NCC', N'quick', NULL,
+            N'Danh sách tất cả nhà cung cấp đang hoạt động (IsActive=1) từ bảng Suppliers: Company_Name, Short_Name, Supplier_Type, Email, Contact_Person, Contact_Phone, Tax_Code. Sắp xếp theo Company_Name.',
+            N'Tất cả NCC đang hoạt động', N'🏭', 7, NULL)", conn).ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            { System.Diagnostics.Debug.WriteLine($"[AI_Skill] EnsureNccV2SkillsSeed: {ex.Message}"); }
+        }
+
         // ════════════════════════════════════════════════════════════════════
         // DANH SÁCH DỰ ÁN — dùng cho project picker dialog
         // ════════════════════════════════════════════════════════════════════
@@ -1631,6 +1708,55 @@ WHERE Is_Active = 1
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[GetProjectCodes] {ex.Message}");
+            }
+            return result;
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // DANH SÁCH NHÀ CUNG CẤP — dùng cho NCC picker popup
+        // ════════════════════════════════════════════════════════════════════
+
+        // ── Cache NCC short names ──────────────────────────────────────────
+        private static List<string> _supplierNamesCache = null;
+        private static DateTime _supplierNamesCacheTime = DateTime.MinValue;
+
+        /// <summary>
+        /// Lấy danh sách Short_Name nhà cung cấp đang hoạt động từ DB, sắp xếp A-Z.
+        /// Kết quả được cache 3 phút.
+        /// </summary>
+        public static List<string> GetSupplierShortNames(bool forceRefresh = false)
+        {
+            if (!forceRefresh && _supplierNamesCache != null
+                && DateTime.Now - _supplierNamesCacheTime < PROJECT_CODES_CACHE_TTL)
+                return _supplierNamesCache;
+
+            var result = new List<string>();
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(
+                    DatabaseHelper.GetConnection().ConnectionString)
+                { MultipleActiveResultSets = true, ApplicationName = "MPR_AI_SupplierNames" };
+                using var conn = new SqlConnection(builder.ConnectionString);
+                conn.Open();
+                var dt = new DataTable();
+                new SqlDataAdapter(new SqlCommand(@"
+                    SELECT DISTINCT LTRIM(RTRIM(Short_Name)) AS Name
+                    FROM Suppliers
+                    WHERE IsActive = 1
+                      AND Short_Name IS NOT NULL
+                      AND LTRIM(RTRIM(Short_Name)) <> ''
+                    ORDER BY Name", conn)).Fill(dt);
+                foreach (DataRow r in dt.Rows)
+                {
+                    string v = r[0]?.ToString()?.Trim();
+                    if (!string.IsNullOrEmpty(v)) result.Add(v);
+                }
+                _supplierNamesCache = result;
+                _supplierNamesCacheTime = DateTime.Now;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GetSupplierShortNames] {ex.Message}");
             }
             return result;
         }

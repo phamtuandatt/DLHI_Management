@@ -3,7 +3,6 @@
 //  Tab 1: Tiến độ thanh toán từng PO
 //  Tab 2: Báo cáo tổng hợp công nợ NCC theo kỳ
 // ============================================================
-using MPR_Managerment.Forms;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
@@ -3285,7 +3284,6 @@ private void BtnAddSched_Click(object sender, EventArgs e)
         }
 
     }
-}
 
 // =========================================================================
 //  frmPrintPreview — Hiển thị preview và nút xác nhận in
@@ -4101,4 +4099,5 @@ public class frmPaymentRequestPreview : Form
         obj.SetData(DataFormats.UnicodeText, plainText);
         Clipboard.SetDataObject(obj, true);
     }
+}
 }

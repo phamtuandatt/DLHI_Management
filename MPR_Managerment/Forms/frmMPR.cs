@@ -3835,6 +3835,7 @@ namespace MPR_Managerment.Forms
             var frm = new frmPO(mprNo, true);
             frm.SetImportMprId(mpr.MPR_ID);
             frm.Show(this);
+            frm.ImportMPRByNo(mprNo, mpr.MPR_ID);
         }
 
         private void BtnAddDetail_Click(object sender, EventArgs e)

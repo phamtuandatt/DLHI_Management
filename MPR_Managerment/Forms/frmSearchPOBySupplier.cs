@@ -42,6 +42,8 @@ namespace MPR_Managerment.Forms
         // =====================================================================
         public frmSearchPOBySupplier(List<POHead> allPO)
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             _allPO = allPO ?? new List<POHead>();
             InitForm();
             LoadData();

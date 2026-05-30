@@ -17,6 +17,8 @@ namespace MPR_Managerment.Forms
 
         public frmZaloSettings()
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             BuildUI();
             LoadSettings();
             StartStatusTimer();

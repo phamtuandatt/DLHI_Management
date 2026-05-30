@@ -83,6 +83,8 @@ namespace MPR_Managerment.Forms
         // ═════════════════════════════════════════════════════════════════
         public frmFileSorter()
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             Text = "📂 Phân loại file Scan PO / MPR";
             Size = new Size(1150, 680);
             MinimumSize = new Size(920, 520);

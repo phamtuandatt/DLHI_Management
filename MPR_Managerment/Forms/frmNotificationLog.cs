@@ -24,6 +24,8 @@ namespace MPR_Managerment.Forms
         public frmNotificationLog()
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             SetupAutoRefresh();
         }
 

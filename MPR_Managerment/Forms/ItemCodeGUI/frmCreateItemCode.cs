@@ -34,6 +34,8 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         public frmCreateItemCode(string title)
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             // Đăng ký sự kiện Shown thay vì gọi trực tiếp ở đây
             //this.Shown += (s, e) => {
             //    SetTabOrder();

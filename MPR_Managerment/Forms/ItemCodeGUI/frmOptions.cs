@@ -21,6 +21,8 @@ namespace MPR_Managerment.Forms.ItemCodeGUI
         public frmOptions(int materialCode)
         {
             InitializeComponent();
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             this.materialCode = materialCode;
         }
 

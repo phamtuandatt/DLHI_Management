@@ -37,6 +37,8 @@ namespace MPR_Managerment.Forms
 
         public frmZaloDeliveryConfig(int poId)
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             _poId = poId;
             InitializeComponent();
             LoadData();

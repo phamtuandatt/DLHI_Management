@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
+using MPR_Managerment.Forms;
 
 namespace MPR_Managerment
 {
@@ -18,6 +19,8 @@ namespace MPR_Managerment
 
         public frmReviseHistory(string poNo)
         {
+            // Gắn AI Trợ lý — hiển thị nút floating + chat panel
+            frmAIChat.Attach(this);
             _poNo = poNo;
             BuildUI();
             LoadData();

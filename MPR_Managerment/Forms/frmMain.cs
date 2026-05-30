@@ -51,6 +51,9 @@ namespace MPR_Managerment.Forms
         public frmMain()
         {
             InitializeComponent();
+            // Gắn AI Trợ lý vào form chính
+            frmAIChat.Attach(this);
+            
             this.Load += FrmMain_Load;
         }
 
