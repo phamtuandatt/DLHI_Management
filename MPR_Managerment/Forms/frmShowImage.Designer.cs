@@ -59,9 +59,6 @@ namespace MPR_Managerment.Forms
             pictureBoxPreview.Size = new Size(946, 604);
             pictureBoxPreview.TabIndex = 0;
             pictureBoxPreview.TabStop = false;
-            pictureBoxPreview.MouseDown += pictureBoxPreview_MouseDown;
-            pictureBoxPreview.MouseMove += pictureBoxPreview_MouseMove;
-            pictureBoxPreview.MouseUp += pictureBoxPreview_MouseUp;
             // 
             // txtFilter
             // 

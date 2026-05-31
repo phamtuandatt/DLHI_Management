@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 
 namespace MPR_Managerment.Forms
 {
@@ -11,130 +12,105 @@ namespace MPR_Managerment.Forms
     {
         private List<string> _allFiles = new List<string>();
         private float _zoomFactor = 1.0f;
-        private bool _isDragging = false;
+        private Point _panOffset = new Point(0, 0);
         private Point _lastMousePos;
+        private bool _isDragging = false;
 
         public frmShowImage(string folderPath)
         {
             InitializeComponent();
-            // Thiết lập PictureBox để hỗ trợ zoom tốt hơn
-            pictureBoxPreview.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBoxPreview.Dock = DockStyle.None;
-            pictureBoxPreview.Location = new Point(0, 0);
+            
+            pictureBoxPreview.SizeMode = PictureBoxSizeMode.Normal;
+            pictureBoxPreview.Paint += PictureBoxPreview_Paint;
+            pictureBoxPreview.MouseDown += PictureBoxPreview_MouseDown;
+            pictureBoxPreview.MouseMove += PictureBoxPreview_MouseMove;
+            pictureBoxPreview.MouseUp += PictureBoxPreview_MouseUp;
+            pictureBoxPreview.MouseWheel += PictureBoxPreview_MouseWheel;
             
             LoadImages(folderPath);
-            this.MouseWheel += new MouseEventHandler(frmShowImage_MouseWheel);
         }
 
         private void LoadImages(string folderPath)
         {
-            if (!Directory.Exists(folderPath))
-            {
-                MessageBox.Show("Thư mục không tồn tại!");
-                return;
-            }
-
+            if (!Directory.Exists(folderPath)) return;
             string[] extensions = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif" };
             _allFiles = extensions.SelectMany(ext => Directory.GetFiles(folderPath, ext)).ToList();
-            UpdateListBox(_allFiles);
+            listBoxImages.Items.AddRange(_allFiles.Select(Path.GetFileName).ToArray());
         }
 
-        private void UpdateListBox(List<string> files)
+        private void PictureBoxPreview_Paint(object sender, PaintEventArgs e)
         {
-            listBoxImages.Items.Clear();
-            foreach (var file in files)
-            {
-                listBoxImages.Items.Add(file);
-            }
+            if (pictureBoxPreview.Image == null) return;
+
+            e.Graphics.Clear(pictureBoxPreview.BackColor);
+            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
+            // Tính toán vị trí trung tâm
+            float scaledWidth = pictureBoxPreview.Image.Width * _zoomFactor;
+            float scaledHeight = pictureBoxPreview.Image.Height * _zoomFactor;
+            
+            float centerX = (pictureBoxPreview.Width - scaledWidth) / 2f;
+            float centerY = (pictureBoxPreview.Height - scaledHeight) / 2f;
+
+            e.Graphics.TranslateTransform(centerX + _panOffset.X, centerY + _panOffset.Y);
+            e.Graphics.ScaleTransform(_zoomFactor, _zoomFactor);
+            
+            e.Graphics.DrawImage(pictureBoxPreview.Image, 0, 0);
         }
 
-        private void txtFilter_TextChanged(object sender, EventArgs e)
-        {
-            string filter = txtFilter.Text.ToLower();
-            var filtered = _allFiles.Where(f => Path.GetFileName(f).ToLower().Contains(filter)).ToList();
-            UpdateListBox(filtered);
-        }
-
-        private void listBoxImages_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (listBoxImages.SelectedItem != null)
-            {
-                string path = listBoxImages.SelectedItem.ToString();
-                if (File.Exists(path))
-                {
-                    pictureBoxPreview.Image = Image.FromFile(path);
-                    _zoomFactor = 1.0f;
-                    ApplyZoom();
-                }
-            }
-        }
-
-        private void btnZoomIn_Click(object sender, EventArgs e)
-        {
-            _zoomFactor += 0.1f;
-            ApplyZoom();
-        }
-
-        private void btnZoomOut_Click(object sender, EventArgs e)
-        {
-            if (_zoomFactor > 0.2f)
-            {
-                _zoomFactor -= 0.1f;
-                ApplyZoom();
-            }
-        }
-
-        private void ApplyZoom()
-        {
-            if (pictureBoxPreview.Image != null)
-            {
-                // Thay đổi kích thước PictureBox để ảnh tự co giãn theo SizeMode.Zoom
-                int newWidth = (int)(pictureBoxPreview.Image.Width * _zoomFactor);
-                int newHeight = (int)(pictureBoxPreview.Image.Height * _zoomFactor);
-                
-                pictureBoxPreview.Size = new Size(newWidth, newHeight);
-                panelPreview.Invalidate();
-            }
-        }
-
-        private void frmShowImage_MouseWheel(object sender, MouseEventArgs e)
+        private void PictureBoxPreview_MouseWheel(object sender, MouseEventArgs e)
         {
             if (Control.ModifierKeys == Keys.Control)
             {
-                if (e.Delta > 0)
-                    _zoomFactor += 0.1f;
-                else if (e.Delta < 0 && _zoomFactor > 0.2f)
-                    _zoomFactor -= 0.1f;
-
-                ApplyZoom();
+                if (e.Delta > 0) _zoomFactor *= 1.1f;
+                else _zoomFactor /= 1.1f;
+                
+                _zoomFactor = Math.Max(0.1f, Math.Min(_zoomFactor, 10.0f));
+                pictureBoxPreview.Invalidate();
             }
         }
 
-        private void pictureBoxPreview_MouseDown(object sender, MouseEventArgs e)
+        private void PictureBoxPreview_MouseDown(object sender, MouseEventArgs e)
         {
-            if (e.Button == MouseButtons.Right)
+            if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
             {
                 _isDragging = true;
                 _lastMousePos = e.Location;
             }
         }
 
-        private void pictureBoxPreview_MouseMove(object sender, MouseEventArgs e)
+        private void PictureBoxPreview_MouseMove(object sender, MouseEventArgs e)
         {
             if (_isDragging)
             {
-                int deltaX = e.X - _lastMousePos.X;
-                int deltaY = e.Y - _lastMousePos.Y;
-                panelPreview.AutoScrollPosition = new Point(-panelPreview.AutoScrollPosition.X - deltaX, -panelPreview.AutoScrollPosition.Y - deltaY);
+                _panOffset.X += (e.X - _lastMousePos.X);
+                _panOffset.Y += (e.Y - _lastMousePos.Y);
+                _lastMousePos = e.Location;
+                pictureBoxPreview.Invalidate();
             }
         }
 
-        private void pictureBoxPreview_MouseUp(object sender, MouseEventArgs e)
+        private void PictureBoxPreview_MouseUp(object sender, MouseEventArgs e) => _isDragging = false;
+
+        private void listBoxImages_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (e.Button == MouseButtons.Right)
+            if (listBoxImages.SelectedIndex >= 0)
             {
-                _isDragging = false;
+                pictureBoxPreview.Image?.Dispose();
+                pictureBoxPreview.Image = Image.FromFile(_allFiles[listBoxImages.SelectedIndex]);
+                
+                // Reset zoom để ảnh khớp với PictureBox ban đầu
+                float ratioW = (float)pictureBoxPreview.Width / pictureBoxPreview.Image.Width;
+                float ratioH = (float)pictureBoxPreview.Height / pictureBoxPreview.Image.Height;
+                _zoomFactor = Math.Min(ratioW, ratioH);
+                
+                _panOffset = new Point(0, 0);
+                pictureBoxPreview.Invalidate();
             }
         }
+
+        private void btnZoomIn_Click(object sender, EventArgs e) { _zoomFactor *= 1.2f; pictureBoxPreview.Invalidate(); }
+        private void btnZoomOut_Click(object sender, EventArgs e) { _zoomFactor /= 1.2f; pictureBoxPreview.Invalidate(); }
+        private void txtFilter_TextChanged(object sender, EventArgs e) { }
     }
 }
