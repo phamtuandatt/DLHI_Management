@@ -156,7 +156,7 @@
             btnRefresh.TabIndex = 2;
             btnRefresh.Text = "Làm mới";
             btnRefresh.UseVisualStyleBackColor = true;
-            btnRefresh.Visible = false;
+            btnRefresh.Click += btnRefresh_Click;
             // 
             // cboMaterial
             // 

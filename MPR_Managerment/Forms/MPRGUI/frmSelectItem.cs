@@ -450,5 +450,11 @@ namespace MPR_Managerment.Forms.MPRGUI
             SyncDataGridViewWithList(dgvItems, selectedProducts);
             lblStatus.Text = $"Đã chọn: {selectedProducts.Count} vật tư";
         }
+
+        private void btnRefresh_Click(object sender, EventArgs e)
+        {
+            frmShowImage frm = new frmShowImage(@"D:\RAC\Image");
+            frm.ShowDialog();
+        }
     }
 }
