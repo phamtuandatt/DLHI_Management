@@ -28,8 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
-            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle5 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle6 = new DataGridViewCellStyle();
             panel1 = new Panel();
             cboProjectMaterial = new ComboBox();
             btnSearch = new Button();
@@ -47,9 +47,10 @@
             groupBox1 = new GroupBox();
             dgvPaint = new DataGridView();
             panel5 = new Panel();
-            txtPaint = new TextBox();
             cboProjectForPain = new ComboBox();
-            btnSearchPaint = new Button();
+            btnShowAllPaint = new Button();
+            btnReportPaintOfProject = new Button();
+            cboRIRNoPaint = new ComboBox();
             btnPrintRPPaint = new Button();
             label6 = new Label();
             label3 = new Label();
@@ -58,10 +59,10 @@
             groupBox3 = new GroupBox();
             dgvWelding = new DataGridView();
             panel8 = new Panel();
-            txtWelding = new TextBox();
             cboProjectForWelding = new ComboBox();
-            btnSearchWelding = new Button();
             label4 = new Label();
+            btnReportWeldingOfProject = new Button();
+            cboRIRNoWelding = new ComboBox();
             label7 = new Label();
             btnPrinRPWelding = new Button();
             groupBox4 = new GroupBox();
@@ -74,6 +75,7 @@
             btnClear = new Button();
             lblStatus = new Label();
             btnXoaRow = new Button();
+            btnShowAllWelding = new Button();
             panel1.SuspendLayout();
             groupBox2.SuspendLayout();
             panel3.SuspendLayout();
@@ -106,7 +108,7 @@
             panel1.Dock = DockStyle.Top;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(1461, 38);
+            panel1.Size = new Size(1630, 38);
             panel1.TabIndex = 0;
             // 
             // cboProjectMaterial
@@ -203,7 +205,7 @@
             groupBox2.Margin = new Padding(3, 2, 3, 2);
             groupBox2.Name = "groupBox2";
             groupBox2.Padding = new Padding(3, 2, 3, 2);
-            groupBox2.Size = new Size(1461, 762);
+            groupBox2.Size = new Size(1630, 762);
             groupBox2.TabIndex = 2;
             groupBox2.TabStop = false;
             // 
@@ -213,7 +215,7 @@
             panel3.Dock = DockStyle.Fill;
             panel3.Location = new Point(3, 56);
             panel3.Name = "panel3";
-            panel3.Size = new Size(1455, 704);
+            panel3.Size = new Size(1624, 704);
             panel3.TabIndex = 7;
             // 
             // tableLayoutPanel1
@@ -228,7 +230,7 @@
             tableLayoutPanel1.RowCount = 2;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 39.47826F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 60.52174F));
-            tableLayoutPanel1.Size = new Size(1455, 704);
+            tableLayoutPanel1.Size = new Size(1624, 704);
             tableLayoutPanel1.TabIndex = 6;
             // 
             // tableLayoutPanel2
@@ -243,7 +245,7 @@
             tableLayoutPanel2.Name = "tableLayoutPanel2";
             tableLayoutPanel2.RowCount = 1;
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel2.Size = new Size(1449, 421);
+            tableLayoutPanel2.Size = new Size(1618, 421);
             tableLayoutPanel2.TabIndex = 6;
             // 
             // panel4
@@ -253,7 +255,7 @@
             panel4.Dock = DockStyle.Fill;
             panel4.Location = new Point(3, 3);
             panel4.Name = "panel4";
-            panel4.Size = new Size(718, 415);
+            panel4.Size = new Size(803, 415);
             panel4.TabIndex = 1;
             // 
             // panel6
@@ -262,7 +264,7 @@
             panel6.Dock = DockStyle.Fill;
             panel6.Location = new Point(0, 42);
             panel6.Name = "panel6";
-            panel6.Size = new Size(718, 373);
+            panel6.Size = new Size(803, 373);
             panel6.TabIndex = 2;
             // 
             // groupBox1
@@ -271,7 +273,7 @@
             groupBox1.Dock = DockStyle.Fill;
             groupBox1.Location = new Point(0, 0);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(718, 373);
+            groupBox1.Size = new Size(803, 373);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             groupBox1.Text = "Danh sách sơn";
@@ -284,15 +286,15 @@
             dgvPaint.BackgroundColor = Color.White;
             dgvPaint.BorderStyle = BorderStyle.None;
             dgvPaint.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
-            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle1.BackColor = Color.DodgerBlue;
-            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            dataGridViewCellStyle1.ForeColor = Color.White;
-            dataGridViewCellStyle1.Padding = new Padding(5);
-            dataGridViewCellStyle1.SelectionBackColor = SystemColors.Highlight;
-            dataGridViewCellStyle1.SelectionForeColor = SystemColors.HighlightText;
-            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
-            dgvPaint.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
+            dataGridViewCellStyle5.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle5.BackColor = Color.DodgerBlue;
+            dataGridViewCellStyle5.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            dataGridViewCellStyle5.ForeColor = Color.White;
+            dataGridViewCellStyle5.Padding = new Padding(5);
+            dataGridViewCellStyle5.SelectionBackColor = SystemColors.Highlight;
+            dataGridViewCellStyle5.SelectionForeColor = SystemColors.HighlightText;
+            dataGridViewCellStyle5.WrapMode = DataGridViewTriState.True;
+            dgvPaint.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle5;
             dgvPaint.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvPaint.Dock = DockStyle.Fill;
             dgvPaint.EnableHeadersVisualStyles = false;
@@ -300,29 +302,24 @@
             dgvPaint.Margin = new Padding(3, 2, 3, 2);
             dgvPaint.Name = "dgvPaint";
             dgvPaint.RowHeadersWidth = 51;
-            dgvPaint.Size = new Size(712, 351);
+            dgvPaint.Size = new Size(797, 351);
             dgvPaint.TabIndex = 6;
             // 
             // panel5
             // 
-            panel5.Controls.Add(txtPaint);
+            panel5.BorderStyle = BorderStyle.FixedSingle;
             panel5.Controls.Add(cboProjectForPain);
-            panel5.Controls.Add(btnSearchPaint);
+            panel5.Controls.Add(btnShowAllPaint);
+            panel5.Controls.Add(btnReportPaintOfProject);
+            panel5.Controls.Add(cboRIRNoPaint);
             panel5.Controls.Add(btnPrintRPPaint);
             panel5.Controls.Add(label6);
             panel5.Controls.Add(label3);
             panel5.Dock = DockStyle.Top;
             panel5.Location = new Point(0, 0);
             panel5.Name = "panel5";
-            panel5.Size = new Size(718, 42);
+            panel5.Size = new Size(803, 42);
             panel5.TabIndex = 1;
-            // 
-            // txtPaint
-            // 
-            txtPaint.Location = new Point(230, 9);
-            txtPaint.Name = "txtPaint";
-            txtPaint.Size = new Size(148, 23);
-            txtPaint.TabIndex = 9;
             // 
             // cboProjectForPain
             // 
@@ -336,19 +333,47 @@
             cboProjectForPain.TabIndex = 8;
             cboProjectForPain.SelectedIndexChanged += cboProjectForPain_SelectedIndexChanged;
             // 
-            // btnSearchPaint
+            // btnShowAllPaint
             // 
-            btnSearchPaint.BackColor = Color.FromArgb(0, 120, 212);
-            btnSearchPaint.FlatStyle = FlatStyle.Flat;
-            btnSearchPaint.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnSearchPaint.ForeColor = Color.White;
-            btnSearchPaint.Location = new Point(395, 6);
-            btnSearchPaint.Margin = new Padding(3, 2, 3, 2);
-            btnSearchPaint.Name = "btnSearchPaint";
-            btnSearchPaint.Size = new Size(101, 29);
-            btnSearchPaint.TabIndex = 7;
-            btnSearchPaint.Text = "🔍 Tìm kiếm";
-            btnSearchPaint.UseVisualStyleBackColor = false;
+            btnShowAllPaint.BackColor = Color.FromArgb(0, 120, 212);
+            btnShowAllPaint.FlatStyle = FlatStyle.Flat;
+            btnShowAllPaint.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnShowAllPaint.ForeColor = Color.White;
+            btnShowAllPaint.Location = new Point(407, 6);
+            btnShowAllPaint.Margin = new Padding(3, 2, 3, 2);
+            btnShowAllPaint.Name = "btnShowAllPaint";
+            btnShowAllPaint.Size = new Size(101, 29);
+            btnShowAllPaint.TabIndex = 7;
+            btnShowAllPaint.Text = "🔍 Tất cả";
+            btnShowAllPaint.UseVisualStyleBackColor = false;
+            btnShowAllPaint.Click += btnShowAllPaint_Click;
+            // 
+            // btnReportPaintOfProject
+            // 
+            btnReportPaintOfProject.BackColor = Color.ForestGreen;
+            btnReportPaintOfProject.FlatStyle = FlatStyle.Flat;
+            btnReportPaintOfProject.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnReportPaintOfProject.ForeColor = Color.White;
+            btnReportPaintOfProject.Location = new Point(641, 6);
+            btnReportPaintOfProject.Margin = new Padding(3, 2, 3, 2);
+            btnReportPaintOfProject.Name = "btnReportPaintOfProject";
+            btnReportPaintOfProject.Size = new Size(82, 29);
+            btnReportPaintOfProject.TabIndex = 4;
+            btnReportPaintOfProject.Text = "📄 Report";
+            btnReportPaintOfProject.UseVisualStyleBackColor = false;
+            btnReportPaintOfProject.Click += btnReportPaintOfProject_Click;
+            // 
+            // cboRIRNoPaint
+            // 
+            cboRIRNoPaint.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            cboRIRNoPaint.AutoCompleteSource = AutoCompleteSource.ListItems;
+            cboRIRNoPaint.FormattingEnabled = true;
+            cboRIRNoPaint.Location = new Point(234, 9);
+            cboRIRNoPaint.Margin = new Padding(3, 2, 3, 2);
+            cboRIRNoPaint.Name = "cboRIRNoPaint";
+            cboRIRNoPaint.Size = new Size(167, 23);
+            cboRIRNoPaint.TabIndex = 6;
+            cboRIRNoPaint.SelectedIndexChanged += cboRIRNoPaint_SelectedIndexChanged;
             // 
             // btnPrintRPPaint
             // 
@@ -356,22 +381,23 @@
             btnPrintRPPaint.FlatStyle = FlatStyle.Flat;
             btnPrintRPPaint.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnPrintRPPaint.ForeColor = Color.White;
-            btnPrintRPPaint.Location = new Point(502, 6);
+            btnPrintRPPaint.Location = new Point(514, 6);
             btnPrintRPPaint.Margin = new Padding(3, 2, 3, 2);
             btnPrintRPPaint.Name = "btnPrintRPPaint";
-            btnPrintRPPaint.Size = new Size(159, 29);
+            btnPrintRPPaint.Size = new Size(121, 29);
             btnPrintRPPaint.TabIndex = 4;
-            btnPrintRPPaint.Text = "📄 In báo cáo vật tư";
+            btnPrintRPPaint.Text = "📄 In báo cáo sơn";
             btnPrintRPPaint.UseVisualStyleBackColor = false;
+            btnPrintRPPaint.Click += btnPrintRPPaint_Click;
             // 
             // label6
             // 
             label6.AutoSize = true;
-            label6.Location = new Point(196, 13);
+            label6.Location = new Point(186, 13);
             label6.Name = "label6";
-            label6.Size = new Size(28, 15);
+            label6.Size = new Size(46, 15);
             label6.TabIndex = 5;
-            label6.Text = "Tên:";
+            label6.Text = "RIR No:";
             // 
             // label3
             // 
@@ -387,9 +413,9 @@
             panel7.Controls.Add(panel9);
             panel7.Controls.Add(panel8);
             panel7.Dock = DockStyle.Fill;
-            panel7.Location = new Point(727, 3);
+            panel7.Location = new Point(812, 3);
             panel7.Name = "panel7";
-            panel7.Size = new Size(719, 415);
+            panel7.Size = new Size(803, 415);
             panel7.TabIndex = 2;
             // 
             // panel9
@@ -398,7 +424,7 @@
             panel9.Dock = DockStyle.Fill;
             panel9.Location = new Point(0, 42);
             panel9.Name = "panel9";
-            panel9.Size = new Size(719, 373);
+            panel9.Size = new Size(803, 373);
             panel9.TabIndex = 1;
             // 
             // groupBox3
@@ -407,7 +433,7 @@
             groupBox3.Dock = DockStyle.Fill;
             groupBox3.Location = new Point(0, 0);
             groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(719, 373);
+            groupBox3.Size = new Size(803, 373);
             groupBox3.TabIndex = 0;
             groupBox3.TabStop = false;
             groupBox3.Text = "Danh sách que hàn";
@@ -420,15 +446,15 @@
             dgvWelding.BackgroundColor = Color.White;
             dgvWelding.BorderStyle = BorderStyle.None;
             dgvWelding.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
-            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle2.BackColor = Color.DodgerBlue;
-            dataGridViewCellStyle2.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            dataGridViewCellStyle2.ForeColor = Color.White;
-            dataGridViewCellStyle2.Padding = new Padding(5);
-            dataGridViewCellStyle2.SelectionBackColor = SystemColors.Highlight;
-            dataGridViewCellStyle2.SelectionForeColor = SystemColors.HighlightText;
-            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.True;
-            dgvWelding.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle2;
+            dataGridViewCellStyle6.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle6.BackColor = Color.DodgerBlue;
+            dataGridViewCellStyle6.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            dataGridViewCellStyle6.ForeColor = Color.White;
+            dataGridViewCellStyle6.Padding = new Padding(5);
+            dataGridViewCellStyle6.SelectionBackColor = SystemColors.Highlight;
+            dataGridViewCellStyle6.SelectionForeColor = SystemColors.HighlightText;
+            dataGridViewCellStyle6.WrapMode = DataGridViewTriState.True;
+            dgvWelding.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle6;
             dgvWelding.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvWelding.Dock = DockStyle.Fill;
             dgvWelding.EnableHeadersVisualStyles = false;
@@ -436,29 +462,24 @@
             dgvWelding.Margin = new Padding(3, 2, 3, 2);
             dgvWelding.Name = "dgvWelding";
             dgvWelding.RowHeadersWidth = 51;
-            dgvWelding.Size = new Size(713, 351);
+            dgvWelding.Size = new Size(797, 351);
             dgvWelding.TabIndex = 6;
             // 
             // panel8
             // 
-            panel8.Controls.Add(txtWelding);
+            panel8.BorderStyle = BorderStyle.FixedSingle;
             panel8.Controls.Add(cboProjectForWelding);
-            panel8.Controls.Add(btnSearchWelding);
+            panel8.Controls.Add(btnShowAllWelding);
             panel8.Controls.Add(label4);
+            panel8.Controls.Add(btnReportWeldingOfProject);
+            panel8.Controls.Add(cboRIRNoWelding);
             panel8.Controls.Add(label7);
             panel8.Controls.Add(btnPrinRPWelding);
             panel8.Dock = DockStyle.Top;
             panel8.Location = new Point(0, 0);
             panel8.Name = "panel8";
-            panel8.Size = new Size(719, 42);
+            panel8.Size = new Size(803, 42);
             panel8.TabIndex = 0;
-            // 
-            // txtWelding
-            // 
-            txtWelding.Location = new Point(241, 9);
-            txtWelding.Name = "txtWelding";
-            txtWelding.Size = new Size(148, 23);
-            txtWelding.TabIndex = 9;
             // 
             // cboProjectForWelding
             // 
@@ -472,20 +493,6 @@
             cboProjectForWelding.TabIndex = 8;
             cboProjectForWelding.SelectedIndexChanged += cboProjectForWelding_SelectedIndexChanged;
             // 
-            // btnSearchWelding
-            // 
-            btnSearchWelding.BackColor = Color.FromArgb(0, 120, 212);
-            btnSearchWelding.FlatStyle = FlatStyle.Flat;
-            btnSearchWelding.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnSearchWelding.ForeColor = Color.White;
-            btnSearchWelding.Location = new Point(412, 6);
-            btnSearchWelding.Margin = new Padding(3, 2, 3, 2);
-            btnSearchWelding.Name = "btnSearchWelding";
-            btnSearchWelding.Size = new Size(101, 29);
-            btnSearchWelding.TabIndex = 7;
-            btnSearchWelding.Text = "🔍 Tìm kiếm";
-            btnSearchWelding.UseVisualStyleBackColor = false;
-            // 
             // label4
             // 
             label4.AutoSize = true;
@@ -495,14 +502,41 @@
             label4.TabIndex = 5;
             label4.Text = "Dự án:";
             // 
+            // btnReportWeldingOfProject
+            // 
+            btnReportWeldingOfProject.BackColor = Color.ForestGreen;
+            btnReportWeldingOfProject.FlatStyle = FlatStyle.Flat;
+            btnReportWeldingOfProject.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnReportWeldingOfProject.ForeColor = Color.White;
+            btnReportWeldingOfProject.Location = new Point(689, 5);
+            btnReportWeldingOfProject.Margin = new Padding(3, 2, 3, 2);
+            btnReportWeldingOfProject.Name = "btnReportWeldingOfProject";
+            btnReportWeldingOfProject.Size = new Size(82, 29);
+            btnReportWeldingOfProject.TabIndex = 4;
+            btnReportWeldingOfProject.Text = "📄 Report";
+            btnReportWeldingOfProject.UseVisualStyleBackColor = false;
+            btnReportWeldingOfProject.Click += btnReportWeldingOfProject_Click;
+            // 
+            // cboRIRNoWelding
+            // 
+            cboRIRNoWelding.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            cboRIRNoWelding.AutoCompleteSource = AutoCompleteSource.ListItems;
+            cboRIRNoWelding.FormattingEnabled = true;
+            cboRIRNoWelding.Location = new Point(247, 9);
+            cboRIRNoWelding.Margin = new Padding(3, 2, 3, 2);
+            cboRIRNoWelding.Name = "cboRIRNoWelding";
+            cboRIRNoWelding.Size = new Size(167, 23);
+            cboRIRNoWelding.TabIndex = 6;
+            cboRIRNoWelding.SelectedIndexChanged += cboRIRNoWelding_SelectedIndexChanged;
+            // 
             // label7
             // 
             label7.AutoSize = true;
-            label7.Location = new Point(207, 13);
+            label7.Location = new Point(195, 13);
             label7.Name = "label7";
-            label7.Size = new Size(28, 15);
+            label7.Size = new Size(46, 15);
             label7.TabIndex = 5;
-            label7.Text = "Tên:";
+            label7.Text = "RIR No:";
             // 
             // btnPrinRPWelding
             // 
@@ -510,13 +544,14 @@
             btnPrinRPWelding.FlatStyle = FlatStyle.Flat;
             btnPrinRPWelding.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnPrinRPWelding.ForeColor = Color.White;
-            btnPrinRPWelding.Location = new Point(519, 6);
+            btnPrinRPWelding.Location = new Point(524, 6);
             btnPrinRPWelding.Margin = new Padding(3, 2, 3, 2);
             btnPrinRPWelding.Name = "btnPrinRPWelding";
             btnPrinRPWelding.Size = new Size(159, 29);
             btnPrinRPWelding.TabIndex = 4;
-            btnPrinRPWelding.Text = "📄 In báo cáo vật tư";
+            btnPrinRPWelding.Text = "📄 In báo cáo vật tư hàn";
             btnPrinRPWelding.UseVisualStyleBackColor = false;
+            btnPrinRPWelding.Click += btnPrinRPWelding_Click;
             // 
             // groupBox4
             // 
@@ -524,7 +559,7 @@
             groupBox4.Dock = DockStyle.Fill;
             groupBox4.Location = new Point(3, 3);
             groupBox4.Name = "groupBox4";
-            groupBox4.Size = new Size(1449, 271);
+            groupBox4.Size = new Size(1618, 271);
             groupBox4.TabIndex = 7;
             groupBox4.TabStop = false;
             groupBox4.Text = "Danh sách vật tư";
@@ -534,6 +569,7 @@
             dgvRIR.AllowUserToAddRows = false;
             dgvRIR.AllowUserToDeleteRows = false;
             dgvRIR.AllowUserToOrderColumns = true;
+            dgvRIR.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dgvRIR.BackgroundColor = Color.White;
             dgvRIR.BorderStyle = BorderStyle.None;
             dgvRIR.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
@@ -543,7 +579,7 @@
             dgvRIR.Margin = new Padding(3, 2, 3, 2);
             dgvRIR.Name = "dgvRIR";
             dgvRIR.RowHeadersWidth = 51;
-            dgvRIR.Size = new Size(1443, 249);
+            dgvRIR.Size = new Size(1612, 249);
             dgvRIR.TabIndex = 5;
             dgvRIR.CellContentClick += dgvRIR_CellContentClick;
             dgvRIR.CellEndEdit += dgvRIR_CellEndEdit;
@@ -561,7 +597,7 @@
             panel2.Dock = DockStyle.Top;
             panel2.Location = new Point(3, 18);
             panel2.Name = "panel2";
-            panel2.Size = new Size(1455, 38);
+            panel2.Size = new Size(1624, 38);
             panel2.TabIndex = 6;
             // 
             // btnSave
@@ -598,7 +634,7 @@
             btnExportListItem.FlatStyle = FlatStyle.Flat;
             btnExportListItem.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnExportListItem.ForeColor = Color.White;
-            btnExportListItem.Location = new Point(1223, 4);
+            btnExportListItem.Location = new Point(1392, 4);
             btnExportListItem.Margin = new Padding(3, 2, 3, 2);
             btnExportListItem.Name = "btnExportListItem";
             btnExportListItem.Size = new Size(109, 29);
@@ -614,7 +650,7 @@
             btnExport.FlatStyle = FlatStyle.Flat;
             btnExport.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnExport.ForeColor = Color.White;
-            btnExport.Location = new Point(1338, 4);
+            btnExport.Location = new Point(1507, 4);
             btnExport.Margin = new Padding(3, 2, 3, 2);
             btnExport.Name = "btnExport";
             btnExport.Size = new Size(109, 29);
@@ -656,13 +692,28 @@
             btnXoaRow.FlatStyle = FlatStyle.Flat;
             btnXoaRow.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnXoaRow.ForeColor = Color.White;
-            btnXoaRow.Location = new Point(2362, 15);
+            btnXoaRow.Location = new Point(2531, 15);
             btnXoaRow.Margin = new Padding(3, 2, 3, 2);
             btnXoaRow.Name = "btnXoaRow";
             btnXoaRow.Size = new Size(109, 29);
             btnXoaRow.TabIndex = 4;
             btnXoaRow.Text = "🗑 Xóa dòng";
             btnXoaRow.UseVisualStyleBackColor = false;
+            // 
+            // btnShowAllWelding
+            // 
+            btnShowAllWelding.BackColor = Color.FromArgb(0, 120, 212);
+            btnShowAllWelding.FlatStyle = FlatStyle.Flat;
+            btnShowAllWelding.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnShowAllWelding.ForeColor = Color.White;
+            btnShowAllWelding.Location = new Point(420, 6);
+            btnShowAllWelding.Margin = new Padding(3, 2, 3, 2);
+            btnShowAllWelding.Name = "btnShowAllWelding";
+            btnShowAllWelding.Size = new Size(101, 29);
+            btnShowAllWelding.TabIndex = 7;
+            btnShowAllWelding.Text = "🔍 Tất cả";
+            btnShowAllWelding.UseVisualStyleBackColor = false;
+            btnShowAllWelding.Click += btnShowAllWelding_Click;
             // 
             // ucRIRForQC
             // 
@@ -671,7 +722,7 @@
             Controls.Add(groupBox2);
             Controls.Add(panel1);
             Name = "ucRIRForQC";
-            Size = new Size(1461, 800);
+            Size = new Size(1630, 800);
             Load += ucRIRForQC_Load;
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
@@ -729,20 +780,22 @@
         private Panel panel6;
         private Panel panel5;
         private ComboBox cboProjectForPain;
-        private Button btnSearchPaint;
+        private Button btnShowAllPaint;
         private Button btnPrintRPPaint;
         private Label label3;
         private Panel panel7;
         private Panel panel9;
         private Panel panel8;
         private ComboBox cboProjectForWelding;
-        private Button btnSearchWelding;
         private Label label4;
         private Button btnPrinRPWelding;
-        private TextBox txtPaint;
         private Label label6;
-        private TextBox txtWelding;
         private Label label7;
         private GroupBox groupBox4;
+        private Button btnReportPaintOfProject;
+        private ComboBox cboRIRNoPaint;
+        private ComboBox cboRIRNoWelding;
+        private Button btnReportWeldingOfProject;
+        private Button btnShowAllWelding;
     }
 }

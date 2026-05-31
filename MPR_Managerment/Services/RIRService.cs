@@ -144,6 +144,178 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        public async Task<DataTable> GetPaintDetails(string projectCode = "")
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = @"SELECT 
+                        d.RIR_Detail_ID, 
+                        d.RIR_ID, 
+                        d.PO_Detail_ID, 
+                        d.Item_No,
+                        d.item_name, 
+                        d.Material, 
+                        d.Size, 
+                        d.UNIT,
+                        d.Qty_Per_Sheet, 
+                        d.MTRno, 
+                        d.Heatno, 
+                        d.Created_Date, 
+                        d.Qty_Required, 
+                        d.Qty_Received, 
+                        d.Inspect_Result, 
+                        d.ID_Code, 
+                        d.Remarks,
+                        p.ProjectCode,
+                        h.RIR_No
+                    FROM dbo.RIR_detail d
+                    INNER JOIN dbo.RIR_head h ON d.RIR_ID = h.RIR_ID
+                    INNER JOIN dbo.PO_head p ON h.PONo = p.PONo
+                    WHERE (d.item_name LIKE '%Paint%' OR d.item_name LIKE '%Sơn%')";
+                if (!string.IsNullOrEmpty(projectCode))
+                {
+                    sql += $" AND p.ProjectCode = '{projectCode}'";
+                }
+
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetRIRNoPaint()
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                const string sql = @"
+                    SELECT DISTINCT h.RIR_ID, h.RIR_No
+                    FROM dbo.RIR_head h
+                    INNER JOIN dbo.PO_head p ON h.PONo = p.PONo
+                    INNER JOIN dbo.RIR_detail d ON d.RIR_ID = h.RIR_ID
+                    WHERE (d.item_name LIKE '%Paint%' OR d.item_name LIKE N'%Sơn%')
+                    ORDER BY h.RIR_No";
+
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                await conn.OpenAsync();
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                {
+                    dt.Load(reader);
+                }
+
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetRIRNoWelding()
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                const string sql = @"
+                    SELECT DISTINCT h.RIR_ID, h.RIR_No
+                    FROM dbo.RIR_head h
+                    INNER JOIN dbo.PO_head p ON h.PONo = p.PONo
+                    INNER JOIN dbo.RIR_detail d ON d.RIR_ID = h.RIR_ID
+                    WHERE (d.item_name LIKE '%Welding%' OR d.item_name LIKE N'%Hàn%')
+                    ORDER BY h.RIR_No";
+
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                await conn.OpenAsync();
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                {
+                    dt.Load(reader);
+                }
+
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetRIRHeaderForPaintOrWelding(bool isPaint = false, bool isWelding = false)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                var sql = @"
+                    SELECT DISTINCT h.RIR_No
+                    FROM dbo.RIR_head h
+                    INNER JOIN dbo.PO_head p ON h.PONo = p.PONo
+                    INNER JOIN dbo.RIR_detail d ON d.RIR_ID = h.RIR_ID
+                    WHERE (d.item_name LIKE '%{0}%' OR d.item_name LIKE N'%{1}%')
+                    ORDER BY h.RIR_No";
+
+                if (isPaint)
+                {
+                    sql = string.Format(sql, "Paint", "Sơn");
+                }
+                if (isWelding)
+                {
+                    sql = string.Format(sql, "Welding", "Hàn");
+                }
+
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                await conn.OpenAsync();
+
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                {
+                    dt.Load(reader);
+                }
+
+                return dt;
+            }
+        }
+
+        public async Task<DataTable> GetWeldingDetails(string projectCode = "")
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = @"SELECT 
+                        d.RIR_Detail_ID, 
+                        d.RIR_ID, 
+                        d.PO_Detail_ID, 
+                        d.Item_No,
+                        d.item_name, 
+                        d.Material, 
+                        d.Size, 
+                        d.UNIT,
+                        d.Qty_Per_Sheet, 
+                        d.MTRno, 
+                        d.Heatno, 
+                        d.Created_Date, 
+                        d.Qty_Required, 
+                        d.Qty_Received, 
+                        d.Inspect_Result, 
+                        d.ID_Code, 
+                        d.Remarks,
+                        p.ProjectCode,
+                        h.RIR_No
+                    FROM dbo.RIR_detail d
+                    INNER JOIN dbo.RIR_head h ON d.RIR_ID = h.RIR_ID
+                    INNER JOIN dbo.PO_head p ON h.PONo = p.PONo
+                    WHERE (d.item_name LIKE '%Welding%' OR d.item_name LIKE '%Hàn%')";
+                if (!string.IsNullOrEmpty(projectCode))
+                {
+                    sql += $" AND p.ProjectCode = '{projectCode}'";
+                }
+
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         public async Task<DataTable> GetDetailsToExport(int rirId)
         {
             //using (SqlConnection conn = new SqlConnection(connectionString))

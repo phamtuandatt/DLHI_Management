@@ -485,7 +485,7 @@ namespace MPR_Managerment.Services
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                string sql = "SELECT Import_ID, Import_No, Import_Date, PO_Detail_ID, Item_Name, Material, Size, UNIT, Qty_Import, Weight_kg, ID_Code, MTRno, Heatno, QC_Code FROM Warehouse_Import WHERE (Item_Name LIKE '%Paint%' OR Item_Name LIKE '%Sơn%')";
+                string sql = "SELECT Import_ID, Import_No, Import_Date, PO_Detail_ID, Item_Name, Material, Size, UNIT, Qty_Import, Weight_kg, ID_Code, MTRno, Heatno, QC_Code, Project_Code FROM Warehouse_Import WHERE (Item_Name LIKE '%Paint%' OR Item_Name LIKE '%Sơn%')";
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 var cmd = new SqlCommand(sql, conn);
@@ -503,7 +503,7 @@ namespace MPR_Managerment.Services
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                string sql = "SELECT Import_ID, Import_No, Import_Date, PO_Detail_ID, Item_Name, Material, Size, UNIT, Qty_Import, Weight_kg, ID_Code, MTRno, Heatno, QC_Code FROM Warehouse_Import WHERE (Item_Name LIKE '%Welding%' OR Item_Name LIKE '%Hàn%')";
+                string sql = "SELECT Import_ID, Import_No, Import_Date, PO_Detail_ID, Item_Name, Material, Size, UNIT, Qty_Import, Weight_kg, ID_Code, MTRno, Heatno, QC_Code, Project_Code FROM Warehouse_Import WHERE (Item_Name LIKE '%Welding%' OR Item_Name LIKE '%Hàn%')";
                 if (!string.IsNullOrEmpty(projectCode))
                     sql += $" AND Project_Code = N'{projectCode}'";
                 var cmd = new SqlCommand(sql, conn);
