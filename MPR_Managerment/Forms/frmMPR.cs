@@ -283,19 +283,45 @@ namespace MPR_Managerment.Forms
             // Add labels before right-side buttons so buttons have higher z-order
             toolbar.Controls.Add(lblZoom);
             toolbar.Controls.Add(lblInfo);
-            var btnPrint = MkBtn("⎙ In file", 0, 90, Color.FromArgb(80, 60, 140));
-            var btnOpen  = MkBtn("↗ Mở file", 0, 84, Color.FromArgb(0, 120, 60));
-            var btnClose = MkBtn("✖",          0, 36, Color.FromArgb(196, 43, 28));
+            var btnPrint  = MkBtn("⎙ In file",      0, 90, Color.FromArgb(80, 60, 140));
+            var btnOpen   = MkBtn("↗ Mở file",     0, 84, Color.FromArgb(0, 120, 60));
+            var btnFolder = MkBtn("📁 Mở thư mục", 0, 108, Color.FromArgb(160, 100, 0));
+            var btnClose  = MkBtn("✖",              0, 36, Color.FromArgb(196, 43, 28));
             // Position right-side buttons dynamically — Anchor fails when toolbar width is 0 at button creation
             void PlaceRightBtns()
             {
                 int r = toolbar.ClientSize.Width - 4;
-                btnClose.Left = r - btnClose.Width; r = btnClose.Left - 4;
-                btnOpen.Left  = r - btnOpen.Width;  r = btnOpen.Left  - 4;
-                btnPrint.Left = r - btnPrint.Width;
+                btnClose.Left  = r - btnClose.Width;  r = btnClose.Left  - 4;
+                btnFolder.Left = r - btnFolder.Width; r = btnFolder.Left - 4;
+                btnOpen.Left   = r - btnOpen.Width;   r = btnOpen.Left   - 4;
+                btnPrint.Left  = r - btnPrint.Width;
             }
-            toolbar.Resize += (s, e) => PlaceRightBtns();
+            toolbar.Resize += (s, e) =>
+            {
+                PlaceRightBtns();
+                // Đảm bảo button luôn nằm trên label
+                foreach (Control c in toolbar.Controls)
+                    if (c is Button) c.BringToFront();
+            };
+            btnFolder.Click += (s, e) =>
+            {
+                try
+                {
+                    string dir = Path.GetDirectoryName(filePath);
+                    if (Directory.Exists(dir))
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "explorer.exe",
+                            Arguments = $"/select,\"{filePath}\"",
+                            UseShellExecute = true
+                        });
+                }
+                catch { }
+            };
             f.Controls.Add(toolbar);   // triggers first Resize → buttons placed correctly
+            // Lần đầu: đảm bảo button trên label
+            foreach (Control c in toolbar.Controls)
+                if (c is Button) c.BringToFront();
 
             Action printAction = null;
             btnPrint.Click += (s, e) =>
@@ -458,9 +484,10 @@ namespace MPR_Managerment.Forms
                         try
                         {
                             using var pd = new System.Drawing.Printing.PrintDocument();
-                            // Margin nhỏ ~2.5mm để ảnh phủ gần hết trang A4
+                            // Margin nhỏ ~2.5mm, mặc định khổ ngang (Landscape)
                             pd.DefaultPageSettings.Margins =
                                 new System.Drawing.Printing.Margins(10, 10, 10, 10);
+                            pd.DefaultPageSettings.Landscape = true;
                             var dlg = new PrintDialog { Document = pd };
                             if (dlg.ShowDialog() != DialogResult.OK) return;
                             var bmp = origBmp;
