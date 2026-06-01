@@ -101,6 +101,7 @@ namespace MPR_Managerment.Forms
         }
 
         private List<MPRHeader> _mprList = new List<MPRHeader>();
+        private bool _isLoadingMPR = false; // suppress DgvMPR_SelectionChanged khi đang bind
         private List<MPRDetail> _details = new List<MPRDetail>();
         private int _selectedMPR_ID = 0;
         private string _currentUser = "Admin";
@@ -710,18 +711,19 @@ namespace MPR_Managerment.Forms
         {
             _targetMprId = mprId;
             InitializeComponent();
-            EnsureIsDeletedColumn();
             BuildUI();
             ApplyPermissions();
-            LoadMPR();
             this.Resize += FrmMPR_Resize;
             this.WindowState = FormWindowState.Maximized;
-
-            if (_targetMprId > 0)
-            {
-                SelectMPRById(_targetMprId);
-            }
             frmAIChat.Attach(this);
+            this.Shown += async (s, e) =>
+            {
+                // Chạy DB trên background thread để không block UI
+                await Task.Run(() => EnsureIsDeletedColumn());
+                await LoadMPRAsync();
+                if (_targetMprId > 0)
+                    SelectMPRById(_targetMprId);
+            };
         }
 
         private void SelectMPRById(int id)
@@ -1470,13 +1472,33 @@ namespace MPR_Managerment.Forms
         {
             try
             {
-                // Load TẤT CẢ MPR — bao gồm cả các Rev cũ (hiển thị dạng chỉ đọc/xám)
                 _mprList = _service.GetAll();
+                _isLoadingMPR = true;
                 BindMPRGrid(_mprList);
+                _isLoadingMPR = false;
                 lblStatus.Text = $"Tổng: {_mprList.Count} phiếu MPR";
             }
             catch (Exception ex)
             {
+                _isLoadingMPR = false;
+                MessageBox.Show("Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task LoadMPRAsync()
+        {
+            try
+            {
+                var list = await Task.Run(() => _service.GetAll());
+                _mprList = list;
+                _isLoadingMPR = true;
+                BindMPRGrid(_mprList);
+                _isLoadingMPR = false;
+                lblStatus.Text = $"Tổng: {_mprList.Count} phiếu MPR";
+            }
+            catch (Exception ex)
+            {
+                _isLoadingMPR = false;
                 MessageBox.Show("Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1860,7 +1882,7 @@ namespace MPR_Managerment.Forms
         // ===== SỰ KIỆN =====
         private void DgvMPR_SelectionChanged(object sender, EventArgs e)
         {
-            if (dgvMPR.SelectedRows.Count == 0) return;
+            if (_isLoadingMPR || dgvMPR.SelectedRows.Count == 0) return;
             var row = dgvMPR.SelectedRows[0];
             _selectedMPR_ID = Convert.ToInt32(row.Cells["ID"].Value);
 
@@ -4015,7 +4037,7 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        private void BtnSaveDetail_Click(object sender, EventArgs e)
+        private async void BtnSaveDetail_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("MPR", "Lưu chi tiết", "Lưu chi tiết")) return;
             if (_selectedMPR_ID == 0)
@@ -4032,125 +4054,129 @@ namespace MPR_Managerment.Forms
             // ── Xác thực mật khẩu Admin trước khi lưu ──
             if (!VerifyAdminPassword()) return;
 
+            btnSaveDetail.Enabled = false;
+            this.Cursor = Cursors.WaitCursor;
+
+            // Snapshot dữ liệu từ grid trước khi vào Task.Run
+            var rowData = new List<(int detailId, int itemNo, string itemName, string desc, string material,
+                decimal thickMm, decimal depthMm, decimal cWidthMm, decimal dWebMm, decimal eFlangeMm, decimal fLengthMm,
+                string unit, int qty, decimal weight, string mpsInfo, string usageLoc, string rev, string remarks)>();
+            foreach (DataGridViewRow row in dgvDetails.Rows)
+            {
+                if (row.IsNewRow) continue;
+                string itemName = row.Cells["Item_Name"].Value?.ToString() ?? "";
+                if (string.IsNullOrWhiteSpace(itemName)) continue;
+                rowData.Add((
+                    Convert.ToInt32(row.Cells["Detail_ID"].Value ?? 0),
+                    Convert.ToInt32(row.Cells["Item_No"].Value ?? 0),
+                    itemName,
+                    row.Cells["Description"].Value?.ToString() ?? "",
+                    row.Cells["Material"].Value?.ToString() ?? "",
+                    DecimalVal(row.Cells["Thickness_mm"].Value),
+                    DecimalVal(row.Cells["Depth_mm"].Value),
+                    DecimalVal(row.Cells["C_Width_mm"].Value),
+                    DecimalVal(row.Cells["D_Web_mm"].Value),
+                    DecimalVal(row.Cells["E_Flange_mm"].Value),
+                    DecimalVal(row.Cells["F_Length_mm"].Value),
+                    row.Cells["UNIT"].Value?.ToString() ?? "",
+                    (int)DecimalVal(row.Cells["Qty"].Value),
+                    DecimalVal(row.Cells["Weight"].Value),
+                    row.Cells["MPS_Info"].Value?.ToString() ?? "",
+                    row.Cells["Usage_Location"].Value?.ToString() ?? "",
+                    row.Cells["REV"].Value?.ToString() ?? "0",
+                    row.Cells["Remarks"].Value?.ToString() ?? ""
+                ));
+            }
+
+            int selectedMprId = _selectedMPR_ID;
+            string currentUser = _currentUser ?? "Admin";
+            int saved = 0;
+            string errMsg = null;
+
             try
             {
-                int saved = 0;
-                using (var conn = DatabaseHelper.GetConnection())
+                await Task.Run(() =>
                 {
-                    conn.Open();
-                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    try
                     {
-                        if (row.IsNewRow) continue;
-                        string itemName = row.Cells["Item_Name"].Value?.ToString() ?? "";
-                        if (string.IsNullOrWhiteSpace(itemName)) continue;
-
-                        int detailId = Convert.ToInt32(row.Cells["Detail_ID"].Value ?? 0);
-                        int itemNo = Convert.ToInt32(row.Cells["Item_No"].Value ?? 0);
-                        string desc = row.Cells["Description"].Value?.ToString() ?? "";
-                        string material = row.Cells["Material"].Value?.ToString() ?? "";
-                        decimal thickMm = DecimalVal(row.Cells["Thickness_mm"].Value);
-                        decimal depthMm = DecimalVal(row.Cells["Depth_mm"].Value);
-                        decimal cWidthMm = DecimalVal(row.Cells["C_Width_mm"].Value);
-                        decimal dWebMm = DecimalVal(row.Cells["D_Web_mm"].Value);
-                        decimal eFlangeMm = DecimalVal(row.Cells["E_Flange_mm"].Value);
-                        decimal fLengthMm = DecimalVal(row.Cells["F_Length_mm"].Value);
-                        string unit = row.Cells["UNIT"].Value?.ToString() ?? "";
-                        int qty = (int)DecimalVal(row.Cells["Qty"].Value);
-                        decimal weight = DecimalVal(row.Cells["Weight"].Value);
-                        string mpsInfo = row.Cells["MPS_Info"].Value?.ToString() ?? "";
-                        string usageLoc = row.Cells["Usage_Location"].Value?.ToString() ?? "";
-                        string rev = row.Cells["REV"].Value?.ToString() ?? "0";
-                        string remarks = row.Cells["Remarks"].Value?.ToString() ?? "";
-                        string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-
-                        Microsoft.Data.SqlClient.SqlCommand cmd;
-
-                        if (detailId == 0)
+                        using (var conn = DatabaseHelper.GetConnection())
                         {
-                            cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
-                                INSERT INTO MPR_Details
-                                    (MPR_ID, Item_No, item_name, Description, Material,
-                                     Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm,
-                                     UNIT, Qty_Per_Sheet, Weight_kg, MPS_Info, Usage_Location, REV, Remarks,
-                                     Created_Date, Created_By, Modified_Date, Modified_By)
-                                VALUES
-                                    (@mprId, @itemNo, @itemName, @desc, @material,
-                                     @thick, @depth, @cWidth, @dWeb, @eFlange, @fLen,
-                                     @unit, @qty, @weight, @mps, @usage, @rev, @remarks,
-                                     @now, @user, @now, @user);
-                                SELECT SCOPE_IDENTITY();", conn);
+                            conn.Open();
+                            string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                            foreach (var r in rowData)
+                            {
+                                Microsoft.Data.SqlClient.SqlCommand cmd;
+                                if (r.detailId == 0)
+                                {
+                                    cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                                        INSERT INTO MPR_Details
+                                            (MPR_ID, Item_No, item_name, Description, Material,
+                                             Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm,
+                                             UNIT, Qty_Per_Sheet, Weight_kg, MPS_Info, Usage_Location, REV, Remarks,
+                                             Created_Date, Created_By, Modified_Date, Modified_By)
+                                        VALUES
+                                            (@mprId, @itemNo, @itemName, @desc, @material,
+                                             @thick, @depth, @cWidth, @dWeb, @eFlange, @fLen,
+                                             @unit, @qty, @weight, @mps, @usage, @rev, @remarks,
+                                             @now, @user, @now, @user);
+                                        SELECT SCOPE_IDENTITY();", conn);
+                                }
+                                else
+                                {
+                                    cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                                        UPDATE MPR_Details SET
+                                            Item_No=@itemNo, item_name=@itemName, Description=@desc, Material=@material,
+                                            Thickness_mm=@thick, Depth_mm=@depth, C_Width_mm=@cWidth, D_Web_mm=@dWeb,
+                                            E_Flange_mm=@eFlange, F_Length_mm=@fLen, UNIT=@unit, Qty_Per_Sheet=@qty,
+                                            Weight_kg=@weight, MPS_Info=@mps, Usage_Location=@usage, REV=@rev,
+                                            Remarks=@remarks, Modified_Date=@now, Modified_By=@user
+                                        WHERE Detail_ID=@detailId", conn);
+                                    cmd.Parameters.AddWithValue("@detailId", r.detailId);
+                                }
+                                cmd.Parameters.AddWithValue("@mprId", selectedMprId);
+                                cmd.Parameters.AddWithValue("@itemNo", r.itemNo);
+                                cmd.Parameters.AddWithValue("@itemName", r.itemName);
+                                cmd.Parameters.AddWithValue("@desc", r.desc);
+                                cmd.Parameters.AddWithValue("@material", r.material);
+                                cmd.Parameters.AddWithValue("@thick", r.thickMm);
+                                cmd.Parameters.AddWithValue("@depth", r.depthMm);
+                                cmd.Parameters.AddWithValue("@cWidth", r.cWidthMm);
+                                cmd.Parameters.AddWithValue("@dWeb", r.dWebMm);
+                                cmd.Parameters.AddWithValue("@eFlange", r.eFlangeMm);
+                                cmd.Parameters.AddWithValue("@fLen", r.fLengthMm);
+                                cmd.Parameters.AddWithValue("@unit", r.unit);
+                                cmd.Parameters.AddWithValue("@qty", r.qty);
+                                cmd.Parameters.AddWithValue("@weight", r.weight);
+                                cmd.Parameters.AddWithValue("@mps", r.mpsInfo);
+                                cmd.Parameters.AddWithValue("@usage", r.usageLoc);
+                                cmd.Parameters.AddWithValue("@rev", r.rev);
+                                cmd.Parameters.AddWithValue("@remarks", r.remarks);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.Parameters.AddWithValue("@user", currentUser);
+                                cmd.ExecuteNonQuery();
+                                saved++;
+                            }
                         }
-                        else
-                        {
-                            cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
-                                UPDATE MPR_Details SET
-                                    Item_No       = @itemNo,
-                                    item_name     = @itemName,
-                                    Description   = @desc,
-                                    Material      = @material,
-                                    Thickness_mm  = @thick,
-                                    Depth_mm      = @depth,
-                                    C_Width_mm    = @cWidth,
-                                    D_Web_mm      = @dWeb,
-                                    E_Flange_mm   = @eFlange,
-                                    F_Length_mm   = @fLen,
-                                    UNIT          = @unit,
-                                    Qty_Per_Sheet = @qty,
-                                    Weight_kg     = @weight,
-                                    MPS_Info      = @mps,
-                                    Usage_Location= @usage,
-                                    REV           = @rev,
-                                    Remarks       = @remarks,
-                                    Modified_Date = @now,
-                                    Modified_By   = @user
-                                WHERE Detail_ID = @detailId", conn);
-                            cmd.Parameters.AddWithValue("@detailId", detailId);
-                        }
-
-                        cmd.Parameters.AddWithValue("@mprId", _selectedMPR_ID);
-                        cmd.Parameters.AddWithValue("@itemNo", itemNo);
-                        cmd.Parameters.AddWithValue("@itemName", itemName);
-                        cmd.Parameters.AddWithValue("@desc", desc);
-                        cmd.Parameters.AddWithValue("@material", material);
-                        cmd.Parameters.AddWithValue("@thick", thickMm);
-                        cmd.Parameters.AddWithValue("@depth", depthMm);
-                        cmd.Parameters.AddWithValue("@cWidth", cWidthMm);
-                        cmd.Parameters.AddWithValue("@dWeb", dWebMm);
-                        cmd.Parameters.AddWithValue("@eFlange", eFlangeMm);
-                        cmd.Parameters.AddWithValue("@fLen", fLengthMm);
-                        cmd.Parameters.AddWithValue("@unit", unit);
-                        cmd.Parameters.AddWithValue("@qty", qty);
-                        cmd.Parameters.AddWithValue("@weight", weight);
-                        cmd.Parameters.AddWithValue("@mps", mpsInfo);
-                        cmd.Parameters.AddWithValue("@usage", usageLoc);
-                        cmd.Parameters.AddWithValue("@rev", rev);
-                        cmd.Parameters.AddWithValue("@remarks", remarks);
-                        cmd.Parameters.AddWithValue("@now", now);
-                        cmd.Parameters.AddWithValue("@user", _currentUser ?? "Admin");
-
-                        if (detailId == 0)
-                        {
-                            var newId = cmd.ExecuteScalar();
-                            if (newId != null && newId != DBNull.Value)
-                                row.Cells["Detail_ID"].Value = Convert.ToInt32(newId);
-                        }
-                        else
-                        {
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        saved++;
                     }
-                }
+                    catch (Exception ex) { errMsg = ex.Message; }
+                });
 
-                MessageBox.Show(TopOwner, $"✅ Đã lưu {saved} dòng chi tiết thành công!", "Thành công",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadDetails(_selectedMPR_ID);
+                if (errMsg != null)
+                    MessageBox.Show(TopOwner, "Lỗi lưu chi tiết: " + errMsg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                else
+                {
+                    MessageBox.Show(TopOwner, $"✅ Đã lưu {saved} dòng chi tiết thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadDetails(selectedMprId);
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(TopOwner, "Lỗi lưu chi tiết: " + ex.Message, "Lỗi",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(TopOwner, "Lỗi lưu chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btnSaveDetail.Enabled = true;
+                this.Cursor = Cursors.Default;
             }
         }
 

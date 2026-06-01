@@ -2107,145 +2107,167 @@ namespace MPR_Managerment.Forms
 
                 var btnExp = new Button { Text = "📥 Xuất Excel", Location = new Point(290, btnY), Size = new Size(130, 32), BackColor = Color.FromArgb(0, 150, 100), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
                 btnExp.FlatAppearance.BorderSize = 0;
-                btnExp.Click += (s, ev) =>
+                btnExp.Click += async (s, ev) =>
                 {
                     var selectedRows = dtCurrent?.Rows.Cast<System.Data.DataRow>().Where(r => r["Chọn"] is bool b && b).ToList();
                     if (selectedRows == null || selectedRows.Count == 0) { SafeWarn("Vui lòng chọn ít nhất một PO để xuất!"); return; }
                     using var sfd = new SaveFileDialog { Title = "Xuất chi tiết PO theo NCC", Filter = "Excel Files|*.xlsx", FileName = $"PO_ChiTiet_{DateTime.Now:yyyyMMdd_HHmm}", InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
                     if (sfd.ShowDialog() != DialogResult.OK) return;
+
+                    // Snapshot dữ liệu cần trước khi vào Task.Run
+                    string nccTitle = txtNCC.Text.Trim();
+                    if (string.IsNullOrEmpty(nccTitle)) nccTitle = "Tất cả NCC";
+                    string savePath = sfd.FileName;
+                    bool isDomestic = _isDomestic;
+                    int chiTietDec = isDomestic ? 0 : 2;
+                    string chiTietFmt = isDomestic ? "#,##0" : "#,##0.00";
+                    var rowSnapshots = selectedRows.Select(dr => new {
+                        PoId = Convert.ToInt32(dr["PO_ID"]),
+                        PoNo = dr["PO No"]?.ToString() ?? "",
+                        Ncc  = dr["NCC"]?.ToString() ?? "",
+                        DuAn = dr["Dự án"]?.ToString() ?? "",
+                        MprNo = dr["MPR No"]?.ToString() ?? "",
+                        NgayPO = dr["Ngày PO"]?.ToString() ?? "",
+                        TrangThai = dr["Trạng thái"]?.ToString() ?? ""
+                    }).ToList();
+
+                    btnExp.Enabled = false;
+                    popup.Cursor = Cursors.WaitCursor;
                     try
                     {
-                        OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
-                        using var pkg = new OfficeOpenXml.ExcelPackage();
-
-                        // ── 1 SHEET DUY NHẤT chứa toàn bộ detail tất cả PO ──
-                        var ws = pkg.Workbook.Worksheets.Add("Chi tiết PO theo NCC");
                         int totalRows = 0;
-                        const int TOTAL_COLS = 12;
+                        string errMsg = null;
 
-                        // ── Dòng 1: Tiêu đề ──
-                        string nccTitle = txtNCC.Text.Trim();
-                        if (string.IsNullOrEmpty(nccTitle)) nccTitle = "Tất cả NCC";
-                        ws.Cells[1, 1].Value = $"CHI TIẾT ĐẶT HÀNG THEO NHÀ CUNG CẤP — {nccTitle}";
-                        ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
-                        ws.Cells[1, 1].Style.Font.Bold = true; ws.Cells[1, 1].Style.Font.Size = 13;
-                        ws.Cells[1, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                        ws.Cells[1, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
-                        ws.Cells[1, 1].Style.Font.Color.SetColor(Color.White);
-                        ws.Cells[1, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-
-                        // ── Dòng 2: Thông tin xuất ──
-                        ws.Cells[2, 1].Value = $"Tổng PO: {selectedRows.Count}   |   Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
-                        ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
-                        ws.Cells[2, 1].Style.Font.Italic = true; ws.Cells[2, 1].Style.Font.Size = 9;
-                        ws.Cells[2, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                        ws.Cells[2, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 230, 255));
-
-                        // ── Dòng 3: Header cột ──
-                        string[] hdrs = { "STT", "Tên hàng", "Vật liệu", "A(mm)", "B(mm)", "C(mm)", "SL", "ĐVT", "KG", "Đơn giá", "VAT(%)", "Thành tiền" };
-                        for (int c = 0; c < hdrs.Length; c++)
+                        await Task.Run(() =>
                         {
-                            ws.Cells[3, c + 1].Value = hdrs[c];
-                            ws.Cells[3, c + 1].Style.Font.Bold = true;
-                            ws.Cells[3, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                            ws.Cells[3, c + 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212));
-                            ws.Cells[3, c + 1].Style.Font.Color.SetColor(Color.White);
-                            ws.Cells[3, c + 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                            ws.Cells[3, c + 1].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
-                        }
-                        ws.Row(3).Height = 22;
-                        ws.View.FreezePanes(4, 1);
-
-                        int curRow = 4;
-                        int chiTietDec = _isDomestic ? 0 : 2;
-                        string chiTietFmt = _isDomestic ? "#,##0" : "#,##0.00";
-
-                        foreach (System.Data.DataRow dr in selectedRows)
-                        {
-                            int poId = Convert.ToInt32(dr["PO_ID"]);
-                            string poNo = dr["PO No"]?.ToString() ?? "";
-
-                            // ── Dòng nhóm PO (màu tím) — Center Across Selection (không Merge) ──
-                            ws.Cells[curRow, 1].Value =
-                                $"  🛒  PO: {poNo}   |   NCC: {dr["NCC"]}   |   Dự án: {dr["Dự án"]}   |   MPR: {dr["MPR No"]}   |   Ngày PO: {dr["Ngày PO"]}   |   Trạng thái: {dr["Trạng thái"]}";
-                            var poHdrRange = ws.Cells[curRow, 1, curRow, TOTAL_COLS];
-                            poHdrRange.Style.Font.Bold = true;
-                            poHdrRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                            poHdrRange.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
-                            poHdrRange.Style.Font.Color.SetColor(Color.White);
-                            poHdrRange.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.CenterContinuous;
-                            ws.Row(curRow).Height = 18;
-                            curRow++;
-
-                            // ── Các dòng vật tư của PO này ──
-                            var dets = _service.GetDetails(poId);
-                            decimal sub = 0;
-                            for (int i = 0; i < dets.Count; i++)
+                            try
                             {
-                                var d = dets[i];
-                                decimal rp = d.Price, bv = d.Qty_Per_Sheet;
-                                if ((d.Remarks ?? "").Contains("[CALC:KG]") && d.Weight_kg > 0 && d.Qty_Per_Sheet > 0)
-                                { rp = Math.Round((d.Price * d.Qty_Per_Sheet) / d.Weight_kg, 2); bv = d.Weight_kg; }
-                                decimal amt = Math.Round(bv * rp, chiTietDec, MidpointRounding.AwayFromZero); sub += amt;
+                                const int TOTAL_COLS = 12;
+                                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                                using var pkg = new OfficeOpenXml.ExcelPackage();
+                                var ws = pkg.Workbook.Worksheets.Add("Chi tiết PO theo NCC");
 
-                                ws.Cells[curRow, 1].Value = i + 1;
-                                ws.Cells[curRow, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                ws.Cells[curRow, 2].Value = d.Item_Name ?? "";
-                                ws.Cells[curRow, 3].Value = d.Material ?? "";
-                                // A/B/C (mm) — tối đa 2 chữ số thập phân, bỏ số 0 thừa
-                                ws.Cells[curRow, 4].Value = d.Asize; ws.Cells[curRow, 4].Style.Numberformat.Format = "#,##0.##";
-                                ws.Cells[curRow, 5].Value = d.Bsize; ws.Cells[curRow, 5].Style.Numberformat.Format = "#,##0.##";
-                                ws.Cells[curRow, 6].Value = d.Csize; ws.Cells[curRow, 6].Style.Numberformat.Format = "#,##0.##";
-                                // SL — số nguyên
-                                ws.Cells[curRow, 7].Value = d.Qty_Per_Sheet; ws.Cells[curRow, 7].Style.Numberformat.Format = "#,##0";
-                                ws.Cells[curRow, 7].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                ws.Cells[curRow, 8].Value = d.UNIT ?? "";
-                                ws.Cells[curRow, 8].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                // KG — luôn hiển thị 2 chữ số thập phân
-                                ws.Cells[curRow, 9].Value = d.Weight_kg; ws.Cells[curRow, 9].Style.Numberformat.Format = "#,##0.00";
-                                ws.Cells[curRow, 9].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                                // Đơn giá — luôn hiển thị 2 chữ số thập phân
-                                ws.Cells[curRow, 10].Value = rp; ws.Cells[curRow, 10].Style.Numberformat.Format = "#,##0.00";
-                                ws.Cells[curRow, 10].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                                // VAT (%) — số nguyên
-                                ws.Cells[curRow, 11].Value = d.VAT; ws.Cells[curRow, 11].Style.Numberformat.Format = "#,##0";
-                                ws.Cells[curRow, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                // Thành tiền
-                                ws.Cells[curRow, 12].Value = amt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
-                                ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                // Dòng 1: Tiêu đề
+                                ws.Cells[1, 1].Value = $"CHI TIẾT ĐẶT HÀNG THEO NHÀ CUNG CẤP — {nccTitle}";
+                                ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
+                                ws.Cells[1, 1].Style.Font.Bold = true; ws.Cells[1, 1].Style.Font.Size = 13;
+                                ws.Cells[1, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                ws.Cells[1, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
+                                ws.Cells[1, 1].Style.Font.Color.SetColor(Color.White);
+                                ws.Cells[1, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
 
-                                if (i % 2 == 1)
-                                    for (int c = 1; c <= TOTAL_COLS; c++)
-                                    { ws.Cells[curRow, c].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid; ws.Cells[curRow, c].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 248, 255)); }
+                                // Dòng 2: Thông tin xuất
+                                ws.Cells[2, 1].Value = $"Tổng PO: {rowSnapshots.Count}   |   Xuất ngày: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                                ws.Cells[2, 1, 2, TOTAL_COLS].Merge = true;
+                                ws.Cells[2, 1].Style.Font.Italic = true; ws.Cells[2, 1].Style.Font.Size = 9;
+                                ws.Cells[2, 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                ws.Cells[2, 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 230, 255));
 
-                                ws.Cells[curRow, 1, curRow, TOTAL_COLS].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Hair);
-                                curRow++; totalRows++;
+                                // Dòng 3: Header cột
+                                string[] hdrs = { "STT", "Tên hàng", "Vật liệu", "A(mm)", "B(mm)", "C(mm)", "SL", "ĐVT", "KG", "Đơn giá", "VAT(%)", "Thành tiền" };
+                                for (int c = 0; c < hdrs.Length; c++)
+                                {
+                                    ws.Cells[3, c + 1].Value = hdrs[c];
+                                    ws.Cells[3, c + 1].Style.Font.Bold = true;
+                                    ws.Cells[3, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                    ws.Cells[3, c + 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212));
+                                    ws.Cells[3, c + 1].Style.Font.Color.SetColor(Color.White);
+                                    ws.Cells[3, c + 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                    ws.Cells[3, c + 1].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                                }
+                                ws.Row(3).Height = 22;
+                                ws.View.FreezePanes(4, 1);
+
+                                int curRow = 4;
+                                foreach (var r in rowSnapshots)
+                                {
+                                    // Dòng nhóm PO
+                                    ws.Cells[curRow, 1].Value = $"  🛒  PO: {r.PoNo}   |   NCC: {r.Ncc}   |   Dự án: {r.DuAn}   |   MPR: {r.MprNo}   |   Ngày PO: {r.NgayPO}   |   Trạng thái: {r.TrangThai}";
+                                    var poHdrRange = ws.Cells[curRow, 1, curRow, TOTAL_COLS];
+                                    poHdrRange.Style.Font.Bold = true;
+                                    poHdrRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                    poHdrRange.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(102, 51, 153));
+                                    poHdrRange.Style.Font.Color.SetColor(Color.White);
+                                    poHdrRange.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.CenterContinuous;
+                                    ws.Row(curRow).Height = 18;
+                                    curRow++;
+
+                                    // Load details từ DB (đang ở background thread — an toàn)
+                                    var dets = new POService().GetDetails(r.PoId);
+                                    decimal sub = 0;
+                                    for (int i = 0; i < dets.Count; i++)
+                                    {
+                                        var d = dets[i];
+                                        decimal rp = d.Price, bv = d.Qty_Per_Sheet;
+                                        if ((d.Remarks ?? "").Contains("[CALC:KG]") && d.Weight_kg > 0 && d.Qty_Per_Sheet > 0)
+                                        { rp = Math.Round((d.Price * d.Qty_Per_Sheet) / d.Weight_kg, 2); bv = d.Weight_kg; }
+                                        decimal amt = Math.Round(bv * rp, chiTietDec, MidpointRounding.AwayFromZero); sub += amt;
+
+                                        ws.Cells[curRow, 1].Value = i + 1;
+                                        ws.Cells[curRow, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                        ws.Cells[curRow, 2].Value = d.Item_Name ?? "";
+                                        ws.Cells[curRow, 3].Value = d.Material ?? "";
+                                        ws.Cells[curRow, 4].Value = d.Asize; ws.Cells[curRow, 4].Style.Numberformat.Format = "#,##0.##";
+                                        ws.Cells[curRow, 5].Value = d.Bsize; ws.Cells[curRow, 5].Style.Numberformat.Format = "#,##0.##";
+                                        ws.Cells[curRow, 6].Value = d.Csize; ws.Cells[curRow, 6].Style.Numberformat.Format = "#,##0.##";
+                                        ws.Cells[curRow, 7].Value = d.Qty_Per_Sheet; ws.Cells[curRow, 7].Style.Numberformat.Format = "#,##0";
+                                        ws.Cells[curRow, 7].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                        ws.Cells[curRow, 8].Value = d.UNIT ?? "";
+                                        ws.Cells[curRow, 8].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                        ws.Cells[curRow, 9].Value = d.Weight_kg; ws.Cells[curRow, 9].Style.Numberformat.Format = "#,##0.00";
+                                        ws.Cells[curRow, 9].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                        ws.Cells[curRow, 10].Value = rp; ws.Cells[curRow, 10].Style.Numberformat.Format = "#,##0.00";
+                                        ws.Cells[curRow, 10].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                        ws.Cells[curRow, 11].Value = d.VAT; ws.Cells[curRow, 11].Style.Numberformat.Format = "#,##0";
+                                        ws.Cells[curRow, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                                        ws.Cells[curRow, 12].Value = amt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
+                                        ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+
+                                        if (i % 2 == 1)
+                                            for (int c = 1; c <= TOTAL_COLS; c++)
+                                            { ws.Cells[curRow, c].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid; ws.Cells[curRow, c].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 248, 255)); }
+
+                                        ws.Cells[curRow, 1, curRow, TOTAL_COLS].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Hair);
+                                        curRow++; totalRows++;
+                                    }
+
+                                    decimal vatAmt = isDomestic ? Math.Round(sub * 0.1m, 0, MidpointRounding.AwayFromZero) : 0m;
+                                    ws.Cells[curRow, 11].Value = "Sub-Total:"; ws.Cells[curRow, 11].Style.Font.Bold = true;
+                                    ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                                    ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
+                                    ws.Cells[curRow, 11].Value = "VAT (10%):";
+                                    ws.Cells[curRow, 12].Value = vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
+                                    ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
+                                    ws.Cells[curRow, 10, curRow, 11].Merge = true; ws.Cells[curRow, 10].Value = "TOTAL (incl. VAT):"; ws.Cells[curRow, 10].Style.Font.Bold = true;
+                                    ws.Cells[curRow, 12].Value = sub + vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
+                                    ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                    curRow += 2;
+                                }
+
+                                ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                                ws.Column(2).Width = Math.Min(ws.Column(2).Width, 45);
+                                pkg.SaveAs(new System.IO.FileInfo(savePath));
                             }
+                            catch (Exception ex2) { errMsg = ex2.Message; }
+                        });
 
-                            // ── Sub-Total / VAT / Total của PO này ──
-                            decimal vatAmt = _isDomestic ? Math.Round(sub * 0.1m, 0, MidpointRounding.AwayFromZero) : 0m;
-                            ws.Cells[curRow, 11].Value = "Sub-Total:"; ws.Cells[curRow, 11].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Value = sub; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
-                            ws.Cells[curRow, 11].Value = "VAT (10%):";
-                            ws.Cells[curRow, 12].Value = vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt;
-                            ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right; curRow++;
-                            ws.Cells[curRow, 10, curRow, 11].Merge = true; ws.Cells[curRow, 10].Value = "TOTAL (incl. VAT):"; ws.Cells[curRow, 10].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Value = sub + vatAmt; ws.Cells[curRow, 12].Style.Numberformat.Format = chiTietFmt; ws.Cells[curRow, 12].Style.Font.Bold = true;
-                            ws.Cells[curRow, 12].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                            curRow += 2; // dòng trống giữa các PO
+                        if (errMsg != null)
+                        {
+                            MessageBox.Show(GetActiveOwner(), "Lỗi xuất Excel: " + errMsg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
-
-                        ws.Cells[ws.Dimension.Address].AutoFitColumns();
-                        ws.Column(2).Width = Math.Min(ws.Column(2).Width, 45);
-
-                        pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
-                        MessageBox.Show(GetActiveOwner(), $"✅ Đã xuất {selectedRows.Count} PO với {totalRows} dòng chi tiết!\nTất cả gộp vào 1 sheet duy nhất.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        // Tự động mở file Excel sau khi xuất
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        { FileName = sfd.FileName, UseShellExecute = true });
+                        else
+                        {
+                            if (lblStatus != null)
+                                lblStatus.Text = $"✅ Đã xuất {rowSnapshots.Count} PO — {totalRows} dòng chi tiết";
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = savePath, UseShellExecute = true });
+                        }
                     }
                     catch (Exception ex2) { MessageBox.Show(GetActiveOwner(), "Lỗi xuất Excel: " + ex2.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                    finally
+                    {
+                        btnExp.Enabled = true;
+                        popup.Cursor = Cursors.Default;
+                    }
                 };
                 popup.Controls.Add(btnExp);
 

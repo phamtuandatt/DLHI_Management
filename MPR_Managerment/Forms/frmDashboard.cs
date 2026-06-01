@@ -765,9 +765,11 @@ namespace MPR_Managerment.Forms
                 {
                     if (decimal.TryParse(ev.Value?.ToString(), out decimal rem))
                     {
-                        ev.CellStyle.ForeColor = rem <= 0
-                            ? Color.FromArgb(40, 167, 69)
-                            : Color.FromArgb(220, 53, 69);
+                        ev.CellStyle.ForeColor = rem == 0
+                            ? Color.FromArgb(40, 167, 69)      // = 0 → xanh lá
+                            : rem < 0
+                                ? Color.FromArgb(102, 0, 153)  // < 0 → tím đậm
+                                : Color.FromArgb(180, 0, 0);   // > 0 → đỏ đậm
                         ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                     }
                 }
