@@ -85,10 +85,92 @@ namespace MPR_Managerment.Forms
         private string _projectCodeImport = string.Empty;
         private Form TopOwner => (this.TopLevelControl as Form) ?? this;
         private Form GetActiveOwner() { var f = TopOwner; f.BringToFront(); f.Activate(); return f; }
-        private void SafeWarn(string text, string title = "Thông báo") { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
-        private void SafeInfo(string text, string title = "Thông báo") { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Information); }
-        private void SafeErr(string text, string title = "Lỗi") { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Error); }
-        private bool SafeAsk(string text, string title = "Xác nhận") { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, text, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
+        // Suppress DgvPO_SelectionChanged khi show dialog để tránh sync DB calls
+        // bị trigger trong message pump của MessageBox (đặc biệt khi frmPO là popup)
+        private void SafeWarn(string text, string title = "Thông báo")
+        {
+            dgvPO.SelectionChanged -= DgvPO_SelectionChanged;
+            try { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+            finally { dgvPO.SelectionChanged += DgvPO_SelectionChanged; }
+        }
+        private void SafeInfo(string text, string title = "Thông báo")
+        {
+            dgvPO.SelectionChanged -= DgvPO_SelectionChanged;
+            try { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Information); }
+            finally { dgvPO.SelectionChanged += DgvPO_SelectionChanged; }
+        }
+        private void SafeErr(string text, string title = "Lỗi")
+        {
+            dgvPO.SelectionChanged -= DgvPO_SelectionChanged;
+            try { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, title, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            finally { dgvPO.SelectionChanged += DgvPO_SelectionChanged; }
+        }
+        private bool SafeAsk(string text, string title = "Xác nhận")
+        {
+            dgvPO.SelectionChanged -= DgvPO_SelectionChanged;
+            try { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, text, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
+            finally { dgvPO.SelectionChanged += DgvPO_SelectionChanged; }
+        }
+
+        // =========================================================================
+        // XÁC THỰC MẬT KHẨU ADMIN — dùng cho unlock Trạng thái PO
+        // =========================================================================
+        private bool VerifyAdminPasswordForStatus()
+        {
+            var dlg = new Form
+            {
+                Text = "🔐 Xác thực Admin",
+                Size = new Size(360, 160),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false,
+                BackColor = Color.FromArgb(245, 245, 245), KeyPreview = true
+            };
+            dlg.Controls.Add(new Label { Text = "Nhập mật khẩu Admin để đổi trạng thái PO:", Font = new Font("Segoe UI", 9), Location = new Point(14, 14), Size = new Size(320, 20) });
+            var txtPwd = new TextBox { Location = new Point(14, 38), Size = new Size(320, 26), Font = new Font("Segoe UI", 10), PasswordChar = '●' };
+            dlg.Controls.Add(txtPwd);
+            var lblErr = new Label { ForeColor = Color.FromArgb(220, 53, 69), Font = new Font("Segoe UI", 9, FontStyle.Bold), Location = new Point(14, 68), Size = new Size(320, 18), Text = "" };
+            dlg.Controls.Add(lblErr);
+            bool verified = false;
+
+            var btnOK = new Button { Text = "✔ Xác nhận", Location = new Point(140, 92), Size = new Size(100, 28), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+            btnOK.FlatAppearance.BorderSize = 0;
+            var btnCancel = new Button { Text = "Hủy", Location = new Point(250, 92), Size = new Size(84, 28), BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), DialogResult = DialogResult.Cancel };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            dlg.Controls.AddRange(new Control[] { btnOK, btnCancel });
+            dlg.CancelButton = btnCancel;
+            dlg.AcceptButton = btnOK;
+
+            btnOK.Click += (s, ev) =>
+            {
+                string pwd = txtPwd.Text;
+                if (string.IsNullOrEmpty(pwd)) { lblErr.Text = "Vui lòng nhập mật khẩu!"; return; }
+                try
+                {
+                    // Hash hardcoded admin password
+                    string inputHash;
+                    using (var sha = System.Security.Cryptography.SHA256.Create())
+                        inputHash = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(pwd))).Replace("-", "").ToLower();
+
+                    const string ADMIN_HASH = "e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7";
+                    if (inputHash == ADMIN_HASH) { verified = true; dlg.DialogResult = DialogResult.OK; dlg.Close(); return; }
+
+                    // Kiểm tra DB
+                    using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                    conn.Open();
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        @"SELECT COUNT(1) FROM Users WHERE LOWER(Username)='admin' AND (LOWER(Password)=@h OR Password=@hu)", conn);
+                    cmd.Parameters.AddWithValue("@h", inputHash);
+                    cmd.Parameters.AddWithValue("@hu", inputHash.ToUpper());
+                    if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) { verified = true; dlg.DialogResult = DialogResult.OK; dlg.Close(); }
+                    else lblErr.Text = "Mật khẩu không đúng!";
+                }
+                catch { lblErr.Text = "Lỗi xác thực. Thử lại."; }
+            };
+
+            dlg.ShowDialog(TopOwner);
+            return verified;
+        }
 
         public frmPO(string poNo = "")
         {
@@ -211,8 +293,9 @@ namespace MPR_Managerment.Forms
             btnSearchBySupp = CreateButton("🔍 Tìm theo NCC", Color.FromArgb(102, 51, 153), Point.Empty, 130, 30); btnSearchBySupp.Tag = "130,30";
             btnPOStatus = CreateButton("📊 PO status", Color.FromArgb(255, 140, 0), Point.Empty, 110, 30); btnPOStatus.Tag = "110,30";
             var btnPaymentTop = CreateButton("💳 Payment", Color.FromArgb(0, 150, 100), Point.Empty, 110, 30); btnPaymentTop.Tag = "110,30";
+            var btnPrintBudget = CreateButton("📑 Budget", Color.FromArgb(70, 130, 180), Point.Empty, 90, 30); btnPrintBudget.Tag = "90,30";
 
-            foreach (var b in new[] { btnSearch, btnNewPO, btnDeletePO, btnSearchBySupp, btnPOStatus, btnPaymentTop })
+            foreach (var b in new[] { btnSearch, btnNewPO, btnDeletePO, btnSearchBySupp, btnPOStatus, btnPaymentTop, btnPrintBudget })
                 b.Margin = new Padding(0, 0, 4, 0);
 
             btnSearch.Click += BtnSearch_Click;
@@ -225,6 +308,7 @@ namespace MPR_Managerment.Forms
                 string poNo = dgvPO.SelectedRows.Count > 0 ? dgvPO.SelectedRows[0].Cells["PO_No"].Value?.ToString() ?? "" : "";
                 new frmPayment(_currentUser, poNo).Show();
             };
+            btnPrintBudget.Click += async (s, ev) => await BtnPrintBudget_ClickAsync();
 
             flowTop.Controls.Add(btnSearch);
             flowTop.Controls.Add(btnNewPO);
@@ -232,6 +316,7 @@ namespace MPR_Managerment.Forms
             flowTop.Controls.Add(btnSearchBySupp);
             flowTop.Controls.Add(btnPOStatus);
             flowTop.Controls.Add(btnPaymentTop);
+            flowTop.Controls.Add(btnPrintBudget);
 
             // Đặt flowTop ngay sau txtSearch
             panelTop.SizeChanged += (s, e) =>
@@ -654,7 +739,63 @@ namespace MPR_Managerment.Forms
             nudRevise = new NumericUpDown { Width = 52, Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
             flowRow2.Controls.Add(MakeField("Nhà CC:", cboSupplier, 50));
             flowRow2.Controls.Add(MakeField("Ngày PO:", dtpPODate, 60));
-            flowRow2.Controls.Add(MakeField("Trạng thái:", cboStatus, 68));
+
+            // ── Trạng thái + nút 🔓 unlock bằng mật khẩu Admin ──
+            var statusPanel = new Panel { Width = 185, Height = 28, BackColor = Color.Transparent, Margin = new Padding(0, 2, 6, 0) };
+            var lblStatusLbl = new Label { Text = "Trạng thái:", Width = 68, Height = 28, Font = new Font("Segoe UI", 9), TextAlign = ContentAlignment.MiddleLeft };
+            cboStatus.Location = new Point(72, 1);
+            var btnUnlockStatus = new Button
+            {
+                Text = "🔒",
+                Location = new Point(184, 1),
+                Size = new Size(26, 26),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(108, 117, 125),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9),
+                Cursor = Cursors.Hand,
+                Tag = "locked"
+            };
+            btnUnlockStatus.FlatAppearance.BorderSize = 0;
+            btnUnlockStatus.Click += (s, ev) =>
+            {
+                if (btnUnlockStatus.Tag?.ToString() == "locked")
+                {
+                    // Xác thực mật khẩu Admin để unlock
+                    if (VerifyAdminPasswordForStatus())
+                    {
+                        cboStatus.Enabled = true;
+                        btnUnlockStatus.Text = "🔓";
+                        btnUnlockStatus.BackColor = Color.FromArgb(220, 53, 69);
+                        btnUnlockStatus.Tag = "unlocked";
+                    }
+                }
+                else
+                {
+                    // Khoá lại
+                    cboStatus.Enabled = false;
+                    btnUnlockStatus.Text = "🔒";
+                    btnUnlockStatus.BackColor = Color.FromArgb(108, 117, 125);
+                    btnUnlockStatus.Tag = "locked";
+                }
+            };
+            // Tự động lock lại sau khi chọn xong
+            cboStatus.SelectedIndexChanged += (s, ev) =>
+            {
+                if (cboStatus.Enabled && btnUnlockStatus.Tag?.ToString() == "unlocked")
+                {
+                    cboStatus.Enabled = false;
+                    btnUnlockStatus.Text = "🔒";
+                    btnUnlockStatus.BackColor = Color.FromArgb(108, 117, 125);
+                    btnUnlockStatus.Tag = "locked";
+                }
+            };
+            statusPanel.Controls.Add(lblStatusLbl);
+            statusPanel.Controls.Add(cboStatus);
+            statusPanel.Controls.Add(btnUnlockStatus);
+            statusPanel.Width = btnUnlockStatus.Right + 2;
+            flowRow2.Controls.Add(statusPanel);
+
             flowRow2.Controls.Add(MakeField("Revise:", nudRevise, 48));
 
             // Khởi tạo các TextBox ẩn để giữ tương thích — không hiển thị trên UI
@@ -2284,35 +2425,26 @@ namespace MPR_Managerment.Forms
         private void AutoAdjustColumnWidths()
         {
             if (dgvDetails.Columns.Count == 0) return;
+            // Dùng DisplayedCells thay vì AllCells — chỉ đo cells đang hiển thị, tránh block UI
             dgvDetails.SuspendLayout();
-            dgvDetails.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            using (Graphics g = dgvDetails.CreateGraphics())
+            try
             {
-                Font headerFont = dgvDetails.ColumnHeadersDefaultCellStyle.Font ?? dgvDetails.Font;
                 foreach (DataGridViewColumn col in dgvDetails.Columns)
                 {
                     if (!col.Visible) continue;
-                    // Bỏ qua cột A/B/C — chúng dùng AllCells mode, tự co giãn theo nội dung
-                    if (col.Name == "Asize" || col.Name == "Bsize" || col.Name == "Csize") continue;
-                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                    SizeF headerSize = g.MeasureString(col.HeaderText, headerFont);
-                    int minWidth = (int)Math.Ceiling(headerSize.Width) + 20; int maxWidth = minWidth;
-                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    if (col.Name == "Asize" || col.Name == "Bsize" || col.Name == "Csize")
                     {
-                        if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
-                        string cellValue = row.Cells[col.Index].Value?.ToString() ?? "";
-                        if (!string.IsNullOrEmpty(cellValue))
-                        {
-                            SizeF size = g.MeasureString(cellValue, dgvDetails.Font); int cw = (int)Math.Ceiling(size.Width) + 15;
-                            if (cw > maxWidth) maxWidth = cw;
-                        }
+                        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells;
+                        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                        continue;
                     }
-                    if (maxWidth > 200) { col.Width = 200; col.DefaultCellStyle.WrapMode = DataGridViewTriState.True; }
-                    else { col.Width = maxWidth; col.DefaultCellStyle.WrapMode = DataGridViewTriState.False; }
+                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCellsExceptHeader;
+                    int measured = col.Width;
+                    col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                    col.Width = Math.Min(Math.Max(measured, 40), 220);
                 }
             }
-            dgvDetails.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
-            dgvDetails.ResumeLayout();
+            finally { dgvDetails.ResumeLayout(); }
         }
 
         private void DgvDetails_CurrentCellDirtyStateChanged(object sender, EventArgs e)
@@ -3251,6 +3383,315 @@ namespace MPR_Managerment.Forms
                 }
             }
             catch { }
+        }
+
+        // =========================================================================
+        // PRINT BUDGET — xuất PaymentStatus_template.xlsx theo project của PO đang chọn
+        // =========================================================================
+        private async Task BtnPrintBudget_ClickAsync()
+        {
+            if (_selectedPO_ID == 0) { SafeWarn("Vui lòng chọn một PO trước!"); return; }
+
+            var selPO = _poList.Find(p => p.PO_ID == _selectedPO_ID);
+            if (selPO == null) return;
+
+            string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "PaymentStatus_template.xlsx");
+            if (!File.Exists(templatePath)) { SafeErr($"Không tìm thấy template:\n{templatePath}"); return; }
+
+            using var sfd = new SaveFileDialog
+            {
+                Title = "Lưu Payment Status",
+                Filter = "Excel Files|*.xlsx",
+                FileName = $"PaymentStatus_{selPO.WorkorderNo}_{DateTime.Now:yyyyMMdd}",
+                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+            };
+            if (sfd.ShowDialog() != DialogResult.OK) return;
+
+            string savePath = sfd.FileName;
+            string errMsg = null;
+            this.Cursor = Cursors.WaitCursor;
+            try
+            {
+                // Snapshot dữ liệu cần trước Task.Run
+                string projName = selPO.Project_Name ?? "";
+                string workorderNo = selPO.WorkorderNo ?? "";
+                bool isDom = _isDomestic;
+
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        // ── 1. Load project info ──
+                        var allProjects = new ProjectService().GetAll();
+                        var proj = allProjects.Find(p =>
+                            (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                            (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(projName, StringComparison.OrdinalIgnoreCase)));
+
+                        decimal budget = proj?.PJBudget ?? 0;
+                        string projectCode = proj?.ProjectCode ?? workorderNo;
+
+                        // ── 2. Tất cả PO cùng project ──
+                        var sameProjPOs = _poList.Where(p =>
+                            (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                            (!string.IsNullOrEmpty(p.Project_Name) && p.Project_Name.Equals(projName, StringComparison.OrdinalIgnoreCase)))
+                            .OrderBy(p => p.PONo).ToList();
+                        if (!sameProjPOs.Any()) sameProjPOs = new List<POHead> { selPO };
+
+                        // ── 3. Load MPR Notes cho từng PO (PO Description = Notes của MPR tương ứng) ──
+                        var mprNotes = new Dictionary<string, string>(); // MPR_No → Notes
+                        var mprNosToLoad = sameProjPOs.Select(p => p.MPR_No).Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+                        if (mprNosToLoad.Any())
+                        {
+                            using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                            conn.Open();
+                            string inClause = string.Join(",", mprNosToLoad.Select((_, idx) => $"@p{idx}"));
+                            var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                                $"SELECT MPR_No, ISNULL(Notes,'') AS Notes FROM MPR_Header WHERE MPR_No IN ({inClause})", conn);
+                            for (int idx = 0; idx < mprNosToLoad.Count; idx++)
+                                cmd.Parameters.AddWithValue($"@p{idx}", mprNosToLoad[idx]);
+                            using var rdr = cmd.ExecuteReader();
+                            while (rdr.Read())
+                                mprNotes[rdr["MPR_No"].ToString()] = rdr["Notes"].ToString();
+                        }
+
+                        // ── 4. Tính năm export ──
+                        int exportYear = selPO.PO_Date?.Year ?? DateTime.Today.Year;
+
+                        // ── 5. Tạo file Excel từ template ──
+                        File.Copy(templatePath, savePath, true);
+                        OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                        using var pkg = new OfficeOpenXml.ExcelPackage(new FileInfo(savePath));
+                        var ws = pkg.Workbook.Worksheets[0];
+
+                        // Row 4 — năm, Row 5 — tháng 1-12
+                        ws.Cells[4, 7].Value = exportYear;
+                        for (int m = 1; m <= 12; m++)
+                            ws.Cells[5, 6 + m].Value = new DateTime(exportYear, m, 1);
+
+                        // ── 6. Điều chỉnh số dòng data (template có sẵn 3 dòng 6-8) ──
+                        int poCount = sameProjPOs.Count;
+                        if (poCount > 3) ws.InsertRow(9, poCount - 3);
+                        else if (poCount < 3) ws.DeleteRow(6 + poCount, 3 - poCount);
+                        int sumRow = 6 + poCount;
+                        int lastPoRow = sumRow - 1; // dòng PO cuối
+
+                        // ── 7. Điền từng PO ──
+                        decimal[] monthColSum = new decimal[13]; // index 1-12
+                        decimal totalPoAmount = 0;
+
+                        for (int i = 0; i < poCount; i++)
+                        {
+                            var po = sameProjPOs[i];
+                            int r = 6 + i;
+
+                            ws.Cells[r, 1].Value = i + 1;    // No.
+                            ws.Cells[r, 4].Value = po.PONo;  // PO No.
+
+                            // PO Description = MPR Notes
+                            string mprNo = po.MPR_No ?? "";
+                            ws.Cells[r, 5].Value = mprNotes.TryGetValue(mprNo, out var note) ? note : mprNo;
+
+                            ws.Cells[r, 6].Value = po.Total_Amount; // PO Amount
+                            totalPoAmount += po.Total_Amount;
+
+                            // ── Monthly TT: PO_Date + 7 ngày → tháng thanh toán dự kiến ──
+                            int payMonth = 0;
+                            if (po.PO_Date.HasValue)
+                            {
+                                var payDate = po.PO_Date.Value.AddDays(7);
+                                if (payDate.Year == exportYear) payMonth = payDate.Month;
+                            }
+                            for (int m = 1; m <= 12; m++)
+                            {
+                                decimal amt = (m == payMonth) ? po.Total_Amount : 0;
+                                ws.Cells[r, 6 + m].Value = amt > 0 ? (object)amt : null;
+                                monthColSum[m] += amt;
+                            }
+
+                            decimal rowAcc = payMonth > 0 ? po.Total_Amount : 0;
+                            ws.Cells[r, 19].Value = rowAcc;  // Accumulate
+                            ws.Cells[r, 20].Value = po.Total_Amount - rowAcc; // Balance
+                        }
+
+                        // ── 8. Project No + Budget: merge từ row 6 đến lastPoRow ──
+                        if (poCount > 0)
+                        {
+                            // Xóa merge cũ nếu có
+                            ws.Cells[6, 2, lastPoRow, 2].Merge = true;
+                            ws.Cells[6, 2].Value = $"{projName}\n{projectCode}";
+                            ws.Cells[6, 2].Style.WrapText = true;
+                            ws.Cells[6, 2].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+
+                            ws.Cells[6, 3, lastPoRow, 3].Merge = true;
+                            ws.Cells[6, 3].Value = budget;
+                            ws.Cells[6, 3].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                        }
+
+                        // ── 9. Sum row ──
+                        ws.Cells[sumRow, 2].Value = "S  u  m";
+                        ws.Cells[sumRow, 3].Value = budget;
+                        ws.Cells[sumRow, 6].Value = totalPoAmount;
+                        for (int m = 1; m <= 12; m++)
+                            ws.Cells[sumRow, 6 + m].Value = monthColSum[m] > 0 ? (object)monthColSum[m] : null;
+                        decimal grandAcc = monthColSum.Skip(1).Sum();
+                        ws.Cells[sumRow, 19].Value = grandAcc;
+                        ws.Cells[sumRow, 20].Value = budget - grandAcc;
+
+                        // ══════════════════════════════════════════
+                        // ── 10. FORMAT toàn bộ sheet ──
+                        // ══════════════════════════════════════════
+                        const int COLS = 21; // A–U
+                        var clrTitleBg   = System.Drawing.Color.FromArgb(68, 84, 106);
+                        var clrHeaderBg  = System.Drawing.Color.FromArgb(31, 78, 121);
+                        var clrMonthBg   = System.Drawing.Color.FromArgb(23, 54, 93);
+                        var clrSumBg     = System.Drawing.Color.FromArgb(255, 230, 153);
+                        var clrAltRow    = System.Drawing.Color.FromArgb(242, 242, 242);
+                        var clrWhite     = System.Drawing.Color.White;
+                        var clrBlack     = System.Drawing.Color.Black;
+                        string numFmt    = "#,##0;[Red]-#,##0;-";
+
+                        // Thin border helper
+                        void SetBorder(OfficeOpenXml.ExcelRange rng)
+                        {
+                            rng.Style.Border.Top.Style    = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            rng.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            rng.Style.Border.Left.Style   = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            rng.Style.Border.Right.Style  = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                        }
+                        void SetFill(OfficeOpenXml.ExcelRange rng, System.Drawing.Color c)
+                        {
+                            rng.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            rng.Style.Fill.BackgroundColor.SetColor(c);
+                        }
+
+                        // ── Row 1: Title ──
+                        var title = ws.Cells[1, 1, 1, COLS];
+                        SetFill(title, clrTitleBg);
+                        title.Style.Font.Color.SetColor(clrWhite);
+                        title.Style.Font.Bold = true;
+                        title.Style.Font.Size = 14;
+                        title.Style.Font.Name = "Times New Roman";
+                        title.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        title.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                        ws.Row(1).Height = 28;
+
+                        // ── Row 2: trống ──
+                        ws.Row(2).Height = 6;
+
+                        // ── Row 3: Unit VND ──
+                        ws.Cells[3, COLS].Value = "Unit : VND";
+                        ws.Cells[3, COLS].Style.Font.Italic = true;
+                        ws.Cells[3, COLS].Style.Font.Size = 9;
+                        ws.Cells[3, COLS].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                        ws.Row(3).Height = 14;
+
+                        // ── Row 4: Column headers ──
+                        var hdr4 = ws.Cells[4, 1, 4, COLS];
+                        SetFill(hdr4, clrHeaderBg);
+                        hdr4.Style.Font.Color.SetColor(clrWhite);
+                        hdr4.Style.Font.Bold = true;
+                        hdr4.Style.Font.Name = "Arial";
+                        hdr4.Style.Font.Size = 10;
+                        hdr4.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        hdr4.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                        hdr4.Style.WrapText = true;
+                        SetBorder(hdr4);
+                        ws.Row(4).Height = 36;
+
+                        // ── Row 5: Month sub-headers ──
+                        var hdr5 = ws.Cells[5, 1, 5, COLS];
+                        SetFill(hdr5, clrMonthBg);
+                        hdr5.Style.Font.Color.SetColor(clrWhite);
+                        hdr5.Style.Font.Bold = true;
+                        hdr5.Style.Font.Name = "Arial";
+                        hdr5.Style.Font.Size = 9;
+                        hdr5.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        hdr5.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                        SetBorder(hdr5);
+                        ws.Row(5).Height = 18;
+                        // Format tháng: "Jan-26"
+                        for (int m = 1; m <= 12; m++)
+                            ws.Cells[5, 6 + m].Style.Numberformat.Format = "mmm-yy";
+
+                        // ── Data rows (6 → sumRow-1) ──
+                        for (int r = 6; r < sumRow; r++)
+                        {
+                            var rowRange = ws.Cells[r, 1, r, COLS];
+                            if ((r - 6) % 2 == 1) SetFill(rowRange, clrAltRow);
+                            rowRange.Style.Font.Name = "Arial";
+                            rowRange.Style.Font.Size = 9;
+                            rowRange.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            SetBorder(rowRange);
+                            ws.Row(r).Height = 16;
+                            // Cột số: right-align + number format
+                            foreach (int nc in new[] { 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 })
+                            {
+                                ws.Cells[r, nc].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                ws.Cells[r, nc].Style.Numberformat.Format = numFmt;
+                            }
+                            // Cột text: center/left
+                            ws.Cells[r, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; // No.
+                            ws.Cells[r, 4].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; // PO No.
+                            ws.Cells[r, 5].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;   // Description
+                            ws.Cells[r, 5].Style.WrapText = true;
+                        }
+                        // Project No + Budget: center + wrap
+                        ws.Cells[6, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        ws.Cells[6, 2].Style.WrapText = true;
+                        ws.Cells[6, 3].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                        ws.Cells[6, 3].Style.Numberformat.Format = numFmt;
+
+                        // ── Sum row ──
+                        var sumRng = ws.Cells[sumRow, 1, sumRow, COLS];
+                        SetFill(sumRng, clrSumBg);
+                        sumRng.Style.Font.Bold = true;
+                        sumRng.Style.Font.Name = "Arial";
+                        sumRng.Style.Font.Size = 10;
+                        sumRng.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                        // Thick outer border cho sum row
+                        sumRng.Style.Border.Top.Style    = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                        sumRng.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                        sumRng.Style.Border.Left.Style   = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                        sumRng.Style.Border.Right.Style  = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                        ws.Row(sumRow).Height = 20;
+                        ws.Cells[sumRow, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        foreach (int nc in new[] { 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 })
+                        {
+                            ws.Cells[sumRow, nc].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                            ws.Cells[sumRow, nc].Style.Numberformat.Format = numFmt;
+                        }
+
+                        // ── Column widths ──
+                        ws.Column(1).Width  = 4.5;   // No.
+                        ws.Column(2).Width  = 22;    // Project No.
+                        ws.Column(3).Width  = 16;    // Budget
+                        ws.Column(4).Width  = 18;    // PO No.
+                        ws.Column(5).Width  = 26;    // PO Description
+                        ws.Column(6).Width  = 14;    // PO Amount
+                        for (int m = 1; m <= 12; m++)
+                            ws.Column(6 + m).Width = 12; // Tháng 1–12
+                        ws.Column(19).Width = 14;    // Accumulate
+                        ws.Column(20).Width = 14;    // Balance
+                        ws.Column(21).Width = 16;    // Remarks
+
+                        // ── Freeze panes: đóng băng tại row 6, col 7 (sau Project/Budget/PO cols) ──
+                        ws.View.FreezePanes(6, 7);
+
+                        pkg.Save();
+                    }
+                    catch (Exception ex) { errMsg = ex.Message; }
+                });
+
+                if (errMsg != null)
+                    SafeErr("Lỗi xuất Budget: " + errMsg);
+                else
+                {
+                    if (lblStatus != null) lblStatus.Text = $"✅ Đã xuất Payment Status: {Path.GetFileName(savePath)}";
+                    Process.Start(new ProcessStartInfo { FileName = savePath, UseShellExecute = true });
+                }
+            }
+            catch (Exception ex) { SafeErr("Lỗi: " + ex.Message); }
+            finally { this.Cursor = Cursors.Default; }
         }
 
         private void BtnPOStatus_Click(object sender, EventArgs e)
@@ -4886,7 +5327,6 @@ namespace MPR_Managerment.Forms
             r.Cells["Calc_Method"].Value = "Theo KG"; r.Cells["Ordered_PO"].Value = "";
             r.Cells["PO_Detail_ID"].Value = 0;
             dgvDetails.CurrentCell = r.Cells["Item_Name"];
-            AutoAdjustColumnWidths();
         }
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
@@ -4897,25 +5337,37 @@ namespace MPR_Managerment.Forms
                 SafeWarn("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!");
                 return;
             }
-            string msg = dgvDetails.SelectedRows.Count == 1 ?
-            "Bạn có chắc chắn muốn xóa dòng này?" : $"Bạn có chắc chắn muốn xóa {dgvDetails.SelectedRows.Count} dòng đã chọn?";
-            if (SafeAsk(msg, "Xác nhận xóa"))
+
+            try
             {
-                try
-                {
-                    var rowsToDelete = new List<DataGridViewRow>();
-                    foreach (DataGridViewRow row in dgvDetails.SelectedRows)
-                        if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") rowsToDelete.Add(row);
-                    foreach (var row in rowsToDelete) dgvDetails.Rows.Remove(row);
-                    int itemNo = 1;
-                    foreach (DataGridViewRow row in dgvDetails.Rows)
-                        if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
-                    UpdateTotal(); AutoAdjustColumnWidths();
-                }
-                catch (Exception ex)
-                {
-                    SafeErr("Lỗi khi xóa: " + ex.Message);
-                }
+                // Ngắt toàn bộ các sự kiện có thể gây loop hoặc block khi thay đổi cấu trúc/dữ liệu bảng
+                dgvDetails.CellValueChanged -= DgvDetails_CellValueChanged;
+                dgvDetails.CellEndEdit -= DgvDetails_CellEndEdit;
+                dgvDetails.CellParsing -= DgvDetails_CellParsing;
+                dgvDetails.CurrentCellDirtyStateChanged -= DgvDetails_CurrentCellDirtyStateChanged;
+                dgvDetails.CellFormatting -= DgvDetails_CellFormatting;
+
+                var rowsToDelete = new List<DataGridViewRow>();
+                foreach (DataGridViewRow row in dgvDetails.SelectedRows)
+                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") rowsToDelete.Add(row);
+                foreach (var row in rowsToDelete) dgvDetails.Rows.Remove(row);
+                
+                int itemNo = 1;
+                foreach (DataGridViewRow row in dgvDetails.Rows)
+                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
+                
+                UpdateTotal();
+
+                // Kết nối lại các sự kiện
+                dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
+                dgvDetails.CellEndEdit += DgvDetails_CellEndEdit;
+                dgvDetails.CellParsing += DgvDetails_CellParsing;
+                dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
+                dgvDetails.CellFormatting += DgvDetails_CellFormatting;
+            }
+            catch (Exception ex)
+            {
+                SafeErr("Lỗi khi xóa: " + ex.Message);
             }
         }
 
