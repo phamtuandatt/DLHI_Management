@@ -129,6 +129,7 @@ namespace MPR_Managerment.Forms.MPRGUI
                             E_Flag = dgvItems.Rows[e.RowIndex].Cells["e_flag"].Value?.ToString() ?? "",
                             F_Length = dgvItems.Rows[e.RowIndex].Cells["f_length"].Value?.ToString() ?? "",
                             G_Weight = dgvItems.Rows[e.RowIndex].Cells["g_weight"].Value?.ToString() ?? "",
+                            Unit = dgvItems.Rows[e.RowIndex].Cells["UNIT"].Value?.ToString() ?? "",
                         });
                     }
                     else

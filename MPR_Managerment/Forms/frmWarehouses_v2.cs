@@ -2324,6 +2324,13 @@ namespace MPR_Managerment.Forms
                 {
                     ExcelWorksheet ws = package.Workbook.Worksheets[0];
 
+                    DateTime importDate = DateTime.Now;
+                    foreach (DataRow item in dtDetails.Rows)
+                    {
+                        importDate = DateTime.Parse(item["Import_Date"].ToString() ?? DateTime.Now.ToString("dd/MM/yyyy"));
+                        break;
+                    }
+
                     // 1. Fill Header (A1:J13)
                     var headerRange = ws.Cells["A1:J14"];
                     foreach (var cell in headerRange)
@@ -2331,7 +2338,7 @@ namespace MPR_Managerment.Forms
                         if (cell.Value == null) continue;
                         string txt = cell.Value.ToString();
                         if (txt.Contains("<<BILL-NO>>")) cell.Value = txt.Replace("<<BILL-NO>>", "VMNP-" + billNo);
-                        if (txt.Contains("<<DATE>>")) cell.Value = txt.Replace("<<DATE>>", poModel.Created_Date.HasValue ? poModel.Created_Date.Value.ToString("dd/MM/yyyy") : DateTime.Now.ToString("dd/MM/yyyy"));
+                        if (txt.Contains("<<DATE>>")) cell.Value = txt.Replace("<<DATE>>", importDate.ToString("dd/MM/yyyy") ?? DateTime.Now.ToString("dd/MM/yyyy"));
                         if (txt.Contains("<<SUPPLIER_NAME>>")) cell.Value = txt.Replace("<<SUPPLIER_NAME>>", supplier?.Company_Name ?? "");
                     }
 

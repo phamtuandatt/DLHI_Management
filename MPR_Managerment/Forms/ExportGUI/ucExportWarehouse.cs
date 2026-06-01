@@ -480,12 +480,17 @@ namespace MPR_Managerment.Forms.ExportGUI
             if (dgvExportQue.Rows.Count <= 0) return;
             try
             {
-                var rs = await _warehouseServies.SaveExportList(dtSelected, "", "Admin");
+                var rs = await _warehouseServies.SaveExportList(dtSelected, "", AppSession.CurrentUser?.Full_Name ?? "");
                 if (rs)
                 {
                     MessageBox.Show(this.FindForm(), "Đã xuất vật tư !.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadProject();
+                    dgvExportQue.Rows.Clear();
+                    dgvExportQue.Refresh();
+                    dgvKho.Rows.Clear();
+                    dgvKho.Refresh();
+                    dtSelected.Rows.Clear();
                 }
-
             }
             catch (Exception ex)
             {
