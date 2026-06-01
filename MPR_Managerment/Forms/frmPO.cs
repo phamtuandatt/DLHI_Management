@@ -1558,15 +1558,28 @@ namespace MPR_Managerment.Forms
                         try
                         {
                             using var pd = new System.Drawing.Printing.PrintDocument();
+                            pd.DefaultPageSettings.Margins =
+                                new System.Drawing.Printing.Margins(10, 10, 10, 10);
                             var dlg = new PrintDialog { Document = pd };
                             if (dlg.ShowDialog() != DialogResult.OK) return;
                             var bmp = origBmp;
                             pd.PrintPage += (ps, pe) =>
                             {
-                                var page = pe.MarginBounds;
-                                double sc = Math.Min((double)page.Width / bmp.Width, (double)page.Height / bmp.Height);
-                                int dw = (int)(bmp.Width * sc), dh = (int)(bmp.Height * sc);
-                                pe.Graphics.DrawImage(bmp, page.Left + (page.Width - dw) / 2, page.Top + (page.Height - dh) / 2, dw, dh);
+                                var g = pe.Graphics;
+                                g.PageUnit = GraphicsUnit.Pixel;
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                float dpiX = g.DpiX, dpiY = g.DpiY;
+                                var pb = pe.PageBounds;
+                                float pageW = pb.Width  * dpiX / 100f;
+                                float pageH = pb.Height * dpiY / 100f;
+                                float pageL = pb.Left   * dpiX / 100f;
+                                float pageT = pb.Top    * dpiY / 100f;
+                                float sc = Math.Min(pageW / bmp.Width, pageH / bmp.Height);
+                                float dw = bmp.Width * sc, dh = bmp.Height * sc;
+                                g.DrawImage(bmp,
+                                    pageL + (pageW - dw) / 2f,
+                                    pageT + (pageH - dh) / 2f,
+                                    dw, dh);
                                 pe.HasMorePages = false;
                             };
                             pd.Print();
@@ -4022,7 +4035,7 @@ namespace MPR_Managerment.Forms
             }
         }
 
-        private void BtnSavePO_Click(object sender, EventArgs e)
+        private async void BtnSavePO_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("PO", "Lưu PO", "Lưu PO")) return;
             dgvDetails.EndEdit();
@@ -4030,7 +4043,6 @@ namespace MPR_Managerment.Forms
             {
                 SafeWarn("Vui lòng nhập PO No!"); txtPONo.Focus(); return;
             }
-            // Bat buoc chon Nha Cung Cap
             int _suppId = Convert.ToInt32(cboSupplier.SelectedValue ?? 0);
             if (_suppId <= 0 || string.IsNullOrWhiteSpace(cboSupplier.Text))
             {
@@ -4038,6 +4050,9 @@ namespace MPR_Managerment.Forms
                 cboSupplier.Focus(); return;
             }
             if (dgvDetails.Rows.Count == 0 && MessageBox.Show(GetActiveOwner(), "Don hang nay chua co chi tiet vat tu nao.\nBan co chac chan muon luu chi voi Header khong?", "Canh bao", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) return;
+
+            btnSavePO.Enabled = false;
+            this.Cursor = Cursors.WaitCursor;
             try
             {
                 string basePONo = txtPONo.Text.Trim();
@@ -4046,7 +4061,6 @@ namespace MPR_Managerment.Forms
 
                 if (_selectedPO_ID == 0)
                 {
-                    // TAO MOI: kiem tra trung so PO
                     bool isBaseDuplicate = _poList.Exists(p => p.PONo == basePONo && p.PO_ID != _selectedPO_ID);
                     if (isBaseDuplicate || nudRevise.Value > 0)
                     {
@@ -4066,10 +4080,10 @@ namespace MPR_Managerment.Forms
                 }
                 else
                 {
-                    // UPDATE PO CU: giu nguyen so PO, khong check trung
                     finalPONo = _poList.Find(p => p.PO_ID == _selectedPO_ID)?.PONo ?? basePONo;
                     txtPONo.Text = finalPONo;
                 }
+
                 var h = new POHead
                 {
                     PO_ID = _selectedPO_ID,
@@ -4077,14 +4091,12 @@ namespace MPR_Managerment.Forms
                     Project_Name = txtProjectName.Text.Trim(),
                     WorkorderNo = txtWorkorderNo.Text.Trim(),
                     MPR_No = txtMPRNo.Text.Trim(),
-                    Prepared = _currentUser, // Tự động gán theo user đang đăng nhập
+                    Prepared = _currentUser,
                     Reviewed = txtReviewed.Text.Trim(),
                     Agreement = txtAgreement.Text.Trim(),
                     Approved = txtApproved.Text.Trim(),
                     Notes = txtNotes.Text.Trim(),
-                    Payment_Term = cboPaymentTerm.SelectedIndex > 0
-                                   ? cboPaymentTerm.SelectedItem.ToString()
-                                   : "",
+                    Payment_Term = cboPaymentTerm.SelectedIndex > 0 ? cboPaymentTerm.SelectedItem.ToString() : "",
                     PO_Date = dtpPODate.Value,
                     Status = cboStatus.SelectedItem?.ToString() ?? "Draft",
                     Revise = (int)nudRevise.Value,
@@ -4092,21 +4104,37 @@ namespace MPR_Managerment.Forms
                     ProjectCode = _projectCodeImport,
                     Expected_Delivery = dtpPOExpectDelivery.Value
                 };
-                if (_selectedPO_ID == 0) _selectedPO_ID = _service.InsertHead(h, _currentUser);
-                else _service.UpdateHead(h, _currentUser);
-                txtPONo.Text = finalPONo;
-                SaveDetailsToDb();
-                RefreshMPRDetailLinks(_selectedPO_ID);
 
-                // Tự động chuyển trạng thái "Complete" nếu tiến độ giao hàng >= 100%
-                CheckAndAutoCompleteStatus(_selectedPO_ID);
-                MessageBox.Show(GetActiveOwner(), $"Đã lưu toàn bộ PO thành công!\n- Số PO: {finalPONo}\n- Số dòng vật tư: {dgvDetails.Rows.Count}", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                // Tự động xuất Excel vào thư mục PO Link của dự án
-                AutoSavePOExcelToPOLink(h, _selectedPO_ID);
-
+                // Lưu DB trên background thread
                 int savedId = _selectedPO_ID;
-                LoadPO();
+                await Task.Run(() =>
+                {
+                    if (_selectedPO_ID == 0) savedId = _service.InsertHead(h, _currentUser);
+                    else _service.UpdateHead(h, _currentUser);
+                });
+                if (savedId > 0) _selectedPO_ID = savedId;
+                h.PO_ID = _selectedPO_ID;
+                txtPONo.Text = finalPONo;
+
+                await Task.Run(() =>
+                {
+                    SaveDetailsToDb();
+                    RefreshMPRDetailLinks(_selectedPO_ID);
+                    CheckAndAutoCompleteStatus(_selectedPO_ID);
+                });
+
+                // Tự động xuất Excel (fire-and-forget, không block UI)
+                _ = Task.Run(() => { try { AutoSavePOExcelToBackground(h, _selectedPO_ID); } catch { } });
+
+                // Hiển thị kết quả lưu trên status label (không dùng MessageBox)
+                if (lblStatus != null)
+                    lblStatus.Text = $"✅ Đã lưu PO '{finalPONo}' ({dgvDetails.Rows.Count} dòng vật tư) lúc {DateTime.Now:HH:mm:ss}";
+
+                // Reload danh sách PO async
+                await LoadPOAsync();
+
+                // Chọn lại dòng vừa lưu (suppress SelectionChanged để tránh cascade)
+                _isLoadingPO = true;
                 foreach (DataGridViewRow row in dgvPO.Rows)
                 {
                     if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == savedId)
@@ -4117,11 +4145,107 @@ namespace MPR_Managerment.Forms
                         break;
                     }
                 }
-                if (_selectedPO_ID == savedId) LoadDetails(savedId);
+                _isLoadingPO = false;
+                _selectedPO_ID = savedId;
+
+                // Reload details (sync nhưng chỉ 1 PO — nhanh)
+                LoadDetails(savedId);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(GetActiveOwner(), "Lỗi khi lưu PO: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btnSavePO.Enabled = true;
+                this.Cursor = Cursors.Default;
+            }
+        }
+
+        // =========================================================================
+        // TỰ ĐỘNG XUẤT EXCEL — BACKGROUND VERSION (không blocking, không MessageBox)
+        // Chạy trong Task.Run, silently skip nếu thiếu PO_Link hoặc template
+        // =========================================================================
+        private void AutoSavePOExcelToBackground(POHead poHead, int poId)
+        {
+            // Chạy trong Task.Run — không dùng MessageBox, không block UI
+            try
+            {
+                var projects = new ProjectService().GetAll();
+                var prj = projects.Find(p =>
+                    (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(poHead.WorkorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(poHead.Project_Name, StringComparison.OrdinalIgnoreCase)));
+                if (prj == null || string.IsNullOrEmpty(prj.PO_Link)) return;
+
+                string poLinkDir = prj.PO_Link.Trim();
+                if (!Directory.Exists(poLinkDir)) return;
+
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "po_template.xlsx");
+                if (!File.Exists(templatePath)) return;
+
+                string safePoNo = poHead.PONo?.Replace("/", "-").Replace("\\", "-").Replace(":", "-") ?? "PO";
+                string fileName = $"PO_{safePoNo}_{DateTime.Now:ddMMyyyy}.xlsx";
+                string destPath = Path.Combine(poLinkDir, fileName);
+                File.Copy(templatePath, destPath, true);
+
+                var details = new POService().GetDetails(poId);
+                var suppliers = new SupplierService().GetAll();
+                var supplier = suppliers.Find(s => s.Supplier_ID == poHead.Supplier_ID);
+                string fullName = AppSession.CurrentUser?.Full_Name ?? _currentUser ?? "Admin";
+                bool isDomestic = _isDomestic;
+                string amtFmt = isDomestic ? "#,##0" : "#,##0.00";
+
+                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                using (var package = new OfficeOpenXml.ExcelPackage(new FileInfo(destPath)))
+                {
+                    var ws = package.Workbook.Worksheets[0];
+                    ReplaceCell(ws, "<<PROJECT_NAME>>", prj.ProjectName ?? poHead.Project_Name ?? "");
+                    ReplaceCell(ws, "<<WO-NO>>", poHead.WorkorderNo ?? "");
+                    ReplaceCell(ws, "<<REV.NUM>>", poHead.Revise.ToString());
+                    ReplaceCell(ws, "<<DATE>>", poHead.PO_Date.HasValue ? poHead.PO_Date.Value.ToString("dd/MM/yyyy") : DateTime.Today.ToString("dd/MM/yyyy"));
+                    ReplaceCell(ws, "<<MPR-NO>>", poHead.MPR_No ?? "");
+                    ReplaceCell(ws, "<<PO-NO>>", poHead.PONo ?? "");
+                    string supplierInfo = supplier != null ? $"{supplier.Company_Name}\nCert: {supplier.Cert ?? ""}\nEmail: {supplier.Email}" : "";
+                    ReplaceCell(ws, "<<SUPPLIER-INFO>>", supplierInfo);
+                    ReplaceCell(ws, "<<USER_NAME>>", fullName);
+                    ReplaceCell(ws, "<<user name>>", fullName);
+                    ReplaceCell(ws, "<<User Name>>", fullName);
+                    ws.Cells[5, 15].Value = !string.IsNullOrEmpty(poHead.Payment_Term) ? poHead.Payment_Term : "Within 7 days after delivery";
+                    ws.Cells[8, 11].Value = DateTime.Today.AddDays(7).ToString("dd/MM/yyyy");
+
+                    int startRow = 8;
+                    if (details.Count > 1) { ws.InsertRow(startRow + 1, details.Count - 1); for (int i = 1; i < details.Count; i++) ws.Cells[startRow, 1, startRow, 16].Copy(ws.Cells[startRow + i, 1]); }
+                    decimal totalAfterVAT = 0;
+                    for (int i = 0; i < details.Count; i++)
+                    {
+                        var d = details[i]; int row = startRow + i;
+                        decimal q = d.Qty_Per_Sheet; decimal wk = d.Weight_kg; decimal realPrice = d.Price;
+                        string rem = d.Remarks ?? "";
+                        if (rem.Contains("[CALC:KG]")) { rem = rem.Replace("[CALC:KG]", "").Trim(); if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk; }
+                        decimal dAmt = Math.Round(d.Amount, isDomestic ? 0 : 2, MidpointRounding.AwayFromZero);
+                        ws.Cells[row, 1].Value = i + 1; ws.Cells[row, 2].Value = d.Item_Name ?? ""; ws.Cells[row, 3].Value = d.Material ?? "";
+                        ws.Cells[row, 4].Value = d.Asize; ws.Cells[row, 5].Value = d.Bsize; ws.Cells[row, 6].Value = d.Csize;
+                        ws.Cells[row, 7].Value = q; ws.Cells[row, 8].Value = d.UNIT ?? ""; ws.Cells[row, 9].Value = wk;
+                        ws.Cells[row, 10].Value = d.MPSNo ?? ""; ws.Cells[row, 11].Value = poHead.Expected_Delivery; ws.Cells[row, 12].Value = "Kho DLHI";
+                        ws.Cells[row, 13].Value = Math.Round(realPrice, 0); ws.Cells[row, 14].Value = dAmt; ws.Cells[row, 16].Value = rem;
+                        totalAfterVAT += isDomestic ? Math.Round(dAmt * (1 + d.VAT / 100), 0, MidpointRounding.AwayFromZero) : dAmt;
+                    }
+                    int subTotalRow = startRow + details.Count;
+                    ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
+                    ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + details.Count - 1})";
+                    ws.Cells[subTotalRow + 1, 3].Value = "Final Price Requested (Included VAT)";
+                    ws.Cells[subTotalRow + 1, 14].Value = totalAfterVAT;
+                    package.Save();
+                }
+
+                this.BeginInvoke((Action)(() =>
+                {
+                    if (lblStatus != null) lblStatus.Text = $"✅ Lưu PO '{poHead.PONo}' thành công | Excel: {fileName}";
+                }));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AutoSaveBg] {ex.Message}");
             }
         }
 

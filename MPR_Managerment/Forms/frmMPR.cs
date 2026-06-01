@@ -458,15 +458,32 @@ namespace MPR_Managerment.Forms
                         try
                         {
                             using var pd = new System.Drawing.Printing.PrintDocument();
+                            // Margin nhỏ ~2.5mm để ảnh phủ gần hết trang A4
+                            pd.DefaultPageSettings.Margins =
+                                new System.Drawing.Printing.Margins(10, 10, 10, 10);
                             var dlg = new PrintDialog { Document = pd };
                             if (dlg.ShowDialog() != DialogResult.OK) return;
                             var bmp = origBmp;
                             pd.PrintPage += (ps, pe) =>
                             {
-                                var page = pe.MarginBounds;
-                                double sc = Math.Min((double)page.Width / bmp.Width, (double)page.Height / bmp.Height);
-                                int dw = (int)(bmp.Width * sc), dh = (int)(bmp.Height * sc);
-                                pe.Graphics.DrawImage(bmp, page.Left + (page.Width - dw) / 2, page.Top + (page.Height - dh) / 2, dw, dh);
+                                var g = pe.Graphics;
+                                // Dùng Pixel để tránh sai số unit ở các máy in DPI khác nhau
+                                g.PageUnit = GraphicsUnit.Pixel;
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                float dpiX = g.DpiX, dpiY = g.DpiY;
+                                // Chuyển PageBounds (1/100 inch) → pixel thực của máy in
+                                var pb = pe.PageBounds;
+                                float pageW = pb.Width  * dpiX / 100f;
+                                float pageH = pb.Height * dpiY / 100f;
+                                float pageL = pb.Left   * dpiX / 100f;
+                                float pageT = pb.Top    * dpiY / 100f;
+                                // Scale giữ tỷ lệ, phủ toàn trang
+                                float sc = Math.Min(pageW / bmp.Width, pageH / bmp.Height);
+                                float dw = bmp.Width * sc, dh = bmp.Height * sc;
+                                g.DrawImage(bmp,
+                                    pageL + (pageW - dw) / 2f,
+                                    pageT + (pageH - dh) / 2f,
+                                    dw, dh);
                                 pe.HasMorePages = false;
                             };
                             pd.Print();
