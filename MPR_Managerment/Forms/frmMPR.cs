@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using MPR_Managerment.Forms.MPRGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -243,7 +243,6 @@ namespace MPR_Managerment.Forms
                 Size            = new Size(1024, 768),
                 StartPosition   = FormStartPosition.Manual,
                 ShowInTaskbar   = false,
-                TopMost         = true,
                 BackColor       = Color.FromArgb(38, 38, 38),
                 Text            = Path.GetFileName(filePath)
             };
@@ -472,14 +471,14 @@ namespace MPR_Managerment.Forms
                             };
                             pd.Print();
                         }
-                        catch (Exception ex) { MessageBox.Show(_previewOwner, "Lỗi in: " + ex.Message, "In file"); }
+                        catch (Exception ex) { MessageBox.Show("Lỗi in: " + ex.Message, "In file"); }
                     };
                 }
                 else
                 {
                     BuildPreviewInfoPanel_MPR(f, filePath);
                     btnZoomIn.Visible = btnZoomOut.Visible = btnFit.Visible = btn100.Visible = lblZoom.Visible = false;
-                    printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show(_previewOwner, "Không thể in file này.", "In file"); } };
+                printAction = () => { try { Process.Start(new ProcessStartInfo { FileName = filePath, Verb = "print", UseShellExecute = true }); } catch { MessageBox.Show("Không thể in file này.", "In file"); } };
                 }
             }
             else if (ext == ".txt" || ext == ".csv" || ext == ".log" || ext == ".json" || ext == ".xml")
@@ -1101,12 +1100,12 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(TopOwner, "Không thể mở file: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Không thể mở file: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             else if (!string.IsNullOrEmpty(path))
             {
-                MessageBox.Show(TopOwner, "File không tồn tại hoặc đã bị xóa / di chuyển khỏi thư mục!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("File không tồn tại hoặc đã bị xóa / di chuyển khỏi thư mục!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -1147,7 +1146,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("Lỗi load files: " + ex.Message);
+                MessageBox.Show(TopOwner, "Lỗi load files: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1434,7 +1433,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(TopOwner, "Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi tải MPR: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1635,7 +1634,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("Lỗi tải PO Progress: " + ex.Message);
+                MessageBox.Show(TopOwner, "Lỗi tải PO Progress: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1739,7 +1738,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("Lỗi lấy PO Mapping: " + ex.Message);
+                MessageBox.Show(TopOwner, "Lỗi lấy PO Mapping: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             return dict;
         }
@@ -1810,7 +1809,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(TopOwner, "Lỗi tải chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi tải chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1879,7 +1878,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(TopOwner, "Lỗi tìm kiếm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi tìm kiếm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -1888,7 +1887,7 @@ namespace MPR_Managerment.Forms
             if (!PermissionHelper.Check("MPR", "Tạo MPR", "Tạo MPR")) return;
 
             string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "SQLTesting-Template.xlsm");
-            if (!File.Exists(templatePath)) { MessageBox.Show(TopOwner, "Không tìm thấy file!"); return; }
+            if (!File.Exists(templatePath)) { MessageBox.Show("Không tìm thấy file!"); return; }
 
             Form mainForm = this.ParentForm ?? this.FindForm();
 
@@ -1934,7 +1933,7 @@ namespace MPR_Managerment.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(TopOwner, "Lỗi: " + ex.Message);
+                MessageBox.Show("Lỗi: " + ex.Message);
             }
             finally
             {
@@ -2550,14 +2549,12 @@ namespace MPR_Managerment.Forms
             {
                 if (dgvDet.SelectedRows.Count == 0)
                 {
-                    dlg.BringToFront(); dlg.Activate();
-                    MessageBox.Show(dlg, "Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    SafeMsg("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!", "Thông báo", MessageBoxIcon.Warning);
                     return;
                 }
                 string msg = dgvDet.SelectedRows.Count == 1 ?
                 "Bạn có chắc chắn muốn xóa dòng này?" : $"Bạn có chắc chắn muốn xóa {dgvDet.SelectedRows.Count} dòng đã chọn?";
-                dlg.BringToFront(); dlg.Activate();
-                if (MessageBox.Show(dlg, msg, "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                if (SafeConfirm(msg, "Xác nhận xóa") == DialogResult.Yes)
                 {
                     try
                     {
@@ -2578,7 +2575,7 @@ namespace MPR_Managerment.Forms
                     catch (Exception ex)
                     {
                         dlg.BringToFront(); dlg.Activate();
-                        MessageBox.Show(dlg, "Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             };
@@ -2608,7 +2605,7 @@ namespace MPR_Managerment.Forms
                  if (!hasValidDetail)
                  {
                      dlg.BringToFront(); dlg.Activate();
-                     MessageBox.Show(dlg, "⚠ Vui lòng nhập chi tiết vật tư!\n\nBảng 'Chi tiết vật tư' không được để trống. Hãy thêm ít nhất một dòng vật tư trước khi tạo MPR.", "Yêu cầu nhập liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                     MessageBox.Show("⚠ Vui lòng nhập chi tiết vật tư!\n\nBảng 'Chi tiết vật tư' không được để trống. Hãy thêm ít nhất một dòng vật tư trước khi tạo MPR.", "Yêu cầu nhập liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                      return;
                  }
 
@@ -2625,7 +2622,7 @@ namespace MPR_Managerment.Forms
 
                     if (string.IsNullOrWhiteSpace(strSoLuong))
                     {
-                        MessageBox.Show(TopOwner, "Cảnh báo: Ô 'Số lượng' đang để trống hoặc chứa khoảng trắng!\nVui lòng nhập giá trị số vào ô này.",
+                        MessageBox.Show("Cảnh báo: Ô 'Số lượng' đang để trống hoặc chứa khoảng trắng!\nVui lòng nhập giá trị số vào ô này.",
                                         "Yêu cầu nhập liệu",
                                         MessageBoxButtons.OK,
                                         MessageBoxIcon.Warning);
@@ -2646,12 +2643,12 @@ namespace MPR_Managerment.Forms
                         System.Diagnostics.Debug.WriteLine($"Parse thành công số lượng: {parsedQty}");
 
                         // Ví dụ một thông báo nhỏ dưới thanh trạng thái hoặc thông báo kiểm tra (tùy nhu cầu UX của bạn)
-                        // MessageBox.Show(TopOwner, $"Số lượng hợp lệ: {parsedQty}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // MessageBox.Show($"Số lượng hợp lệ: {parsedQty}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     else
                     {
                         // Trường hợp ô nhập chữ hoặc ký tự đặc biệt không thể chuyển thành số (Ví dụ: "ABC", "12a3")
-                        MessageBox.Show(TopOwner, $"Giá trị '{strSoLuong}' tại ô 'Số lượng' không phải là số hợp lệ!\nVui lòng nhập lại.",
+                        MessageBox.Show($"Giá trị '{strSoLuong}' tại ô 'Số lượng' không phải là số hợp lệ!\nVui lòng nhập lại.",
                                         "Sai định dạng số",
                                         MessageBoxButtons.OK,
                                         MessageBoxIcon.Error);
@@ -2781,7 +2778,7 @@ namespace MPR_Managerment.Forms
                 Title = "Lưu file MPR"
             };
 
-            if (saveDialog.ShowDialog() != DialogResult.OK) return;
+            if (saveDialog.ShowDialog(TopOwner) != DialogResult.OK) return;
 
             try
             {
@@ -3601,6 +3598,10 @@ namespace MPR_Managerment.Forms
             dlg.ShowDialog();
         }
 
+        // =====================================================================
+        // TẠO PO TỪ MPR
+        // =====================================================================
+
         private void BtnSaveHeader_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("MPR", "Lưu Header", "Lưu Header")) return;
@@ -3812,7 +3813,7 @@ namespace MPR_Managerment.Forms
             _details.Clear();
         }
 
-        private void BtnCreatePO_Click(object sender, EventArgs e)
+        private async void BtnCreatePO_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("MPR", "Tạo PO", "Tạo PO từ MPR")) return;
             if (_selectedMPR_ID == 0)
@@ -3832,10 +3833,29 @@ namespace MPR_Managerment.Forms
             }
 
             string mprNo = mpr.MPR_No;
-            var frm = new frmPO(mprNo, true);
-            frm.SetImportMprId(mpr.MPR_ID);
-            frm.Show(this);
-            frm.ImportMPRByNo(mprNo, mpr.MPR_ID);
+
+            this.Cursor = Cursors.WaitCursor;
+            try
+            {
+                // Nhường 1 nhịp cho UI render cursor trước khi dựng form nặng.
+                await Task.Yield();
+
+                var frm = new frmPO(mprNo, true);
+                frm.SetImportMprId(mpr.MPR_ID);
+                frm.Show();
+
+                // Đưa focus sang form PO ngay sau khi mở.
+                frm.BringToFront();
+                frm.Activate();
+            }
+            catch (Exception ex)
+            {
+                SafeMsg("Không thể mở form PO: " + ex.Message, "Lỗi");
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
         }
 
         private void BtnAddDetail_Click(object sender, EventArgs e)
@@ -3875,11 +3895,35 @@ namespace MPR_Managerment.Forms
             dgvDetails.BeginEdit(true);
         }
 
-        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
+        private Form TopOwner => this;
         private void SafeMsg(string text, string caption, MessageBoxIcon icon = MessageBoxIcon.Error)
-        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, text, caption, MessageBoxButtons.OK, icon); }
+        {
+            var owner = TopOwner;
+            if (owner != null && !owner.IsDisposed)
+            {
+                owner.BringToFront();
+                owner.Activate();
+                MessageBox.Show(owner, text, caption, MessageBoxButtons.OK, icon);
+            }
+            else
+            {
+                MessageBox.Show(text, caption, MessageBoxButtons.OK, icon);
+            }
+        }
         private DialogResult SafeConfirm(string text, string caption)
-        { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, text, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Question); }
+        {
+            var owner = TopOwner;
+            if (owner != null && !owner.IsDisposed)
+            {
+                owner.BringToFront();
+                owner.Activate();
+                return MessageBox.Show(owner, text, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            }
+            else
+            {
+                return MessageBox.Show(text, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            }
+        }
 
         private void BtnDeleteDetail_Click(object sender, EventArgs e)
         {
@@ -5412,7 +5456,7 @@ WHERE f.rn = 1";
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi tải dữ liệu MPR Status:\n" + ex.Message, "Lỗi",
+                    MessageBox.Show(TopOwner, "Lỗi tải dữ liệu MPR Status:\n" + ex.Message, "Lỗi",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
@@ -6265,7 +6309,7 @@ ORDER BY DisplayName";
             selDlg.AcceptButton = btnNext; selDlg.CancelButton = btnCancelSel;
             selDlg.ClientSize = new Size(510, 420);
 
-            if (selDlg.ShowDialog(this) != DialogResult.OK) return;
+            if (selDlg.ShowDialog(TopOwner) != DialogResult.OK) return;
 
             var selectedEmails    = new List<string>();
             var selectedNames     = new List<string>();

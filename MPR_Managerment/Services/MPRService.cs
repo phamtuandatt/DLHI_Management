@@ -33,6 +33,50 @@ namespace MPR_Managerment.Services
             return list;
         }
 
+        public MPRHeader GetById(int id)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    SELECT MPR_ID, MPR_No, Project_Name, Project_Code,
+                           Department, Requestor,
+                           ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) AS Rev,
+                           Required_Date,
+                           Status, Total_Amount, Notes, Created_Date, Created_By,
+                           ISNULL(Email_Status, '') AS Email_Status,
+                           ISNULL(Email_Sent_By, '') AS Email_Sent_By,
+                           Email_Sent_At
+                    FROM MPR_Header WHERE MPR_ID = @id", conn);
+                cmd.Parameters.AddWithValue("@id", id);
+                using (var r = cmd.ExecuteReader())
+                    if (r.Read()) return MapHeader(r);
+            }
+            return null;
+        }
+
+        public MPRHeader GetByNo(string mprNo)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    SELECT TOP 1 MPR_ID, MPR_No, Project_Name, Project_Code,
+                           Department, Requestor,
+                           ISNULL(TRY_CAST(TRY_CAST(Rev AS DECIMAL(10,2)) AS INT), 0) AS Rev,
+                           Required_Date,
+                           Status, Total_Amount, Notes, Created_Date, Created_By,
+                           ISNULL(Email_Status, '') AS Email_Status,
+                           ISNULL(Email_Sent_By, '') AS Email_Sent_By,
+                           Email_Sent_At
+                    FROM MPR_Header WHERE MPR_No = @no", conn);
+                cmd.Parameters.AddWithValue("@no", mprNo);
+                using (var r = cmd.ExecuteReader())
+                    if (r.Read()) return MapHeader(r);
+            }
+            return null;
+        }
+
         // ===== SEARCH =====
         public List<MPRHeader> Search(string keyword)
         {
