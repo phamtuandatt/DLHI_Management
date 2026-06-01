@@ -1,0 +1,457 @@
+using MPR_Managerment.Helpers;
+using MPR_Managerment.Services;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace MPR_Managerment.Forms
+{
+    public class frmZaloImport : Form
+    {
+        // Controls
+        private Label lblFolder;
+        private Button btnImportLatest, btnImportSelected, btnRefreshFiles, btnViewDB;
+        private ListBox lstFiles;
+        private DataGridView dgvPreview, dgvDB;
+        private Panel panelTop, panelLeft, panelRight;
+        private Label lblStatus;
+        private ProgressBar pbImport;
+        private TabControl tabs;
+        private TabPage tabPreview, tabDB;
+        private CheckBox chkAutoWatch;
+        private Label lblWatch;
+
+        // FileSystemWatcher
+        private FileSystemWatcher _watcher;
+        private System.Windows.Forms.Timer _debounceTimer;
+        private string _pendingFile;
+
+        public frmZaloImport()
+        {
+            BuildUI();
+            RefreshFileList();
+            ZaloImportService.EnsureTable();
+            frmAIChat.Attach(this);
+        }
+
+        private void BuildUI()
+        {
+            Text = "📥  Zalo Import — 품의서";
+            BackColor = Color.FromArgb(245, 245, 245);
+            Size = new Size(1280, 750);
+            MinimumSize = new Size(900, 550);
+
+            SuspendLayout();
+
+            // ── Top toolbar: 2 hàng ──
+            panelTop = new Panel { Dock = DockStyle.Top, Height = 82, BackColor = Color.White };
+            // Hàng 1: folder path
+            lblFolder = new Label
+            {
+                Text = $"📁  {ZaloImportService.ZaloDownloadFolder}",
+                Location = new Point(8, 8), Size = new Size(950, 18),
+                Font = new Font("Segoe UI", 8.5f), ForeColor = Color.FromArgb(80, 80, 80)
+            };
+            panelTop.Controls.Add(lblFolder);
+            // Hàng 2: buttons
+            btnRefreshFiles  = MkBtn("🔄 Làm mới",            Color.FromArgb(108,117,125),  8, 33, 110, 28);
+            btnImportLatest  = MkBtn("⚡ Import file mới nhất", Color.FromArgb(0,120,212),   126, 33, 175, 28);
+            btnImportSelected= MkBtn("📥 Import file đã chọn", Color.FromArgb(40,167,69),   309, 33, 175, 28);
+            btnViewDB        = MkBtn("🗄️ Xem DB",              Color.FromArgb(102,51,153),  492, 33, 100, 28);
+            btnRefreshFiles.Click   += (s, e) => RefreshFileList();
+            btnImportLatest.Click   += BtnImportLatest_Click;
+            btnImportSelected.Click += BtnImportSelected_Click;
+            btnViewDB.Click         += BtnViewDB_Click;
+            chkAutoWatch = new CheckBox
+            {
+                Text = "Tự động import khi có file mới",
+                Location = new Point(602, 38), Size = new Size(235, 18),
+                Font = new Font("Segoe UI", 9), Checked = true
+            };
+            chkAutoWatch.CheckedChanged += ChkAutoWatch_Changed;
+            panelTop.Controls.AddRange(new Control[] { btnRefreshFiles, btnImportLatest, btnImportSelected, btnViewDB, chkAutoWatch });
+
+            // ── Watch label (Bottom) ──
+            lblWatch = new Label
+            {
+                Dock = DockStyle.Bottom, Height = 22,
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Color.FromArgb(0, 150, 100),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 0, 0),
+                BackColor = Color.FromArgb(235, 255, 235),
+                Text = "👀  Đang theo dõi folder Zalo..."
+            };
+
+            // ── Status bar (Bottom) ──
+            var panelStatus = new Panel { Dock = DockStyle.Bottom, Height = 28, BackColor = Color.FromArgb(230, 230, 230) };
+            lblStatus = new Label { Text = "Sẵn sàng.", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9), Padding = new Padding(8, 0, 0, 0) };
+            pbImport = new ProgressBar { Dock = DockStyle.Right, Width = 160, Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 0 };
+            panelStatus.Controls.Add(lblStatus);
+            panelStatus.Controls.Add(pbImport);
+
+            // ── SplitContainer (Fill) ──
+            var splitter = new SplitContainer { Dock = DockStyle.Fill };
+
+            // Thứ tự add vào form: Fill trước, Bottom sau, Top cuối
+            // (WinForms xử lý dock theo thứ tự ngược: cuối cùng được xử lý trước)
+            Controls.Add(splitter);     // Fill  → xử lý cuối (= lấy phần còn lại)
+            Controls.Add(panelStatus);  // Bottom→ xử lý trước splitter
+            Controls.Add(lblWatch);     // Bottom→ xử lý trước panelStatus
+            Controls.Add(panelTop);     // Top   → xử lý đầu tiên
+
+            // SplitterDistance phải set sau khi form hiển thị đầy đủ
+            Shown += (s, e) =>
+            {
+                try { splitter.SplitterDistance = Math.Max(200, Math.Min(260, splitter.Width - 350)); }
+                catch { }
+            };
+
+            // ── Left panel: danh sách file ──
+            var lblFiles = new Label
+            {
+                Text = "📋  Danh sách file 품의서",
+                Dock = DockStyle.Top, Height = 28,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 120, 212),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 0, 0), BackColor = Color.White
+            };
+            lstFiles = new ListBox
+            {
+                Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9),
+                BorderStyle = BorderStyle.None, BackColor = Color.White
+            };
+            lstFiles.SelectedIndexChanged += LstFiles_SelectedIndexChanged;
+            // Fill trước, Top sau
+            splitter.Panel1.Controls.Add(lstFiles);
+            splitter.Panel1.Controls.Add(lblFiles);
+
+            // ── Right panel: tabs ──
+            tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+            tabPreview = new TabPage("🔍  Xem trước file");
+            tabDB      = new TabPage("🗄️  Dữ liệu đã import vào DB");
+            tabs.TabPages.AddRange(new[] { tabPreview, tabDB });
+            splitter.Panel2.Controls.Add(tabs);
+
+            // Tab Preview: chỉ grid, Dock.Fill
+            dgvPreview = BuildGrid(Color.FromArgb(0, 120, 212));
+            BuildPreviewCols();
+            tabPreview.Controls.Add(dgvPreview);
+
+            // Tab DB: chỉ grid, Dock.Fill (nút đã đưa lên toolbar)
+            dgvDB = BuildGrid(Color.FromArgb(102, 51, 153));
+            BuildDBCols();
+            tabDB.Controls.Add(dgvDB);
+
+            ResumeLayout(true);
+
+            // Khởi động watcher
+            StartWatcher();
+        }
+
+        private void RefreshFileList()
+        {
+            lstFiles.Items.Clear();
+            var files = ZaloImportService.FindImportFiles();
+            foreach (var f in files)
+                lstFiles.Items.Add(new FileItem(f.Item1, f.Item2));
+
+            lblStatus.Text = files.Count > 0
+                ? $"Tìm thấy {files.Count} file 품의서. File mới nhất: {files[0].Item2:dd/MM/yyyy}"
+                : "Không tìm thấy file 품의서 nào trong thư mục Zalo.";
+        }
+
+        private void LstFiles_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (lstFiles.SelectedItem is FileItem item)
+                LoadPreview(item.Path);
+        }
+
+        private void LoadPreview(string filePath)
+        {
+            dgvPreview.Rows.Clear();
+            lblStatus.Text = "Đang đọc file...";
+            try
+            {
+                var rows = ZaloImportService.ReadFile(filePath);
+                foreach (var r in rows)
+                {
+                    int i = dgvPreview.Rows.Add();
+                    var dr = dgvPreview.Rows[i];
+                    dr.Cells["P_Row"].Value   = r.RowIndex;
+                    dr.Cells["P_PO"].Value    = r.PONo;
+                    dr.Cells["P_Ecount"].Value= r.EcountNo;
+                    dr.Cells["P_GW"].Value    = r.GWNo;
+                    dr.Cells["P_Title"].Value = r.TitleEN;
+                    dr.Cells["P_Amount"].Value= FormatAmt(r.Amount);
+                    dr.Cells["P_VAT"].Value   = FormatAmt(r.VAT);
+                    dr.Cells["P_Final"].Value = FormatAmt(r.FinalAmount);
+                    dr.Cells["P_D1"].Value    = FormatAmt(r.Dot1);
+                    dr.Cells["P_D2"].Value    = FormatAmt(r.Dot2);
+                    dr.Cells["P_D3"].Value    = FormatAmt(r.Dot3);
+                    dr.Cells["P_D4"].Value    = FormatAmt(r.Dot4);
+                    dr.Cells["P_Status"].Value= r.ProgressStatus;
+                }
+                lblStatus.Text = $"Preview: {rows.Count} dòng dữ liệu từ {Path.GetFileName(filePath)}";
+            }
+            catch (Exception ex)
+            {
+                lblStatus.Text = "Lỗi đọc file: " + ex.Message;
+            }
+        }
+
+        private void BtnImportLatest_Click(object sender, EventArgs e)
+        {
+            var files = ZaloImportService.FindImportFiles();
+            if (files.Count == 0) { Status("Không tìm thấy file nào!"); return; }
+            DoImport(files[0].Item1, files[0].Item2);
+        }
+
+        private void BtnImportSelected_Click(object sender, EventArgs e)
+        {
+            if (lstFiles.SelectedItem is not FileItem item) { Status("Vui lòng chọn file trong danh sách!"); return; }
+            DoImport(item.Path, item.Date);
+        }
+
+        private async void DoImport(string path, DateTime date)
+        {
+            SetBusy(true);
+            Status($"Đang import {Path.GetFileName(path)}...");
+            try
+            {
+                var result = await System.Threading.Tasks.Task.Run(() =>
+                    ZaloImportService.ImportToDB(path, date));
+
+                if (result.Success)
+                {
+                    Status($"✅  Import thành công! {result.InsertedRows} dòng mới, {result.UpdatedRows} dòng cập nhật (tổng {result.TotalRows} dòng) — {date:dd/MM/yyyy}");
+                    LoadPreview(path);
+                    // Chuyển sang tab DB và load
+                    tabs.SelectedTab = tabDB;
+                    LoadDBGrid();
+                }
+                else
+                {
+                    Status($"❌  Lỗi import: {result.Error}");
+                    MessageBox.Show(TopLevelControl, result.Error, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            finally { SetBusy(false); }
+        }
+
+        private void BtnViewDB_Click(object sender, EventArgs e) => LoadDBGrid();
+
+        private void LoadDBGrid()
+        {
+            dgvDB.Rows.Clear();
+            try
+            {
+                using var conn = DatabaseHelper.GetConnection();
+                conn.Open();
+                var chk = new Microsoft.Data.SqlClient.SqlCommand(
+                    "SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='Zalo_PaymentImport'", conn);
+                if ((int)chk.ExecuteScalar() == 0) return;
+
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    SELECT TOP 2000 Import_ID, File_Date, Row_Index, PO_No, Ecount_No, GW_No,
+                           Amount, VAT, Final_Amount, Dot1, Dot2, Dot3, Dot4,
+                           Progress_Status, Imported_At
+                    FROM Zalo_PaymentImport
+                    ORDER BY File_Date DESC, Row_Index ASC", conn);
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                {
+                    int i = dgvDB.Rows.Add();
+                    var dr = dgvDB.Rows[i];
+                    dr.Cells["DB_ID"].Value      = rdr["Import_ID"];
+                    dr.Cells["DB_Date"].Value    = rdr["File_Date"] != DBNull.Value ? ((DateTime)rdr["File_Date"]).ToString("dd/MM/yyyy") : "";
+                    dr.Cells["DB_Row"].Value     = rdr["Row_Index"];
+                    dr.Cells["DB_PO"].Value      = rdr["PO_No"]?.ToString() ?? "";
+                    dr.Cells["DB_Ecount"].Value  = rdr["Ecount_No"]?.ToString() ?? "";
+                    dr.Cells["DB_GW"].Value      = rdr["GW_No"]?.ToString() ?? "";
+                    dr.Cells["DB_Amount"].Value  = rdr["Amount"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Amount"])) : "";
+                    dr.Cells["DB_VAT"].Value     = rdr["VAT"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["VAT"])) : "";
+                    dr.Cells["DB_Final"].Value   = rdr["Final_Amount"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Final_Amount"])) : "";
+                    dr.Cells["DB_D1"].Value      = rdr["Dot1"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot1"])) : "";
+                    dr.Cells["DB_D2"].Value      = rdr["Dot2"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot2"])) : "";
+                    dr.Cells["DB_D3"].Value      = rdr["Dot3"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot3"])) : "";
+                    dr.Cells["DB_D4"].Value      = rdr["Dot4"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot4"])) : "";
+                    dr.Cells["DB_Status"].Value  = rdr["Progress_Status"]?.ToString() ?? "";
+                    dr.Cells["DB_ImportAt"].Value= rdr["Imported_At"] != DBNull.Value ? ((DateTime)rdr["Imported_At"]).ToString("dd/MM/yyyy HH:mm") : "";
+                }
+                lblStatus.Text = $"Đang hiển thị {dgvDB.Rows.Count} bản ghi từ DB.";
+            }
+            catch (Exception ex) { lblStatus.Text = "Lỗi load DB: " + ex.Message; }
+        }
+
+        // ── FileSystemWatcher ──
+        private void StartWatcher()
+        {
+            string folder = ZaloImportService.ZaloDownloadFolder;
+            if (!Directory.Exists(folder)) return;
+
+            _debounceTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+            _debounceTimer.Tick += (s, e) =>
+            {
+                _debounceTimer.Stop();
+                if (_pendingFile != null)
+                {
+                    string f = _pendingFile; _pendingFile = null;
+                    string fname = Path.GetFileNameWithoutExtension(f);
+                    string datePart = fname.Substring("0. 품의서 ".Length).Trim();
+                    if (DateTime.TryParseExact(datePart, "yyyy-MM-dd",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out DateTime dt))
+                    {
+                        Invoke(() =>
+                        {
+                            lblWatch.Text = $"🔔  File mới phát hiện: {Path.GetFileName(f)}";
+                            RefreshFileList();
+                            if (chkAutoWatch.Checked) DoImport(f, dt);
+                        });
+                    }
+                }
+            };
+
+            _watcher = new FileSystemWatcher(folder, "0. 품의서 *.xlsx")
+            {
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                EnableRaisingEvents = chkAutoWatch.Checked
+            };
+            _watcher.Created += (s, e) => { _pendingFile = e.FullPath; Invoke(() => { _debounceTimer.Stop(); _debounceTimer.Start(); }); };
+            _watcher.Changed += (s, e) => { _pendingFile = e.FullPath; Invoke(() => { _debounceTimer.Stop(); _debounceTimer.Start(); }); };
+
+            lblWatch.Text = chkAutoWatch.Checked ? "👀  Đang theo dõi folder Zalo..." : "⏸  Tắt theo dõi tự động.";
+        }
+
+        private void ChkAutoWatch_Changed(object sender, EventArgs e)
+        {
+            if (_watcher != null)
+                _watcher.EnableRaisingEvents = chkAutoWatch.Checked;
+            if (lblWatch != null)
+                lblWatch.Text = chkAutoWatch.Checked ? "👀  Đang theo dõi folder Zalo..." : "⏸  Tắt theo dõi tự động.";
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _watcher?.Dispose();
+            _debounceTimer?.Dispose();
+            base.OnFormClosed(e);
+        }
+
+        // ── Helpers ──
+        private void BuildPreviewCols()
+        {
+            dgvPreview.Columns.Clear();
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Row",    HeaderText = "Row",          Width = 45,  ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_PO",     HeaderText = "PO No",        Width = 160, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Ecount", HeaderText = "Ecount No",    Width = 110, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_GW",     HeaderText = "품의서 No",    Width = 160, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Title",  HeaderText = "Title",        FillWeight = 100, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Amount", HeaderText = "Amount",       Width = 110, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_VAT",    HeaderText = "VAT",          Width = 90,  ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Final",  HeaderText = "Final Amount", Width = 110, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D1",     HeaderText = "Đợt 1",        Width = 100, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D2",     HeaderText = "Đợt 2",        Width = 100, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D3",     HeaderText = "Đợt 3",        Width = 100, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D4",     HeaderText = "Đợt 4",        Width = 100, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Status", HeaderText = "Status",       Width = 90,  ReadOnly = true });
+            StyleAmtCols(dgvPreview, "P_Amount","P_VAT","P_Final","P_D1","P_D2","P_D3","P_D4");
+        }
+
+        private void BuildDBCols()
+        {
+            dgvDB.Columns.Clear();
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_ID",       HeaderText = "ID",           Width = 55,  ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Date",     HeaderText = "Ngày file",    Width = 90,  ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Row",      HeaderText = "Row",          Width = 45,  ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_PO",       HeaderText = "PO No",        Width = 160, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Ecount",   HeaderText = "Ecount No",    Width = 110, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_GW",       HeaderText = "품의서 No",    Width = 160, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Amount",   HeaderText = "Amount",       Width = 110, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_VAT",      HeaderText = "VAT",          Width = 90,  ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Final",    HeaderText = "Final Amount", Width = 110, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D1",       HeaderText = "Đợt 1",        Width = 100, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D2",       HeaderText = "Đợt 2",        Width = 100, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D3",       HeaderText = "Đợt 3",        Width = 100, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D4",       HeaderText = "Đợt 4",        Width = 100, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Status",   HeaderText = "Status",       Width = 90,  ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_ImportAt", HeaderText = "Imported At",  Width = 130, ReadOnly = true });
+            StyleAmtCols(dgvDB, "DB_Amount","DB_VAT","DB_Final","DB_D1","DB_D2","DB_D3","DB_D4");
+        }
+
+        private void StyleAmtCols(DataGridView dgv, params string[] cols)
+        {
+            dgv.CellFormatting += (s, e) =>
+            {
+                if (e.RowIndex < 0) return;
+                string cn = dgv.Columns[e.ColumnIndex].Name;
+                if (Array.IndexOf(cols, cn) >= 0)
+                    e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            };
+        }
+
+        private DataGridView BuildGrid(Color headerColor)
+        {
+            var dgv = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                AllowUserToAddRows = false,
+                ReadOnly = true,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
+            };
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = headerColor;
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgv.EnableHeadersVisualStyles = false;
+            dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 248, 255);
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(210, 230, 255);
+            dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
+            return dgv;
+        }
+
+        private Button MkBtn(string text, Color color, int x, int y, int w, int h)
+        {
+            var b = new Button
+            {
+                Text = text, Location = new Point(x, y), Size = new Size(w, h),
+                BackColor = color, ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            b.FlatAppearance.BorderSize = 0;
+            return b;
+        }
+
+        private void SetBusy(bool busy)
+        {
+            pbImport.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Continuous;
+            pbImport.MarqueeAnimationSpeed = busy ? 30 : 0;
+            btnImportLatest.Enabled = !busy;
+            btnImportSelected.Enabled = !busy;
+        }
+
+        private void Status(string msg) => lblStatus.Text = msg;
+
+        private static string FormatAmt(decimal? v) =>
+            v.HasValue ? v.Value.ToString("#,##0.##") : "";
+
+        // ── Inner class ──
+        private class FileItem
+        {
+            public string Path { get; }
+            public DateTime Date { get; }
+            public FileItem(string path, DateTime date) { Path = path; Date = date; }
+            public override string ToString() => $"{Date:yyyy-MM-dd}  —  {System.IO.Path.GetFileName(Path)}";
+        }
+    }
+}

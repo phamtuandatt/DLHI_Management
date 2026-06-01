@@ -2863,6 +2863,10 @@ namespace MPR_Managerment.Forms
                             rem = rem.Replace("[CALC:KG]", "").Trim();
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
                         }
+                        else if (rem.Contains("[CALC:SL]"))
+                        {
+                            rem = rem.Replace("[CALC:SL]", "").Trim();
+                        }
 
                         // Gán giá trị
                         ws.Cells[row, 1].Value = i + 1;
@@ -4709,7 +4713,15 @@ namespace MPR_Managerment.Forms
                         var d = details[i]; int row = startRow + i;
                         decimal q = d.Qty_Per_Sheet; decimal wk = d.Weight_kg; decimal realPrice = d.Price;
                         string rem = d.Remarks ?? "";
-                        if (rem.Contains("[CALC:KG]")) { rem = rem.Replace("[CALC:KG]", "").Trim(); if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk; }
+                        if (rem.Contains("[CALC:KG]")) 
+                        { 
+                            rem = rem.Replace("[CALC:KG]", "").Trim(); 
+                            if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk; 
+                        }
+                        else if (rem.Contains("[CALC:SL]"))
+                        {
+                            rem = rem.Replace("[CALC:SL]", "").Trim();
+                        }
                         decimal dAmt = Math.Round(d.Amount, isDomestic ? 0 : 2, MidpointRounding.AwayFromZero);
                         ws.Cells[row, 1].Value = i + 1; ws.Cells[row, 2].Value = d.Item_Name ?? ""; ws.Cells[row, 3].Value = d.Material ?? "";
                         ws.Cells[row, 4].Value = d.Asize; ws.Cells[row, 5].Value = d.Bsize; ws.Cells[row, 6].Value = d.Csize;
@@ -4868,6 +4880,10 @@ namespace MPR_Managerment.Forms
                         {
                             rem = rem.Replace("[CALC:KG]", "").Trim();
                             if (wk > 0 && q > 0) realPrice = (d.Price * q) / wk;
+                        }
+                        else if (rem.Contains("[CALC:SL]"))
+                        {
+                            rem = rem.Replace("[CALC:SL]", "").Trim();
                         }
 
                         decimal dAmt = Math.Round(d.Amount, amtDec, MidpointRounding.AwayFromZero);

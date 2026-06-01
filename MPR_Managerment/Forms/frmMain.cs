@@ -286,6 +286,7 @@ namespace MPR_Managerment.Forms
                 AddMenuBtn("📂  Phân loại file Scan", Color.FromArgb(30, 30, 45), y); y += 42;
 
                 AddMenuBtn("💳  Thanh toán Debit", Color.FromArgb(30, 30, 45), y); y += 42;
+                AddMenuBtn("📥  Zalo Import", Color.FromArgb(30, 30, 45), y); y += 42;
 
 
             }
@@ -361,6 +362,7 @@ namespace MPR_Managerment.Forms
             else if (tag.Contains("MPR")) OpenForm(new frmMPR());
             else if (tag.Contains("Đơn đặt hàng")) OpenForm(new frmPO());
             else if (tag.Contains("Thanh toán Debit")) OpenForm(new frmPayment());
+            else if (tag.Contains("Zalo Import")) OpenForm(new frmZaloImport());
             else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouses_v2());
             else if (tag.Contains("Phân loại file")) OpenForm(new frmFileSorter());
             else if (tag.Contains("Quản lý User")) OpenForm(new frmUserManagement());
