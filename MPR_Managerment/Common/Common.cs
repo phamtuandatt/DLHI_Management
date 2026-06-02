@@ -292,7 +292,7 @@ namespace MPR_Managerment.Common
 
         public static void CreateButtonSearch(Button btn, string text)
         {
-            btn.Text = "🔍 Tìm";
+            btn.Text = text ?? "🔍 Tìm";
             btn.Cursor = Cursors.Hand;
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btn.BackColor = Color.FromArgb(0, 120, 212);

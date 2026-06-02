@@ -108,6 +108,20 @@ namespace MPR_Managerment.Services
             }
         }
 
+        public void UpdateIDCode(WarehouseImport wi)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"UPDATE Warehouse_Import SET QC_Code = @QC_Code WHERE Import_ID = @ImportID", conn);
+
+                cmd.Parameters.AddWithValue("@QC_Code", wi.QC_Code);
+                cmd.Parameters.AddWithValue("@ImportID", wi.Import_ID);
+
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public void UpdateMaterialDetail(int material_detail_id, string item_code_existed, string item_number)
         {
             using (var conn = DatabaseHelper.GetConnection())

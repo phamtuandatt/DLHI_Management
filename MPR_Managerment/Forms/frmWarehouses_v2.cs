@@ -91,7 +91,8 @@ namespace MPR_Managerment.Forms
             InitializeComponent();
             _dtProject = new ProjectService().GetAll();
             BuidUI();
-            SetupImportLayout(pageImport);
+            SetupImportLayout(pageImport); // Khởi tạo nhưng không sử dụng
+            //SetupImportLayout_V2(pageImport); // Sử dụng V2
             SetupExportLayout(pageExport);
             SetupFillInvoiceNotLayout(pageFillInvoiceNo);
             SetupFillInvoiceNoLayout_v2(pageFillInvoiceNo_v2);
@@ -191,6 +192,46 @@ namespace MPR_Managerment.Forms
             }
 
             this.Controls.Add(mainTabControl);
+        }
+
+        private void SetupImportLayout_V2(TabPage parent)
+        {
+            // 1. Panel bao ngoài cùng: Luôn Fill và quản lý Scroll
+            Panel mainScrollPanel = new Panel();
+            mainScrollPanel.Dock = DockStyle.Fill;
+            mainScrollPanel.AutoScroll = true; // Kích hoạt Scroll
+            parent.Controls.Add(mainScrollPanel);
+
+            // 2. Panel container: Chứa nội dung chính
+            Panel container = new Panel();
+            container.Location = new Point(0, 0);
+
+            // THIẾT LẬP QUAN TRỌNG:
+            // Chỉ neo phía trên và bên trái. KHÔNG neo bên phải để tránh bị bóp nghẹt chiều rộng.
+            container.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // Kích thước tối thiểu (Cột mốc để hiện thanh cuộn)
+            int minW = 1280;
+            int minH = 2000;
+            container.MinimumSize = new Size(minW, minH);
+
+            // Thiết lập size ban đầu
+            container.Size = new Size(Math.Max(parent.Width, minW), minH);
+
+            // 3. XỬ LÝ ĐỘNG: Đảm bảo khi mở to màn hình thì container vẫn dãn hết chiều ngang
+            parent.Resize += (s, e) =>
+            {
+                // Nếu màn hình lớn hơn 1280, dãn rộng container ra cho đẹp.
+                // Nếu nhỏ hơn 1280, giữ nguyên 1280 để hiện scroll ngang.
+                container.Width = Math.Max(mainScrollPanel.ClientSize.Width, minW);
+            };
+
+            mainScrollPanel.Controls.Add(container);
+
+            ucImportWarehouse ucImportWarehouse = new ucImportWarehouse();
+            ucImportWarehouse.Dock = DockStyle.Fill;
+            container.Controls.Add(ucImportWarehouse);
+            ucImportWarehouse.BringToFront();
         }
 
         public void SetupImportLayout(TabPage parent)

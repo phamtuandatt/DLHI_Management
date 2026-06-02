@@ -198,10 +198,10 @@ namespace MPR_Managerment.Forms.WarehouseGUI
 
             // 2. Thêm các mục (Items) vào menu
             ToolStripMenuItem itemXemChiTiet = new ToolStripMenuItem("📄 Chuyển vật tư");
-            //ToolStripMenuItem itemSaoChep = new ToolStripMenuItem("📋 Sao chép mã");
+            ToolStripMenuItem itemCapnhatIDCode = new ToolStripMenuItem("📋 Cập nhật ID Code");
             //ToolStripMenuItem itemXuatKho = new ToolStripMenuItem("📤 Xuất kho");
 
-            menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet/*, itemSaoChep, new ToolStripSeparator(), itemXuatKho*/ });
+            menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet, itemCapnhatIDCode/*, itemSaoChep, new ToolStripSeparator(), itemXuatKho*/ });
 
             // 3. Gắn menu vào DataGridView
             if (AppSession.CurrentUser.Role_ID == 1)
@@ -222,6 +222,22 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                     frmProjectMaterialTransform frmProjectMaterialTransform = new frmProjectMaterialTransform(_dtProject, importId, maxQty);
                     frmProjectMaterialTransform.ShowDialog();
                     //btnSearch.PerformClick();
+                }
+            };
+
+            itemCapnhatIDCode.Click += (s, e) =>
+            {
+                if (dgvStock.CurrentRow != null)
+                {
+                    // Lấy dữ liệu từ dòng đang chọn
+                    var row = dgvStock.CurrentRow;
+                    string id = row.Cells["Import_ID"].Value?.ToString();
+                    var importId = Convert.ToInt32(row.Cells["Import_ID"].Value.ToString());
+                    var warehouseImport = new WarehouseImport() { Import_ID = importId };
+
+                    frmUpdateIDCode frmUpdateIDCode = new frmUpdateIDCode(warehouseImport);
+                    frmUpdateIDCode.ShowDialog();
+                    LoadAll();
                 }
             };
 
@@ -784,12 +800,16 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                     Label lblName = new Label() { Text = "Name:", Location = new Point(20, startY + (spacing * 4)), AutoSize = true };
                     TextBox txtName = new TextBox() { Location = new Point(150, startY + (spacing * 4) - 3), Size = new Size(200, 25) };
 
+                    // QCCode
+                    Label lblQCCode = new Label() { Text = "ID Code:", Location = new Point(20, startY + (spacing * 5)), AutoSize = true };
+                    TextBox txtQCCode = new TextBox() { Location = new Point(150, startY + (spacing * 5) - 3), Size = new Size(200, 25) };
+
                     // --- 3. Cấu hình các Button ---
                     // Button Cancel (Nền xám, chữ trắng)
                     Button btnCancel = new Button()
                     {
                         Text = "Cancel",
-                        Location = new Point(150, 250),
+                        Location = new Point(150, 275),
                         Size = new Size(90, 35),
                         BackColor = Color.Gray,
                         ForeColor = Color.White,
@@ -801,7 +821,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                     Button btnSave = new Button()
                     {
                         Text = "Save",
-                        Location = new Point(260, 250),
+                        Location = new Point(260, 275),
                         Size = new Size(90, 35),
                         BackColor = Color.DodgerBlue,
                         ForeColor = Color.White,
@@ -817,6 +837,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                         string weight = txtWeight.Text;
                         string sizeValue = txtSize.Text;
                         string name = txtName.Text;
+                        string qcCode = txtQCCode.Text.Trim().ToUpper();
 
                         var w = new WarehouseImport()
                         {
@@ -825,6 +846,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                             Qty_Import = !string.IsNullOrEmpty(qty) ? Convert.ToDecimal(qty.Trim()) : 0,
                             Size = sizeValue,
                             Item_Name = name,
+                            QC_Code = qcCode
                         };
 
                         if (!string.IsNullOrEmpty(txtItemCode.Text))
@@ -847,6 +869,10 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                         {
                             _service.ModifyNameOfWarehouseImport(w);
                         }
+                        if (!string.IsNullOrEmpty(txtQCCode.Text))
+                        {
+                            _service.UpdateIDCode(w);
+                        }
                         // Hiển thị kết quả lấy được để kiểm tra
                         string info = $"Dữ liệu đã thu thập:\n" +
                                       $"- Item Code: {itemCode}\n" +
@@ -867,6 +893,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                         lblWeight, txtWeight,
                         lblSize, txtSize,
                         lblName, txtName,
+                        lblQCCode, txtQCCode,
                         btnCancel, btnSave
                     });
 
