@@ -16,12 +16,58 @@ namespace MPR_Managerment.Services
     public class AISearchService
     {
         // ── Cấu hình 9Router Proxy (OpenAI-compatible) ────────────────────
-        // Proxy chạy local tại: http://localhost:20128/v1/chat/completions
-        private const string ROUTER_API_URL = "http://localhost:20128/v1/chat/completions";
-        private const string ROUTER_MODEL = "ForVSCode";
+        // Đọc từ file ai_config.json (được lưu bởi Config AI dialog trong frmMain)
+        private static readonly string ROUTER_API_URL;
+        private static readonly string ROUTER_MODEL;
 
         // API key cho 9Router Proxy — để trống nếu proxy không yêu cầu xác thực
-        private const string ROUTER_API_KEY = "sk-be73dd5e6a579e85-suubtl-b7961654";
+        private static readonly string ROUTER_API_KEY = "";
+
+        /// <summary>Đọc cấu hình từ ai_config.json khi class được load lần đầu.</summary>
+        static AISearchService()
+        {
+            string configPath = System.IO.Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory, "ai_config.json");
+
+            //// Giá trị mặc định
+            //ROUTER_API_URL = "http://localhost:20128/v1/chat/completions";
+            //ROUTER_MODEL = "ForVSCode";
+
+            if (System.IO.File.Exists(configPath))
+            {
+                try
+                {
+                    var json = System.IO.File.ReadAllText(configPath);
+                    var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("RouterApiUrl", out var rau))
+                    {
+                        string val = rau.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(val)) ROUTER_API_URL = val;
+                    }
+                    if (doc.RootElement.TryGetProperty("RouterModel", out var rm))
+                    {
+                        string val = rm.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(val)) ROUTER_MODEL = val;
+                    }
+                    if (doc.RootElement.TryGetProperty("ApiKey", out var ak))
+                    {
+                        string val = ak.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(val)) ROUTER_API_KEY = val;
+                    }
+                }
+                catch { /* Nếu lỗi parse → dùng giá trị mặc định */ }
+            }
+            else
+            {
+                // File chưa tồn tại → thông báo yêu cầu cấu hình
+                System.Windows.Forms.MessageBox.Show(
+                    "Chưa có file cấu hình AI (ai_config.json).\n\n" +
+                    "Vui lòng nhấn nút '🤖 Config AI' trên thanh Header để nhập cấu hình trước khi sử dụng tính năng AI.",
+                    "Cấu hình AI chưa sẵn sàng",
+                    System.Windows.Forms.MessageBoxButtons.OK,
+                    System.Windows.Forms.MessageBoxIcon.Warning);
+            }
+        }
 
         private static readonly HttpClient _http = new HttpClient
         {
