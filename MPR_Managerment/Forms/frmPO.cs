@@ -3402,16 +3402,39 @@ namespace MPR_Managerment.Forms
             string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "PaymentStatus_template.xlsx");
             if (!File.Exists(templatePath)) { SafeErr($"Không tìm thấy template:\n{templatePath}"); return; }
 
-            using var sfd = new SaveFileDialog
-            {
-                Title = "Lưu Payment Status",
-                Filter = "Excel Files|*.xlsx",
-                FileName = $"PaymentStatus_{selPO.WorkorderNo}_{DateTime.Now:yyyyMMdd}",
-                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
-            };
-            if (sfd.ShowDialog() != DialogResult.OK) return;
+            // Hỏi trước: mở trực tiếp hay lưu file
+            var choice = MessageBox.Show(
+                GetActiveOwner(),
+                "Bạn muốn làm gì với file Budget?\n\n" +
+                "  [Yes]    → Mở trực tiếp (không lưu)\n" +
+                "  [No]     → Lưu file rồi mở\n" +
+                "  [Cancel] → Huỷ",
+                "Xuất Budget",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question);
 
-            string savePath = sfd.FileName;
+            if (choice == DialogResult.Cancel) return;
+
+            bool openOnly = (choice == DialogResult.Yes);
+            string defaultName = $"PaymentStatus_{selPO.WorkorderNo}_{DateTime.Now:yyyyMMdd}.xlsx";
+
+            string savePath;
+            if (openOnly)
+            {
+                savePath = Path.Combine(Path.GetTempPath(), defaultName);
+            }
+            else
+            {
+                using var sfd = new SaveFileDialog
+                {
+                    Title = "Lưu Payment Status",
+                    Filter = "Excel Files|*.xlsx",
+                    FileName = Path.GetFileNameWithoutExtension(defaultName),
+                    InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+                if (sfd.ShowDialog() != DialogResult.OK) return;
+                savePath = sfd.FileName;
+            }
             string errMsg = null;
             this.Cursor = Cursors.WaitCursor;
             try
@@ -3681,6 +3704,27 @@ namespace MPR_Managerment.Forms
                         // ── Freeze panes: đóng băng tại row 6, col 7 (sau Project/Budget/PO cols) ──
                         ws.View.FreezePanes(6, 7);
 
+                        // ── Print setup ──
+                        var ps = ws.PrinterSettings;
+                        ps.PrintArea        = ws.Cells[1, 1, sumRow, COLS];   // vùng in: A1 → U{sumRow}
+                        ps.RepeatRows       = ws.Cells["1:5"];                 // lặp header khi in nhiều trang
+                        ps.Orientation      = OfficeOpenXml.eOrientation.Landscape;
+                        ps.PaperSize        = OfficeOpenXml.ePaperSize.A4;
+                        ps.FitToPage        = true;
+                        ps.FitToWidth       = 1;   // vừa khít 1 trang ngang
+                        ps.FitToHeight      = 0;   // tự động số trang dọc
+                        ps.TopMargin        = 0.5m;
+                        ps.BottomMargin     = 0.5m;
+                        ps.LeftMargin       = 0.4m;
+                        ps.RightMargin      = 0.4m;
+                        ps.HeaderMargin     = 0.2m;
+                        ps.FooterMargin     = 0.2m;
+                        ps.ShowGridLines    = false;
+                        ps.ShowHeaders      = false;
+                        // Footer: tên file bên trái, số trang bên phải
+                        ws.HeaderFooter.OddFooter.LeftAlignedText  = $"PaymentStatus_{workorderNo}";
+                        ws.HeaderFooter.OddFooter.RightAlignedText = "Page &P of &N";
+
                         pkg.Save();
                     }
                     catch (Exception ex) { errMsg = ex.Message; }
@@ -3690,8 +3734,19 @@ namespace MPR_Managerment.Forms
                     SafeErr("Lỗi xuất Budget: " + errMsg);
                 else
                 {
-                    if (lblStatus != null) lblStatus.Text = $"✅ Đã xuất Payment Status: {Path.GetFileName(savePath)}";
-                    Process.Start(new ProcessStartInfo { FileName = savePath, UseShellExecute = true });
+                    if (lblStatus != null)
+                        lblStatus.Text = openOnly
+                            ? $"✅ Đã mở Budget (tạm thời)"
+                            : $"✅ Đã lưu Payment Status: {Path.GetFileName(savePath)}";
+
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = savePath, UseShellExecute = true });
+                    }
+                    catch (Exception openEx)
+                    {
+                        SafeErr($"Không thể mở file:\n{openEx.Message}");
+                    }
                 }
             }
             catch (Exception ex) { SafeErr("Lỗi: " + ex.Message); }

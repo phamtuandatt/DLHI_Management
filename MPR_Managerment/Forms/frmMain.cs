@@ -284,6 +284,8 @@ namespace MPR_Managerment.Forms
             {
                 AddMenuBtn("🏭  Kho vật tư", Color.FromArgb(30, 30, 45), y); y += 42;
                 AddMenuBtn("📂  Phân loại file Scan", Color.FromArgb(30, 30, 45), y); y += 42;
+                AddMenuBtn("📧  Hóa đơn Outlook", Color.FromArgb(30, 30, 45), y); y += 42;
+                AddMenuBtn("📁  Phân loại Invoice", Color.FromArgb(30, 30, 45), y); y += 42;
 
                 AddMenuBtn("💳  Thanh toán Debit", Color.FromArgb(30, 30, 45), y); y += 42;
                 AddMenuBtn("📥  Zalo Import", Color.FromArgb(30, 30, 45), y); y += 42;
@@ -365,6 +367,8 @@ namespace MPR_Managerment.Forms
             else if (tag.Contains("Zalo Import")) OpenForm(new frmZaloImport());
             else if (tag.Contains("Kho vật tư")) OpenForm(new frmWarehouses_v2());
             else if (tag.Contains("Phân loại file")) OpenForm(new frmFileSorter());
+            else if (tag.Contains("Hóa đơn Outlook")) OpenForm(new frmOutlookInvoice());
+            else if (tag.Contains("Phân loại Invoice")) OpenForm(new frmInvoiceClassifier());
             else if (tag.Contains("Quản lý User")) OpenForm(new frmUserManagement());
             else if (tag.Contains("Lịch sử thông báo")) OpenForm(new frmNotificationLog());
             else if (tag.Contains("Đổi mật khẩu"))

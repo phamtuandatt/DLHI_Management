@@ -100,4 +100,16 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Scripts\outlook_invoice_downloader.py">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Scripts\outlook_invoice_monitor.py">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Scripts\invoice_classifier.py">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

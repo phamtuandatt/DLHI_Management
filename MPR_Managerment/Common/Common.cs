@@ -484,7 +484,7 @@ namespace MPR_Managerment.Common
             // 1. Kiểm tra Grid có bị null (chưa khởi tạo) không
             if (dgv == null)
             {
-                MessageBox.Show($"{gridName} chưa được khởi tạo!", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBoxHelper.ShowError(dgv, $"{gridName} chưa được khởi tạo!", "Lỗi hệ thống");
                 return false;
             }
 
@@ -492,14 +492,14 @@ namespace MPR_Managerment.Common
             // (Kiểm tra cả DataSource và số lượng dòng thực tế)
             if (dgv.Rows.Count == 0 || (dgv.DataSource != null && ((DataTable)dgv.DataSource).Rows.Count == 0))
             {
-                MessageBox.Show($"{gridName} hiện đang trống, không có dữ liệu để xử lý!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxHelper.ShowWarning(dgv, $"{gridName} hiện đang trống, không có dữ liệu để xử lý!", "Thông báo");
                 return false;
             }
 
             // 3. Kiểm tra xem có dòng nào đang được chọn hay không
             if (dgv.CurrentRow == null || dgv.CurrentRow.Index < 0)
             {
-                MessageBox.Show($"Vui lòng chọn một dòng trong {gridName} để tiếp tục!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBoxHelper.ShowInfo(dgv, $"Vui lòng chọn một dòng trong {gridName} để tiếp tục!", "Thông báo");
                 return false;
             }
 
@@ -511,21 +511,21 @@ namespace MPR_Managerment.Common
             // 1. Kiểm tra ComboBox có bị null về mặt khởi tạo không
             if (cbo == null)
             {
-                MessageBox.Show($"{displayName} chưa được khởi tạo!", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBoxHelper.ShowError(cbo, $"{displayName} chưa được khởi tạo!", "Lỗi hệ thống");
                 return false;
             }
 
             // 2. Kiểm tra DataSource (nếu bạn dùng Binding dữ liệu)
             if (cbo.DataSource == null && cbo.Items.Count == 0)
             {
-                MessageBox.Show($"Danh sách {displayName} đang trống. Vui lòng kiểm tra lại kết nối dữ liệu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxHelper.ShowWarning(cbo, $"Danh sách {displayName} đang trống. Vui lòng kiểm tra lại kết nối dữ liệu!", "Thông báo");
                 return false;
             }
 
             // 3. Kiểm tra xem có Item nào đang được chọn không
             if (cbo.SelectedIndex == -1)
             {
-                MessageBox.Show($"Vui lòng chọn một giá trị từ {displayName}!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBoxHelper.ShowInfo(cbo, $"Vui lòng chọn một giá trị từ {displayName}!", "Thông báo");
                 cbo.Focus(); // Đưa con trỏ vào combobox để người dùng chọn luôn
                 return false;
             }

@@ -2,6 +2,7 @@
 //  Tab 1: Tiến độ thanh toán từng PO
 //  Tab 2: Báo cáo tổng hợp công nợ NCC theo kỳ
 // ============================================================
+using MPR_Managerment.Common;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
@@ -3030,7 +3031,7 @@ private void DgvPO_CellMouseEnter(object sender, DataGridViewCellEventArgs e)
             }
             else
             {
-                MessageBox.Show("Không tìm thấy file PO nào cho số " + po, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBoxHelper.ShowInfo(this, "Không tìm thấy file PO nào cho số " + po, "Thông báo");
             }
         }
         catch { }
