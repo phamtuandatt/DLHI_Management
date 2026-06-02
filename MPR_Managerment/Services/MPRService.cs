@@ -238,12 +238,12 @@ namespace MPR_Managerment.Services
                         (MPR_ID, Item_No, Item_Name, Description, Material,
                          Thickness_mm, Depth_mm, C_Width_mm, D_Web_mm, E_Flange_mm, F_Length_mm,
                          UNIT, Qty_Per_Sheet, Weight_kg, MPS_Info, Usage_Location, REV, Remarks,
-                         Is_Deleted, Created_By, Created_Date)
+                         Is_Deleted, Created_By, Created_Date, ProductCode)
                     VALUES
                         (@MPR_ID, @Item_No, @Item_Name, @Description, @Material,
                          @Thickness_mm, @Depth_mm, @C_Width_mm, @D_Web_mm, @E_Flange_mm, @F_Length_mm,
                          @UNIT, @Qty_Per_Sheet, @Weight_kg, @MPS_Info, @Usage_Location, @REV, @Remarks,
-                         @Is_Deleted, @Created_By, GETDATE())", conn);
+                         @Is_Deleted, @Created_By, GETDATE(), @ProductCode)", conn);
 
                 AddDetailParams(cmd, d);
                 cmd.Parameters.AddWithValue("@Created_By", createdBy);
@@ -279,7 +279,8 @@ namespace MPR_Managerment.Services
                         Usage_Location = @Usage_Location,
                         REV            = @REV,
                         Remarks        = @Remarks,
-                        Is_Deleted     = @Is_Deleted
+                        Is_Deleted     = @Is_Deleted,
+                        ProductCode    = @ProductCode
                     WHERE Detail_ID = @DetailId", conn);
 
                 AddDetailParams(cmd, d);
@@ -320,6 +321,7 @@ namespace MPR_Managerment.Services
             cmd.Parameters.AddWithValue("@REV", d.REV ?? "0");
             cmd.Parameters.AddWithValue("@Remarks", d.Remarks ?? "");
             cmd.Parameters.AddWithValue("@Is_Deleted", d.Is_Deleted ? 1 : 0); // BIT
+            cmd.Parameters.AddWithValue("@ProductCode", d.ProductCode ?? "");
         }
 
         private MPRHeader MapHeader(SqlDataReader r)

@@ -27,5 +27,6 @@ namespace MPR_Managerment.Models
 
         public bool Status_Delivery { get; set; }
         public decimal Received_Qty { get; set; }
+        public string? ProductCode { get;set; }
     }
 }

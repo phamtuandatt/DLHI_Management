@@ -2346,6 +2346,7 @@ namespace MPR_Managerment.Forms
             AddCol("Weight_kg", "KG", 55);
             AddCol("Remarks", "Ghi chú", 100);
             AddCol("Id", "Item Id", 50);
+            AddCol("ProductCode", "Code", 100); // Thêm code ProductCode để ghi nhận code khi nhập kho
             dgvDet.Columns["Id"].Visible = false;
             dlg.Controls.Add(dgvDet);
 
@@ -2667,7 +2668,9 @@ namespace MPR_Managerment.Forms
                     dgvDet.Rows[insertAt].Cells["UNIT"].Value = item.Unit;
                     dgvDet.Rows[insertAt].Cells["Weight_kg"].Value = item.G_Weight;
                     dgvDet.Rows[insertAt].Cells["Id"].Value = item.Id;
-                    
+
+                    dgvDet.Rows[insertAt].Cells["ProductCode"].Value = item.Code ?? "";
+
                     insertAt++;
                     if (totalRowIndex >= 0) totalRowIndex++;
                 }
@@ -2865,7 +2868,8 @@ namespace MPR_Managerment.Forms
                             MPS_Info = row2.Cells["MPS_Info"].Value?.ToString() ?? "",
                             Usage_Location = row2.Cells["Usage_Location"].Value?.ToString() ?? "",
                             REV = "0",
-                            Remarks = row2.Cells["Remarks"].Value?.ToString() ?? ""
+                            Remarks = row2.Cells["Remarks"].Value?.ToString() ?? "",
+                            ProductCode = row2.Cells["ProductCode"].Value?.ToString() ?? "",
                         }, _currentUser);
                     }
 

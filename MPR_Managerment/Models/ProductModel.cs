@@ -29,5 +29,6 @@ namespace MPR_Managerment.Models
         public int ProdMaterialId { get; set; }
         public int ProdMaterialDetailId { get; set; }
         public string? Unit { get; set; }
+        public string? ProductCode { get; set; }
     }
 }

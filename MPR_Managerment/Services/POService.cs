@@ -184,7 +184,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                var cmd = new SqlCommand("SELECT * FROM PO_Detail WHERE PO_ID = @id ORDER BY Item_No", conn);
+                var cmd = new SqlCommand("SELECT *, mD.ProductCode FROM PO_Detail pD INNER JOIN MPR_Details mD ON pD.MPR_Detail_ID = mD.Detail_ID  WHERE PO_ID = @id ORDER BY pD.Item_No", conn);
                 cmd.Parameters.AddWithValue("@id", poId);
                 var r = cmd.ExecuteReader();
                 while (r.Read()) list.Add(MapDetail(r));
@@ -397,6 +397,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns
                 MPR_Detail_ID = r["MPR_Detail_ID"] != DBNull.Value ? Convert.ToInt32(r["MPR_Detail_ID"]) : (int?)null,
 
                 Received_Qty = r["Received_Qty"] != DBNull.Value ? Convert.ToDecimal(r["Received_Qty"]) : 0,
+                ProductCode = r["ProductCode"].ToString() ?? ""
             };
         }
     }

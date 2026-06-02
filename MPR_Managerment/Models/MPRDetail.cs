@@ -26,5 +26,6 @@ namespace MPR_Managerment.Models
         public decimal Weight_kg { get; set; }
         public string Remarks { get; set; } = "";
         public bool Is_Deleted { get; set; } = false; // Đánh dấu dòng đã bị loại bỏ khi Revise
+        public string? ProductCode { get; set; }
     }
 }
