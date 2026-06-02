@@ -1,5 +1,4 @@
-﻿// ============================================================
-//  FILE: Forms/frmPayment.cs
+﻿//  FILE: Forms/frmPayment.cs
 //  Tab 1: Tiến độ thanh toán từng PO
 //  Tab 2: Báo cáo tổng hợp công nợ NCC theo kỳ
 // ============================================================
@@ -68,6 +67,13 @@ namespace MPR_Managerment.Forms
 
         private Button btnRefreshPO;
 
+        // Preview file (like frmPO)
+        private System.Windows.Forms.Timer _previewTimer;
+        private string _previewFilePath = null;
+        private DataGridViewCell _previewCell = null;
+        private System.Windows.Forms.Timer _previewCloseTimer;
+        private Form _previewForm;
+
         // =====================================================================
         public frmPayment()
         {
@@ -130,8 +136,8 @@ namespace MPR_Managerment.Forms
 
             Lbl(pFilter, "Tìm:", 6, 12, 40, 20);
             txtSearchPO = Txt(pFilter, 46, 8, 220);
-            txtSearchPO.PlaceholderText = "PO No / Dự án / NCC...";
-            txtSearchPO.TextChanged += (s, e) => FilterAndBind();
+            txtSearchPO.PlaceholderText = "PO No / Dự án / NCC... (Enter để tìm)";
+            txtSearchPO.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FilterAndBind(); } };
 
             Lbl(pFilter, "Trạng thái:", 278, 12, 85, 20);
             cboStatusFilter = Cbo(pFilter, 363, 8, 180,
@@ -147,7 +153,9 @@ namespace MPR_Managerment.Forms
             Lbl(panelTop, "DANH SÁCH ĐƠN PO", 8, 5, 350, 20, true, Color.FromArgb(0, 120, 212));
             dgvPO = Grid(panelTop, 28, 156);
             dgvPO.SelectionChanged += DgvPO_SelectionChanged;
-            dgvPO.CellFormatting += DgvPO_CellFormatting;
+dgvPO.CellFormatting += DgvPO_CellFormatting;
+dgvPO.CellMouseEnter += DgvPO_CellMouseEnter;
+dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
             BuildPOGridCols();
 
             panelInfo = new Panel
@@ -364,40 +372,13 @@ namespace MPR_Managerment.Forms
             panelHist.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             Lbl(panelHist, "📋  PAYMENT REQUEST PROGRESSING", 8, 5, 400, 20, true, Color.FromArgb(102, 51, 153));
 
-            // ── Bộ lọc Status ──
-            Lbl(panelHist, "Lọc:", 8, 33, 30, 20);
-            _cboHistStatus = new ComboBox
-            {
-                Location = new Point(38, 30),
-                Size = new Size(100, 24),
-                Font = new Font("Segoe UI", 9),
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            _cboHistStatus.Items.AddRange(new[] { "Tất cả", "Pending", "Approval" });
-            _cboHistStatus.SelectedIndex = 0;
-            _cboHistStatus.SelectedIndexChanged += (s, e) => FilterHistoryGrid();
-            panelHist.Controls.Add(_cboHistStatus);
-
-            var bHistPaid = Btn("📋 History Paid", Color.FromArgb(40, 167, 69), 144, 28, 130, 24);
+            var bHistPaid = Btn("📋 History Paid", Color.FromArgb(40, 167, 69), 8, 28, 130, 24);
             bHistPaid.Click += (s, e) => ShowHistoryPaidPopup();
             panelHist.Controls.Add(bHistPaid);
 
-            if (canEdit)
-            {
-                var bDel = Btn("Xóa", Color.FromArgb(220, 53, 69), 280, 28, 55, 24);
-                bDel.Click += BtnDelPayment_Click;
-                panelHist.Controls.Add(bDel);
-            }
-
-            dgvHistory = Grid(panelHist, 57, 138);
-            dgvHistory.SelectionChanged += (s, e) =>
-            {
-                if (dgvHistory.SelectedRows.Count > 0)
-                    _selectedHistID = Convert.ToInt32(dgvHistory.SelectedRows[0].Cells["H_ID"].Value ?? 0);
-                else if (dgvHistory.CurrentRow != null)
-                    _selectedHistID = Convert.ToInt32(dgvHistory.CurrentRow.Cells["H_ID"].Value ?? 0);
-            };
+            dgvHistory = Grid(panelHist, 57, 0);
             BuildHistCols();
+            dgvHistory.CellDoubleClick += DgvHistory_CellDoubleClick;
 
             // ── dgvPaid: khởi tạo standalone, dùng trong popup History Paid ──
             _paidFrom = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = DateTime.Today.AddMonths(-3) };
@@ -552,56 +533,36 @@ namespace MPR_Managerment.Forms
         private void BuildHistCols()
         {
             dgvHistory.Columns.Clear();
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_ID", Visible = false });
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_PONo", HeaderText = "PO No", Width = 130, ReadOnly = true });
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Total", HeaderText = "Tổng sau VAT", Width = 115, ReadOnly = true });
+            dgvHistory.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvHistory.AllowUserToResizeColumns = true;
+            dgvHistory.ColumnHeadersHeight = 35;
+            dgvHistory.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
 
-            // Cột Đợt thanh toán
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Dot", HeaderText = "Đợt TT", Width = 70, ReadOnly = true });
-
-            // Cột EC Status — ComboBox 상신 / 종결
-            var cboEC = new DataGridViewComboBoxColumn
+            // Cột trái cố định
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "H_ECStatus",
-                HeaderText = "EC Status",
-                Width = 90,
-                FlatStyle = FlatStyle.Flat,
-                DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton
-            };
-            cboEC.Items.AddRange(new[] { "", "\uc0c1\uc2e0", "\uc885\uacb0" }); // "", 상신, 종결
-            dgvHistory.Columns.Add(cboEC);
-
-            // Cột Status — ComboBox Pending / Approval
-            var cboStatus = new DataGridViewComboBoxColumn
-            {
-                Name = "H_Status",
-                HeaderText = "Status",
-                Width = 95,
-                FlatStyle = FlatStyle.Flat,
-                DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton
-            };
-            cboStatus.Items.AddRange(new[] { "Pending", "Approval" });
-            dgvHistory.Columns.Add(cboStatus);
-
-            // Cột Đã thanh toán — CheckBox, chỉ enable khi Status = Approval
-            dgvHistory.Columns.Add(new DataGridViewCheckBoxColumn
-            {
-                Name = "H_Paid",
-                HeaderText = "Đã TT",
-                Width = 55,
-                ReadOnly = false
+                Name = "H_PONo", HeaderText = "PO No",
+                Width = 160, AutoSizeMode = DataGridViewAutoSizeColumnMode.None, ReadOnly = true
             });
-
-            // Cột Ghi chú — click để nhập
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Note", HeaderText = "Ghi chú", Width = 130 });
-
-            // Cột INV — tên file Invoice (hiển thị), full path ẩn
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_INV_Path", Visible = false });
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_INV", HeaderText = "INV", Width = 130, ReadOnly = true });
-
-            // Cột Delivery Note — tên file (hiển thị), full path ẩn
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Del_Path", Visible = false });
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Delivery", HeaderText = "Delivery Note", FillWeight = 100, ReadOnly = true });
+            // Cột giữa — fill theo tỷ lệ
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_PreTax",   HeaderText = "Trước thuế",    FillWeight = 13, ReadOnly = true });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Total",    HeaderText = "Thành tiền",    FillWeight = 15, ReadOnly = true });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_ECStatus", HeaderText = "EC status",     FillWeight =  9, ReadOnly = true });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Paid",     HeaderText = "Đã thanh toán", FillWeight = 13, ReadOnly = true });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_PaidDate", HeaderText = "Paid Date",     FillWeight = 11, ReadOnly = true });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Remain",   HeaderText = "Còn lại",       FillWeight = 13, ReadOnly = true });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Note",     HeaderText = "Ghi chú",       FillWeight = 20, ReadOnly = true });
+            // Cột phải cố định
+            dgvHistory.Columns.Add(new DataGridViewButtonColumn
+            {
+                Name = "H_Print",
+                HeaderText = "In thanh toán",
+                Width = 90,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                FlatStyle = FlatStyle.Flat,
+                Text = "🖨 In",
+                UseColumnTextForButtonValue = true
+            });
 
             dgvHistory.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(102, 51, 153);
             dgvHistory.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
@@ -609,125 +570,63 @@ namespace MPR_Managerment.Forms
             dgvHistory.EnableHeadersVisualStyles = false;
             dgvHistory.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 240, 255);
 
-            // Màu Status + disable checkbox H_Paid khi Status != Approval
             dgvHistory.CellFormatting += (s, ev) =>
             {
                 if (ev.RowIndex < 0) return;
-                string colName = dgvHistory.Columns[ev.ColumnIndex].Name;
-
-                if (colName == "H_Status")
+                string col = dgvHistory.Columns[ev.ColumnIndex].Name;
+                if (col == "H_PreTax" || col == "H_Total" || col == "H_Paid" || col == "H_Remain")
+                    ev.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                if (col == "H_ECStatus")
                 {
-                    string v = ev.Value?.ToString() ?? "";
-                    ev.CellStyle.ForeColor = v == "Approval"
-                        ? Color.FromArgb(40, 167, 69)
-                        : Color.FromArgb(255, 140, 0);
+                    string ecv = ev.Value?.ToString() ?? "";
+                    if (ecv == "상신") // 상신
+                    {
+                        ev.CellStyle.ForeColor = Color.Red;
+                    }
+                    else if (ecv == "종결") // 종결
+                    {
+                        ev.CellStyle.ForeColor = Color.FromArgb(180, 0, 0);
+                        ev.CellStyle.BackColor = Color.FromArgb(255, 220, 220);
+                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                    else if (ecv == "대기중") // 대기중
+                    {
+                        ev.CellStyle.ForeColor = Color.Red;
+                        ev.CellStyle.BackColor = Color.FromArgb(255, 200, 100);
+                    }
+                }
+                if (col == "H_Paid" && !string.IsNullOrEmpty(ev.Value?.ToString()))
+                {
+                    ev.CellStyle.BackColor = Color.FromArgb(230, 255, 230);
+                    ev.CellStyle.ForeColor = Color.FromArgb(40, 130, 40);
                     ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                 }
-                if (colName == "H_Total")
-                    ev.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-
-                // Màu nền EC Status: 상신 = cam, 종결 = xanh lá
-                if (colName == "H_ECStatus")
+                if (col == "H_Remain")
                 {
-                    string ecVal = ev.Value?.ToString() ?? "";
-                    if (ecVal == "\uc0c1\uc2e0") // 상신
+                    if (decimal.TryParse((ev.Value?.ToString() ?? "").Replace(",", ""), out decimal remain) && remain <= 0)
                     {
-                        ev.CellStyle.BackColor = Color.FromArgb(255, 165, 0);
-                        ev.CellStyle.ForeColor = Color.White;
+                        ev.CellStyle.ForeColor = Color.FromArgb(40, 167, 69);
                         ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-                    }
-                    else if (ecVal == "\uc885\uacb0") // 종결
-                    {
-                        ev.CellStyle.BackColor = Color.FromArgb(40, 167, 69);
-                        ev.CellStyle.ForeColor = Color.White;
-                        ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-                    }
-                }
-
-                // Làm mờ ô H_Paid khi Status != Approval
-                if (colName == "H_Paid")
-                {
-                    string status = dgvHistory.Rows[ev.RowIndex].Cells["H_Status"].Value?.ToString() ?? "";
-                    if (status != "Approval")
-                    {
-                        ev.CellStyle.BackColor = Color.FromArgb(220, 220, 220);
-                        ev.CellStyle.ForeColor = Color.Gray;
                     }
                 }
             };
 
-            // Chặn toggle H_Paid nếu Status != Approval — dùng CellContentClick (đúng event cho CheckBox)
             dgvHistory.CellContentClick += (s, ev) =>
             {
                 if (ev.RowIndex < 0) return;
-                if (dgvHistory.Columns[ev.ColumnIndex].Name != "H_Paid") return;
-                // Kiểm tra quyền tick Đã TT
-                if (!PermissionHelper.HasPermission("PAYMENT", "Tick Đã TT"))
+                if (dgvHistory.Columns[ev.ColumnIndex].Name != "H_Print") return;
+                string poNo = dgvHistory.Rows[ev.RowIndex].Cells["H_PONo"].Value?.ToString() ?? "";
+                var po = _poSummaries.Find(p => (p.PONo ?? "") == poNo);
+                if (po == null) { Warn($"Không tìm thấy PO {poNo} trong danh sách!"); return; }
+                _selectedPO_ID = po.PO_ID;
+                foreach (DataGridViewRow row in dgvPO.Rows)
                 {
-                    dgvHistory.EndEdit();
-                    dgvHistory.Rows[ev.RowIndex].Cells["H_Paid"].Value = false;
-                    Warn("Bạn không có quyền đánh dấu 'Đã TT'!");
-                    return;
+                    if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == po.PO_ID)
+                    { dgvPO.ClearSelection(); row.Selected = true; break; }
                 }
-                string status = dgvHistory.Rows[ev.RowIndex].Cells["H_Status"].Value?.ToString() ?? "";
-                if (status != "Approval")
-                {
-                    // Revert ngay lập tức — không cho thay đổi
-                    dgvHistory.EndEdit();
-                    bool current = dgvHistory.Rows[ev.RowIndex].Cells["H_Paid"].Value is bool b && b;
-                    dgvHistory.Rows[ev.RowIndex].Cells["H_Paid"].Value = false; // luôn false khi Pending
-                    dgvHistory.RefreshEdit();
-                    dgvHistory.InvalidateRow(ev.RowIndex);
-                    MessageBox.Show(TopOwner, "Chỉ có thể đánh dấu 'Đã TT' khi Status là Approval!",
-                        "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            };
-
-            // Chặn BeginEdit trên ô H_Paid khi Status != Approval
-            dgvHistory.CellBeginEdit += (s, ev) =>
-            {
-                if (ev.RowIndex < 0) return;
-                if (dgvHistory.Columns[ev.ColumnIndex].Name != "H_Paid") return;
-                string status = dgvHistory.Rows[ev.RowIndex].Cells["H_Status"].Value?.ToString() ?? "";
-                if (status != "Approval") ev.Cancel = true;
-            };
-
-            // Khi Status thay đổi sang Pending → tự uncheck H_Paid
-            dgvHistory.CellValueChanged += (s, ev) =>
-            {
-                if (ev.RowIndex < 0) return;
-                if (dgvHistory.Columns[ev.ColumnIndex].Name == "H_Status")
-                {
-                    string newStatus = dgvHistory.Rows[ev.RowIndex].Cells["H_Status"].Value?.ToString() ?? "";
-                    if (newStatus != "Approval")
-                        dgvHistory.Rows[ev.RowIndex].Cells["H_Paid"].Value = false;
-                    dgvHistory.InvalidateRow(ev.RowIndex);
-                }
-            };
-
-            // Double-click vào cột INV hoặc Delivery Note → mở file
-            dgvHistory.CellDoubleClick += (s, ev) =>
-            {
-                if (ev.RowIndex < 0) return;
-                string colName = dgvHistory.Columns[ev.ColumnIndex].Name;
-                string filePath = "";
-                if (colName == "H_INV")
-                    filePath = dgvHistory.Rows[ev.RowIndex].Cells["H_INV_Path"].Value?.ToString() ?? "";
-                else if (colName == "H_Delivery")
-                    filePath = dgvHistory.Rows[ev.RowIndex].Cells["H_Del_Path"].Value?.ToString() ?? "";
-
-                if (string.IsNullOrEmpty(filePath)) return;
-                if (!System.IO.File.Exists(filePath))
-                { MessageBox.Show(TopOwner, $"Không tìm thấy file:\n{filePath}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                try
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    { FileName = filePath, UseShellExecute = true });
-                }
-                catch (Exception ex2) { Err("Không thể mở file: " + ex2.Message); }
+                BtnPrintRequest_Click(null, EventArgs.Empty);
             };
         }
-
         private void BuildTabDebt()
         {
             var pF = P(tabDebt, 5, 5, 0, 45, Color.White);
@@ -841,7 +740,7 @@ namespace MPR_Managerment.Forms
             catch { }
             LoadPOSummary();
             LoadPrintHistory(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1).AddSeconds(-1));
-            LoadPaymentProgress(); // Load Payment Request Progressing từ DB
+            // LoadPaymentProgress phụ thuộc PO được chọn — bỏ qua khi LoadData()
         }
 
         private async void LoadPOSummary()
@@ -983,8 +882,9 @@ namespace MPR_Managerment.Forms
                     r.Cells["S_Status"].Value = s.Status;
                 }
 
-                // Payment Request Progressing được load độc lập bằng LoadPaymentProgress()
-                LoadPaymentProgress();
+                // Reload Payment Request Progressing theo project của PO đang chọn
+                var selPo = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);
+                LoadPaymentProgress(selPo?.Project_Name);
             }
             catch (Exception ex) { Err(ex.Message); }
         }
@@ -1044,61 +944,68 @@ namespace MPR_Managerment.Forms
             catch { }
         }
 
-        // ── Load toàn bộ Payment Request Progressing từ DB — không phụ thuộc PO đang chọn ──
-        private void LoadPaymentProgress()
+        // ── Load Payment Request Progressing: tất cả PO của dự án đang chọn, join Zalo data ──
+        private void LoadPaymentProgress(string projectName = null)
         {
             if (dgvHistory == null) return;
             dgvHistory.Rows.Clear();
+            if (string.IsNullOrEmpty(projectName)) return;
             try
             {
+                Services.ZaloImportService.EnsureTable();
+
                 using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
                 conn.Open();
 
-                // Bảng chưa tồn tại → không có gì để load
-                var chk = new Microsoft.Data.SqlClient.SqlCommand(
-                    "SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='PO_PaymentProgress'", conn);
-                if ((int)chk.ExecuteScalar() == 0) return;
-
                 var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
-                    SELECT p.Print_ID, p.PONo, p.Amount_Total,
-                           ISNULL(p.PR_Status, 'Pending') AS PR_Status,
-                           ISNULL(p.PR_Note,   '')        AS PR_Note,
-                           ISNULL(p.PR_Paid,   0)         AS PR_Paid,
-                           ISNULL(p.INV_Path,  '')        AS INV_Path,
-                           ISNULL(p.Del_Path,  '')        AS Del_Path,
-                           ISNULL(p.Dot_TT,    '')        AS Dot_TT,
-                           ISNULL(p.EC_Status, '')        AS EC_Status
-                    FROM PO_PaymentProgress p
-                    ORDER BY p.Updated_At DESC", conn);
+                    SELECT
+                        ph.PONo,
+                        ph.PO_ID,
+                        (SELECT ISNULL(SUM(d.Amount), 0) FROM PO_Detail d WHERE d.PO_ID = ph.PO_ID) AS Amount_Net,
+                        ISNULL(ph.Total_Amount, 0) AS Total_Amount,
+                        ISNULL(z.Progress_Status, '') AS EC_Status,
+                        z.Paid_Date AS Paid_Date,
+                        CASE WHEN z.Paid_Date IS NOT NULL THEN ISNULL(z.Final_Amount, 0) ELSE 0 END AS Paid_Amount,
+                        ISNULL(z.Note, '') AS ZNote
+                    FROM PO_head ph
+                    LEFT JOIN (
+                        SELECT UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ','')) AS PO_No_Key,
+                               Progress_Status, Paid_Date, Final_Amount, Note,
+                               ROW_NUMBER() OVER (PARTITION BY UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ',''))
+                                                  ORDER BY CASE WHEN Paid_Date IS NOT NULL THEN 0 ELSE 1 END,
+                                                           File_Date DESC, Import_ID DESC) AS rn
+                        FROM Zalo_PaymentImport
+                        WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ','') <> ''
+                    ) z ON z.PO_No_Key = UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(ph.PONo,''))),CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ','')) AND z.rn = 1
+                    WHERE ph.Project_Name = @proj
+                    ORDER BY ph.PONo", conn);
+                cmd.Parameters.AddWithValue("@proj", projectName);
 
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
-                    string invPath = reader["INV_Path"].ToString();
-                    string delPath = reader["Del_Path"].ToString();
-                    string invFile = string.IsNullOrEmpty(invPath) ? "" : System.IO.Path.GetFileName(invPath);
-                    string delFile = string.IsNullOrEmpty(delPath) ? "" : System.IO.Path.GetFileName(delPath);
+                    decimal total  = Convert.ToDecimal(reader["Total_Amount"]);
+                    decimal net    = Convert.ToDecimal(reader["Amount_Net"]);
+                    decimal paid   = reader["Paid_Amount"] != DBNull.Value ? Convert.ToDecimal(reader["Paid_Amount"]) : 0;
+                    bool hasPaid   = reader["Paid_Date"] != DBNull.Value;
+                    decimal finalAmount = paid > 0 ? paid : total;
+                    decimal remain = finalAmount - paid;
 
                     int i = dgvHistory.Rows.Add();
-                    dgvHistory.Rows[i].Cells["H_ID"].Value = reader["Print_ID"];
-                    dgvHistory.Rows[i].Cells["H_PONo"].Value = reader["PONo"]?.ToString() ?? "";
-                    dgvHistory.Rows[i].Cells["H_Total"].Value =
-                        reader["Amount_Total"] != DBNull.Value
-                        ? FormatAmt(Convert.ToDecimal(reader["Amount_Total"])) : "";
-                    dgvHistory.Rows[i].Cells["H_Status"].Value = reader["PR_Status"].ToString();
-                    dgvHistory.Rows[i].Cells["H_Paid"].Value = Convert.ToBoolean(reader["PR_Paid"]);
-                    dgvHistory.Rows[i].Cells["H_Note"].Value = reader["PR_Note"].ToString();
-                    dgvHistory.Rows[i].Cells["H_INV_Path"].Value = invPath;
-                    dgvHistory.Rows[i].Cells["H_INV"].Value = invFile;
-                    dgvHistory.Rows[i].Cells["H_Del_Path"].Value = delPath;
-                    dgvHistory.Rows[i].Cells["H_Delivery"].Value = delFile;
-                    dgvHistory.Rows[i].Cells["H_Dot"].Value = reader["Dot_TT"].ToString();
-                    dgvHistory.Rows[i].Cells["H_ECStatus"].Value = reader["EC_Status"].ToString();
+                    dgvHistory.Rows[i].Cells["H_PONo"].Value     = reader["PONo"]?.ToString() ?? "";
+                    dgvHistory.Rows[i].Cells["H_PreTax"].Value   = net > 0   ? FormatAmt(net)    : "";
+                    dgvHistory.Rows[i].Cells["H_Total"].Value    = finalAmount > 0 ? FormatAmt(finalAmount)  : "";
+                    dgvHistory.Rows[i].Cells["H_ECStatus"].Value = reader["EC_Status"]?.ToString() ?? "";
+                    dgvHistory.Rows[i].Cells["H_Paid"].Value     = hasPaid   ? FormatAmt(paid)   : "";
+                    dgvHistory.Rows[i].Cells["H_PaidDate"].Value = hasPaid
+                        ? Convert.ToDateTime(reader["Paid_Date"]).ToString("dd/MM/yyyy")
+                        : "";
+                    dgvHistory.Rows[i].Cells["H_Remain"].Value   = FormatAmt(remain);
+                    dgvHistory.Rows[i].Cells["H_Note"].Value     = reader["ZNote"]?.ToString() ?? "";
                 }
             }
-            catch { }
+            catch (Exception ex) { Err("LoadPaymentProgress: " + ex.Message); }
         }
-
         private void LoadDocuments()
         {
             if (dgvDoc == null) return;
@@ -1166,16 +1073,9 @@ namespace MPR_Managerment.Forms
             catch { return ""; }
         }
 
-        // Lọc dgvHistory theo ComboBox Status
         private void FilterHistoryGrid()
         {
-            if (dgvHistory == null || _cboHistStatus == null) return;
-            string filter = _cboHistStatus.SelectedItem?.ToString() ?? "Tất cả";
-            foreach (DataGridViewRow row in dgvHistory.Rows)
-            {
-                string rowStatus = row.Cells["H_Status"].Value?.ToString() ?? "";
-                row.Visible = filter == "Tất cả" || rowStatus == filter;
-            }
+            // Filter đã được thay bằng load theo project — method giữ lại để tránh lỗi tham chiếu
         }
 
 
@@ -1677,7 +1577,10 @@ private void BtnAddSched_Click(object sender, EventArgs e)
                 if (affected == 0)
                     Warn("Không tìm thấy bản ghi trong DB. Có thể đã bị xóa trước đó.");
                 else
-                    LoadPaymentProgress();
+                {
+                    var selPo2 = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);
+                    LoadPaymentProgress(selPo2?.Project_Name);
+                }
             }
             catch (Exception ex) { Err(ex.Message); }
         }
@@ -2825,7 +2728,314 @@ private void BtnAddSched_Click(object sender, EventArgs e)
         //         1234567.5    → "1,234,567.50"
         //         1234567.12   → "1,234,567.12"
         // =====================================================================
-        private static string FormatAmt(decimal value)
+private void EnsureFilePreview()
+{
+    if (_previewTimer != null) return;
+    _previewTimer = new System.Windows.Forms.Timer { Interval = 300 };
+    _previewTimer.Tick += (s, e) =>
+    {
+        _previewTimer.Stop();
+        if (!string.IsNullOrEmpty(_previewFilePath) && _previewCell != null)
+        {
+            try { ShowFilePreview(_previewFilePath, Cursor.Position); }
+            catch { }
+        }
+    };
+}
+
+private void StartPreviewCloseTimer(int intervalMs = 800)
+{
+    try
+    {
+        if (_previewCloseTimer == null)
+        {
+            _previewCloseTimer = new System.Windows.Forms.Timer { Interval = intervalMs };
+            _previewCloseTimer.Tick += (s, e) =>
+            {
+                _previewCloseTimer.Stop();
+                HideFilePreview();
+            };
+        }
+        _previewCloseTimer.Interval = intervalMs;
+        _previewCloseTimer.Stop();
+        _previewCloseTimer.Start();
+    }
+    catch { }
+}
+
+private void HideFilePreview()
+{
+    try
+    {
+        if (_previewForm != null && !_previewForm.IsDisposed)
+        {
+            _previewForm.Close();
+            _previewForm.Dispose();
+        }
+        _previewForm = null;
+        _currentShowingPath = null;
+    }
+    catch { }
+}
+
+private string _currentShowingPath = null;
+
+private void ShowFilePreview(string filePath, Point screenPos)
+{
+    if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath)) return;
+    
+    // Nếu đang hiện đúng file này rồi thì không làm gì cả để tránh nhấp nháy
+    if (_previewForm != null && !_previewForm.IsDisposed && _previewForm.Visible && _currentShowingPath == filePath)
+        return;
+
+    HideFilePreview();
+    _currentShowingPath = filePath;
+
+    try
+    {
+        // Sử dụng một form đặc biệt không chiếm focus để tránh nhấp nháy (flickering)
+        var f = new PreviewForm
+        {
+            FormBorderStyle = FormBorderStyle.SizableToolWindow,
+            Size = new Size(850, 950),
+            StartPosition = FormStartPosition.Manual,
+            ShowInTaskbar = false,
+            TopMost = true,
+            BackColor = Color.FromArgb(38, 38, 38),
+            Text = "Preview: " + System.IO.Path.GetFileName(filePath)
+        };
+        
+        var scr = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+        
+        // Hiển thị lệch sang phải, nếu chạm lề thì đẩy sang trái để không đè lên chuột (gây loop MouseEnter/Leave)
+        int x = screenPos.X + 50;
+        if (x + f.Width > scr.Right) x = screenPos.X - f.Width - 50;
+        if (x < scr.Left) x = scr.Left + 5;
+        
+        int y = screenPos.Y - f.Height / 2;
+        if (y < scr.Top + 5) y = scr.Top + 5;
+        if (y + f.Height > scr.Bottom - 5) y = scr.Bottom - f.Height - 5;
+        
+        f.Bounds = new Rectangle(x, y, f.Width, f.Height);
+
+        var tb = new Panel { Dock = DockStyle.Top, Height = 38, BackColor = Color.FromArgb(45, 45, 48) };
+        var lblTitle = new Label
+        {
+            Text = "📄  " + Path.GetFileName(filePath),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            Location = new Point(10, 10),
+            AutoSize = true
+        };
+        tb.Controls.Add(lblTitle);
+        var btnOpen = new Button { Text = "Mở file", Left = 0, Top = 5, Width = 80, Height = 28, BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+        btnOpen.FlatAppearance.BorderSize = 0;
+        btnOpen.Left = tb.Width - 130;
+        btnOpen.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        btnOpen.Click += (s, e) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = filePath, UseShellExecute = true }); }
+            catch { }
+        };
+        tb.Controls.Add(btnOpen);
+        var btnClose = new Button { Text = "✖", Left = 0, Top = 5, Width = 36, Height = 28, BackColor = Color.FromArgb(196, 43, 28), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+        btnClose.FlatAppearance.BorderSize = 0;
+        btnClose.Left = tb.Width - 45;
+        btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        btnClose.Click += (s, e) => { HideFilePreview(); };
+        tb.Controls.Add(btnClose);
+        f.Controls.Add(tb);
+
+        string ext = (Path.GetExtension(filePath) ?? "").ToLowerInvariant();
+
+        if (ext == ".pdf" || ext == ".htm" || ext == ".html")
+        {
+            // Dùng WebBrowser (IE) — render PDF nhờ Adobe Reader plugin / Edge IE-mode
+            var wb = new WebBrowser
+            {
+                Dock = DockStyle.Fill,
+                ScriptErrorsSuppressed = true,
+                AllowNavigation = true
+            };
+            try { wb.Navigate(new Uri(filePath).AbsoluteUri); } catch { }
+            f.Controls.Add(wb);
+            wb.BringToFront();
+        }
+        else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif")
+        {
+            var pic = new PictureBox
+            {
+                Dock = DockStyle.Fill,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.FromArgb(30, 30, 30)
+            };
+            try { pic.Image = Image.FromFile(filePath); } catch { }
+            f.Controls.Add(pic);
+            pic.BringToFront();
+        }
+        else
+        {
+            var txt = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, Font = new Font("Courier New", 10), BackColor = Color.FromArgb(30, 30, 30), ForeColor = Color.FromArgb(200, 200, 200), BorderStyle = BorderStyle.None, ScrollBars = ScrollBars.Both };
+            try { txt.Text = File.ReadAllText(filePath); }
+            catch { txt.Text = "(Không thể đọc nội dung file - có thể là file nhị phân)"; }
+            f.Controls.Add(txt);
+            txt.BringToFront();
+        }
+
+        f.MouseLeave += (s, e) => StartPreviewCloseTimer();
+        _previewForm = f;
+        f.Show(this);
+    }
+    catch { }
+}
+
+// Tìm file PO theo PONo trong folder PO_Link của project
+private string FindPoFileByPONo(string poNo)
+{
+    if (string.IsNullOrWhiteSpace(poNo)) return "";
+    // Cắt prefix emoji "🔥 " nếu có
+    poNo = poNo.Replace("🔥", "").Replace("(Mới)", "").Trim();
+
+    try
+    {
+        var pSum = _poSummaries.Find(p => (p.PONo ?? "").Equals(poNo, StringComparison.OrdinalIgnoreCase));
+        if (pSum == null) return "";
+
+        var projSvc = new ProjectService();
+        var proj = projSvc.GetAll().Find(pj =>
+            (pj.ProjectName ?? "").Equals(pSum.Project_Name, StringComparison.OrdinalIgnoreCase) ||
+            (pj.ProjectCode ?? "").Equals(pSum.Project_Name, StringComparison.OrdinalIgnoreCase));
+        if (proj == null) return "";
+
+        // CHỈ dùng PO_Link — không dùng INV_Link hay DeliveryNote_Link
+        string poFolder = proj.PO_Link ?? "";
+        if (string.IsNullOrWhiteSpace(poFolder) || !System.IO.Directory.Exists(poFolder))
+            return "";
+
+        // Chuyển "Excel" -> "PDF" nếu có (vì lịch sử data lưu sai tên folder)
+        if (poFolder.Contains("Excel", StringComparison.OrdinalIgnoreCase))
+            poFolder = poFolder.Replace("Excel", "PDF", StringComparison.OrdinalIgnoreCase);
+
+        string[] folders = new[] { poFolder };
+        
+        // Vòng 1: Tìm ưu tiên tuyệt đối file PDF
+        foreach (var folder in folders)
+        {
+            if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder)) continue;
+            try
+            {
+                var files = System.IO.Directory.GetFiles(folder, $"*{poNo}*.pdf", System.IO.SearchOption.AllDirectories);
+                if (files.Length > 0) return files[0];
+            }
+            catch { }
+        }
+
+        // Vòng 2: Nếu không có PDF mới tìm các file khác (Excel, ảnh...)
+        foreach (var folder in folders)
+        {
+            if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder)) continue;
+            try
+            {
+                var files = System.IO.Directory.GetFiles(folder, $"*{poNo}*", System.IO.SearchOption.AllDirectories);
+                if (files.Length > 0) return files[0];
+            }
+            catch { }
+        }
+    }
+    catch { }
+    return "";
+}
+
+// Lớp Form hỗ trợ Preview không chiếm focus để tránh nhấp nháy
+private class PreviewForm : Form
+{
+    protected override bool ShowWithoutActivation => true;
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams baseParams = base.CreateParams;
+            baseParams.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+            return baseParams;
+        }
+    }
+}
+
+private void DgvPO_CellMouseEnter(object sender, DataGridViewCellEventArgs e)
+{
+    try
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+        
+        // Tránh reset timer nếu vẫn ở trong cùng 1 cell
+        if (_previewCell != null && _previewCell.RowIndex == e.RowIndex && _previewCell.ColumnIndex == e.ColumnIndex)
+            return;
+
+        string colName = dgvPO.Columns[e.ColumnIndex].Name;
+        if (colName == "PO_No")
+        {
+            var row = dgvPO.Rows[e.RowIndex];
+            string po = row.Cells["PO_No"].Value?.ToString() ?? "";
+
+            // 1) Thử tìm nhanh trong thư mục Zalo download
+            string path = GetFirstFilePath(ZaloImportService.ZaloDownloadFolder, $"0. 품의서 *{po}*");
+
+            // 2) Thử dùng helper FindPoFileByPONo (đã có logic Excel -> PDF và recursive)
+            if (string.IsNullOrEmpty(path))
+            {
+                path = FindPoFileByPONo(po);
+            }
+            
+            if (!string.IsNullOrEmpty(path))
+            {
+                _previewFilePath = path;
+                _previewCell = row.Cells[e.ColumnIndex];
+                EnsureFilePreview();
+                _previewTimer?.Stop();
+                _previewTimer?.Start();
+            }
+        }
+    }
+    catch { }
+}
+
+    private void DgvPO_CellMouseLeave(object sender, DataGridViewCellEventArgs e)
+    {
+        _previewTimer?.Stop();
+        _previewFilePath = null;
+        _previewCell = null;
+        StartPreviewCloseTimer();
+    }
+
+    // =====================================================================
+    // Preview on Double-Click — Payment request progressing (dgvHistory > H_PONo)
+    // =====================================================================
+    private void DgvHistory_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+    {
+        try
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            var col = dgvHistory.Columns[e.ColumnIndex];
+            if (col.Name != "H_PONo") return;
+
+            var row = dgvHistory.Rows[e.RowIndex];
+            string po = row.Cells["H_PONo"].Value?.ToString() ?? "";
+
+            string path = FindPoFileByPONo(po);
+
+            if (!string.IsNullOrEmpty(path))
+            {
+                Point pos = dgvHistory.PointToScreen(dgvHistory.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, true).Location);
+                ShowFilePreview(path, pos);
+            }
+            else
+            {
+                MessageBox.Show("Không tìm thấy file PO nào cho số " + po, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch { }
+    }
+private static string FormatAmt(decimal value)
         {
             return value == Math.Floor(value)
                 ? value.ToString("N0")

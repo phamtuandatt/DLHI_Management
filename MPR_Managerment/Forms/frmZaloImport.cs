@@ -14,6 +14,7 @@ namespace MPR_Managerment.Forms
         // Controls
         private Label lblFolder;
         private Button btnImportLatest, btnImportSelected, btnRefreshFiles, btnViewDB;
+        private TextBox txtSearchPO;
         private ListBox lstFiles;
         private DataGridView dgvPreview, dgvDB;
         private Panel panelTop, panelLeft, panelRight;
@@ -28,6 +29,7 @@ namespace MPR_Managerment.Forms
         private FileSystemWatcher _watcher;
         private System.Windows.Forms.Timer _debounceTimer;
         private string _pendingFile;
+
 
         public frmZaloImport()
         {
@@ -72,7 +74,12 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 9), Checked = true
             };
             chkAutoWatch.CheckedChanged += ChkAutoWatch_Changed;
-            panelTop.Controls.AddRange(new Control[] { btnRefreshFiles, btnImportLatest, btnImportSelected, btnViewDB, chkAutoWatch });
+
+            var lblSearch = new Label { Text = "🔍 PO No:", Location = new Point(845, 38), Size = new Size(65, 26), Font = new Font("Segoe UI", 9), TextAlign = ContentAlignment.MiddleLeft };
+            txtSearchPO = new TextBox { Location = new Point(912, 36), Size = new Size(220, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm theo PO No..." };
+            txtSearchPO.TextChanged += (s, e) => FilterByPO();
+
+            panelTop.Controls.AddRange(new Control[] { btnRefreshFiles, btnImportLatest, btnImportSelected, btnViewDB, chkAutoWatch, lblSearch, txtSearchPO });
 
             // ── Watch label (Bottom) ──
             lblWatch = new Label
@@ -156,13 +163,22 @@ namespace MPR_Managerment.Forms
         private void RefreshFileList()
         {
             lstFiles.Items.Clear();
-            var files = ZaloImportService.FindImportFiles();
+            var cutoff = DateTime.Today.AddDays(-7);
+            var files = ZaloImportService.FindImportFiles()
+                .Where(f => f.Item2 >= cutoff)
+                .ToList();
             foreach (var f in files)
                 lstFiles.Items.Add(new FileItem(f.Item1, f.Item2));
 
-            lblStatus.Text = files.Count > 0
-                ? $"Tìm thấy {files.Count} file 품의서. File mới nhất: {files[0].Item2:dd/MM/yyyy}"
-                : "Không tìm thấy file 품의서 nào trong thư mục Zalo.";
+            if (files.Count > 0)
+            {
+                lstFiles.SelectedIndex = 0;
+                lblStatus.Text = $"Tìm thấy {files.Count} file 품의서 (7 ngày gần nhất). File mới nhất: {files[0].Item2:dd/MM/yyyy}";
+            }
+            else
+            {
+                lblStatus.Text = "Không tìm thấy file 품의서 nào trong 7 ngày gần nhất.";
+            }
         }
 
         private void LstFiles_SelectedIndexChanged(object sender, EventArgs e)
@@ -185,7 +201,6 @@ namespace MPR_Managerment.Forms
                     dr.Cells["P_Row"].Value   = r.RowIndex;
                     dr.Cells["P_PO"].Value    = r.PONo;
                     dr.Cells["P_Ecount"].Value= r.EcountNo;
-                    dr.Cells["P_GW"].Value    = r.GWNo;
                     dr.Cells["P_Title"].Value = r.TitleEN;
                     dr.Cells["P_Amount"].Value= FormatAmt(r.Amount);
                     dr.Cells["P_VAT"].Value   = FormatAmt(r.VAT);
@@ -194,9 +209,12 @@ namespace MPR_Managerment.Forms
                     dr.Cells["P_D2"].Value    = FormatAmt(r.Dot2);
                     dr.Cells["P_D3"].Value    = FormatAmt(r.Dot3);
                     dr.Cells["P_D4"].Value    = FormatAmt(r.Dot4);
+                    dr.Cells["P_FTCash"].Value = r.FTCash;
+                    dr.Cells["P_PayDate"].Value= r.PaidDate.HasValue ? r.PaidDate.Value.ToString("dd/MM/yyyy") : "";
                     dr.Cells["P_Status"].Value= r.ProgressStatus;
                 }
                 lblStatus.Text = $"Preview: {rows.Count} dòng dữ liệu từ {Path.GetFileName(filePath)}";
+                FilterByPO();
             }
             catch (Exception ex)
             {
@@ -259,7 +277,8 @@ namespace MPR_Managerment.Forms
                 var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
                     SELECT TOP 2000 Import_ID, File_Date, Row_Index, PO_No, Ecount_No, GW_No,
                            Amount, VAT, Final_Amount, Dot1, Dot2, Dot3, Dot4,
-                           Progress_Status, Imported_At
+                           FT_Cash, Paid_Date,
+                           Progress_Status, Note, Imported_At
                     FROM Zalo_PaymentImport
                     ORDER BY File_Date DESC, Row_Index ASC", conn);
                 using var rdr = cmd.ExecuteReader();
@@ -272,7 +291,6 @@ namespace MPR_Managerment.Forms
                     dr.Cells["DB_Row"].Value     = rdr["Row_Index"];
                     dr.Cells["DB_PO"].Value      = rdr["PO_No"]?.ToString() ?? "";
                     dr.Cells["DB_Ecount"].Value  = rdr["Ecount_No"]?.ToString() ?? "";
-                    dr.Cells["DB_GW"].Value      = rdr["GW_No"]?.ToString() ?? "";
                     dr.Cells["DB_Amount"].Value  = rdr["Amount"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Amount"])) : "";
                     dr.Cells["DB_VAT"].Value     = rdr["VAT"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["VAT"])) : "";
                     dr.Cells["DB_Final"].Value   = rdr["Final_Amount"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Final_Amount"])) : "";
@@ -280,10 +298,15 @@ namespace MPR_Managerment.Forms
                     dr.Cells["DB_D2"].Value      = rdr["Dot2"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot2"])) : "";
                     dr.Cells["DB_D3"].Value      = rdr["Dot3"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot3"])) : "";
                     dr.Cells["DB_D4"].Value      = rdr["Dot4"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot4"])) : "";
+                    dr.Cells["DB_FTCash"].Value  = rdr["FT_Cash"]?.ToString() ?? "";
+                    dr.Cells["DB_PayDate"].Value = rdr["Paid_Date"] != DBNull.Value ? ((DateTime)rdr["Paid_Date"]).ToString("dd/MM/yyyy") : "";
                     dr.Cells["DB_Status"].Value  = rdr["Progress_Status"]?.ToString() ?? "";
+                    dr.Cells["DB_Note"].Value    = rdr["Note"]?.ToString() ?? "";
                     dr.Cells["DB_ImportAt"].Value= rdr["Imported_At"] != DBNull.Value ? ((DateTime)rdr["Imported_At"]).ToString("dd/MM/yyyy HH:mm") : "";
+                    dr.Cells["DB_ImportID"].Value= rdr["Import_ID"];
                 }
                 lblStatus.Text = $"Đang hiển thị {dgvDB.Rows.Count} bản ghi từ DB.";
+                FilterByPO();
             }
             catch (Exception ex) { lblStatus.Text = "Lỗi load DB: " + ex.Message; }
         }
@@ -350,8 +373,7 @@ namespace MPR_Managerment.Forms
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Row",    HeaderText = "Row",          Width = 45,  ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_PO",     HeaderText = "PO No",        Width = 160, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Ecount", HeaderText = "Ecount No",    Width = 110, ReadOnly = true });
-            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_GW",     HeaderText = "품의서 No",    Width = 160, ReadOnly = true });
-            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Title",  HeaderText = "Title",        FillWeight = 100, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Title",  HeaderText = "Title",        Width = 200, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Amount", HeaderText = "Amount",       Width = 110, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_VAT",    HeaderText = "VAT",          Width = 90,  ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Final",  HeaderText = "Final Amount", Width = 110, ReadOnly = true });
@@ -359,6 +381,8 @@ namespace MPR_Managerment.Forms
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D2",     HeaderText = "Đợt 2",        Width = 100, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D3",     HeaderText = "Đợt 3",        Width = 100, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D4",     HeaderText = "Đợt 4",        Width = 100, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_FTCash", HeaderText = "FT / Cash",    Width = 90,  ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_PayDate",HeaderText = "Paid Date",        Width = 90,  ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Status", HeaderText = "Status",       Width = 90,  ReadOnly = true });
             StyleAmtCols(dgvPreview, "P_Amount","P_VAT","P_Final","P_D1","P_D2","P_D3","P_D4");
         }
@@ -371,7 +395,6 @@ namespace MPR_Managerment.Forms
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Row",      HeaderText = "Row",          Width = 45,  ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_PO",       HeaderText = "PO No",        Width = 160, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Ecount",   HeaderText = "Ecount No",    Width = 110, ReadOnly = true });
-            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_GW",       HeaderText = "품의서 No",    Width = 160, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Amount",   HeaderText = "Amount",       Width = 110, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_VAT",      HeaderText = "VAT",          Width = 90,  ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Final",    HeaderText = "Final Amount", Width = 110, ReadOnly = true });
@@ -379,9 +402,14 @@ namespace MPR_Managerment.Forms
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D2",       HeaderText = "Đợt 2",        Width = 100, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D3",       HeaderText = "Đợt 3",        Width = 100, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D4",       HeaderText = "Đợt 4",        Width = 100, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_FTCash",   HeaderText = "FT / Cash",    Width = 90,  ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_PayDate",  HeaderText = "Paid Date",        Width = 90,  ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Status",   HeaderText = "Status",       Width = 90,  ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Note",     HeaderText = "Ghi chú",      Width = 200, ReadOnly = false });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_ImportAt", HeaderText = "Imported At",  Width = 130, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_ImportID", Visible = false });
             StyleAmtCols(dgvDB, "DB_Amount","DB_VAT","DB_Final","DB_D1","DB_D2","DB_D3","DB_D4");
+            dgvDB.CellEndEdit += DgvDB_NoteEndEdit;
         }
 
         private void StyleAmtCols(DataGridView dgv, params string[] cols)
@@ -444,6 +472,36 @@ namespace MPR_Managerment.Forms
 
         private static string FormatAmt(decimal? v) =>
             v.HasValue ? v.Value.ToString("#,##0.##") : "";
+
+        private void FilterByPO()
+        {
+            string kw = (txtSearchPO?.Text ?? "").Trim().ToUpperInvariant();
+
+            // Lọc tab Preview
+            foreach (DataGridViewRow row in dgvPreview.Rows)
+            {
+                string po = (row.Cells["P_PO"].Value?.ToString() ?? "").ToUpperInvariant();
+                row.Visible = string.IsNullOrEmpty(kw) || po.Contains(kw);
+            }
+
+            // Lọc tab DB
+            foreach (DataGridViewRow row in dgvDB.Rows)
+            {
+                string po = (row.Cells["DB_PO"].Value?.ToString() ?? "").ToUpperInvariant();
+                row.Visible = string.IsNullOrEmpty(kw) || po.Contains(kw);
+            }
+        }
+
+        private void DgvDB_NoteEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            if (dgvDB.Columns[e.ColumnIndex].Name != "DB_Note") return;
+            var row = dgvDB.Rows[e.RowIndex];
+            if (!int.TryParse(row.Cells["DB_ImportID"].Value?.ToString(), out int id) || id <= 0) return;
+            string note = row.Cells["DB_Note"].Value?.ToString() ?? "";
+            try { ZaloImportService.SaveNote(id, note); }
+            catch (Exception ex) { Status("Lỗi lưu ghi chú: " + ex.Message); }
+        }
 
         // ── Inner class ──
         private class FileItem

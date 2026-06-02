@@ -25,7 +25,10 @@ namespace MPR_Managerment.Services
         public decimal? Dot6 { get; set; }
         public decimal? Dot7 { get; set; }
         public decimal? Dot8 { get; set; }
+        public string FTCash { get; set; }
+        public DateTime? PaidDate { get; set; }
         public string ProgressStatus { get; set; }
+        public string Note { get; set; }
     }
 
     public class ZaloImportResult
@@ -89,8 +92,8 @@ namespace MPR_Managerment.Services
                 // Bỏ qua dòng hoàn toàn trống (kiểm tra H hoặc J có giá trị)
                 var h = GetDecimal(ws.Cells[r, 8]);
                 var j = GetDecimal(ws.Cells[r, 10]);
-                string poNo = ws.Cells[r, 3].Text?.Trim();
-                string gwNo = ws.Cells[r, 7].Text?.Trim();
+                string poNo = CleanStr(ws.Cells[r, 3].Text);
+                string gwNo = CleanStr(ws.Cells[r, 7].Text);
 
                 if (h == null && j == null && string.IsNullOrEmpty(poNo) && string.IsNullOrEmpty(gwNo))
                     continue;
@@ -99,9 +102,9 @@ namespace MPR_Managerment.Services
                 {
                     RowIndex     = r,
                     PONo         = poNo,
-                    EcountNo     = ws.Cells[r, 4].Text?.Trim(),
-                    TitleEN      = ws.Cells[r, 5].Text?.Trim(),
-                    GWNo         = gwNo,
+                    EcountNo     = CleanStr(ws.Cells[r, 4].Text),
+                    TitleEN      = CleanStr(ws.Cells[r, 5].Text),
+                    GWNo         = CleanStr(ws.Cells[r, 7].Text),
                     Amount       = h,
                     VAT          = GetDecimal(ws.Cells[r, 9]),
                     FinalAmount  = j,
@@ -113,6 +116,8 @@ namespace MPR_Managerment.Services
                     Dot6         = GetDecimal(ws.Cells[r, 17]),
                     Dot7         = GetDecimal(ws.Cells[r, 18]),
                     Dot8         = GetDecimal(ws.Cells[r, 19]),
+                    FTCash       = ws.Cells[r, 22].Text?.Trim(),
+                    PaidDate  = GetDate(ws.Cells[r, 23]),
                     ProgressStatus = ws.Cells[r, 27].Text?.Trim(),
                 });
             }
@@ -150,6 +155,7 @@ namespace MPR_Managerment.Services
                                 Amount=@am, VAT=@vat, Final_Amount=@fa,
                                 Dot1=@d1,Dot2=@d2,Dot3=@d3,Dot4=@d4,
                                 Dot5=@d5,Dot6=@d6,Dot7=@d7,Dot8=@d8,
+                                FT_Cash=@ftc, Paid_Date=@pd,
                                 Progress_Status=@ps, Imported_At=GETDATE(), Source_File=@sf
                             WHERE File_Date=@fd AND Row_Index=@ri", conn);
                         FillParams(upd, row, fileDate, filePath);
@@ -163,11 +169,13 @@ namespace MPR_Managerment.Services
                                 (File_Date,Row_Index,PO_No,Ecount_No,Title_EN,GW_No,
                                  Amount,VAT,Final_Amount,
                                  Dot1,Dot2,Dot3,Dot4,Dot5,Dot6,Dot7,Dot8,
+                                 FT_Cash,Paid_Date,
                                  Progress_Status,Source_File)
                             VALUES
                                 (@fd,@ri,@po,@ec,@ti,@gw,
                                  @am,@vat,@fa,
                                  @d1,@d2,@d3,@d4,@d5,@d6,@d7,@d8,
+                                 @ftc,@pd,
                                  @ps,@sf)", conn);
                         FillParams(ins, row, fileDate, filePath);
                         ins.ExecuteNonQuery();
@@ -186,7 +194,10 @@ namespace MPR_Managerment.Services
         {
             cmd.Parameters.AddWithValue("@fd",  fileDate.Date);
             cmd.Parameters.AddWithValue("@ri",  row.RowIndex);
-            cmd.Parameters.AddWithValue("@po",  (object)row.PONo  ?? DBNull.Value);
+            // Loại bỏ TOÀN BỘ whitespace khỏi PO_No trước khi lưu vào DB
+            string cleanPo = row.PONo == null ? null
+                : new string(row.PONo.Where(c => !char.IsWhiteSpace(c)).ToArray());
+            cmd.Parameters.AddWithValue("@po",  (object)(string.IsNullOrEmpty(cleanPo) ? null : cleanPo) ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ec",  (object)row.EcountNo ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ti",  (object)row.TitleEN ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@gw",  (object)row.GWNo  ?? DBNull.Value);
@@ -201,6 +212,8 @@ namespace MPR_Managerment.Services
             cmd.Parameters.AddWithValue("@d6",  (object)row.Dot6 ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@d7",  (object)row.Dot7 ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@d8",  (object)row.Dot8 ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ftc", (object)row.FTCash ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@pd",  (object)row.PaidDate ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@ps",  (object)row.ProgressStatus ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@sf",  (object)filePath ?? DBNull.Value);
         }
@@ -230,11 +243,54 @@ namespace MPR_Managerment.Services
                     Dot6            DECIMAL(18,2) NULL,
                     Dot7            DECIMAL(18,2) NULL,
                     Dot8            DECIMAL(18,2) NULL,
+                    FT_Cash         NVARCHAR(500) NULL,
+                    Paid_Date    DATE NULL,
                     Progress_Status NVARCHAR(100) NULL,
                     Imported_At     DATETIME DEFAULT GETDATE(),
                     Source_File     NVARCHAR(500) NULL,
                     CONSTRAINT UQ_ZaloImport UNIQUE (File_Date, Row_Index)
-                );", conn).ExecuteNonQuery();
+                );
+                IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='FT_Cash')
+                    ALTER TABLE Zalo_PaymentImport ADD FT_Cash NVARCHAR(500) NULL;
+                IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='FT_Cash' AND CHARACTER_MAXIMUM_LENGTH < 500)
+                    ALTER TABLE Zalo_PaymentImport ALTER COLUMN FT_Cash NVARCHAR(500) NULL;
+                IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='Paid_Date')
+                    ALTER TABLE Zalo_PaymentImport ADD Paid_Date DATE NULL;
+                IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='Note')
+                    ALTER TABLE Zalo_PaymentImport ADD Note NVARCHAR(500) NULL;
+                UPDATE Zalo_PaymentImport SET PO_No = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(PO_No)), CHAR(160), ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), ''), ' ', '');
+                UPDATE Zalo_PaymentImport SET PO_No = NULL WHERE ISNULL(PO_No,'') = '';", conn).ExecuteNonQuery();
+        }
+
+        public static void SaveNote(int importId, string note)
+        {
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand("UPDATE Zalo_PaymentImport SET Note=@n WHERE Import_ID=@id", conn);
+            cmd.Parameters.AddWithValue("@n", (object)note ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@id", importId);
+            cmd.ExecuteNonQuery();
+        }
+
+        private static DateTime? GetDate(ExcelRange cell)
+        {
+            if (cell?.Value == null) return null;
+            if (cell.Value is DateTime dt) return dt.Date;
+            string s = cell.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            string[] fmts = { "yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy", "yyyy/MM/dd" };
+            if (DateTime.TryParseExact(s, fmts, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out DateTime d)) return d.Date;
+            if (DateTime.TryParse(s, out DateTime d2)) return d2.Date;
+            return null;
+        }
+
+        private static string CleanStr(string s)
+        {
+            if (s == null) return null;
+            // Loại bỏ tất cả loại khoảng trắng: space, tab, non-breaking space (U+00A0), ZWSP...
+            s = s.Replace(" ", " ").Replace("\t", " ").Trim();
+            return string.IsNullOrEmpty(s) ? null : s;
         }
 
         private static decimal? GetDecimal(ExcelRange cell)
