@@ -4677,6 +4677,12 @@ namespace MPR_Managerment.Forms
                 if (lblStatus != null)
                     lblStatus.Text = $"✅ Đã lưu PO '{finalPONo}' ({dgvDetails.Rows.Count} dòng vật tư) lúc {DateTime.Now:HH:mm:ss}";
 
+                // Trigger notification cho frmMain (nếu là PO mới)
+                if (_selectedPO_ID == savedId && savedId > 0)
+                {
+                    frmMain.TriggerNewDataCheck();
+                }
+
                 // Reload danh sách PO async
                 await LoadPOAsync();
 
@@ -5839,14 +5845,14 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
                     // Check if all deliveries for this PO are done
                     var cmdCheck = new Microsoft.Data.SqlClient.SqlCommand(
-                        "SELECT COUNT(*) FROM PO_DeliveryTracking WHERE PO_ID = (SELECT PO_ID FROM PO_DeliveryTracking WHERE TrackID = @id) AND Status != 'Done'", conn);
+                        "SELECT COUNT(*) FROM PO_DeliveryTracking WHERE PONo = (SELECT PONo FROM PO_DeliveryTracking WHERE TrackID = @id) AND Status != 'Done'", conn);
                     cmdCheck.Parameters.AddWithValue("@id", trackId);
                     int pendingCount = (int)cmdCheck.ExecuteScalar();
 
                     if (pendingCount == 0)
                     {
                         var cmdUpdateStatus = new Microsoft.Data.SqlClient.SqlCommand(
-                            "UPDATE PO_head SET Status = 'Completed' WHERE PO_ID = (SELECT PO_ID FROM PO_DeliveryTracking WHERE TrackID = @id)", conn);
+                            "UPDATE PO_head SET Status = 'Completed' WHERE PONo = (SELECT PONo FROM PO_DeliveryTracking WHERE TrackID = @id)", conn);
                         cmdUpdateStatus.Parameters.AddWithValue("@id", trackId);
                         cmdUpdateStatus.ExecuteNonQuery();
                         

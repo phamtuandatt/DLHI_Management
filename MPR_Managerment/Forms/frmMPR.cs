@@ -2878,9 +2878,13 @@ namespace MPR_Managerment.Forms
                     dlg.Close();
                     LoadMPR();
                     _selectedMPR_ID = newId;
+                    // Trigger notification cho frmMain (MPR mới được tạo)
+                    frmMain.TriggerNewDataCheck();
                     foreach (DataGridViewRow row2 in dgvMPR.Rows)
                         if (Convert.ToInt32(row2.Cells["MPR_ID"]?.Value ?? 0) == newId)
                         { row2.Selected = true; dgvMPR.CurrentCell = row2.Cells[1]; break; }
+                    // Thông báo cho frmMain cập nhật ngay phần Notice
+                    frmMain.TriggerNewDataCheck();
                 }
                 catch (Exception ex) { lblErr2.Text = "❌ " + ex.Message; }
             };
@@ -3780,17 +3784,19 @@ namespace MPR_Managerment.Forms
                     Status = cboStatus.SelectedItem?.ToString() ?? "Mới",
                     Notes = txtNotes.Text.Trim()
                 };
-                if (_selectedMPR_ID == 0)
-                {
-                    _selectedMPR_ID = _service.InsertHeader(m, _currentUser);
-                    MessageBox.Show(TopOwner, "Tạo phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                else
-                {
-                    _service.UpdateHeader(m, _currentUser);
-                    MessageBox.Show(TopOwner, "Cập nhật phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                LoadMPR();
+                    if (_selectedMPR_ID == 0)
+                    {
+                        _selectedMPR_ID = _service.InsertHeader(m, _currentUser);
+                        MessageBox.Show(TopOwner, "Tạo phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        _service.UpdateHeader(m, _currentUser);
+                        MessageBox.Show(TopOwner, "Cập nhật phiếu MPR thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    LoadMPR();
+                    // Yêu cầu frmMain kiểm tra ngay để hiển thị thông báo (nếu có)
+                    frmMain.TriggerNewDataCheck();
             }
             catch (Exception ex)
             {

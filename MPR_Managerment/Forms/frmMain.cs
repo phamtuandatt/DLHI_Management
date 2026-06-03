@@ -5,6 +5,7 @@ using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using System;
 using System.Drawing;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -18,6 +19,13 @@ namespace MPR_Managerment.Forms
 
     public partial class frmMain : Form
     {
+        // ── Sự kiện tĩnh cho phép form con báo hiệu có dữ liệu mới ──────────
+        public static event EventHandler NewDataCreated;
+        public static void RaiseNewDataCreated()
+        {
+            NewDataCreated?.Invoke(null, EventArgs.Empty);
+        }
+
         private Panel panelMenu;
         private Panel panelContent;
         private Panel panelHeader;
@@ -47,6 +55,9 @@ namespace MPR_Managerment.Forms
         private ToolTip _zaloTip = new ToolTip();
         // ── Menu cố định 190px ──
         private const int MENU_FULL = 190;
+        // ── File lưu thời gian check cuối (persist giữa các lần mở app) ──
+        private static readonly string _lastCheckFile =
+            Path.Combine(Application.StartupPath, "last_notify_check.txt");
 
         public frmMain()
         {
@@ -1617,10 +1628,55 @@ namespace MPR_Managerment.Forms
                 g.DrawPolygon(new Pen(Color.FromArgb(180, 180, 200), 1.2f), pts);
         }
 
+        // ── Persist last check time giữa các lần mở app ────────────────
+        private DateTime LoadLastCheckTime()
+        {
+            try
+            {
+                if (File.Exists(_lastCheckFile))
+                {
+                    string text = File.ReadAllText(_lastCheckFile).Trim();
+                    if (DateTime.TryParse(text, out DateTime dt))
+                        return dt;
+                }
+            }
+            catch { }
+            // Mặc định: lùi 7 ngày để hiển thị các thông báo 7 ngày qua
+            return DateTime.Now.AddDays(-7);
+        }
+
+        private void SaveLastCheckTime()
+        {
+            try
+            {
+                File.WriteAllText(_lastCheckFile, DateTime.Now.ToString("o"));
+            }
+            catch { }
+        }
+
+        // ── Phương thức tĩnh cho form con gọi để trigger check ngay ────
+        public static void TriggerNewDataCheck()
+        {
+            RaiseNewDataCreated();
+        }
+
         private void StartNotifyTimer()
         {
-            // Baseline: lay thoi gian hien tai lam moc, khong lay theo count
-            _lastCheckTime = DateTime.Now; // Baseline = ngay bay gio
+            // Load thời gian check cuối từ file (persist giữa các lần mở app)
+            _lastCheckTime = LoadLastCheckTime();
+
+            // Đăng ký lắng nghe sự kiện từ form con (PO, MPR vừa được tạo)
+            NewDataCreated += (s, e) =>
+            {
+                try
+                {
+                    // Chạy ngay trên UI thread - check force để lấy data mới nhất
+                    if (!this.IsDisposed)
+                        this.BeginInvoke(new Action(() => CheckAndNotify(true)));
+                }
+                catch { }
+            };
+
             _notifyTimer = new System.Windows.Forms.Timer { Interval = 30 * 1000 }; // 30 giay
             _notifyTimer.Tick += (s, e) =>
             {
@@ -1629,6 +1685,13 @@ namespace MPR_Managerment.Forms
                 catch { }
             };
             _notifyTimer.Start();
+
+            // Kiểm tra ngay khi app vừa mở (hiển thị các thông báo 7 ngày qua)
+            this.BeginInvoke(new Action(() =>
+            {
+                try { CheckAndNotify(true); }
+                catch { }
+            }));
         }
 
         private void CheckAndNotify(bool force)
@@ -1654,6 +1717,9 @@ namespace MPR_Managerment.Forms
                     {
                         DateTime rawDtPO = rPO["Created_Date"] != DBNull.Value
                             ? Convert.ToDateTime(rPO["Created_Date"]) : DateTime.MinValue;
+                        // Chuyển đổi sang múi giờ hệ thống địa phương
+                        if (rawDtPO != DateTime.MinValue && rawDtPO.Kind == DateTimeKind.Unspecified)
+                            rawDtPO = DateTime.SpecifyKind(rawDtPO, DateTimeKind.Utc).ToLocalTime();
                         string dt = rawDtPO != DateTime.MinValue ? rawDtPO.ToString("dd/MM HH:mm") : "";
                         string usr = rPO["Created_By"]?.ToString() ?? "";
                         string isoTs = rawDtPO.ToString("o"); // ISO timestamp de sort
@@ -1671,6 +1737,9 @@ namespace MPR_Managerment.Forms
                     {
                         DateTime rawDtMPR = rMPR["Modified_Date"] != DBNull.Value
                             ? Convert.ToDateTime(rMPR["Modified_Date"]) : DateTime.MinValue;
+                        // Chuyển đổi sang múi giờ hệ thống địa phương
+                        if (rawDtMPR != DateTime.MinValue && rawDtMPR.Kind == DateTimeKind.Unspecified)
+                            rawDtMPR = DateTime.SpecifyKind(rawDtMPR, DateTimeKind.Utc).ToLocalTime();
                         string dt = rawDtMPR != DateTime.MinValue ? rawDtMPR.ToString("dd/MM HH:mm") : "";
                         string usr = rMPR["Modified_By"]?.ToString() ?? "";
                         string isoTs = rawDtMPR.ToString("o");
@@ -1691,6 +1760,9 @@ namespace MPR_Managerment.Forms
                         {
                             DateTime rawDtMN = rMN["Created_Date"] != DBNull.Value
                                 ? Convert.ToDateTime(rMN["Created_Date"]) : DateTime.MinValue;
+                            // Chuyển đổi sang múi giờ hệ thống địa phương
+                            if (rawDtMN != DateTime.MinValue && rawDtMN.Kind == DateTimeKind.Unspecified)
+                                rawDtMN = DateTime.SpecifyKind(rawDtMN, DateTimeKind.Utc).ToLocalTime();
                             string dt = rawDtMN != DateTime.MinValue ? rawDtMN.ToString("dd/MM HH:mm") : "";
                             string usr = rMN["Created_By"]?.ToString() ?? "";
                             string isoTs = rawDtMN.ToString("o");
@@ -1709,6 +1781,9 @@ namespace MPR_Managerment.Forms
                     {
                         DateTime rawDtRIR = rRIR["Issue_Date"] != DBNull.Value
                             ? Convert.ToDateTime(rRIR["Issue_Date"]) : DateTime.MinValue;
+                        // Chuyển đổi sang múi giờ hệ thống địa phương
+                        if (rawDtRIR != DateTime.MinValue && rawDtRIR.Kind == DateTimeKind.Unspecified)
+                            rawDtRIR = DateTime.SpecifyKind(rawDtRIR, DateTimeKind.Utc).ToLocalTime();
                         string dt = rawDtRIR != DateTime.MinValue ? rawDtRIR.ToString("dd/MM HH:mm") : "";
                         string usr = rRIR["Created_By"]?.ToString() ?? "";
                         string isoTs = rawDtRIR.ToString("o");
@@ -1727,6 +1802,7 @@ namespace MPR_Managerment.Forms
                 if (newPO == 0 && newMPR == 0 && newRIR == 0 && !force) return;
 
                 _lastCheckTime = checkTime; // cập nhật SAU khi query xong
+                SaveLastCheckTime();        // persist để lần sau mở app check tiếp
                 if (this.InvokeRequired)
                     this.Invoke(new Action(() => ApplyNotify(newPO, newMPR, newRIR, msgs, force)));
                 else
@@ -1738,7 +1814,8 @@ namespace MPR_Managerment.Forms
         private void ApplyNotify(int newPO, int newMPR, int newRIR,
             System.Collections.Generic.List<string> msgs, bool force)
         {
-            string t = DateTime.Now.ToString("HH:mm");
+            // Lấy thời gian hệ thống hiện tại
+            string t = DateTime.Now.ToString("HH:mm:ss");
 
             // Them cac thong bao chua tung hien vao _seenMsgs va listbox
             int added = 0;
@@ -1775,6 +1852,14 @@ namespace MPR_Managerment.Forms
                 _panelNotify.Visible = true;
                 PositionNotifyPanel();
                 _panelNotify.BringToFront();
+                
+                // Phát âm thanh cảnh báo
+                try
+                {
+                    System.Media.SystemSounds.Beep.Play();
+                }
+                catch { }
+                
                 // Flash badge để thu hút chú ý
                 _btnNotify.BackColor = Color.FromArgb(220, 53, 69);
                 var flashTimer = new System.Windows.Forms.Timer { Interval = 500 };
@@ -1796,7 +1881,7 @@ namespace MPR_Managerment.Forms
 
             var f = _panelNotify.Controls.Find("lblFoot", false);
             if (f.Length > 0 && f[0] is Label lf)
-                lf.Text = "Tu dong cap nhat moi 1 phut | Tiep theo: " + DateTime.Now.AddMinutes(1).ToString("HH:mm");
+                lf.Text = "Tu dong cap nhat moi 1 phut | Tiep theo: " + DateTime.Now.AddMinutes(1).ToString("HH:mm:ss");
         }
 
 
