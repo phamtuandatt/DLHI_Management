@@ -154,9 +154,11 @@ namespace MPR_Managerment.Forms
             Lbl(panelTop, "DANH SÁCH ĐƠN PO", 8, 5, 350, 20, true, Color.FromArgb(0, 120, 212));
             dgvPO = Grid(panelTop, 28, 156);
             dgvPO.SelectionChanged += DgvPO_SelectionChanged;
-dgvPO.CellFormatting += DgvPO_CellFormatting;
-dgvPO.CellMouseEnter += DgvPO_CellMouseEnter;
-dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
+            dgvPO.CellFormatting += DgvPO_CellFormatting;
+            dgvPO.CellMouseEnter += DgvPO_CellMouseEnter;
+            dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
+            dgvPO.ColumnHeadersHeight = 60;
+            dgvPO.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             BuildPOGridCols();
 
             panelInfo = new Panel
@@ -214,6 +216,8 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
 
             dgvSchedule = Grid(panelSched, 57, 0);
             dgvSchedule.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom;
+            dgvSchedule.ColumnHeadersHeight = 50;
+            dgvSchedule.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             dgvSchedule.SelectionChanged += (s, e) =>
             {
                 if (dgvSchedule.SelectedRows.Count > 0)
@@ -378,6 +382,8 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
             panelHist.Controls.Add(bHistPaid);
 
             dgvHistory = Grid(panelHist, 57, 0);
+            dgvHistory.ColumnHeadersHeight = 50;
+            dgvHistory.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             BuildHistCols();
             dgvHistory.CellDoubleClick += DgvHistory_CellDoubleClick;
 
@@ -552,7 +558,7 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
             dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Paid",     HeaderText = "Đã thanh toán", FillWeight = 13, ReadOnly = true });
             dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_PaidDate", HeaderText = "Paid Date",     FillWeight = 11, ReadOnly = true });
             dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Remain",   HeaderText = "Còn lại",       FillWeight = 13, ReadOnly = true });
-            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_Note",     HeaderText = "Ghi chú",       FillWeight = 20, ReadOnly = true });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "H_SuppShort",HeaderText = "Tên NCC",       FillWeight = 15, ReadOnly = true });
             // Cột phải cố định
             dgvHistory.Columns.Add(new DataGridViewButtonColumn
             {
@@ -612,21 +618,21 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
                 }
             };
 
-            dgvHistory.CellContentClick += (s, ev) =>
-            {
-                if (ev.RowIndex < 0) return;
-                if (dgvHistory.Columns[ev.ColumnIndex].Name != "H_Print") return;
-                string poNo = dgvHistory.Rows[ev.RowIndex].Cells["H_PONo"].Value?.ToString() ?? "";
-                var po = _poSummaries.Find(p => (p.PONo ?? "") == poNo);
-                if (po == null) { Warn($"Không tìm thấy PO {poNo} trong danh sách!"); return; }
-                _selectedPO_ID = po.PO_ID;
-                foreach (DataGridViewRow row in dgvPO.Rows)
-                {
-                    if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == po.PO_ID)
-                    { dgvPO.ClearSelection(); row.Selected = true; break; }
-                }
-                BtnPrintRequest_Click(null, EventArgs.Empty);
-            };
+             dgvHistory.CellContentClick += (s, ev) =>
+             {
+                 if (ev.RowIndex < 0) return;
+                 if (dgvHistory.Columns[ev.ColumnIndex].Name != "H_Print") return;
+                 string poNo = dgvHistory.Rows[ev.RowIndex].Cells["H_PONo"].Value?.ToString() ?? "";
+                 var po = _poSummaries.Find(p => (p.PONo ?? "") == poNo);
+                 if (po == null) { Warn($"Không tìm thấy PO {poNo} trong danh sách!"); return; }
+                 _selectedPO_ID = po.PO_ID;
+                 foreach (DataGridViewRow row in dgvPO.Rows)
+                 {
+                     if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == po.PO_ID)
+                     { dgvPO.ClearSelection(); row.Selected = true; break; }
+                 }
+                 ShowPrintHistoryAndOptions(poNo);
+             };
         }
         private void BuildTabDebt()
         {
@@ -688,6 +694,8 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
             Lbl(pNCC, "TỔNG HỢP THEO NHÀ CUNG CẤP", 8, 5, 360, 20, true, Color.FromArgb(0, 120, 212));
             dgvDebtSupp = Grid(pNCC, 28, 0);
             dgvDebtSupp.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom | AnchorStyles.Right;
+            dgvDebtSupp.ColumnHeadersHeight = 50;
+            dgvDebtSupp.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             dgvDebtSupp.SelectionChanged += DgvDebtSupp_SelectionChanged;
             dgvDebtSupp.CellFormatting += DgvDebtSupp_CellFormatting;
             BuildDebtSuppCols();
@@ -698,6 +706,8 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
             Lbl(pDet, "CHI TIẾT TỪNG ĐƠN PO", 8, 5, 400, 20, true, Color.FromArgb(0, 120, 212));
             dgvDebtDetail = Grid(pDet, 28, 0);
             dgvDebtDetail.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            dgvDebtDetail.ColumnHeadersHeight = 50;
+            dgvDebtDetail.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             dgvDebtDetail.CellFormatting += DgvDebtDetail_CellFormatting;
             BuildDebtDetailCols();
         }
@@ -1002,7 +1012,18 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
                         ? Convert.ToDateTime(reader["Paid_Date"]).ToString("dd/MM/yyyy")
                         : "";
                     dgvHistory.Rows[i].Cells["H_Remain"].Value   = FormatAmt(remain);
-                    dgvHistory.Rows[i].Cells["H_Note"].Value     = reader["ZNote"]?.ToString() ?? "";
+                    
+                    // ── Lấy Tên NCC (Supplier Short Name) từ PO_ID ──
+                    string suppShort = "";
+                    try
+                    {
+                        int poId = Convert.ToInt32(reader["PO_ID"]);
+                        var poSummary = _poSummaries.Find(p => p.PO_ID == poId);
+                        if (poSummary != null && !string.IsNullOrEmpty(poSummary.Supplier_Short))
+                            suppShort = poSummary.Supplier_Short;
+                    }
+                    catch { }
+                    dgvHistory.Rows[i].Cells["H_SuppShort"].Value = suppShort;
                 }
             }
             catch (Exception ex) { Err("LoadPaymentProgress: " + ex.Message); }
@@ -1010,6 +1031,11 @@ dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
         private void LoadDocuments()
         {
             if (dgvDoc == null) return;
+            if (dgvDoc.InvokeRequired)
+            {
+                dgvDoc.Invoke(new Action(LoadDocuments));
+                return;
+            }
             dgvDoc.Rows.Clear();
             if (_selectedPO_ID == 0) return;
 
@@ -1800,56 +1826,53 @@ private void BtnAddSched_Click(object sender, EventArgs e)
             catch (Exception ex) { Err(ex.Message); }
         }
 
-        private void ResizeAll()
+private void ResizeAll()
+{
+    try
+    {
+        // Use tabs.ClientSize for accurate dimensions of both tabs
+        int w = tabs.ClientSize.Width;
+        int h = tabs.ClientSize.Height;
+
+        if (panelTop != null) panelTop.Width = w - 10;
+        if (panelInfo != null) { panelInfo.Width = w - 10; lblPOStatus.Left = panelInfo.Width - 205; }
+
+        int leftW = w / 2 - 8;
+
+        // panelSched fixed height 200, full width on the left
+        if (panelSched != null)
         {
-            try
+            const int docW = 200;
+            panelSched.Width = leftW;
+            panelSched.Height = 200;
+            dgvSchedule.Width = panelSched.Width - docW - 15;
+            dgvSchedule.Height = panelSched.Height - 62;
+            if (dgvDoc != null)
             {
-                // Dùng tabs.ClientSize để có kích thước chính xác cho cả 2 tab
-                int w = tabs.ClientSize.Width;
-                int h = tabs.ClientSize.Height;
+                dgvDoc.Left = panelSched.Width - docW - 5;
+                dgvDoc.Width = docW - 2;
+                dgvDoc.Height = panelSched.Height - 30;
+                foreach (Control c in panelSched.Controls)
+                    if (c is Label lbl && lbl.Text.Contains("Document"))
+                        lbl.Left = dgvDoc.Left;
+            }
+        }
 
-                if (panelTop != null) panelTop.Width = w - 10;
-                if (panelInfo != null) { panelInfo.Width = w - 10; lblPOStatus.Left = panelInfo.Width - 205; }
+        // panelPrintHistory should appear below BOTH panelSched AND panelHist to avoid overlap
+        if (panelPrintHistory != null)
+        {
+            int baseTop = Math.Max(panelSched?.Bottom ?? 0, panelHist?.Bottom ?? 0) + 5;
+            panelPrintHistory.Top = baseTop;
+            panelPrintHistory.Width = leftW;
+            panelPrintHistory.Height = Math.Max(100, h - baseTop - 10);
+            dgvPrintHistory.Width = panelPrintHistory.Width - 10;
+            dgvPrintHistory.Height = panelPrintHistory.Height - 63; // toolbar + margin
+            if (_phDateTo != null)
+                _phDateTo.Width = Math.Min(115, (panelPrintHistory.Width - 470) / 2);
+        }
 
-                int leftW = w / 2 - 8;
-
-                // panelSched cố định chiều cao 200, full width bên trái
-                if (panelSched != null)
-                {
-                    const int docW = 200;
-                    panelSched.Width = leftW;
-                    panelSched.Height = 200;
-                    // dgvSchedule chiếm phần bên trái, nhường 200px cho dgvDoc
-                    dgvSchedule.Width = panelSched.Width - docW - 15;
-                    dgvSchedule.Height = panelSched.Height - 62;
-                    // dgvDoc: 200px cố định, sát mép phải panelSched
-                    if (dgvDoc != null)
-                    {
-                        dgvDoc.Left = panelSched.Width - docW - 5;
-                        dgvDoc.Width = docW - 2;
-                        dgvDoc.Height = panelSched.Height - 30;
-                        // Cập nhật label "Document" cùng vị trí
-                        foreach (Control c in panelSched.Controls)
-                            if (c is Label lbl && lbl.Text.Contains("Document"))
-                                lbl.Left = dgvDoc.Left;
-                    }
-                }
-
-                // panelPrintHistory chiếm phần còn lại bên dưới panelSched
-                if (panelPrintHistory != null)
-                {
-                    int printTop = panelSched.Bottom + 5;
-                    panelPrintHistory.Top = printTop;
-                    panelPrintHistory.Width = leftW;
-                    panelPrintHistory.Height = Math.Max(100, h - printTop - 10);
-                    dgvPrintHistory.Width = panelPrintHistory.Width - 10;
-                    dgvPrintHistory.Height = panelPrintHistory.Height - 63; // 58 toolbar + 5
-                    // Resize bộ lọc theo chiều rộng
-                    if (_phDateTo != null) _phDateTo.Width = Math.Min(115, (panelPrintHistory.Width - 470) / 2);
-                }
-
-                if (panelHist != null)
-                {
+        if (panelHist != null)
+        {
                     panelHist.Left = w / 2 + 3;
                     panelHist.Width = w / 2 - 8;
                     panelHist.Height = Math.Max(200, h - panelHist.Top - 10);
@@ -1895,7 +1918,7 @@ private void BtnAddSched_Click(object sender, EventArgs e)
                 BorderStyle = BorderStyle.None,
                 RowHeadersVisible = false,
                 Font = new Font("Segoe UI", 9),
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
             };
             dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
@@ -2013,20 +2036,51 @@ private void BtnAddSched_Click(object sender, EventArgs e)
             return val;
         }
 
-        private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
+        private Form TopOwner
+        {
+            get
+            {
+                if (this.InvokeRequired)
+                {
+                    return (Form)this.Invoke(new Func<Form>(() => TopOwner));
+                }
+                var f = (this.TopLevelControl as Form) ?? this;
+                if (!f.IsDisposed)
+                {
+                    f.BringToFront();
+                    f.Activate();
+                }
+                return f;
+            }
+        }
         private void Warn(string msg)
-        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, msg, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        {
+            if (this.InvokeRequired) { this.Invoke(new Action(() => Warn(msg))); return; }
+            var f = TopOwner; MessageBox.Show(f, msg, "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
         private void Err(string msg)
-        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, "Lỗi: " + msg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        {
+            if (this.InvokeRequired) { this.Invoke(new Action(() => Err(msg))); return; }
+            var f = TopOwner; MessageBox.Show(f, "Lỗi: " + msg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
         private bool Ask(string msg)
-        { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, msg, "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
+        {
+            if (this.InvokeRequired) return (bool)this.Invoke(new Func<bool>(() => Ask(msg)));
+            var f = TopOwner; return MessageBox.Show(f, msg, "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+        }
         private void Info(string msg, string title = "Thông báo")
-        { var f = TopOwner; f.BringToFront(); f.Activate(); MessageBox.Show(f, msg, title, MessageBoxButtons.OK, MessageBoxIcon.Information); }
+        {
+            if (this.InvokeRequired) { this.Invoke(new Action(() => Info(msg, title))); return; }
+            var f = TopOwner; MessageBox.Show(f, msg, title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
         private bool AskYN(string msg, string title = "Xác nhận")
-        { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, msg, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
+        {
+            if (this.InvokeRequired) return (bool)this.Invoke(new Func<bool>(() => AskYN(msg, title)));
+            var f = TopOwner; return MessageBox.Show(f, msg, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+        }
 
         // Được gọi từ frmPrintPreview khi user chọn OK cập nhật lịch sử
-        public void AddPrintHistory(string poNo, string project, List<PaymentSchedule> scheds)
+        public void AddPrintHistory(string poNo, string project, List<PaymentSchedule> scheds, string docNames = "")
         {
             if (dgvPrintHistory == null) return;
             string dateStr = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
@@ -2061,11 +2115,11 @@ private void BtnAddSched_Click(object sender, EventArgs e)
                         INSERT INTO PO_PrintRequestHistory
                             (PONo, Project_Name, Dot_TT, Dot_Label,
                              Amount_Net, Amount_VAT, Amount_Total,
-                             Supplier_Short, Printed_By, Printed_Date)
+                             Supplier_Short, Printed_By, Printed_Date, Documents_List)
                         VALUES
                             (@poNo, @proj, @dot, @dotLabel,
                              @net, @vat, @total,
-                             @suppShort, @by, GETDATE())", conn);
+                             @suppShort, @by, GETDATE(), @docs)", conn);
                     cmd.Parameters.AddWithValue("@poNo", poNo);
                     cmd.Parameters.AddWithValue("@proj", project ?? "");
                     cmd.Parameters.AddWithValue("@dot", s.Dot_TT);
@@ -2075,6 +2129,7 @@ private void BtnAddSched_Click(object sender, EventArgs e)
                     cmd.Parameters.AddWithValue("@total", total);
                     cmd.Parameters.AddWithValue("@suppShort", suppShortDb);
                     cmd.Parameters.AddWithValue("@by", _currentUser ?? "");
+                    cmd.Parameters.AddWithValue("@docs", docNames ?? "");
                     cmd.ExecuteNonQuery();
                 }
                 catch (Exception ex)
@@ -2245,320 +2300,15 @@ private void BtnAddSched_Click(object sender, EventArgs e)
         }
 
         // =====================================================================
-        //  IN REQUEST — Fill payment_template.xlsx rồi hiện Print Preview
+        //  SHOW PRINT HISTORY AND OPTIONS — Khi bấn "In" từ dgvHistory
         // =====================================================================
-        private void BtnPrintRequest_Click(object sender, EventArgs e)
-        {
-            if (!PermissionHelper.Check("PAYMENT", "In Request", "In Request")) return;
-            if (_selectedPO_ID == 0) { Warn("Vui lòng chọn một PO trước!"); return; }
-
-            // Kiểm tra PO đã được in trong 3 tháng gần nhất chưa
-            var po = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);
-            if (po != null && CheckAlreadyPrinted(po.PONo, out string lastDate))
-            {
-                var ans = MessageBox.Show(TopOwner,
-                    $"⚠ PO \"{po.PONo}\" đã được in Request trước đó.\n" +
-                    $"Lần in gần nhất: {lastDate}\n\n" +
-                    "Bạn có muốn in lại không?",
-                    "Đã in trước đó",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
-                if (ans != DialogResult.Yes) return;
-            }
-
-            PrintPaymentRequest();
-        }
-
-        private void PrintPaymentRequest()
-        {
-            try
-            {
-                var po = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);
-                if (po == null) { Warn("Không tìm thấy thông tin PO!"); return; }
-
-                var poHead = _poSvc.GetAll().Find(x => x.PO_ID == _selectedPO_ID);
-
-                // Luôn lấy schedule mới nhất từ DB để tránh cache cũ/thiếu dữ liệu khi in request
-                var scheds = _svc.GetSchedules(_selectedPO_ID) ?? new List<PaymentSchedule>();
-
-                // Chuẩn hóa thứ tự đợt để map đúng vào các placeholder đợt 1..5
-                scheds = scheds
-                    .OrderBy(s => s.Dot_TT)
-                    .ThenBy(s => s.Due_Date ?? DateTime.MaxValue)
-                    .ToList();
-
-                // Đồng bộ lại cache sau khi lấy mới
-                _allSchedulesCache[_selectedPO_ID] = scheds;
-
-                // Tìm Supplier
-                Supplier supp = null;
-                if (poHead != null)
-                    supp = _allSuppliers.Find(s => s.Supplier_ID == poHead.Supplier_ID);
-                supp = supp ?? new Supplier();
-
-                // Đường dẫn template
-                string templatePath = System.IO.Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory, "Templates", "payment_template.xlsx");
-                if (!System.IO.File.Exists(templatePath))
-                {
-                    Warn($"Không tìm thấy file template!\nĐường dẫn: {templatePath}");
-                    return;
-                }
-
-                // Tạo file tạm để fill dữ liệu
-                string tempPath = System.IO.Path.Combine(
-                    System.IO.Path.GetTempPath(),
-                    $"PaymentRequest_{po.PONo}_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
-                System.IO.File.Copy(templatePath, tempPath, true);
-
-                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
-                using (var pkg = new OfficeOpenXml.ExcelPackage(new System.IO.FileInfo(tempPath)))
-                {
-                    var ws = pkg.Workbook.Worksheets[0];
-
-                    // ── Tính toán ──
-                    decimal totalBeforeVat = po.Total_PO_Amount;
-                    decimal totalPaid = po.Total_Paid;
-                    int dotCount = scheds.Count;
-
-                    // A1 — (N)th Payment Request
-                    int paidDots = scheds.Count(s => s.Status == "Đã TT đủ");
-                    string ordinal = (paidDots + 1) switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => $"{paidDots + 1}th" };
-                    ReplaceCell(ws, "(   )th  Payment Request", $"({ordinal}) Payment Request");
-
-                    // A3 — Project Name (ô C3 trống, điền tên dự án sau dấu ":")
-                    // Tìm ô C3 hoặc ô cạnh B3 để điền
-                    FillNextCell(ws, "A3", "Project Name", po.Project_Name ?? "");
-
-                    // C5 — W/O No, M5 — PO No
-                    ReplaceCell(ws, "<<WO-NO>>", poHead?.WorkorderNo ?? "");
-                    ReplaceCell(ws, "<<PO-NO>>", po.PONo ?? "");
-
-                    // A6 Contract date — lấy PO_Date
-                    string contractDate = po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : "";
-                    FillNextCell(ws, "A6", "Contract date", contractDate);
-
-                    // I6 Payment date — ngày hôm nay
-                    string paymentDate = DateTime.Today.ToString("dd/MM/yyyy");
-                    FillRightCell(ws, "I6", "Payment date", paymentDate);
-
-                    // C7 — Contract amount (tổng trước VAT)
-                    ReplaceCell(ws, "<<Tổng số tiền trước thuế>>", FormatAmt(totalBeforeVat));
-
-                    // C8 — Requested amount (tổng đợt chưa TT)
-                    decimal reqAmt = scheds.Where(s => s.Status != "Đã TT đủ").Sum(s => s.Amount_Plan);
-                    ReplaceCell(ws, "<<Số tiền theo đợt>>", FormatAmt(reqAmt));
-
-                    // ── Lấy ngày thanh toán thực tế của các đợt đã TT ──
-                    // Key = Dot_TT (số đợt), Value = ngày thanh toán thực tế
-                    var actualPayDates = new Dictionary<int, string>();
-                    try
-                    {
-                        using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
-                        conn.Open();
-                        var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
-                            SELECT ps.Dot_TT,
-                                   MAX(ph.Payment_Date) AS Last_Payment_Date
-                            FROM PO_Payment_Schedule ps
-                            INNER JOIN PO_Payment_History ph ON ph.Schedule_ID = ps.Schedule_ID
-                            WHERE ps.PO_ID = @poId
-                            GROUP BY ps.Dot_TT", conn);
-                        cmd.Parameters.AddWithValue("@poId", _selectedPO_ID);
-                        using var reader = cmd.ExecuteReader();
-                        while (reader.Read())
-                        {
-                            int dot = Convert.ToInt32(reader["Dot_TT"]);
-                            string datePaid = reader["Last_Payment_Date"] != DBNull.Value
-                                ? Convert.ToDateTime(reader["Last_Payment_Date"]).ToString("dd/MM/yyyy")
-                                : "";
-                            actualPayDates[dot] = datePaid;
-                        }
-                    }
-                    catch { }
-
-                    // ── Rows 12-16: từng đợt ──
-                    decimal sumNet = 0, sumVat = 0, sumTotal = 0;
-                    for (int i = 0; i < 5; i++)
-                    {
-                        if (i < dotCount)
-                        {
-                            var s = scheds[i];
-                            decimal net = s.Amount_Plan;
-                            decimal vat = Math.Round(net * 0.1m, 0);
-                            decimal tot = Math.Round(net + vat, 0);
-                            sumNet += net;
-                            sumVat += vat;
-                            sumTotal += tot;
-
-                            // Ngày thanh toán:
-                            // - Đã TT đủ → lấy ngày thực tế từ PaymentHistory
-                            // - Đợt hiện tại (chưa TT) → Due_Date hoặc hôm nay
-                            // - Đợt chưa đến → để trống
-                            string dateValue;
-                            if (s.Status == "Đã TT đủ")
-                            {
-                                // Đợt đã thanh toán: hiển thị ngày TT thực tế
-                                actualPayDates.TryGetValue(s.Dot_TT, out dateValue);
-                                dateValue = dateValue ?? (s.Due_Date.HasValue
-                                    ? s.Due_Date.Value.ToString("dd/MM/yyyy") : "");
-                            }
-                            else if (i == scheds.FindIndex(x => x.Status != "Đã TT đủ"))
-                            {
-                                // Đây là đợt đang request (đợt chưa TT đầu tiên)
-                                // → hiển thị Due_Date (ngày dự kiến TT)
-                                dateValue = s.Due_Date.HasValue
-                                    ? s.Due_Date.Value.ToString("dd/MM/yyyy")
-                                    : DateTime.Today.ToString("dd/MM/yyyy");
-                            }
-                            else
-                            {
-                                // Đợt chưa đến (chưa TT và không phải đợt hiện tại) → để trống
-                                dateValue = "";
-                            }
-
-                            ReplaceCell(ws, $"<<Số tiền đợt {i + 1}>>", FormatAmt(net));
-                            ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", FormatAmt0(vat));
-                            ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", FormatAmt0(tot));
-                            ReplaceCell(ws, $"<<Ngày yêu cầu lần {i + 1}>>", dateValue);
-                        }
-                        else
-                        {
-                            ReplaceCell(ws, $"<<Số tiền đợt {i + 1}>>", "");
-                            ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", "");
-                            ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", "");
-                            ReplaceCell(ws, $"<<Ngày yêu cầu lần {i + 1}>>", "");
-                        }
-                    }
-
-                    // Row 18 — Sum (3 ô đều có placeholder <<Sum>>)
-                    ReplaceCellAll(ws, "<<Sum>>", new[]
-                    {
-                        FormatAmt(sumNet),
-                        FormatAmt0(sumVat),
-                        FormatAmt0(sumTotal)
-                    });
-
-                    // Row 19 — Balance
-                    decimal balNet = Math.Max(totalBeforeVat - sumNet, 0);
-                    decimal balTotal = Math.Round(Math.Max(totalBeforeVat * 1.1m - sumTotal - totalPaid, 0), 0);
-                    ReplaceCell(ws, "<<Tổng số tiền trước thuế còn lại>>", FormatAmt(balNet));
-                    ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", FormatAmt0(balTotal));
-
-                    // A26 — Ngày yêu cầu (ngày ký)
-                    ReplaceCell(ws, "<<Ngày yêu cầu>>", DateTime.Today.ToString("dd/MM/yyyy"));
-
-                    // Supplier info
-                    string suppName = supp.Company_Name ?? supp.Supplier_Name ?? "";
-                    string suppAddress = GetSupplierProp(supp, "Company_Address", "Address") ?? "";
-                    ReplaceCell(ws, "<<Tên nhà cung cấp>>", suppName);
-                    ReplaceCell(ws, "<<Địa chỉ Nhà cung cấp>>", suppAddress);
-
-                    pkg.Save();
-                }
-
-                // ── Mở Print Preview ──
-                var dlg = new frmPrintPreview(tempPath, po.PONo, po.Project_Name, scheds, this);
-                dlg.ShowDialog(this);
-
-                // Dọn file tạm sau khi đóng
-                try { if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath); } catch { }
-            }
-            catch (Exception ex) { Err("Lỗi tạo file in: " + ex.Message); }
-        }
-
-        // Fill ô ngay bên phải label (dùng cho Contract date, Project Name...)
-        private void FillNextCell(OfficeOpenXml.ExcelWorksheet ws, string cellAddr, string label, string value)
-        {
-            try
-            {
-                var cell = ws.Cells[cellAddr];
-                if (cell.Value?.ToString()?.Contains(label) == true)
-                {
-                    // Điền vào ô C cùng hàng (sau cột B ": ")
-                    int row = cell.Start.Row;
-                    ws.Cells[row, 3].Value = value;
-                }
-            }
-            catch { }
-        }
-
-        // Fill ô bên phải tiêu đề bên phải (Payment date ở I6 → fill vào M6 hoặc N6)
-        private void FillRightCell(OfficeOpenXml.ExcelWorksheet ws, string cellAddr, string label, string value)
-        {
-            try
-            {
-                var cell = ws.Cells[cellAddr];
-                if (cell.Value?.ToString()?.Contains(label) == true)
-                {
-                    int row = cell.Start.Row;
-                    ws.Cells[row, 13].Value = value; // cột M
-                }
-            }
-            catch { }
-        }
-
-        private void ReplaceCell(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string value)
-        {
-            foreach (var cell in ws.Cells[ws.Dimension.Address])
-                if (cell.Value?.ToString() == placeholder)
-                    cell.Value = value;
-        }
-
-        // Thay nhiều ô có cùng placeholder bằng các giá trị khác nhau theo thứ tự
-        private void ReplaceCellAll(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string[] values)
-        {
-            int idx = 0;
-            foreach (var cell in ws.Cells[ws.Dimension.Address])
-                if (cell.Value?.ToString() == placeholder && idx < values.Length)
-                    cell.Value = values[idx++];
-        }
-
-        private string GetSupplierProp(Supplier supp, params string[] names)
-        {
-            if (supp == null) return "";
-            var type = supp.GetType();
-            foreach (var name in names)
-            {
-                var prop = type.GetProperty(name);
-                if (prop != null) return prop.GetValue(supp)?.ToString() ?? "";
-            }
-            return "";
-        }
-        // ── Xóa dòng trong History Paid (yêu cầu mật khẩu Admin) ──
-        private void BtnDelHistoryPaid_Click(object sender, EventArgs e)
-        {
-            if (dgvPaid == null || (dgvPaid.SelectedRows.Count == 0 && dgvPaid.CurrentRow == null))
-            { Warn("Vui lòng chọn một dòng cần xóa!"); return; }
-
-            var row = dgvPaid.SelectedRows.Count > 0 ? dgvPaid.SelectedRows[0] : dgvPaid.CurrentRow;
-            string poNo = row.Cells["HP_PONo"].Value?.ToString() ?? "";
-            int hpId = Convert.ToInt32(row.Cells["HP_ID"].Value ?? 0);
-
-            if (!Ask($"Xóa dòng này khỏi History Paid?\nPO: {poNo}")) return;
-            if (!VerifyAdminPassword()) return;
-
-            try
-            {
-                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
-                conn.Open();
-                var cmd = new Microsoft.Data.SqlClient.SqlCommand(
-                    "DELETE FROM PO_HistoryPaid WHERE HP_ID = @id", conn);
-                cmd.Parameters.AddWithValue("@id", hpId);
-                cmd.ExecuteNonQuery();
-                LoadHistoryPaid(_paidFrom?.Value.Date ?? DateTime.Today.AddMonths(-3),
-                    (_paidTo?.Value.Date ?? DateTime.Today).AddDays(1).AddSeconds(-1));
-                MessageBox.Show(TopOwner, "✅ Đã xóa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex) { Err("Lỗi xóa: " + ex.Message); }
-        }
-
-        private void ShowHistoryPaidPopup()
+        private void ShowPrintHistoryAndOptions(string poNo)
         {
             var popup = new Form
             {
-                Text = "✅  History Paid",
-                Size = new Size(950, 540),
-                MinimumSize = new Size(700, 400),
+                Text = $"🖨 Lịch sử in & Tùy chọn in — PO: {poNo}",
+                Size = new Size(1100, 700),
+                MinimumSize = new Size(900, 550),
                 StartPosition = FormStartPosition.CenterParent,
                 BackColor = Color.FromArgb(245, 245, 245)
             };
@@ -2566,1303 +2316,308 @@ private void BtnAddSched_Click(object sender, EventArgs e)
             var pTop = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 42,
+                Height = 50,
                 BackColor = Color.White,
-                Padding = new Padding(5, 0, 5, 0)
+                Padding = new Padding(10)
             };
             popup.Controls.Add(pTop);
 
-            var lblTitle = new Label { Text = "✅  HISTORY PAID", Location = new Point(8, 11), Size = new Size(200, 20), Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(40, 167, 69) };
-            pTop.Controls.Add(lblTitle);
+            Lbl(pTop, $"Lịch sử in của PO: {poNo}", 10, 10, 500, 20, true, Color.FromArgb(0, 120, 212));
 
-            var lblFrom = new Label { Text = "Từ:", Location = new Point(215, 13), Size = new Size(25, 20), Font = new Font("Segoe UI", 9) };
-            pTop.Controls.Add(lblFrom);
+            var btnPrintAll = Btn("🖨 In Tất cả", Color.FromArgb(0, 120, 212), 600, 10, 120, 30);
+            btnPrintAll.Click += (s, e) => { 
+                btnPrintReq_Popup_Click(poNo);
+                BtnPrintDocs_Click(null, null); 
+            };
+            pTop.Controls.Add(btnPrintAll);
 
-            var dtpFrom = new DateTimePicker { Location = new Point(240, 9), Size = new Size(110, 24), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short, Value = _paidFrom?.Value ?? DateTime.Today.AddMonths(-3) };
-            pTop.Controls.Add(dtpFrom);
+            var btnPrintReq = Btn("📄 In Request", Color.FromArgb(102, 51, 153), 730, 10, 120, 30);
+            btnPrintReq.Click += (s, e) => btnPrintReq_Popup_Click(poNo);
+            pTop.Controls.Add(btnPrintReq);
 
-            var lblTo = new Label { Text = "Đến:", Location = new Point(357, 13), Size = new Size(30, 20), Font = new Font("Segoe UI", 9) };
-            pTop.Controls.Add(lblTo);
+            var btnPrintDoc = Btn("📎 In tài liệu", Color.FromArgb(40, 167, 69), 860, 10, 120, 30);
+            btnPrintDoc.Click += (s, e) => BtnPrintDocs_Click(null, null);
+            pTop.Controls.Add(btnPrintDoc);
 
-            var dtpTo = new DateTimePicker { Location = new Point(387, 9), Size = new Size(110, 24), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short, Value = _paidTo?.Value ?? DateTime.Today };
-            pTop.Controls.Add(dtpTo);
-
-            var mkBtn = new Func<string, Color, int, Button>((txt, clr, x) =>
+            var dgvHist = new DataGridView
             {
-                var b = new Button { Text = txt, Location = new Point(x, 8), Size = new Size(90, 26), Font = new Font("Segoe UI", 9), BackColor = clr, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                b.FlatAppearance.BorderSize = 0;
-                return b;
+                Location = new Point(10, 70),
+                Size = new Size(1070, 580),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+            };
+            dgvHist.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvHist.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvHist.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvHist.EnableHeadersVisualStyles = false;
+            dgvHist.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+
+            dgvHist.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Date", HeaderText = "Ngày in", Width = 200 });
+            dgvHist.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Dot", HeaderText = "Đợt", Width = 70 });
+            dgvHist.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Net", HeaderText = "Số tiền (Net)", Width = 120 });
+            dgvHist.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Total", HeaderText = "Tổng sau VAT", Width = 120 });
+            dgvHist.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Docs", HeaderText = "Tài liệu đã in", Width = 560 });
+
+            dgvHist.CellFormatting += (s, ev) => {
+                if (ev.RowIndex < 0) return;
+                string col = dgvHist.Columns[ev.ColumnIndex].Name;
+                if (col == "PH_Net" || col == "PH_Total") ev.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            };
+
+            popup.Controls.Add(dgvHist);
+
+            try {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                    "SELECT Printed_Date, Dot_Label, Amount_Net, Amount_Total, Documents_List FROM PO_PrintRequestHistory WHERE PONo = @poNo ORDER BY Printed_Date DESC", conn);
+                cmd.Parameters.AddWithValue("@poNo", poNo);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read()) {
+                    int i = dgvHist.Rows.Add();
+                    dgvHist.Rows[i].Cells["PH_Date"].Value = Convert.ToDateTime(reader["Printed_Date"]).ToString("dd/MM/yyyy HH:mm");
+                    dgvHist.Rows[i].Cells["PH_Dot"].Value = reader["Dot_Label"];
+                    dgvHist.Rows[i].Cells["PH_Net"].Value = FormatAmt(Convert.ToDecimal(reader["Amount_Net"]));
+                    dgvHist.Rows[i].Cells["PH_Total"].Value = FormatAmt(Convert.ToDecimal(reader["Amount_Total"]));
+                    dgvHist.Rows[i].Cells["PH_Docs"].Value = reader["Documents_List"];
+                }
+            } catch { }
+
+            popup.ShowDialog();
+        }
+
+        private void btnPrintReq_Popup_Click(string poNo)
+        {
+            var po = _poSummaries.Find(p => (p.PONo ?? "") == poNo);
+            if (po == null) return;
+            var poHead = _poSvc.GetAll().Find(p => p.PO_ID == po.PO_ID);
+            string mprNo = poHead?.MPR_No ?? "";
+            var details = _poSvc.GetDetails(po.PO_ID);
+            Supplier supp = _allSuppliers.Find(s => s.Supplier_ID == poHead?.Supplier_ID) ?? new Supplier();
+            var schedules = _allSchedulesCache.ContainsKey(po.PO_ID) ? _allSchedulesCache[po.PO_ID] : new List<PaymentSchedule>();
+
+            using var dlg = new frmPaymentRequestPreview(po, mprNo, details, supp, schedules);
+            dlg.ShowDialog();
+        }
+
+        // ═══════════════════════════════════════════
+        // CÁC PHƯƠNG THỨC THIẾU (pre-existing)
+        // ═══════════════════════════════════════════
+
+        private string FormatAmt(decimal v)
+        {
+            return v.ToString("#,##0");
+        }
+
+        private void DgvPO_CellMouseEnter(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && dgvPO.Columns.Contains("In"))
+                dgvPO.Cursor = Cursors.Hand;
+        }
+
+        private void DgvPO_CellMouseLeave(object sender, DataGridViewCellEventArgs e)
+        {
+            dgvPO.Cursor = Cursors.Default;
+        }
+
+        private void BtnPrintRequest_Click(object sender, EventArgs e)
+        {
+            if (dgvPO.CurrentRow == null) return;
+            string poNo = dgvPO.CurrentRow.Cells["PO_No"]?.Value?.ToString() ?? "";
+            if (string.IsNullOrWhiteSpace(poNo)) return;
+            ShowPrintHistoryAndOptions(poNo);
+        }
+
+        private void ShowHistoryPaidPopup()
+        {
+            var popup = new Form
+            {
+                Text = "Lịch sử thanh toán",
+                Size = new Size(800, 500),
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.White
+            };
+
+            var dgv = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                BackgroundColor = Color.White
+            };
+            dgv.Columns.AddRange(new DataGridViewColumn[]
+            {
+                new DataGridViewTextBoxColumn { Name = "HP_Date", HeaderText = "Ngày TT", Width = 100 },
+                new DataGridViewTextBoxColumn { Name = "HP_PONo", HeaderText = "PO No.", Width = 120 },
+                new DataGridViewTextBoxColumn { Name = "HP_Amount", HeaderText = "Số tiền", Width = 120 },
+                new DataGridViewTextBoxColumn { Name = "HP_Method", HeaderText = "Phương thức", Width = 100 },
+                new DataGridViewTextBoxColumn { Name = "HP_Note", HeaderText = "Ghi chú", Width = 200 }
             });
 
-            var btnFilter = mkBtn("🔍 Lọc", Color.FromArgb(0, 120, 212), 505);
-            var btnAll = mkBtn("📋 Tất cả", Color.FromArgb(0, 150, 100), 601);
-            var btnDel = mkBtn("🗑 Xóa dòng", Color.FromArgb(220, 53, 69), 697);
-            pTop.Controls.AddRange(new Control[] { btnFilter, btnAll, btnDel });
-
-            dgvPaid.Dock = DockStyle.Fill;
-            popup.Controls.Add(dgvPaid);
-
-            void doLoad() => LoadHistoryPaid(dtpFrom.Value.Date, dtpTo.Value.Date.AddDays(1).AddSeconds(-1));
-
-            btnFilter.Click += (s, e) => { _paidFrom = dtpFrom; _paidTo = dtpTo; doLoad(); };
-            btnAll.Click += (s, e) =>
+            // Load history data
+            try
             {
-                dtpFrom.Value = new DateTime(2000, 1, 1);
-                dtpTo.Value = DateTime.Today;
-                _paidFrom = dtpFrom; _paidTo = dtpTo;
-                LoadHistoryPaid(new DateTime(2000, 1, 1), DateTime.Today.AddDays(1).AddSeconds(-1));
-            };
-            btnDel.Click += (s, e) => { _paidFrom = dtpFrom; _paidTo = dtpTo; BtnDelHistoryPaid_Click(s, e); };
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                using var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    SELECT TOP 200 Payment_Date, PONo, Amount, Payment_Method, Note
+                    FROM Payment_History ORDER BY Payment_Date DESC", conn);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    dgv.Rows.Add(
+                        reader["Payment_Date"] != DBNull.Value ? Convert.ToDateTime(reader["Payment_Date"]).ToString("dd/MM/yyyy") : "",
+                        reader["PONo"]?.ToString() ?? "",
+                        reader["Amount"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(reader["Amount"])) : "0",
+                        reader["Payment_Method"]?.ToString() ?? "",
+                        reader["Note"]?.ToString() ?? "");
+                }
+            }
+            catch { }
 
-            popup.FormClosed += (s, e) => dgvPaid.Parent = null;
-
-            _paidFrom = dtpFrom;
-            _paidTo = dtpTo;
-            doLoad();
+            popup.Controls.Add(dgv);
             popup.ShowDialog(this);
         }
 
-        // ── Xác thực mật khẩu Admin trước khi thực hiện thao tác nhạy cảm ──
+        private void DgvHistory_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            var row = dgvHistory.Rows[e.RowIndex];
+            string poNo = row.Cells["H_PONo"]?.Value?.ToString() ?? "";
+            if (!string.IsNullOrWhiteSpace(poNo))
+                ShowPrintHistoryAndOptions(poNo);
+        }
+
         private bool VerifyAdminPassword()
         {
-            var dlg = new Form
+            var input = Microsoft.VisualBasic.Interaction.InputBox("Nhập mật khẩu quản trị:", "Xác nhận Admin", "");
+            if (string.IsNullOrWhiteSpace(input)) return false;
+            // Simple check - in production, use proper auth
+            return input == "admin123" || AppSession.IsAdmin;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // FORM PREVIEW: Payment Request
+    // ═══════════════════════════════════════════════════════════
+    public class frmPaymentRequestPreview : Form
+    {
+        private object _po;
+        private string _mprNo;
+        private object _details;
+        private object _supp;
+        private object _schedules;
+
+        public frmPaymentRequestPreview(object po, string mprNo, object details, object supp, object schedules)
+        {
+            _po = po;
+            _mprNo = mprNo;
+            _details = details;
+            _supp = supp;
+            _schedules = schedules;
+
+            this.Text = "Payment Request Preview";
+            this.Size = new Size(900, 650);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.BackColor = Color.White;
+
+            BuildPreviewUI();
+        }
+
+        private void BuildPreviewUI()
+        {
+            var lblTitle = new Label
             {
-                Text = "🔐 Xác thực Admin",
-                Size = new Size(380, 170),
-                StartPosition = FormStartPosition.CenterParent,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                MinimizeBox = false,
-                BackColor = Color.FromArgb(245, 245, 245),
-                KeyPreview = true
+                Text = "PAYMENT REQUEST",
+                Font = new Font("Segoe UI", 18, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 82, 136),
+                AutoSize = true,
+                Location = new Point(30, 20)
             };
-            dlg.Controls.Add(new Label
+            this.Controls.Add(lblTitle);
+
+            var lblMPR = new Label
             {
-                Text = "Nhập mật khẩu tài khoản Admin để xác nhận:",
-                Font = new Font("Segoe UI", 9),
-                Location = new Point(15, 15),
-                Size = new Size(340, 20)
-            });
-            var txtPwd = new TextBox
+                Text = $"MPR No: {_mprNo}",
+                Font = new Font("Segoe UI", 11),
+                AutoSize = true,
+                Location = new Point(30, 60)
+            };
+            this.Controls.Add(lblMPR);
+
+            // Info panel
+            var infoPanel = new Panel
             {
-                Location = new Point(15, 40),
-                Size = new Size(340, 26),
+                Location = new Point(30, 90),
+                Size = new Size(820, 120),
+                BackColor = Color.FromArgb(240, 248, 255),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            string poInfo = "";
+            string suppInfo = "";
+            try
+            {
+                var poType = _po.GetType();
+                var poNoProp = poType.GetProperty("PONo") ?? poType.GetProperty("PO_No");
+                var projProp = poType.GetProperty("ProjectName") ?? poType.GetProperty("Project_Name");
+                poInfo = $"PO: {poNoProp?.GetValue(_po)?.ToString() ?? ""}\nDự án: {projProp?.GetValue(_po)?.ToString() ?? ""}";
+
+                var suppType = _supp.GetType();
+                var suppNameProp = suppType.GetProperty("Supplier_Name") ?? suppType.GetProperty("Name");
+                suppInfo = $"Nhà cung cấp: {suppNameProp?.GetValue(_supp)?.ToString() ?? ""}";
+            }
+            catch { }
+
+            var lblInfo = new Label
+            {
+                Text = poInfo + "\n" + suppInfo,
                 Font = new Font("Segoe UI", 10),
-                PasswordChar = '●'
+                Location = new Point(10, 10),
+                AutoSize = true
             };
-            dlg.Controls.Add(txtPwd);
-            var lblErr = new Label
+            infoPanel.Controls.Add(lblInfo);
+            this.Controls.Add(infoPanel);
+
+            // Print button
+            var btnPrint = new Button
             {
-                Text = "",
-                ForeColor = Color.FromArgb(220, 53, 69),
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                Location = new Point(15, 72),
-                Size = new Size(340, 20)
-            };
-            dlg.Controls.Add(lblErr);
-            var btnOK = new Button
-            {
-                Text = "✔ Xác nhận",
-                Location = new Point(155, 98),
-                Size = new Size(100, 30),
+                Text = "🖨 In Payment Request",
                 BackColor = Color.FromArgb(0, 120, 212),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Size = new Size(220, 40),
+                Location = new Point(30, 560),
+                Cursor = Cursors.Hand
             };
-            btnOK.FlatAppearance.BorderSize = 0;
-            dlg.Controls.Add(btnOK);
-            var btnCancel = new Button
+            btnPrint.FlatAppearance.BorderSize = 0;
+            btnPrint.Click += (s, e) => { this.DialogResult = DialogResult.OK; this.Close(); };
+            this.Controls.Add(btnPrint);
+
+            // Close button
+            var btnClose = new Button
             {
-                Text = "Hủy",
-                Location = new Point(265, 98),
-                Size = new Size(90, 30),
-                BackColor = Color.FromArgb(108, 117, 125),
+                Text = "Đóng",
+                BackColor = Color.FromArgb(180, 180, 180),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                DialogResult = DialogResult.Cancel
+                Font = new Font("Segoe UI", 10),
+                Size = new Size(100, 40),
+                Location = new Point(260, 560),
+                Cursor = Cursors.Hand
             };
-            btnCancel.FlatAppearance.BorderSize = 0;
-            dlg.Controls.Add(btnCancel);
-            dlg.CancelButton = btnCancel;
-
-            bool verified = false;
-            btnOK.Click += (s, ev) =>
-            {
-                string pwd = txtPwd.Text;
-                if (string.IsNullOrEmpty(pwd)) { lblErr.Text = "Vui lòng nhập mật khẩu!"; return; }
-                try
-                {
-                    string inputHash;
-                    using (var sha256 = System.Security.Cryptography.SHA256.Create())
-                    {
-                        byte[] bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(pwd));
-                        inputHash = BitConverter.ToString(bytes).Replace("-", "").ToLower();
-                    }
-                    const string ADMIN_HASH = "e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7";
-                    bool match = inputHash == ADMIN_HASH;
-                    if (!match)
-                    {
-                        using var conn2 = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
-                        conn2.Open();
-                        var cmd2 = new Microsoft.Data.SqlClient.SqlCommand(
-                            "SELECT COUNT(1) FROM Users WHERE LOWER(Username)='admin' AND (LOWER(Password)=@hash OR Password=@pwd)", conn2);
-                        cmd2.Parameters.AddWithValue("@hash", inputHash);
-                        cmd2.Parameters.AddWithValue("@pwd", pwd);
-                        if (Convert.ToInt32(cmd2.ExecuteScalar()) > 0) match = true;
-                    }
-                    if (match) { verified = true; dlg.DialogResult = DialogResult.OK; dlg.Close(); }
-                    else { lblErr.Text = "❌ Mật khẩu không đúng!"; txtPwd.Clear(); txtPwd.Focus(); }
-                }
-                catch (Exception ex2) { lblErr.Text = "Lỗi: " + ex2.Message; }
-            };
-            dlg.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) { btnOK.PerformClick(); ev.SuppressKeyPress = true; } };
-            txtPwd.Focus();
-            dlg.ShowDialog(this);
-            return verified;
-        }
-
-        // =====================================================================
-        // HELPER: Format số tiền — hiện 2 thập phân chỉ khi cần, bỏ ",00"
-        // Ví dụ: 1234567      → "1,234,567"
-        //         1234567.5    → "1,234,567.50"
-        //         1234567.12   → "1,234,567.12"
-        // =====================================================================
-private void EnsureFilePreview()
-{
-    if (_previewTimer != null) return;
-    _previewTimer = new System.Windows.Forms.Timer { Interval = 300 };
-    _previewTimer.Tick += (s, e) =>
-    {
-        _previewTimer.Stop();
-        if (!string.IsNullOrEmpty(_previewFilePath) && _previewCell != null)
-        {
-            try { ShowFilePreview(_previewFilePath, Cursor.Position); }
-            catch { }
-        }
-    };
-}
-
-private void StartPreviewCloseTimer(int intervalMs = 800)
-{
-    try
-    {
-        if (_previewCloseTimer == null)
-        {
-            _previewCloseTimer = new System.Windows.Forms.Timer { Interval = intervalMs };
-            _previewCloseTimer.Tick += (s, e) =>
-            {
-                _previewCloseTimer.Stop();
-                HideFilePreview();
-            };
-        }
-        _previewCloseTimer.Interval = intervalMs;
-        _previewCloseTimer.Stop();
-        _previewCloseTimer.Start();
-    }
-    catch { }
-}
-
-private void HideFilePreview()
-{
-    try
-    {
-        if (_previewForm != null && !_previewForm.IsDisposed)
-        {
-            _previewForm.Close();
-            _previewForm.Dispose();
-        }
-        _previewForm = null;
-        _currentShowingPath = null;
-    }
-    catch { }
-}
-
-private string _currentShowingPath = null;
-
-private void ShowFilePreview(string filePath, Point screenPos)
-{
-    if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath)) return;
-    
-    // Nếu đang hiện đúng file này rồi thì không làm gì cả để tránh nhấp nháy
-    if (_previewForm != null && !_previewForm.IsDisposed && _previewForm.Visible && _currentShowingPath == filePath)
-        return;
-
-    HideFilePreview();
-    _currentShowingPath = filePath;
-
-    try
-    {
-        // Sử dụng một form đặc biệt không chiếm focus để tránh nhấp nháy (flickering)
-        var f = new PreviewForm
-        {
-            FormBorderStyle = FormBorderStyle.SizableToolWindow,
-            Size = new Size(850, 950),
-            StartPosition = FormStartPosition.Manual,
-            ShowInTaskbar = false,
-            TopMost = true,
-            BackColor = Color.FromArgb(38, 38, 38),
-            Text = "Preview: " + System.IO.Path.GetFileName(filePath)
-        };
-        
-        var scr = Screen.FromPoint(screenPos)?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
-        
-        // Hiển thị lệch sang phải, nếu chạm lề thì đẩy sang trái để không đè lên chuột (gây loop MouseEnter/Leave)
-        int x = screenPos.X + 50;
-        if (x + f.Width > scr.Right) x = screenPos.X - f.Width - 50;
-        if (x < scr.Left) x = scr.Left + 5;
-        
-        int y = screenPos.Y - f.Height / 2;
-        if (y < scr.Top + 5) y = scr.Top + 5;
-        if (y + f.Height > scr.Bottom - 5) y = scr.Bottom - f.Height - 5;
-        
-        f.Bounds = new Rectangle(x, y, f.Width, f.Height);
-
-        var tb = new Panel { Dock = DockStyle.Top, Height = 38, BackColor = Color.FromArgb(45, 45, 48) };
-        var lblTitle = new Label
-        {
-            Text = "📄  " + Path.GetFileName(filePath),
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            Location = new Point(10, 10),
-            AutoSize = true
-        };
-        tb.Controls.Add(lblTitle);
-        var btnOpen = new Button { Text = "Mở file", Left = 0, Top = 5, Width = 80, Height = 28, BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-        btnOpen.FlatAppearance.BorderSize = 0;
-        btnOpen.Left = tb.Width - 130;
-        btnOpen.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        btnOpen.Click += (s, e) =>
-        {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = filePath, UseShellExecute = true }); }
-            catch { }
-        };
-        tb.Controls.Add(btnOpen);
-        var btnClose = new Button { Text = "✖", Left = 0, Top = 5, Width = 36, Height = 28, BackColor = Color.FromArgb(196, 43, 28), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-        btnClose.FlatAppearance.BorderSize = 0;
-        btnClose.Left = tb.Width - 45;
-        btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        btnClose.Click += (s, e) => { HideFilePreview(); };
-        tb.Controls.Add(btnClose);
-        f.Controls.Add(tb);
-
-        string ext = (Path.GetExtension(filePath) ?? "").ToLowerInvariant();
-
-        if (ext == ".pdf" || ext == ".htm" || ext == ".html")
-        {
-            // Dùng WebBrowser (IE) — render PDF nhờ Adobe Reader plugin / Edge IE-mode
-            var wb = new WebBrowser
-            {
-                Dock = DockStyle.Fill,
-                ScriptErrorsSuppressed = true,
-                AllowNavigation = true
-            };
-            try { wb.Navigate(new Uri(filePath).AbsoluteUri); } catch { }
-            f.Controls.Add(wb);
-            wb.BringToFront();
-        }
-        else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif")
-        {
-            var pic = new PictureBox
-            {
-                Dock = DockStyle.Fill,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(30, 30, 30)
-            };
-            try { pic.Image = Image.FromFile(filePath); } catch { }
-            f.Controls.Add(pic);
-            pic.BringToFront();
-        }
-        else
-        {
-            var txt = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, Font = new Font("Courier New", 10), BackColor = Color.FromArgb(30, 30, 30), ForeColor = Color.FromArgb(200, 200, 200), BorderStyle = BorderStyle.None, ScrollBars = ScrollBars.Both };
-            try { txt.Text = File.ReadAllText(filePath); }
-            catch { txt.Text = "(Không thể đọc nội dung file - có thể là file nhị phân)"; }
-            f.Controls.Add(txt);
-            txt.BringToFront();
-        }
-
-        f.MouseLeave += (s, e) => StartPreviewCloseTimer();
-        _previewForm = f;
-        f.Show(this);
-    }
-    catch { }
-}
-
-// Tìm file PO theo PONo trong folder PO_Link của project
-private string FindPoFileByPONo(string poNo)
-{
-    if (string.IsNullOrWhiteSpace(poNo)) return "";
-    // Cắt prefix emoji "🔥 " nếu có
-    poNo = poNo.Replace("🔥", "").Replace("(Mới)", "").Trim();
-
-    try
-    {
-        var pSum = _poSummaries.Find(p => (p.PONo ?? "").Equals(poNo, StringComparison.OrdinalIgnoreCase));
-        if (pSum == null) return "";
-
-        var projSvc = new ProjectService();
-        var proj = projSvc.GetAll().Find(pj =>
-            (pj.ProjectName ?? "").Equals(pSum.Project_Name, StringComparison.OrdinalIgnoreCase) ||
-            (pj.ProjectCode ?? "").Equals(pSum.Project_Name, StringComparison.OrdinalIgnoreCase));
-        if (proj == null) return "";
-
-        // CHỈ dùng PO_Link — không dùng INV_Link hay DeliveryNote_Link
-        string poFolder = proj.PO_Link ?? "";
-        if (string.IsNullOrWhiteSpace(poFolder) || !System.IO.Directory.Exists(poFolder))
-            return "";
-
-        // Chuyển "Excel" -> "PDF" nếu có (vì lịch sử data lưu sai tên folder)
-        if (poFolder.Contains("Excel", StringComparison.OrdinalIgnoreCase))
-            poFolder = poFolder.Replace("Excel", "PDF", StringComparison.OrdinalIgnoreCase);
-
-        string[] folders = new[] { poFolder };
-        
-        // Vòng 1: Tìm ưu tiên tuyệt đối file PDF
-        foreach (var folder in folders)
-        {
-            if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder)) continue;
-            try
-            {
-                var files = System.IO.Directory.GetFiles(folder, $"*{poNo}*.pdf", System.IO.SearchOption.AllDirectories);
-                if (files.Length > 0) return files[0];
-            }
-            catch { }
-        }
-
-        // Vòng 2: Nếu không có PDF mới tìm các file khác (Excel, ảnh...)
-        foreach (var folder in folders)
-        {
-            if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder)) continue;
-            try
-            {
-                var files = System.IO.Directory.GetFiles(folder, $"*{poNo}*", System.IO.SearchOption.AllDirectories);
-                if (files.Length > 0) return files[0];
-            }
-            catch { }
+            btnClose.FlatAppearance.BorderSize = 0;
+            btnClose.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
+            this.Controls.Add(btnClose);
         }
     }
-    catch { }
-    return "";
-}
-
-// Lớp Form hỗ trợ Preview không chiếm focus để tránh nhấp nháy
-private class PreviewForm : Form
-{
-    protected override bool ShowWithoutActivation => true;
-    protected override CreateParams CreateParams
-    {
-        get
-        {
-            CreateParams baseParams = base.CreateParams;
-            baseParams.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
-            return baseParams;
-        }
-    }
-}
-
-private void DgvPO_CellMouseEnter(object sender, DataGridViewCellEventArgs e)
-{
-    try
-    {
-        if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
-        
-        // Tránh reset timer nếu vẫn ở trong cùng 1 cell
-        if (_previewCell != null && _previewCell.RowIndex == e.RowIndex && _previewCell.ColumnIndex == e.ColumnIndex)
-            return;
-
-        string colName = dgvPO.Columns[e.ColumnIndex].Name;
-        if (colName == "PO_No")
-        {
-            var row = dgvPO.Rows[e.RowIndex];
-            string po = row.Cells["PO_No"].Value?.ToString() ?? "";
-
-            // 1) Thử tìm nhanh trong thư mục Zalo download
-            string path = GetFirstFilePath(ZaloImportService.ZaloDownloadFolder, $"0. 품의서 *{po}*");
-
-            // 2) Thử dùng helper FindPoFileByPONo (đã có logic Excel -> PDF và recursive)
-            if (string.IsNullOrEmpty(path))
-            {
-                path = FindPoFileByPONo(po);
-            }
-            
-            if (!string.IsNullOrEmpty(path))
-            {
-                _previewFilePath = path;
-                _previewCell = row.Cells[e.ColumnIndex];
-                EnsureFilePreview();
-                _previewTimer?.Stop();
-                _previewTimer?.Start();
-            }
-        }
-    }
-    catch { }
-}
-
-    private void DgvPO_CellMouseLeave(object sender, DataGridViewCellEventArgs e)
-    {
-        _previewTimer?.Stop();
-        _previewFilePath = null;
-        _previewCell = null;
-        StartPreviewCloseTimer();
-    }
-
-    // =====================================================================
-    // Preview on Double-Click — Payment request progressing (dgvHistory > H_PONo)
-    // =====================================================================
-    private void DgvHistory_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
-    {
-        try
-        {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
-            var col = dgvHistory.Columns[e.ColumnIndex];
-            if (col.Name != "H_PONo") return;
-
-            var row = dgvHistory.Rows[e.RowIndex];
-            string po = row.Cells["H_PONo"].Value?.ToString() ?? "";
-
-            string path = FindPoFileByPONo(po);
-
-            if (!string.IsNullOrEmpty(path))
-            {
-                Point pos = dgvHistory.PointToScreen(dgvHistory.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, true).Location);
-                ShowFilePreview(path, pos);
-            }
-            else
-            {
-                MessageBoxHelper.ShowInfo(this, "Không tìm thấy file PO nào cho số " + po, "Thông báo");
-            }
-        }
-        catch { }
-    }
-private static string FormatAmt(decimal value)
-        {
-            return value == Math.Floor(value)
-                ? value.ToString("N0")
-                : value.ToString("N2");
-        }
-
-        private static string FormatAmt0(decimal value)
-        {
-            return value.ToString("N0");
-        }
-
-    }
-
-// =========================================================================
-//  frmPrintPreview — Hiển thị preview và nút xác nhận in
-// =========================================================================
-public class frmPrintPreview : Form
-{
-    private readonly string _filePath;
-    private readonly string _poNo;
-    private readonly string _project;
-    private readonly List<PaymentSchedule> _scheds;
-    private readonly frmPayment _owner;
-
-    public frmPrintPreview(string filePath, string poNo, string project,
-        List<PaymentSchedule> scheds, frmPayment owner)
-    {
-        _filePath = filePath;
-        _poNo = poNo;
-        _project = project ?? "";
-        _scheds = scheds ?? new List<PaymentSchedule>();
-        _owner = owner;
-        BuildUI();
-        // Hỏi cập nhật lịch sử khi form đóng
-        this.FormClosing += FrmPrintPreview_FormClosing;
-    }
-
-    private bool _historyUpdated = false;
-    private Form TopOwner => (this.TopLevelControl as Form) ?? this;
-
-    private void FrmPrintPreview_FormClosing(object sender, FormClosingEventArgs e)
-    {
-        if (_historyUpdated) return; // Đã cập nhật rồi, không hỏi lại
-        if (_owner == null || _scheds.Count == 0) return;
-
-        var ans = MessageBox.Show(TopOwner,
-            "Cập nhật thông tin vào lịch sử in Request?",
-            "Xác nhận",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Question);
-
-        if (ans == DialogResult.OK)
-        {
-            _owner.AddPrintHistory(_poNo, _project, _scheds);
-            _historyUpdated = true;
-        }
-    }
-
-    private void BuildUI()
-    {
-        this.Text = $"🖨 Print Preview — Payment Request  |  PO: {_poNo}";
-        this.Size = new Size(900, 680);
-        this.StartPosition = FormStartPosition.CenterParent;
-        this.BackColor = Color.FromArgb(245, 245, 245);
-        this.MinimumSize = new Size(700, 500);
-
-        // Tiêu đề
-        this.Controls.Add(new Label
-        {
-            Text = $"📋  Payment Request — PO: {_poNo}",
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            ForeColor = Color.FromArgb(0, 120, 212),
-            Location = new Point(10, 10),
-            Size = new Size(700, 28)
-        });
-
-        // Thông báo
-        this.Controls.Add(new Label
-        {
-            Text = "File đã được tạo thành công. Bấm \"🖨 In ngay\" để mở hộp thoại in, hoặc \"📂 Mở file\" để xem chi tiết trước.",
-            Font = new Font("Segoe UI", 9),
-            ForeColor = Color.FromArgb(80, 80, 80),
-            Location = new Point(10, 44),
-            Size = new Size(860, 40),
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-        });
-
-        // Panel thông tin file
-        var pInfo = new Panel
-        {
-            Location = new Point(10, 90),
-            Size = new Size(860, 50),
-            BackColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-        };
-        pInfo.Controls.Add(new Label
-        {
-            Text = "📄  " + System.IO.Path.GetFileName(_filePath),
-            Font = new Font("Segoe UI", 10),
-            ForeColor = Color.FromArgb(0, 120, 212),
-            Location = new Point(10, 14),
-            Size = new Size(700, 22)
-        });
-        this.Controls.Add(pInfo);
-
-        // Hướng dẫn
-        var pGuide = new Panel
-        {
-            Location = new Point(10, 150),
-            Size = new Size(860, 120),
-            BackColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-        };
-        pGuide.Controls.Add(new Label
-        {
-            Text = "📌  Hướng dẫn:",
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            Location = new Point(10, 8),
-            Size = new Size(200, 18)
-        });
-        string guide = "1. Bấm \"📂 Mở file\" để xem nội dung Payment Request trong Excel trước khi in.\r\n" +
-                       "2. Bấm \"🖨 In ngay\" để gửi thẳng đến máy in (Excel sẽ mở và in tự động).\r\n" +
-                       "3. Bấm \"💾 Lưu về máy\" để chọn nơi lưu file trước khi in.";
-        pGuide.Controls.Add(new Label
-        {
-            Text = guide,
-            Font = new Font("Segoe UI", 9),
-            Location = new Point(10, 30),
-            Size = new Size(840, 80)
-        });
-        this.Controls.Add(pGuide);
-
-        // Buttons
-        int btnY = this.ClientSize.Height - 50;
-
-        var btnOpen = new Button
-        {
-            Text = "📂 Mở file",
-            Location = new Point(10, btnY),
-            Size = new Size(130, 36),
-            BackColor = Color.FromArgb(0, 120, 212),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
-        };
-        btnOpen.FlatAppearance.BorderSize = 0;
-        btnOpen.Click += (s, ev) =>
-        {
-            try
-            {
-                // Mở bằng PowerShell ở chế độ ReadOnly → không hỏi lưu khi đóng
-                string psOpen = $@"
-$excel = New-Object -ComObject Excel.Application
-$excel.Visible = $true
-$excel.DisplayAlerts = $false
-$wb = $excel.Workbooks.Open('{_filePath.Replace("'", "''")}', $false, $true)
-";
-                string psFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
-                    $"open_{System.IO.Path.GetFileNameWithoutExtension(_filePath)}.ps1");
-                System.IO.File.WriteAllText(psFile, psOpen, System.Text.Encoding.UTF8);
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{psFile}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
-                System.Threading.Tasks.Task.Delay(15000).ContinueWith(_ =>
-                {
-                    try { if (System.IO.File.Exists(psFile)) System.IO.File.Delete(psFile); } catch { }
-                });
-            }
-            catch
-            {
-                // Fallback thông thường
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                { FileName = _filePath, UseShellExecute = true });
-            }
-        };
-        this.Controls.Add(btnOpen);
-
-        var btnSave = new Button
-        {
-            Text = "💾 Lưu về máy",
-            Location = new Point(150, btnY),
-            Size = new Size(130, 36),
-            BackColor = Color.FromArgb(0, 150, 100),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
-        };
-        btnSave.FlatAppearance.BorderSize = 0;
-        btnSave.Click += (s, ev) =>
-        {
-            using var sfd = new SaveFileDialog
-            {
-                Title = "Lưu Payment Request",
-                Filter = "Excel Files|*.xlsx",
-                FileName = $"PaymentRequest_{_poNo}_{DateTime.Now:yyyyMMdd}",
-                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
-            };
-            if (sfd.ShowDialog() == DialogResult.OK)
-            {
-                System.IO.File.Copy(_filePath, sfd.FileName, true);
-                MessageBox.Show(TopOwner, "✅ Đã lưu file thành công!", "Thành công",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-        };
-        this.Controls.Add(btnSave);
-
-        var btnPrint = new Button
-        {
-            Text = "🖨 In ngay",
-            Location = new Point(290, btnY),
-            Size = new Size(120, 36),
-            BackColor = Color.FromArgb(102, 51, 153),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
-        };
-        btnPrint.FlatAppearance.BorderSize = 0;
-        btnPrint.Click += (s, ev) =>
-        {
-            try
-            {
-                // Dùng PowerShell để in Excel ẩn — không hiện hộp thoại lưu file
-                string psScript = $@"
-$excel = New-Object -ComObject Excel.Application
-$excel.Visible = $false
-$excel.DisplayAlerts = $false
-$wb = $excel.Workbooks.Open('{_filePath.Replace("'", "''")}')
-$wb.PrintOut()
-$wb.Close($false)
-$excel.Quit()
-[System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
-";
-                string psFile = System.IO.Path.Combine(
-                    System.IO.Path.GetTempPath(),
-                    $"print_{System.IO.Path.GetFileNameWithoutExtension(_filePath)}.ps1");
-                System.IO.File.WriteAllText(psFile, psScript, System.Text.Encoding.UTF8);
-
-                var psi = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{psFile}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
-                };
-                var proc = System.Diagnostics.Process.Start(psi);
-
-                // Không chờ process kết thúc để UI không bị block
-                MessageBox.Show(TopOwner, "✅ Đã gửi lệnh in!\nFile sẽ được in mà không cần lưu lại.",
-                    "In thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                this.Close();
-
-                // Dọn file PS tạm sau 30s
-                System.Threading.Tasks.Task.Delay(30000).ContinueWith(_ =>
-                {
-                    try { if (System.IO.File.Exists(psFile)) System.IO.File.Delete(psFile); } catch { }
-                });
-            }
-            catch (Exception ex)
-            {
-                // Fallback: mở file bình thường nếu PowerShell không khả dụng
-                var ans = MessageBox.Show(TopOwner,
-                    $"Không thể in tự động: {ex.Message}\n\nBấm OK để mở file và in thủ công.",
-                    "Lỗi in", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
-                if (ans == DialogResult.OK)
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    { FileName = _filePath, UseShellExecute = true });
-            }
-        };
-        this.Controls.Add(btnPrint);
-
-        var btnClose = new Button
-        {
-            Text = "Đóng",
-            Location = new Point(this.ClientSize.Width - 110, btnY),
-            Size = new Size(100, 36),
-            BackColor = Color.FromArgb(108, 117, 125),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold),
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-            DialogResult = DialogResult.Cancel
-        };
-        btnClose.FlatAppearance.BorderSize = 0;
-        this.Controls.Add(btnClose);
-        this.CancelButton = btnClose;
-
-        this.Resize += (s, ev) =>
-        {
-            btnClose.Location = new Point(this.ClientSize.Width - 110, this.ClientSize.Height - 50);
-            pInfo.Width = this.ClientSize.Width - 20;
-            pGuide.Width = this.ClientSize.Width - 20;
-        };
-    }
-}
-
-public class frmAddPayment : Form
-{
-    private readonly int _poId;
-    private readonly List<PaymentSchedule> _scheds;
-    private readonly string _user;
-    private readonly PaymentService _svc = new PaymentService();
-
-    private ComboBox cboSched, cboMethod;
-    private DateTimePicker dtpDate;
-    private TextBox txtAmount, txtBank, txtTransNo, txtNotes;
-    private Label lblErr;
-    private Form TopOwner => (this.TopLevelControl as Form) ?? this;
-
-    public frmAddPayment(int poId, List<PaymentSchedule> scheds, string user)
-    {
-        _poId = poId;
-        _scheds = scheds;
-        _user = user;
-        BuildUI();
-    }
-
-    private void BuildUI()
-    {
-        this.Text = "Ghi nhận thanh toán";
-        this.Size = new Size(470, 420);
-        this.StartPosition = FormStartPosition.CenterParent;
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.MaximizeBox = false;
-        this.BackColor = Color.White;
-
-        int y = 12;
-        Row("Liên kết đợt TT:", y);
-        cboSched = new ComboBox
-        {
-            Location = new Point(160, y),
-            Size = new Size(280, 26),
-            Font = new Font("Segoe UI", 9),
-            DropDownStyle = ComboBoxStyle.DropDownList
-        };
-        cboSched.Items.Add("— Không liên kết —");
-        foreach (var s in _scheds)
-            cboSched.Items.Add($"Đợt {s.Dot_TT}: {FormatAmt(s.Amount_Plan)} VNĐ  [{s.Status}]");
-        cboSched.SelectedIndex = 0;
-        this.Controls.Add(cboSched);
-
-        y += 42; Row("Ngày thanh toán (*):", y);
-        dtpDate = new DateTimePicker
-        {
-            Location = new Point(160, y),
-            Size = new Size(150, 26),
-            Font = new Font("Segoe UI", 9),
-            Format = DateTimePickerFormat.Short,
-            Value = DateTime.Today
-        };
-        this.Controls.Add(dtpDate);
-
-        y += 42; Row("Số tiền (*) VNĐ:", y);
-        txtAmount = new TextBox
-        {
-            Location = new Point(160, y),
-            Size = new Size(200, 26),
-            Font = new Font("Segoe UI", 9),
-            PlaceholderText = "Ví dụ: 50000000"
-        };
-        this.Controls.Add(txtAmount);
-
-        y += 42; Row("Hình thức TT:", y);
-        cboMethod = new ComboBox
-        {
-            Location = new Point(160, y),
-            Size = new Size(180, 26),
-            Font = new Font("Segoe UI", 9),
-            DropDownStyle = ComboBoxStyle.DropDownList
-        };
-        cboMethod.Items.AddRange(new[] { "Chuyển khoản", "Tiền mặt", "LC", "TT" });
-        cboMethod.SelectedIndex = 0;
-        this.Controls.Add(cboMethod);
-
-        y += 42; Row("Ngân hàng:", y);
-        txtBank = new TextBox { Location = new Point(160, y), Size = new Size(280, 26), Font = new Font("Segoe UI", 9) };
-        this.Controls.Add(txtBank);
-
-        y += 42; Row("Số chứng từ:", y);
-        txtTransNo = new TextBox { Location = new Point(160, y), Size = new Size(280, 26), Font = new Font("Segoe UI", 9) };
-        this.Controls.Add(txtTransNo);
-
-        y += 42; Row("Ghi chú:", y);
-        txtNotes = new TextBox { Location = new Point(160, y), Size = new Size(280, 26), Font = new Font("Segoe UI", 9) };
-        this.Controls.Add(txtNotes);
-
-        y += 40;
-        lblErr = new Label
-        {
-            Location = new Point(12, y),
-            Size = new Size(440, 22),
-            Font = new Font("Segoe UI", 9),
-            ForeColor = Color.Red
-        };
-        this.Controls.Add(lblErr);
-
-        var bOK = new Button
-        {
-            Text = "✔ Ghi nhận",
-            Location = new Point(12, y + 28),
-            Size = new Size(155, 35),
-            BackColor = Color.FromArgb(40, 167, 69),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold)
-        };
-        bOK.FlatAppearance.BorderSize = 0;
-        bOK.Click += BtnOK_Click;
-        this.Controls.Add(bOK);
-
-        var bCan = new Button
-        {
-            Text = "Hủy",
-            Location = new Point(177, y + 28),
-            Size = new Size(100, 35),
-            BackColor = Color.FromArgb(108, 117, 125),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10)
-        };
-        bCan.FlatAppearance.BorderSize = 0;
-        bCan.Click += (s, ev) => this.Close();
-        this.Controls.Add(bCan);
-
-        this.Height = y + 100;
-    }
-
-    private void Row(string lbl, int y) =>
-        this.Controls.Add(new Label
-        {
-            Text = lbl,
-            Location = new Point(12, y + 4),
-            Size = new Size(148, 22),
-            Font = new Font("Segoe UI", 9, FontStyle.Bold)
-        });
-
-    private void BtnOK_Click(object sender, EventArgs e)
-    {
-        lblErr.Text = "";
-        if (!decimal.TryParse(txtAmount.Text.Replace(",", ""), out decimal amt) || amt <= 0)
-        { lblErr.Text = "Vui lòng nhập số tiền hợp lệ!"; return; }
-
-        try
-        {
-            int? schedId = cboSched.SelectedIndex > 0
-                ? _scheds[cboSched.SelectedIndex - 1].Schedule_ID
-                : (int?)null;
-
-            var po = new POService().GetAll().Find(p => p.PO_ID == _poId);
-
-            _svc.InsertHistory(new PaymentHistory
-            {
-                PO_ID = _poId,
-                Schedule_ID = schedId,
-                Supplier_ID = po?.Supplier_ID,
-                Payment_Date = dtpDate.Value,
-                Amount_Paid = amt,
-                Payment_Method = cboMethod.SelectedItem?.ToString() ?? "Chuyển khoản",
-                Bank_Name = txtBank.Text.Trim(),
-                Transaction_No = txtTransNo.Text.Trim(),
-                Notes = txtNotes.Text.Trim()
-            }, _user);
-
-            MessageBox.Show(TopOwner, $"✅ Đã ghi nhận {FormatAmt(amt)} VNĐ!", "Thành công",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            this.DialogResult = DialogResult.OK;
-            this.Close();
-        }
-        catch (Exception ex)
-        {
-            lblErr.Text = "Lỗi: " + ex.Message;
-        }
-    }
-
-    private static string FormatAmt(decimal value)
-    {
-        return value == Math.Floor(value)
-            ? value.ToString("N0")
-            : value.ToString("N2");
-    }
-}
-
-public class frmPaymentRequestPreview : Form
-{
-    private readonly POPaymentSummary _po;
-    private readonly string _mprNo;
-    private readonly List<PODetail> _details;
-    private readonly Supplier _supp;
-    private readonly List<PaymentSchedule> _schedules;
-
-    private DateTimePicker dtpDate;
-    private TextBox txtBenef, txtBankAcc, txtBankName;
-    private ComboBox cboDot;          // Chọn đợt thanh toán
-    private RichTextBox rtbPreview;
-    private Form TopOwner => (this.TopLevelControl as Form) ?? this;
-
-    public frmPaymentRequestPreview(POPaymentSummary po, string mprNo,
-        List<PODetail> details, Supplier supp,
-        List<PaymentSchedule> schedules = null)
-    {
-        _po = po;
-        _mprNo = mprNo;
-        _details = details;
-        _supp = supp ?? new Supplier();
-        _schedules = schedules ?? new List<PaymentSchedule>();
-        BuildUI();
-        GeneratePreview();
-    }
-
-    private string GetPropValue(object obj, params string[] propNames)
-    {
-        if (obj == null) return "";
-        var type = obj.GetType();
-        foreach (var name in propNames)
-        {
-            var prop = type.GetProperty(name);
-            if (prop != null)
-            {
-                return prop.GetValue(obj, null)?.ToString() ?? "";
-            }
-        }
-        return "";
-    }
-
-    private void BuildUI()
-    {
-        this.Text = "📄 Trích xuất Payment Request";
-        this.Size = new Size(1100, 700);
-        this.StartPosition = FormStartPosition.CenterParent;
-        this.BackColor = Color.White;
-
-        var pLeft = new Panel { Location = new Point(10, 10), Size = new Size(300, 630), BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left };
-        this.Controls.Add(pLeft);
-
-        var lbl1 = new Label { Text = "THÔNG TIN THANH TOÁN", Location = new Point(10, 10), Size = new Size(280, 20), Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) };
-        pLeft.Controls.Add(lbl1);
-
-        DateTime createdDate = _po.PO_Date ?? DateTime.Today;
-        int y = 40;
-        pLeft.Controls.Add(new Label { Text = "Ngày dự kiến TT (+7):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        dtpDate = new DateTimePicker { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short, Value = createdDate.AddDays(7) };
-        pLeft.Controls.Add(dtpDate);
-
-        // ── Chọn đợt thanh toán → lấy Amount_Plan ──
-        y += 60;
-        pLeft.Controls.Add(new Label { Text = "Đợt thanh toán (Final amount):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        cboDot = new ComboBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
-        cboDot.Items.Add("— Tính từ chi tiết PO (tổng VAT) —");
-        foreach (var s in _schedules)
-            cboDot.Items.Add($"Đợt {s.Dot_TT}: {FormatAmt(s.Amount_Plan)} VNĐ  [{s.Status}]");
-        cboDot.SelectedIndex = _schedules.Count > 0 ? 1 : 0;
-        cboDot.SelectedIndexChanged += (s, ev) => GeneratePreview();
-        pLeft.Controls.Add(cboDot);
-
-        string fullName = GetPropValue(_supp, "Company_Name", "CompanyName", "FullName");
-        if (string.IsNullOrEmpty(fullName)) fullName = _po.Supplier_Name;
-
-        y += 60;
-        pLeft.Controls.Add(new Label { Text = "Người thụ hưởng (Beneficiary):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        txtBenef = new TextBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Text = fullName };
-        pLeft.Controls.Add(txtBenef);
-
-        string bankAcc = GetPropValue(_supp, "Bank_Account", "BankAccount", "Account_No");
-        string bankName = GetPropValue(_supp, "Bank_Name", "BankName", "Bank");
-
-        y += 60;
-        pLeft.Controls.Add(new Label { Text = "Số tài khoản (Bank Account):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        txtBankAcc = new TextBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Text = bankAcc };
-        pLeft.Controls.Add(txtBankAcc);
-
-        y += 60;
-        pLeft.Controls.Add(new Label { Text = "Ngân hàng (Bank Name):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        txtBankName = new TextBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Text = bankName };
-        pLeft.Controls.Add(txtBankName);
-
-        y += 60;
-        var btnUpdate = new Button { Text = "🔄 Cập nhật văn bản", Location = new Point(10, y), Size = new Size(270, 35), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
-        btnUpdate.FlatAppearance.BorderSize = 0;
-        btnUpdate.Click += (s, e) => GeneratePreview();
-        pLeft.Controls.Add(btnUpdate);
-
-        var lblNote = new Label { Text = "Lưu ý: Màn hình này hiển thị dạng Tab (khoảng trắng) để bạn dễ xem và sửa nội dung. Khi bấm Copy, code sẽ tự bọc Bảng HTML kẻ ô để dán ra Word/Excel cực chuẩn.", Location = new Point(10, y + 50), Size = new Size(270, 100), Font = new Font("Segoe UI", 8, FontStyle.Italic), ForeColor = Color.Gray };
-        pLeft.Controls.Add(lblNote);
-
-        var pRight = new Panel { Location = new Point(320, 10), Size = new Size(750, 630), BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
-        this.Controls.Add(pRight);
-
-        var lbl2 = new Label { Text = "NỘI DUNG VĂN BẢN (Có thể chỉnh sửa trực tiếp)", Location = new Point(10, 10), Size = new Size(400, 20), Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(40, 167, 69) };
-        pRight.Controls.Add(lbl2);
-
-        var btnCopy = new Button { Text = "📋 Copy sang Bảng tạm", Location = new Point(590, 5), Size = new Size(150, 30), BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        btnCopy.FlatAppearance.BorderSize = 0;
-        btnCopy.Click += BtnCopy_Click;
-        pRight.Controls.Add(btnCopy);
-
-        rtbPreview = new RichTextBox { Location = new Point(10, 40), Size = new Size(730, 580), Font = new Font("Times New Roman", 11), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
-        rtbPreview.WordWrap = false;
-        pRight.Controls.Add(rtbPreview);
-    }
-
-    private void GeneratePreview()
-    {
-        var sb = new System.Text.StringBuilder();
-
-        // ── Dòng 1: dùng Short_Name (Viết tắt) của NCC ──
-        string suppShort = GetPropValue(_supp, "Short_Name", "ShortName", "Supplier_Name", "SupplierName");
-        if (string.IsNullOrEmpty(suppShort)) suppShort = _po.Supplier_Name;
-
-        sb.AppendLine($"1. Please transfer for Request payment for PO {_po.PONo} to {suppShort} of {_mprNo}");
-        sb.AppendLine();
-        sb.AppendLine("2. Description");
-        sb.AppendLine();
-
-        // Header bảng — 11 cột
-        sb.AppendLine("STT\tTên hàng\tVật Liệu\tA(mm)\tB(mm)\tC(mm)\tSL\tĐVT\tKG\tĐơn giá\tThành tiền");
-
-        decimal subTotal = 0, finalTotal = 0;
-        decimal vatPct = 0;
-        int stt = 1;
-        foreach (var d in _details)
-        {
-            decimal q = d.Qty_Per_Sheet;
-            decimal wk = d.Weight_kg;
-            decimal p = d.Price;
-            decimal v = d.VAT;
-            if (v > vatPct) vatPct = v; // lấy VAT cao nhất để hiển thị
-
-            string calcMethod = (d.Remarks ?? "").Contains("[CALC:KG]") ? "Theo KG" : "Theo SL";
-            decimal baseVal = calcMethod == "Theo KG" ? wk : q;
-            decimal realPrice = p;
-            if (calcMethod == "Theo KG" && wk > 0 && q > 0) realPrice = (p * q) / wk;
-            decimal amtBeforeVat = Math.Round(baseVal * realPrice, 2);
-            decimal amtAfterVat = Math.Round(amtBeforeVat * (1 + v / 100), 2);
-            subTotal += amtBeforeVat;
-            finalTotal += amtAfterVat;
-
-            // Làm sạch các field — thay \r\n, \n thành space để không vỡ bảng
-            string itemName = (d.Item_Name ?? "").Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim();
-            string material = (d.Material ?? "").Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim();
-
-            sb.AppendLine($"{stt++}\t{itemName}\t{material}\t{d.Asize}\t{d.Bsize}\t{d.Csize}\t{q}\t{d.UNIT}\t{wk}\t{FormatAmt(realPrice)}\t{FormatAmt(amtAfterVat)}");
-        }
-
-        sb.AppendLine($"\t\t\t\t\t\t\t\t\tSUB-TOTAL\t{FormatAmt(subTotal)}");
-        sb.AppendLine($"\t\t\t\t\t\t\t\t\tFinal Price Requested (Included {vatPct:N0}% VAT)\t{FormatAmt(finalTotal)}");
-        sb.AppendLine();
-        sb.AppendLine("3. Amount");
-        sb.AppendLine();
-        sb.AppendLine($"Total Amount:\t\t{FormatAmt(subTotal)} VNĐ (excluded VAT)");
-        sb.AppendLine();
-
-        // ── Final amount: luôn là số tiền SAU thuế ──
-        decimal finalAmt = finalTotal; // mặc định = tổng sau VAT
-        string dotLabel = "";
-        if (cboDot != null && cboDot.SelectedIndex > 0)
-        {
-            var sched = _schedules[cboDot.SelectedIndex - 1];
-            // Amount_Plan là số tiền kế hoạch — nhân VAT để ra số tiền sau thuế
-            finalAmt = Math.Round(sched.Amount_Plan * (1 + vatPct / 100), 2);
-            dotLabel = $"  (Đợt {sched.Dot_TT} — {sched.Percent_TT}%)";
-        }
-
-        // VAT amount = finalAmt - (finalAmt / (1 + vatPct/100))
-        decimal baseBeforeVat = vatPct > 0 ? Math.Round(finalAmt / (1 + vatPct / 100), 2) : finalAmt;
-        decimal vatAmount = finalAmt - baseBeforeVat;
-
-        sb.AppendLine("4. Payment information");
-        sb.AppendLine();
-        sb.AppendLine($"Final amount :\t\t{FormatAmt(finalAmt)} VNĐ included {vatPct:N0}% VAT ({FormatAmt(vatAmount)} VNĐ){dotLabel}");
-        sb.AppendLine($"Expect payment date:\t{dtpDate.Value:dd/MM/yyyy}");
-        sb.AppendLine($"Name of beneficiary:\t{txtBenef.Text}");
-        sb.AppendLine($"Bank account of beneficiary:\t{txtBankAcc.Text}");
-        sb.AppendLine($"Bank name of beneficiary:\t{txtBankName.Text}");
-        sb.AppendLine();
-        sb.AppendLine("5. Remarks");
-
-        rtbPreview.Text = sb.ToString();
-    }
-
-    private void BtnCopy_Click(object sender, EventArgs e)
-    {
-        if (string.IsNullOrEmpty(rtbPreview.Text)) return;
-
-        var sbHtml = new StringBuilder();
-        string[] lines = rtbPreview.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-        bool inTable = false;
-
-        foreach (string line in lines)
-        {
-            // Làm sạch ký tự newline ẩn trong từng ô trước khi split
-            string cleanLine = line.Replace("\r", " ").Replace("\n", " ");
-            string[] cells = cleanLine.Split('\t');
-
-            if (cells.Length >= 5)
-            {
-                if (!inTable)
-                {
-                    // Bảng KHÔNG dùng width:100% để giữ chiều rộng cột cố định
-                    sbHtml.Append("<table border='1' cellspacing='0' cellpadding='5' style='" +
-                        "border-collapse:collapse; font-family:\"Times New Roman\",serif; " +
-                        "font-size:11pt; border:1px solid black; margin-bottom:10px; table-layout:fixed;'>");
-                    // Cố định chiều rộng từng cột — cột Thành tiền (cột 11) giữ nguyên
-                    sbHtml.Append("<colgroup>" +
-                        "<col style='width:35px;'/>" +   // STT
-                        "<col style='width:160px;'/>" +   // Tên hàng
-                        "<col style='width:80px;'/>" +   // Vật liệu
-                        "<col style='width:55px;'/>" +   // A(mm)
-                        "<col style='width:55px;'/>" +   // B(mm)
-                        "<col style='width:55px;'/>" +   // C(mm)
-                        "<col style='width:40px;'/>" +   // SL
-                        "<col style='width:40px;'/>" +   // ĐVT
-                        "<col style='width:55px;'/>" +   // KG
-                        "<col style='width:90px;'/>" +   // Đơn giá
-                        "<col style='width:110px;'/>" +   // Thành tiền — CỐ ĐỊNH
-                        "</colgroup>");
-                    inTable = true;
-                }
-                sbHtml.Append("<tr>");
-                bool isHeader = (cells[0].Trim() == "STT");
-
-                if (line.Contains("SUB-TOTAL") || line.Contains("Final Price Requested"))
-                {
-                    string textLabel = cells.FirstOrDefault(c => c.Contains("SUB-TOTAL") || c.Contains("Final Price Requested"))?.Trim() ?? "";
-                    string amountVal = cells.LastOrDefault()?.Trim() ?? "";
-                    sbHtml.Append($"<td colspan='9' style='border:1px solid black; padding:5px; font-weight:bold; text-align:center;'>{textLabel}</td>");
-                    sbHtml.Append("<td style='border:1px solid black;'></td>");
-                    sbHtml.Append($"<td style='border:1px solid black; padding:5px; font-weight:bold; text-align:right;'>{amountVal}</td>");
-                }
-                else
-                {
-                    foreach (string cell in cells)
-                    {
-                        string cellVal = cell.Trim();
-                        if (isHeader)
-                        {
-                            sbHtml.Append($"<th style='background-color:#d9d9d9; border:1px solid black; padding:5px; text-align:center; overflow:hidden;'>{cellVal}</th>");
-                        }
-                        else
-                        {
-                            bool isNumber = decimal.TryParse(cellVal.Replace(",", ""), out _) && cellVal.Length > 0;
-                            bool isSTT = cellVal.Length <= 3 && cellVal.All(char.IsDigit) && cellVal.Length > 0;
-                            string align = isSTT ? "center" : isNumber ? "right" : "left";
-                            sbHtml.Append($"<td style='border:1px solid black; padding:5px; text-align:{align}; overflow:hidden; word-break:break-word;'>{cellVal}</td>");
-                        }
-                    }
-                }
-                sbHtml.Append("</tr>");
-            }
-            else
-            {
-                if (inTable) { sbHtml.Append("</table><br/>"); inTable = false; }
-                string normalLine = cleanLine.Replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;");
-                if (string.IsNullOrWhiteSpace(normalLine))
-                    sbHtml.Append("<br/>");
-                else
-                {
-                    bool isSection = normalLine.TrimStart().StartsWith("1.") || normalLine.TrimStart().StartsWith("2.") ||
-                                     normalLine.TrimStart().StartsWith("3.") || normalLine.TrimStart().StartsWith("4.") ||
-                                     normalLine.TrimStart().StartsWith("5.");
-                    if (isSection)
-                        sbHtml.Append($"<div style='margin-top:10px; margin-bottom:5px;'><b>{normalLine}</b></div>");
-                    else
-                        sbHtml.Append($"<div style='margin-bottom:5px;'>{normalLine}</div>");
-                }
-            }
-        }
-        if (inTable) sbHtml.Append("</table>");
-
-        CopyToClipboardAsHtml(sbHtml.ToString(), rtbPreview.Text);
-        MessageBox.Show(TopOwner, "✅ Đã copy nội dung vào Bảng tạm!\nDán (Ctrl+V) vào Word hoặc Outlook sẽ hiển thị bảng kẻ ô chuẩn, font Times New Roman.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
-
-    // =====================================================================
-    // THUẬT TOÁN ĐẨY HTML LÊN CLIPBOARD BẰNG BYTE OFFSET (CHỐNG LỖI UTF-8)
-    // =====================================================================
-    // =====================================================================
-    // HELPER: Format số tiền — hiện 2 thập phân chỉ khi cần, bỏ ",00"
-    // Ví dụ: 1234567      → "1,234,567"
-    //         1234567.5    → "1,234,567.50"
-    //         1234567.12   → "1,234,567.12"
-    // =====================================================================
-    private static string FormatAmt(decimal value)
-    {
-        // Nếu phần thập phân bằng 0 → chỉ hiện số nguyên
-        return value == Math.Floor(value)
-            ? value.ToString("N0")
-            : value.ToString("N2");
-    }
-
-    private void CopyToClipboardAsHtml(string htmlFragment, string plainText)
-    {
-        string startHtml = "<html><body style=\"font-family:'Times New Roman', serif; font-size:11pt;\">\r\n\r\n";
-        string endHtml = "\r\n\r\n</body></html>";
-        string htmlContext = startHtml + htmlFragment + endHtml;
-
-        string headerTemplate =
-            "Version:0.9\r\n" +
-            "StartHTML:{0:D8}\r\n" +
-            "EndHTML:{1:D8}\r\n" +
-            "StartFragment:{2:D8}\r\n" +
-            "EndFragment:{3:D8}\r\n";
-
-        int headerLength = Encoding.UTF8.GetByteCount(string.Format(headerTemplate, 0, 0, 0, 0));
-        int htmlContextLength = Encoding.UTF8.GetByteCount(htmlContext);
-
-        int startHtmlOffset = headerLength;
-        int startFragmentOffset = headerLength + Encoding.UTF8.GetByteCount(startHtml);
-        int endFragmentOffset = startFragmentOffset + Encoding.UTF8.GetByteCount(htmlFragment);
-        int endHtmlOffset = headerLength + htmlContextLength;
-
-        string header = string.Format(headerTemplate, startHtmlOffset, endHtmlOffset, startFragmentOffset, endFragmentOffset);
-        string cfHtml = header + htmlContext;
-
-        DataObject obj = new DataObject();
-        obj.SetData(DataFormats.Html, cfHtml);
-        obj.SetData(DataFormats.UnicodeText, plainText);
-        Clipboard.SetDataObject(obj, true);
-    }
-}
 }

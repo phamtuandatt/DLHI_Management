@@ -3933,6 +3933,7 @@ namespace MPR_Managerment.Forms
                     Ngay_PO = h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
                     Trang_Thai = h.Status,
                     Tong_Tien = h.Total_Amount.ToString("N2", _numCulture),
+                    Created_By = h.Created_By,
                     Revise = h.Revise,
                     Email_Status    = h.Email_Status,
                     Email_Sent_Info = h.Email_Sent_At.HasValue
@@ -3977,6 +3978,16 @@ namespace MPR_Managerment.Forms
                 };
                 dgvPO.Columns.Add(btnEmail);
             }
+            // Cấu hình cột Created_By (user tạo)
+            if (dgvPO.Columns.Contains("Created_By"))
+            {
+                var c = dgvPO.Columns["Created_By"];
+                c.HeaderText = "User Tạo";
+                c.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+                c.ReadOnly = true;
+                c.DefaultCellStyle.ForeColor = Color.FromArgb(80, 80, 80);
+            }
+
             // Cấu hình cột Email_Sent_Info (người gửi + thời gian)
             if (dgvPO.Columns.Contains("Email_Sent_Info"))
             {

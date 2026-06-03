@@ -76,8 +76,14 @@ namespace MPR_Managerment.Forms
             new ModuleDef("RIR",      "Nhận hàng (RIR)",
                 new[]{ "Xem","Tạo RIR","Lưu Header","Xóa RIR","In RIR","Import Phiếu Nhập","Thêm dòng","Lưu chi tiết","Xóa dòng" }),
 
-            new ModuleDef("WAREHOUSE","Kho (Warehouse)",
+            new ModuleDef("WAREHOUSE","Kho vật tư (Warehouse)",
                 new[]{ "Xem","Lưu hóa đơn","Xuất tồn kho" }),
+
+            new ModuleDef("FILE_SORTER", "Phân loại file Scan",
+                new[]{ "Xem","Tải file","Phân loại","Xóa" }),
+
+            new ModuleDef("OUTLOOK", "Hóa đơn Outlook",
+                new[]{ "Xem","Import","Xóa" }),
 
             new ModuleDef("USER_MGT", "Quản lý User",
                 new[]{ "Xem","Tạo user","Lưu user","Vô hiệu hóa","Reset Password","Phân quyền" }),
@@ -85,8 +91,20 @@ namespace MPR_Managerment.Forms
             new ModuleDef("Material Inspector Request", "Kiểm tra vật tư (QC)",
                 new[]{ "Xem","Tìm kiếm RIR","Lưu chi tiết" }),
 
-            new ModuleDef("ZALO", "Gửi tin nhắn Zalo",
-                new[]{ "Gửi tin nhắn" }),
+            new ModuleDef("ZALO", "Zalo Integration",
+                new[]{ "Xem", "Gửi tin nhắn", "Cấu hình" }),
+
+            new ModuleDef("SUPPLIER", "Quản lý Nhà cung cấp",
+                new[]{ "Xem", "Thêm mới", "Lưu", "Xóa" }),
+
+            new ModuleDef("DASHBOARD", "Bảng điều khiển",
+                new[]{ "Xem" }),
+
+            new ModuleDef("NOTIFICATION", "Nhật ký thông báo",
+                new[]{ "Xem" }),
+
+            new ModuleDef("AI_TOOLS", "Công cụ AI",
+                new[]{ "Xem", "Sử dụng" }),
         };
         private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
