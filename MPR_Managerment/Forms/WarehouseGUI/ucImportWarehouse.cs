@@ -1,8 +1,10 @@
 ﻿using Microsoft.Data.SqlClient;
+using MPR_Managerment.Common;
 using MPR_Managerment.Forms.ItemCodeGUI;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -29,13 +31,15 @@ namespace MPR_Managerment.Forms.WarehouseGUI
         private Dictionary<string, string> _importList = new Dictionary<string, string>();
         private object oldValue = null;
 
+        private List<WarehouseImport> _lstImport = new List<WarehouseImport>();
         //private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
         public ucImportWarehouse()
         {
             InitializeComponent();
             BuildButton();
-            BuildGrid();
+            BuildGridImportQueue();
+            BuildGridImportHistory();
             _dtProject = new ProjectService().GetAll();
 
         }
@@ -43,6 +47,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
         private void ucImportWarehouse_Load(object sender, EventArgs e)
         {
             LoadForImport();
+            dtpFrom.Value = DateTime.Today.AddDays(-30);
         }
 
         private void LoadForImport()
@@ -51,8 +56,18 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             {
                 cboProjectForImport.Items.Clear();
                 cboProjectForImport.Items.Add("Tất cả dự án");
-                foreach (var p in _dtProject) cboProjectForImport.Items.Add(p.ProjectCode);
+
+                cboProjectForHisImport.Items.Clear();
+                cboProjectForHisImport.Items.Add("Tất cả dự án");
+
+                foreach (var p in _dtProject)
+                {
+                    cboProjectForImport.Items.Add(p.ProjectCode);
+                    cboProjectForHisImport.Items.Add(p.ProjectCode);
+                }
+
                 cboProjectForImport.SelectedIndex = 0;
+                cboProjectForHisImport.SelectedIndex = 0;
             }
             catch { }
         }
@@ -63,19 +78,22 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             Common.Common.CreateButtonRefresh(btnRefresh);
             Common.Common.CreateButtonDelete(btnDeleteRow);
             Common.Common.CreateButtonSave(btnSaveImport);
+            Common.Common.CreateButtonSearch(btnSearchHisImport, "🔍 Tìm kiếm");
+            Common.Common.CreateButtonRefresh(btnRefeshHisImport);
+            Common.Common.CreateButtonPrint(btnPrintImportHis, "🖨 In phiếu nhập kho");
         }
 
-        private void BuildGrid()
+        private void BuildGridImportQueue()
         {
             dgvImportQueue.BackgroundColor = Color.White;
             dgvImportQueue.AutoGenerateColumns = true;
             dgvImportQueue.AllowUserToAddRows = false;
             dgvImportQueue.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvImportQueue.BorderStyle = BorderStyle.None;
-            dgvImportQueue.RowHeadersVisible = false;
+            dgvImportQueue.RowHeadersVisible = false; 
             dgvImportQueue.Font = new Font("Segoe UI", 9);
-            dgvImportQueue.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dgvImportQueue.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            dgvImportQueue.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            //dgvImportQueue.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             dgvImportQueue.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(255, 140, 0);
             dgvImportQueue.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvImportQueue.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
@@ -86,6 +104,9 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             dgvImportQueue.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
             dgvImportQueue.DefaultCellStyle.SelectionForeColor = Color.Black;
 
+            dgvImportQueue.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvImportQueue.ColumnHeadersHeight = 25;
+
             dgvImportQueue.CellBeginEdit += DgvImportQueue_CellBeginEdit; ;
             dgvImportQueue.CellEndEdit += DgvImportQueue_CellEndEdit; ;
             dgvImportQueue.EditingControlShowing += DgvImportQueue_EditingControlShowing; ;
@@ -94,7 +115,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
 
             dgvImportQueue.Columns.Clear();
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "QIdx", HeaderText = "#", Width = 35, ReadOnly = true }); // 0
-            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên vật tư", Width = 220, ReadOnly = true }); // 1
+            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên vật tư", Width = 250, ReadOnly = true }); // 1
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material", HeaderText = "Vật liệu", Width = 90, ReadOnly = true }); // 2
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Size", HeaderText = "Kích thước", Width = 110, ReadOnly = true }); // 3
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT", Width = 55, ReadOnly = true }); // 4
@@ -102,10 +123,35 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight_kg", HeaderText = "KG", Width = 75 }); // 6
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100, ReadOnly = true }); // 7
             //dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Recevied_Qty", HeaderText = "Số lượng đã nhận", Width = 160, ReadOnly = true }); /// New
-            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ma_Phieu", HeaderText = "Mã phiếu", Width = 160, ReadOnly = true }); // 8
+            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ma_Phieu", HeaderText = "Mã phiếu", MinimumWidth = 160, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true }); // 8
             //dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Id", HeaderText = "Material Detail Id", Width = 160, ReadOnly = true, Visible = false }); 
             //dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Number", HeaderText = "Material Detail Number", Width = 160, ReadOnly = true, Visible = false });
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_Detail_ID", Width = 160, ReadOnly = true, Visible = false }); // 9
+        }
+
+        private void BuildGridImportHistory()
+        {
+            dgvHisImport.BackgroundColor = Color.White;
+            dgvHisImport.AutoGenerateColumns = true;
+            dgvHisImport.ReadOnly = true;
+            dgvHisImport.AllowUserToAddRows = false;
+            dgvHisImport.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvHisImport.BorderStyle = BorderStyle.None;
+            dgvHisImport.RowHeadersVisible = false;
+            dgvHisImport.Font = new Font("Segoe UI", 9);
+            dgvHisImport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+            // Set height header
+            dgvHisImport.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvHisImport.ColumnHeadersHeight = 25;
+
+            dgvHisImport.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 120, 212);
+            dgvHisImport.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvHisImport.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvHisImport.EnableHeadersVisualStyles = false;
+            dgvHisImport.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
+            dgvHisImport.DefaultCellStyle.SelectionBackColor = Color.FromArgb(204, 232, 255);
+            dgvHisImport.DefaultCellStyle.SelectionForeColor = Color.Black;
         }
 
         private void RefreshQueueGrid()
@@ -181,7 +227,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                     if (decimal.TryParse(cell.Value.ToString(), out newValue))
                     {
                         decimal originalLimit = Convert.ToDecimal(oldValue ?? 0);
-                        if (newValue > originalLimit || newValue <= 0)    
+                        if (newValue > originalLimit || newValue <= 0)
                         {
                             MessageBox.Show($"Số lượng không được vượt quá số lượng của PO !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             cell.Value = oldValue;
@@ -488,7 +534,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                 }
 
                 MessageBox.Show($"✅ Lưu phiếu nhập kho thành công!\nMã phiếu: {_currentBatchNo}\nSố vật tư: {saved} items", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                _currentBatchNo = ""; 
+                _currentBatchNo = "";
                 _importQueue.Clear();
                 _importList.Clear();
                 RefreshQueueGrid();
@@ -496,5 +542,271 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             }
             catch (Exception ex) { MessageBox.Show("Lỗi nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
+
+        private void btnRefresh_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (dgvImportQueue.Rows.Count > 0)
+                {
+                    if (MessageBox.Show($"Bạn có {_importQueue.Count} items chưa lưu. Tạo phiếu mới sẽ xóa danh sách. Tiếp tục?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                    _importQueue.Clear();
+                    _importList.Clear();
+                    dgvImportQueue.Refresh();
+                    dgvImportQueue.Rows.Clear();
+                }
+                string project = (cboProjectForImport != null && cboProjectForImport.SelectedIndex > 0) ? cboProjectForImport.SelectedItem.ToString() : "";
+                LoadPOFilterByProject(project);
+            }
+            catch (Exception ex) { MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        }
+
+        private async void btnPrintImportHis_Click(object sender, EventArgs e)
+        {
+            if (dgvHisImport.Rows.Count <= 0) return;
+            int rsl = dgvHisImport.CurrentRow.Index;
+            var billNo = dgvHisImport.Rows[rsl].Cells[1].Value.ToString();
+            var poID = Convert.ToInt32(dgvHisImport.Rows[rsl].Cells[13].Value.ToString());
+
+            var dtImports = await _warehouseServices.GetImportRows(billNo, poID);
+            PrintBill(dtImports, poID);
+        }
+
+        public void PrintBill(DataTable dtDetails, int poId)
+        {
+            try
+            {
+                if (dgvHisImport.CurrentRow == null)
+                {
+                    MessageBox.Show("Vui lòng chọn một phiếu nhập kho để in!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                int rsl = dgvHisImport.CurrentRow.Index;
+                var billNo = dgvHisImport.Rows[rsl].Cells[1].Value.ToString();
+
+                var poModel = _poService.GetPOByPONo(poId);
+                if (poModel == null) throw new Exception("Không tìm thấy thông tin PO tương ứng.");
+
+                var supplier = new SupplierService().GetBySupId(poModel.Supplier_ID);
+                var projects = new ProjectService().GetByProjectCode(poModel.ProjectCode ?? poModel.Notes);
+
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pnk_template_v2.xlsx");
+                string exportFolder = projects.PNK_Link;
+                //string exportFolder = @"D:\RAC\";
+                if (!Directory.Exists(exportFolder)) Directory.CreateDirectory(exportFolder);
+
+                string fileName = $"VMNP_PNK_{billNo}_{DateTime.Now:ddMMyyyy_HHmmss}.xlsx";
+                string actualSavePath = Path.Combine(exportFolder, fileName);
+
+                if (!File.Exists(templatePath))
+                {
+                    MessageBox.Show("Không tìm thấy file template tại: " + templatePath, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // --- BƯỚC FIX LỖI "Closed File": Copy trước khi mở ---
+                File.Copy(templatePath, actualSavePath, true);
+
+                ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                using (ExcelPackage package = new ExcelPackage(new FileInfo(actualSavePath)))
+                {
+                    ExcelWorksheet ws = package.Workbook.Worksheets[0];
+
+                    DateTime importDate = DateTime.Now;
+                    foreach (DataRow item in dtDetails.Rows)
+                    {
+                        importDate = DateTime.Parse(item["Import_Date"].ToString() ?? DateTime.Now.ToString("dd/MM/yyyy"));
+                        break;
+                    }
+
+                    // 1. Fill Header (A1:J13)
+                    var headerRange = ws.Cells["A1:J14"];
+                    foreach (var cell in headerRange)
+                    {
+                        if (cell.Value == null) continue;
+                        string txt = cell.Value.ToString();
+                        if (txt.Contains("<<BILL-NO>>")) cell.Value = txt.Replace("<<BILL-NO>>", "VMNP-" + billNo);
+                        if (txt.Contains("<<DATE>>")) cell.Value = txt.Replace("<<DATE>>", importDate.ToString("dd/MM/yyyy") ?? DateTime.Now.ToString("dd/MM/yyyy"));
+                        if (txt.Contains("<<SUPPLIER_NAME>>")) cell.Value = txt.Replace("<<SUPPLIER_NAME>>", supplier?.Company_Name ?? "");
+                    }
+
+                    // 2. Xác định startRow (Tìm dòng chứa tiêu đề cột)
+                    int startRow = 15;
+                    for (int r = 1; r <= 25; r++)
+                    {
+                        if (ws.Cells[r, 1].Value?.ToString().Trim().ToUpper() == "NO.")
+                        {
+                            startRow = r + 1;
+                            break;
+                        }
+                    }
+
+                    int count = dtDetails.Rows.Count;
+                    if (count > 1)
+                    {
+                        ws.InsertRow(startRow + 1, count - 1);
+                        for (int i = 1; i < count; i++)
+                        {
+                            // Copy định dạng dòng gốc xuống các dòng mới
+                            ws.Cells[startRow, 1, startRow, 9].Copy(ws.Cells[startRow + i, 1]);
+                        }
+                    }
+
+                    // 3. Fill Data và Định dạng đồng nhất
+                    for (int i = 0; i < count; i++)
+                    {
+                        DataRow dr = dtDetails.Rows[i];
+                        int currentRow = startRow + i;
+                        ws.Row(currentRow).Height = 25;
+
+                        ws.Cells[currentRow, 1].Value = i + 1;
+                        ws.Cells[currentRow, 2].Value = dr["ID_Code"];
+                        ws.Cells[currentRow, 3].Value = $"{dr["Item_Name"]} {dr["Size"].ToString()}";
+                        ws.Cells[currentRow, 4].Value = Convert.ToDecimal(dr["Qty_Import"] ?? 0);
+                        ws.Cells[currentRow, 5].Value = dr["UNIT"];
+                        ws.Cells[currentRow, 6].Value = dr["Weight_kg"];
+
+                        // --- ÁP DỤNG ĐỊNH DẠNG ĐỒNG NHẤT CHO MỌI DÒNG ---
+                        using (var range = ws.Cells[currentRow, 1, currentRow, 9])
+                        {
+                            range.Style.Font.Name = "Times New Roman";
+                            range.Style.Font.Size = 16;
+                            range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+
+                            range.Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            range.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            range.Style.Border.Left.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            range.Style.Border.Right.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                        }
+                        // Cột Tên vật tư căn trái cho dễ nhìn
+                        ws.Cells[currentRow, 3].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+                    }
+
+                    // 4. Cập nhật Footer Info (A18:J50 sau khi chèn dòng)
+                    var footerRange = ws.Cells[startRow + count, 1, ws.Dimension.End.Row, ws.Dimension.End.Column];
+                    foreach (var cell in footerRange)
+                    {
+                        if (cell.Value == null) continue;
+                        string txt = cell.Value.ToString();
+                        if (txt.Contains("<<PROJECT_NAME>>")) cell.Value = txt.Replace("<<PROJECT_NAME>>", projects?.ProjectName ?? "");
+                        if (txt.Contains("<<PROJECT_CODE>>")) cell.Value = txt.Replace("<<PROJECT_CODE>>", projects?.ProjectCode ?? "");
+                        if (txt.Contains("<<PROJECT_WO_NO>>")) cell.Value = txt.Replace("<<PROJECT_WO_NO>>", projects?.WorkorderNo ?? "");
+                        if (txt.Contains("<<MPR_NO>>")) cell.Value = txt.Replace("<<MPR_NO>>", poModel.MPR_No ?? "");
+                        if (txt.Contains("<<PO_NO>>")) cell.Value = txt.Replace("<<PO_NO>>", poModel.PONo ?? "");
+
+                        // Xử lý hàm SUM() tại Excel
+                        if (txt.Contains("<<SUM>>"))
+                        {
+                            cell.Value = ""; // Xóa text tag
+                                             // Cột Qty là cột 4 (D). Hàm sum từ startRow đếncurrentRow cuối
+                            cell.Formula = $"=SUM(D{startRow}:D{startRow + count - 1})";
+                        }
+                        if (txt.Contains("<<SUM-W>>"))
+                        {
+                            cell.Value = ""; // Xóa text tag
+                                             // Cột Qty là cột 4 (D). Hàm sum từ startRow đếncurrentRow cuối
+                            cell.Formula = $"=SUM(F{startRow}:F{startRow + count - 1})";
+                        }
+                    }
+
+                    package.Save();
+                }
+
+                // Update print status print
+                _warehouseServices.UpdateStatusPrintPNK(new WarehouseImport() { PO_ID = poId });
+
+                if (MessageBox.Show($"✅ Xuất phiếu PNK thành công!\nBạn có muốn mở file không?", "Thành công",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(actualSavePath) { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+
+        private void btnRefeshHisImport_Click(object sender, EventArgs e)
+        {
+            LoadImports("");
+        }
+
+        private void btnSearchHisImport_Click(object sender, EventArgs e)
+        {
+            if (!Common.Common.IsComboBoxValid(cboProjectForHisImport, "Dự án")) return;
+            try
+            {
+                string projectCode = (cboProjectForHisImport != null && cboProjectForHisImport.SelectedIndex > 0) ? cboProjectForHisImport.SelectedItem.ToString() : "";
+                LoadImports(projectCode);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Load dữ liệu thất bại: {ex.Message}", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void LoadImports(string projectCode)
+        {
+            try
+            {
+                if (dgvHisImport == null) return;
+                
+                if (_lstImport.Count <= 0)
+                {
+                    _lstImport = _warehouseServices.GetAllImports();
+                }
+
+                var dtImport = new List<WarehouseImport>();
+                if (!string.IsNullOrEmpty(projectCode))
+                {
+                    dtImport = _lstImport.Where(i => i.Project_Code == projectCode && i.Import_Date >= dtpFrom.Value && i.Import_Date <= dtpTo.Value).ToList();
+                }
+
+                dgvHisImport.DataSource = dtImport.ConvertAll(i => new
+                {
+                    ID = i.Import_ID,
+                    Ma_Phieu = i.Import_No,
+                    Ngay_Nhap = i.Import_Date.HasValue ? i.Import_Date.Value.ToString("dd/MM/yyyy") : "",
+                    Ten_Vat_Tu = i.Item_Name,
+                    Vat_Lieu = i.Material,
+                    Kich_Thuoc = i.Size,
+                    DVT = i.UNIT,
+                    SL_Nhap = i.Qty_Import,
+                    KG_Nhap = i.Weight_kg,
+                    ID_Code = i.ID_Code,
+                    MTR_No = i.MTRno,
+                    Ma_DA = i.Project_Code,
+                    Vi_Tri = i.Location,
+                    PO_ID = i.PO_ID,
+                    Printed = i.IsPrint.ToString()
+                });
+                if (dgvHisImport.Columns.Contains("ID")) dgvHisImport.Columns["ID"].Visible = false;
+
+                dgvHisImport.CellFormatting += (s, e) =>
+                {
+                    if (e.RowIndex < 0) return;
+                    string col = dgvHisImport.Columns[e.ColumnIndex].Name;
+                    if (col == "Printed")
+                    {
+                        var statusRules = new List<StringRule>
+                        {
+                            new StringRule { Value = "true", CellColor = Color.SeaGreen },
+                            new StringRule { Value = "false", CellColor = Color.Red }
+                        };
+                        Common.Common.ApplyCustomFormatting(e, dgvHisImport, "Printed", statusRules, null);
+                    }
+
+                };
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi tải nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
     }
 }

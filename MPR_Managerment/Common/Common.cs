@@ -310,9 +310,9 @@ namespace MPR_Managerment.Common
             btn.Cursor = Cursors.Hand;
         }
 
-        public static void CreateButtonPrint(Button btn)
+        public static void CreateButtonPrint(Button btn, string text = "")
         {
-            btn.Text = "🖨 In MPR";
+            btn.Text = text ?? "🖨 In";
             btn.BackColor = Color.FromArgb(33, 115, 70);
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;

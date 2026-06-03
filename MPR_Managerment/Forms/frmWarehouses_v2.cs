@@ -91,8 +91,8 @@ namespace MPR_Managerment.Forms
             InitializeComponent();
             _dtProject = new ProjectService().GetAll();
             BuidUI();
-            SetupImportLayout(pageImport); // Khởi tạo nhưng không sử dụng
-            //SetupImportLayout_V2(pageImport); // Sử dụng V2
+            SetupImportLayout(new TabPage()); // Khởi tạo nhưng không sử dụng
+            SetupImportLayout_V2(pageImport); // Sử dụng V2
             SetupExportLayout(pageExport);
             SetupFillInvoiceNotLayout(pageFillInvoiceNo);
             SetupFillInvoiceNoLayout_v2(pageFillInvoiceNo_v2);
@@ -212,7 +212,7 @@ namespace MPR_Managerment.Forms
 
             // Kích thước tối thiểu (Cột mốc để hiện thanh cuộn)
             int minW = 1280;
-            int minH = 2000;
+            int minH = 1500;
             container.MinimumSize = new Size(minW, minH);
 
             // Thiết lập size ban đầu
