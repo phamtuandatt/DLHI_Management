@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Win32;
 
 namespace MPR_Managerment.Services
 {
@@ -32,8 +33,56 @@ namespace MPR_Managerment.Services
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "MPR_Invoices", "monitor_log.json");
 
-        public static string SaveDir { get; set; } =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MPR_Invoices");
+        private const string TaskName = "MPR_OutlookInvoiceMonitor";
+        private const string RegKey = @"SOFTWARE\MPR_Managerment";
+        private const string RegValuePersistent = "MonitorPersistent";
+        private const string RegValueSaveDir = "MonitorSaveDir";
+
+        public static string SaveDir
+        {
+            get
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(RegKey);
+                    return key?.GetValue(RegValueSaveDir) as string
+                        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MPR_Invoices");
+                }
+                catch { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MPR_Invoices"); }
+            }
+            set
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.CreateSubKey(RegKey);
+                    key.SetValue(RegValueSaveDir, value);
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>True nếu user đã bật chế độ theo dõi tự động liên tục (kể cả khi tắt app).</summary>
+        public static bool IsPersistentEnabled
+        {
+            get
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(RegKey);
+                    return key?.GetValue(RegValuePersistent) as string == "1";
+                }
+                catch { return false; }
+            }
+            private set
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.CreateSubKey(RegKey);
+                    key.SetValue(RegValuePersistent, value ? "1" : "0");
+                }
+                catch { }
+            }
+        }
 
         public static bool IsRunning
         {
@@ -85,7 +134,15 @@ namespace MPR_Managerment.Services
 
             if (_monitorProcess == null) return "Không thể khởi động Python.";
 
-            // Đọc stdout từ script liên tục để nhận events
+            // C# tự ghi PID ngay — không phụ thuộc Python ghi
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(PidFile)!);
+                await File.WriteAllTextAsync(PidFile, _monitorProcess.Id.ToString());
+            }
+            catch { }
+
+            // Đọc stdout (JSON events) và stderr (lỗi script) liên tục
             _ = Task.Run(async () =>
             {
                 try
@@ -104,6 +161,30 @@ namespace MPR_Managerment.Services
                 }
                 catch { }
             }, _cts.Token);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    string stderr = await _monitorProcess.StandardError.ReadToEndAsync();
+                    if (!string.IsNullOrWhiteSpace(stderr))
+                    {
+                        string errorLog = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                            "MPR_Invoices", "monitor_error.log");
+                        await File.WriteAllTextAsync(errorLog,
+                            $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}]\n{stderr}");
+                        // Thông báo lỗi script qua event
+                        OnNewEvent?.Invoke(new MonitorEvent
+                        {
+                            Event = "error",
+                            Time = DateTime.Now.ToString("HH:mm:ss"),
+                            Message = $"Script lỗi — xem: {errorLog}"
+                        });
+                    }
+                }
+                catch { }
+            });
 
             return "Monitor đã khởi động. Đang lắng nghe email mới...";
         }
@@ -143,6 +224,151 @@ namespace MPR_Managerment.Services
                 return all.GetRange(skip, all.Count - skip);
             }
             catch { return new(); }
+        }
+
+        // ── Persistent monitoring (Task Scheduler) ────────────────────────────
+
+        /// <summary>
+        /// Bật chế độ tự động: đăng ký Task Scheduler chạy khi đăng nhập Windows,
+        /// lưu trạng thái vào registry, và khởi động ngay lập tức.
+        /// </summary>
+        public static async Task<string> EnablePersistentAsync(string saveDir)
+        {
+            SaveDir = saveDir;
+            IsPersistentEnabled = true;
+            RegisterScheduledTask(saveDir);
+            return await StartAsync(saveDir);
+        }
+
+        /// <summary>
+        /// Tắt hoàn toàn: dừng process, xóa Task Scheduler, xóa registry flag.
+        /// </summary>
+        public static string DisablePersistent()
+        {
+            IsPersistentEnabled = false;
+            UnregisterScheduledTask();
+            return Stop();
+        }
+
+        private static void RegisterScheduledTask(string saveDir)
+        {
+            try
+            {
+                // Tìm đường dẫn python thực (pythonw để không hiện cửa sổ console)
+                string pythonExe = FindPythonExe();
+                string arguments = $"\"{ScriptPath}\" --save-dir \"{saveDir}\" --log-file \"{LogFile}\" --pid-file \"{PidFile}\"";
+                string userId = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+
+                // Dùng XML task definition để tránh vấn đề quoting phức tạp
+                string xmlContent = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
+  <RegistrationInfo>
+    <Description>MPR Outlook Invoice Monitor — tự động theo dõi email hóa đơn</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <UserId>{System.Security.SecurityElement.Escape(userId)}</UserId>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id=""Author"">
+      <UserId>{System.Security.SecurityElement.Escape(userId)}</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context=""Author"">
+    <Exec>
+      <Command>{System.Security.SecurityElement.Escape(pythonExe)}</Command>
+      <Arguments>{System.Security.SecurityElement.Escape(arguments)}</Arguments>
+      <WorkingDirectory>{System.Security.SecurityElement.Escape(AppDomain.CurrentDomain.BaseDirectory)}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>";
+
+                string xmlFile = Path.Combine(Path.GetTempPath(), "mpr_monitor_task.xml");
+                File.WriteAllText(xmlFile, xmlContent, System.Text.Encoding.Unicode);
+
+                var psi = new ProcessStartInfo("schtasks.exe",
+                    $"/Create /F /TN \"{TaskName}\" /XML \"{xmlFile}\"")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(8000);
+
+                try { File.Delete(xmlFile); } catch { }
+            }
+            catch { }
+        }
+
+        private static string FindPythonExe()
+        {
+            // Ưu tiên pythonw.exe (không hiện cửa sổ console đen)
+            foreach (string candidate in new[] { "pythonw", "python" })
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo("where", candidate)
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true
+                    };
+                    using var p = Process.Start(psi);
+                    string? path = p?.StandardOutput.ReadLine()?.Trim();
+                    p?.WaitForExit(3000);
+                    if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                        return path;
+                }
+                catch { }
+            }
+            return "pythonw.exe"; // fallback
+        }
+
+        private static void UnregisterScheduledTask()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo("schtasks.exe", $"/Delete /F /TN \"{TaskName}\"")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(5000);
+            }
+            catch { }
+        }
+
+        /// <summary>Kiểm tra task scheduler có tồn tại không.</summary>
+        public static bool IsScheduledTaskRegistered()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo("schtasks.exe", $"/Query /TN \"{TaskName}\"")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(3000);
+                return p?.ExitCode == 0;
+            }
+            catch { return false; }
         }
     }
 }

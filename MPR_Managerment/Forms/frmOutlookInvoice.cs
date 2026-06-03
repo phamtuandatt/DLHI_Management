@@ -22,10 +22,22 @@ namespace MPR_Managerment.Forms
         private Button btnStopMonitor = null!;
         private Button btnDownloadLinks = null!;
         private Label lblMonitorStatus = null!;
+        private Label lblOutlookStatus = null!;
         private ListView lvFiles = null!;
         private Label lblStatus = null!;
         private ProgressBar progressBar = null!;
         private System.Windows.Forms.Timer timerMonitorCheck = null!;
+        private System.Windows.Forms.Timer timerOutlookCheck = null!;
+        private bool _outlookCheckBusy = false;
+        private SplitContainer splitMain = null!;
+
+        // Log panel
+        private ListView lvLog = null!;
+        private Label lblLogEmailCount = null!;
+        private Label lblLogFileCount = null!;
+        private Label lblLogLastTime = null!;
+        private int _totalEmailsReceived = 0;
+        private int _totalFilesDownloaded = 0;
 
         // Assign panel
         private Panel pnlAssign = null!;
@@ -44,17 +56,62 @@ namespace MPR_Managerment.Forms
             OutlookMonitorService.OnNewEvent += OnMonitorEvent;
             UpdateMonitorStatus();
             _ = LoadProjectsAsync();
+            _ = UpdateOutlookStatusAsync();
         }
 
         private void InitializeComponent()
         {
             Text = "Tải Hóa Đơn từ Outlook";
-            Size = new Size(1000, 680);
+            Size = new Size(1000, 720);
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
 
-            // ── Panel cấu hình trên ─────────────────────────────────────────────
+            // ── Header trạng thái theo dõi ──────────────────────────────────────
+            var pnlHeader = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 52,
+                BackColor = Color.FromArgb(30, 30, 45)
+            };
+
+            var lblTitle = new Label
+            {
+                Text = "📧  Hóa Đơn Outlook",
+                Font = new Font("Segoe UI", 13, FontStyle.Bold),
+                ForeColor = Color.White,
+                Location = new Point(14, 12),
+                AutoSize = true
+            };
+
+            lblMonitorStatus = new Label
+            {
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(280, 12)
+            };
+
+            // Dấu phân cách
+            var lblSep = new Label
+            {
+                Text = "│",
+                Font = new Font("Segoe UI", 14),
+                ForeColor = Color.FromArgb(80, 80, 100),
+                AutoSize = true,
+                Location = new Point(580, 12)
+            };
+
+            lblOutlookStatus = new Label
+            {
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(605, 15),
+                Text = "Outlook: ..."
+            };
+
+            pnlHeader.Controls.AddRange(new Control[] { lblTitle, lblMonitorStatus, lblSep, lblOutlookStatus });
+
+            // ── Panel cấu hình ──────────────────────────────────────────────────
             var pnlTop = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(10) };
 
             var lblDir = new Label { Text = "Thư mục lưu:", Location = new Point(10, 15), AutoSize = true };
@@ -95,13 +152,13 @@ namespace MPR_Managerment.Forms
 
             var separator = new Label
             {
-                Text = "── Tự động theo dõi email mới ──────────────────────────────",
+                Text = "── Tự động theo dõi email mới (chạy liên tục, kể cả khi tắt app) ──────",
                 Location = new Point(10, 84), AutoSize = true, ForeColor = Color.Gray
             };
 
             btnStartMonitor = new Button
             {
-                Text = "▶ Bắt đầu theo dõi",
+                Text = "▶ Bật Automatic",
                 Location = new Point(10, 104), Width = 155, Height = 28,
                 BackColor = Color.FromArgb(39, 174, 96), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
@@ -109,22 +166,16 @@ namespace MPR_Managerment.Forms
 
             btnStopMonitor = new Button
             {
-                Text = "■ Dừng theo dõi",
+                Text = "■ Tắt Automatic",
                 Location = new Point(175, 104), Width = 140, Height = 28,
                 BackColor = Color.FromArgb(192, 57, 43), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
             btnStopMonitor.Click += BtnStopMonitor_Click;
 
-            lblMonitorStatus = new Label
-            {
-                Location = new Point(330, 109), AutoSize = true,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold)
-            };
-
             btnDownloadLinks = new Button
             {
                 Text = "🔗 Tải từ link email",
-                Location = new Point(490, 104), Width = 155, Height = 28,
+                Location = new Point(330, 104), Width = 155, Height = 28,
                 BackColor = Color.FromArgb(41, 128, 185), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
             btnDownloadLinks.Click += BtnDownloadLinks_Click;
@@ -132,10 +183,19 @@ namespace MPR_Managerment.Forms
             pnlTop.Controls.AddRange(new Control[] {
                 lblDir, txtSaveDir, btnBrowse,
                 lblDays, numDaysBack, btnDownload, btnOpenFolder, btnClassify,
-                separator, btnStartMonitor, btnStopMonitor, lblMonitorStatus, btnDownloadLinks
+                separator, btnStartMonitor, btnStopMonitor, btnDownloadLinks
             });
 
-            // ── ListView ────────────────────────────────────────────────────────
+            // ── SplitContainer: trái = danh sách file, phải = log monitor ────────
+            splitMain = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Orientation = Orientation.Vertical,
+                SplitterWidth = 5,
+                BackColor = Color.FromArgb(200, 210, 230)
+            };
+
+            // ── ListView (trái) ──────────────────────────────────────────────────
             lvFiles = new ListView
             {
                 Dock = DockStyle.Fill,
@@ -161,6 +221,96 @@ namespace MPR_Managerment.Forms
                 }
             };
             lvFiles.SelectedIndexChanged += LvFiles_SelectedIndexChanged;
+
+            splitMain.Panel1.Controls.Add(lvFiles);
+
+            // ── Panel log monitor (phải) ─────────────────────────────────────────
+            var pnlLog = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(24, 26, 38) };
+
+            var pnlLogHeader = new Panel
+            {
+                Dock = DockStyle.Top, Height = 40,
+                BackColor = Color.FromArgb(35, 37, 55),
+                Padding = new Padding(10, 0, 10, 0)
+            };
+            var lblLogTitle = new Label
+            {
+                Text = "📋  Nhật ký theo dõi tự động",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(180, 190, 220),
+                Dock = DockStyle.Left,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoSize = false, Width = 250
+            };
+            var btnClearLog = new Button
+            {
+                Text = "Xóa log",
+                Dock = DockStyle.Right,
+                Width = 75,
+                Height = 28,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.FromArgb(150, 160, 190),
+                BackColor = Color.FromArgb(50, 52, 75),
+                Font = new Font("Segoe UI", 8)
+            };
+            btnClearLog.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 110);
+            btnClearLog.Click += (s, e) => { lvLog.Items.Clear(); _totalEmailsReceived = 0; _totalFilesDownloaded = 0; UpdateLogStats(); };
+            pnlLogHeader.Controls.Add(lblLogTitle);
+            pnlLogHeader.Controls.Add(btnClearLog);
+
+            // Thống kê
+            var pnlLogStats = new Panel
+            {
+                Dock = DockStyle.Top, Height = 52,
+                BackColor = Color.FromArgb(30, 32, 48),
+                Padding = new Padding(10, 6, 10, 6)
+            };
+            lblLogEmailCount = new Label
+            {
+                Text = "📧  Email nhận:  0",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(100, 200, 255),
+                Location = new Point(10, 8), AutoSize = true
+            };
+            lblLogFileCount = new Label
+            {
+                Text = "📄  File tải:  0",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(100, 220, 140),
+                Location = new Point(160, 8), AutoSize = true
+            };
+            lblLogLastTime = new Label
+            {
+                Text = "🕐  Lần cuối:  —",
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Color.FromArgb(150, 155, 180),
+                Location = new Point(300, 10), AutoSize = true
+            };
+            pnlLogStats.Controls.AddRange(new Control[] { lblLogEmailCount, lblLogFileCount, lblLogLastTime });
+
+            lvLog = new ListView
+            {
+                Dock = DockStyle.Fill,
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = false,
+                BackColor = Color.FromArgb(24, 26, 38),
+                ForeColor = Color.FromArgb(210, 215, 235),
+                Font = new Font("Segoe UI", 8.5f),
+                BorderStyle = BorderStyle.None,
+                HeaderStyle = ColumnHeaderStyle.Nonclickable
+            };
+            lvLog.Columns.Add("Thời gian", 80);
+            lvLog.Columns.Add("Loại", 90);
+            lvLog.Columns.Add("Tiêu đề / Người gửi", 160);
+            lvLog.Columns.Add("File", 55);
+            lvLog.Columns.Add("Chi tiết", 200);
+
+            pnlLog.Controls.Add(lvLog);
+            pnlLog.Controls.Add(pnlLogStats);
+            pnlLog.Controls.Add(pnlLogHeader);
+
+            splitMain.Panel2.Controls.Add(pnlLog);
 
             // ── Panel gán dự án / PO ────────────────────────────────────────────
             pnlAssign = new Panel
@@ -214,13 +364,17 @@ namespace MPR_Managerment.Forms
             lblStatus = new Label { Location = new Point(220, 10), AutoSize = true, Text = "Sẵn sàng." };
             pnlBottom.Controls.AddRange(new Control[] { progressBar, lblStatus });
 
-            Controls.Add(lvFiles);
+            Controls.Add(splitMain);
             Controls.Add(pnlAssign);
             Controls.Add(pnlTop);
+            Controls.Add(pnlHeader);
             Controls.Add(pnlBottom);
 
             timerMonitorCheck = new System.Windows.Forms.Timer { Interval = 3000, Enabled = true };
             timerMonitorCheck.Tick += (s, e) => UpdateMonitorStatus();
+
+            timerOutlookCheck = new System.Windows.Forms.Timer { Interval = 5000, Enabled = true };
+            timerOutlookCheck.Tick += (s, e) => _ = UpdateOutlookStatusAsync();
 
             LoadExistingLog();
         }
@@ -368,9 +522,25 @@ namespace MPR_Managerment.Forms
         {
             var logs = OutlookMonitorService.ReadLog(100);
             foreach (var evt in logs)
+            {
                 if (evt.Event == "downloaded" && evt.Files != null)
+                {
                     foreach (var file in evt.Files)
                         AddFileToList(file, evt.Subject ?? "", evt.Sender ?? "", evt.Time, fromLog: true);
+                    _totalEmailsReceived++;
+                    _totalFilesDownloaded += evt.Files.Count;
+                    AddLogEntry(evt.Time, "✅ Tải được",
+                        $"{evt.Subject ?? ""} / {evt.Sender ?? ""}",
+                        evt.Files.Count.ToString(),
+                        string.Join(", ", evt.Files.Select(Path.GetFileName)),
+                        Color.FromArgb(40, 70, 45));
+                }
+                else if (evt.Event == "started")
+                {
+                    AddLogEntry(evt.Time, "▶ Khởi động", "Monitor bắt đầu lắng nghe", "", "", Color.FromArgb(30, 55, 85));
+                }
+            }
+            UpdateLogStats();
         }
 
         private void AddFileToList(string filePath, string subject, string sender, string time, bool fromLog = false)
@@ -394,19 +564,96 @@ namespace MPR_Managerment.Forms
             {
                 foreach (var file in evt.Files)
                     AddFileToList(file, evt.Subject ?? "", evt.Sender ?? "", evt.Time);
+                _totalEmailsReceived++;
+                _totalFilesDownloaded += evt.Files.Count;
+                UpdateLogStats();
+                AddLogEntry(evt.Time, "✅ Tải được",
+                    $"{evt.Subject ?? ""} / {evt.Sender ?? ""}",
+                    evt.Files.Count.ToString(),
+                    string.Join(", ", evt.Files.Select(Path.GetFileName)),
+                    Color.FromArgb(60, 100, 60));
                 lblStatus.Text = $"[{DateTime.Now:HH:mm:ss}] Tải {evt.Files.Count} file từ: {evt.Subject}";
             }
+            else if (evt.Event == "started")
+            {
+                AddLogEntry(evt.Time, "▶ Khởi động", "Monitor bắt đầu lắng nghe", "", "", Color.FromArgb(40, 80, 120));
+            }
             else if (evt.Event == "error")
+            {
+                AddLogEntry(evt.Time, "⚠ Lỗi", evt.Message ?? "", "", "", Color.FromArgb(100, 40, 40));
                 lblStatus.Text = $"Lỗi: {evt.Message}";
+            }
         }
 
-        private void UpdateMonitorStatus()
+        private void AddLogEntry(string time, string type, string subject, string fileCount, string detail, Color rowColor)
         {
-            bool running = OutlookMonitorService.IsRunning;
-            btnStartMonitor.Enabled = !running;
-            btnStopMonitor.Enabled = running;
-            lblMonitorStatus.ForeColor = running ? Color.FromArgb(39, 174, 96) : Color.Gray;
-            lblMonitorStatus.Text = running ? "● Đang theo dõi" : "○ Chưa theo dõi";
+            if (InvokeRequired) { Invoke(() => AddLogEntry(time, type, subject, fileCount, detail, rowColor)); return; }
+            string displayTime = time;
+            if (DateTime.TryParse(time, out var dt)) displayTime = dt.ToString("HH:mm:ss");
+
+            var item = new ListViewItem(displayTime);
+            item.SubItems.Add(type);
+            item.SubItems.Add(subject.Length > 45 ? subject[..42] + "..." : subject);
+            item.SubItems.Add(fileCount);
+            item.SubItems.Add(detail.Length > 60 ? detail[..57] + "..." : detail);
+            item.BackColor = rowColor;
+            item.ForeColor = Color.FromArgb(210, 215, 235);
+            lvLog.Items.Insert(0, item);
+
+            // Giữ tối đa 200 dòng
+            while (lvLog.Items.Count > 200)
+                lvLog.Items.RemoveAt(lvLog.Items.Count - 1);
+        }
+
+        private void UpdateLogStats()
+        {
+            if (InvokeRequired) { Invoke(UpdateLogStats); return; }
+            lblLogEmailCount.Text = $"📧  Email nhận:  {_totalEmailsReceived}";
+            lblLogFileCount.Text  = $"📄  File tải:  {_totalFilesDownloaded}";
+            lblLogLastTime.Text   = $"🕐  Lần cuối:  {DateTime.Now:HH:mm dd/MM}";
+        }
+
+        private bool _restarting = false;
+
+        private async void UpdateMonitorStatus()
+        {
+            bool persistent = OutlookMonitorService.IsPersistentEnabled;
+            bool running    = OutlookMonitorService.IsRunning;
+
+            btnStartMonitor.Enabled = !persistent;
+            btnStopMonitor.Enabled  = persistent;
+
+            if (persistent && running)
+            {
+                lblMonitorStatus.ForeColor = Color.FromArgb(0, 230, 120);
+                lblMonitorStatus.Text = "● Automatic";
+                _restarting = false;
+            }
+            else if (persistent && !running)
+            {
+                // Tự động restart nếu bị crash
+                if (!_restarting)
+                {
+                    _restarting = true;
+                    lblMonitorStatus.ForeColor = Color.FromArgb(255, 200, 0);
+                    lblMonitorStatus.Text = "⟳ Automatic (đang khởi động lại...)";
+                    string result = await OutlookMonitorService.StartAsync(OutlookMonitorService.SaveDir);
+                    lblStatus.Text = result;
+                    // Nếu vẫn không chạy được, hiện lỗi
+                    if (!OutlookMonitorService.IsRunning)
+                    {
+                        lblMonitorStatus.ForeColor = Color.FromArgb(255, 120, 0);
+                        lblMonitorStatus.Text = "⚠ Automatic (lỗi script)";
+                        _restarting = false;
+                    }
+                }
+            }
+            else
+            {
+                lblMonitorStatus.ForeColor = Color.FromArgb(255, 80, 80);
+                lblMonitorStatus.Text = "● OFF";
+                _restarting = false;
+            }
         }
 
         // ── Button handlers ─────────────────────────────────────────────────────
@@ -414,14 +661,21 @@ namespace MPR_Managerment.Forms
         private async void BtnStartMonitor_Click(object? sender, EventArgs e)
         {
             btnStartMonitor.Enabled = false;
-            OutlookMonitorService.SaveDir = txtSaveDir.Text;
-            lblStatus.Text = await OutlookMonitorService.StartAsync(txtSaveDir.Text);
+            lblStatus.Text = "Đang bật chế độ Automatic...";
+            UpdateMonitorStatus();
+            string msg = await OutlookMonitorService.EnablePersistentAsync(txtSaveDir.Text);
+            lblStatus.Text = msg;
             UpdateMonitorStatus();
         }
 
         private void BtnStopMonitor_Click(object? sender, EventArgs e)
         {
-            lblStatus.Text = OutlookMonitorService.Stop();
+            var confirm = MessageBox.Show(
+                "Tắt chế độ Automatic sẽ dừng theo dõi email ngay cả khi khởi động lại máy.\nBạn có chắc không?",
+                "Xác nhận tắt Automatic", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm != DialogResult.Yes) return;
+
+            lblStatus.Text = OutlookMonitorService.DisablePersistent();
             UpdateMonitorStatus();
         }
 
@@ -510,10 +764,43 @@ namespace MPR_Managerment.Forms
             lblStatus.Text = $"Hoàn thành: {result.Summary.Downloaded} tải được, {result.Summary.PendingManual} chờ thủ công.";
         }
 
+        private async Task UpdateOutlookStatusAsync()
+        {
+            if (_outlookCheckBusy || IsDisposed) return;
+            _outlookCheckBusy = true;
+            try
+            {
+                var status = await Task.Run(() => OutlookStatusChecker.Check());
+                if (IsDisposed) return;
+                Invoke(() =>
+                {
+                    lblOutlookStatus.Text = status.Text;
+                    lblOutlookStatus.ForeColor = status.Color;
+                });
+            }
+            finally { _outlookCheckBusy = false; }
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            BeginInvoke(() =>
+            {
+                try
+                {
+                    splitMain.Panel1MinSize = 400;
+                    splitMain.Panel2MinSize = 300;
+                    splitMain.SplitterDistance = Math.Max(400, splitMain.Width - 380);
+                }
+                catch { }
+            });
+        }
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             OutlookMonitorService.OnNewEvent -= OnMonitorEvent;
             timerMonitorCheck.Dispose();
+            timerOutlookCheck.Dispose();
             base.OnFormClosed(e);
         }
 
