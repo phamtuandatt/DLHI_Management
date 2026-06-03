@@ -78,9 +78,9 @@
             tableLayoutPanel1.RowCount = 4;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 350F));
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 350F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 700F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            tableLayoutPanel1.Size = new Size(1267, 907);
+            tableLayoutPanel1.Size = new Size(1267, 1141);
             tableLayoutPanel1.TabIndex = 0;
             // 
             // groupBox1
@@ -244,7 +244,7 @@
             gbPrintImportNotes.Dock = DockStyle.Fill;
             gbPrintImportNotes.Location = new Point(3, 418);
             gbPrintImportNotes.Name = "gbPrintImportNotes";
-            gbPrintImportNotes.Size = new Size(1261, 344);
+            gbPrintImportNotes.Size = new Size(1261, 694);
             gbPrintImportNotes.TabIndex = 0;
             gbPrintImportNotes.TabStop = false;
             gbPrintImportNotes.Text = "Thông tin dự án";
@@ -255,7 +255,7 @@
             groupBox3.Dock = DockStyle.Fill;
             groupBox3.Location = new Point(3, 56);
             groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(1255, 285);
+            groupBox3.Size = new Size(1255, 635);
             groupBox3.TabIndex = 1;
             groupBox3.TabStop = false;
             groupBox3.Text = "Lịch sử nhập kho";
@@ -267,7 +267,7 @@
             dgvHisImport.Dock = DockStyle.Fill;
             dgvHisImport.Location = new Point(3, 19);
             dgvHisImport.Name = "dgvHisImport";
-            dgvHisImport.Size = new Size(1249, 263);
+            dgvHisImport.Size = new Size(1249, 613);
             dgvHisImport.TabIndex = 0;
             // 
             // tableLayoutPanel3
@@ -410,7 +410,7 @@
             BackColor = Color.White;
             Controls.Add(tableLayoutPanel1);
             Name = "ucImportWarehouse";
-            Size = new Size(1267, 907);
+            Size = new Size(1267, 1141);
             Load += ucImportWarehouse_Load;
             tableLayoutPanel1.ResumeLayout(false);
             groupBox1.ResumeLayout(false);

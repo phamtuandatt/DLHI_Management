@@ -732,7 +732,8 @@ namespace MPR_Managerment.Forms.WarehouseGUI
 
         private void btnRefeshHisImport_Click(object sender, EventArgs e)
         {
-            LoadImports("");
+            string projectCode = (cboProjectForHisImport != null && cboProjectForHisImport.SelectedIndex > 0) ? cboProjectForHisImport.SelectedItem.ToString() : "";
+            LoadImports(projectCode, true);
         }
 
         private void btnSearchHisImport_Click(object sender, EventArgs e)
@@ -741,7 +742,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             try
             {
                 string projectCode = (cboProjectForHisImport != null && cboProjectForHisImport.SelectedIndex > 0) ? cboProjectForHisImport.SelectedItem.ToString() : "";
-                LoadImports(projectCode);
+                LoadImports(projectCode, false);
             }
             catch (Exception ex)
             {
@@ -749,13 +750,13 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             }
         }
 
-        private void LoadImports(string projectCode)
+        private void LoadImports(string projectCode, bool isRefresh)
         {
             try
             {
                 if (dgvHisImport == null) return;
                 
-                if (_lstImport.Count <= 0)
+                if (_lstImport.Count <= 0 || isRefresh)
                 {
                     _lstImport = _warehouseServices.GetAllImports();
                 }
@@ -765,25 +766,30 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                 {
                     dtImport = _lstImport.Where(i => i.Project_Code == projectCode && i.Import_Date >= dtpFrom.Value && i.Import_Date <= dtpTo.Value).ToList();
                 }
-
-                dgvHisImport.DataSource = dtImport.ConvertAll(i => new
+                else
                 {
-                    ID = i.Import_ID,
-                    Ma_Phieu = i.Import_No,
-                    Ngay_Nhap = i.Import_Date.HasValue ? i.Import_Date.Value.ToString("dd/MM/yyyy") : "",
-                    Ten_Vat_Tu = i.Item_Name,
-                    Vat_Lieu = i.Material,
-                    Kich_Thuoc = i.Size,
-                    DVT = i.UNIT,
-                    SL_Nhap = i.Qty_Import,
-                    KG_Nhap = i.Weight_kg,
-                    ID_Code = i.ID_Code,
-                    MTR_No = i.MTRno,
-                    Ma_DA = i.Project_Code,
-                    Vi_Tri = i.Location,
-                    PO_ID = i.PO_ID,
-                    Printed = i.IsPrint.ToString()
-                });
+                    dtImport = _lstImport.Where(i => i.Import_Date >= dtpFrom.Value && i.Import_Date <= dtpTo.Value).ToList();
+                }
+
+
+                    dgvHisImport.DataSource = dtImport.ConvertAll(i => new
+                    {
+                        ID = i.Import_ID,
+                        Ma_Phieu = i.Import_No,
+                        Ngay_Nhap = i.Import_Date.HasValue ? i.Import_Date.Value.ToString("dd/MM/yyyy") : "",
+                        Ten_Vat_Tu = i.Item_Name,
+                        Vat_Lieu = i.Material,
+                        Kich_Thuoc = i.Size,
+                        DVT = i.UNIT,
+                        SL_Nhap = i.Qty_Import,
+                        KG_Nhap = i.Weight_kg,
+                        ID_Code = i.ID_Code,
+                        MTR_No = i.MTRno,
+                        Ma_DA = i.Project_Code,
+                        Vi_Tri = i.Location,
+                        PO_ID = i.PO_ID,
+                        Printed = i.IsPrint.ToString()
+                    });
                 if (dgvHisImport.Columns.Contains("ID")) dgvHisImport.Columns["ID"].Visible = false;
 
                 dgvHisImport.CellFormatting += (s, e) =>
