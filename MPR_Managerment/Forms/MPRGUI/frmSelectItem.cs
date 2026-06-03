@@ -36,11 +36,13 @@ namespace MPR_Managerment.Forms.MPRGUI
             // Gắn AI Trợ lý — hiển thị nút floating + chat panel
             frmAIChat.Attach(this);
             SetSearchPlaceholder();
-            Common.Common.CreateButtonRefresh(btnRefresh);
-            Common.Common.CreateButtonSave(btnSelect);
+            Common.Common.CreateButtonSearch(btnRefresh, "📸 Hình ảnh");
+            Common.Common.CreateButtonSave(btnSelect, null);
             Common.Common.CreateButtonCancel(btnCancels, "");
             Common.Common.CreateButtonSearch(btnSearch, "");
             Common.Common.CreateButtonDelete(btnDelete, "🗑 Bỏ chọn");
+            Common.Common.CreateButtonAdd(btnAddProduct, "✔ Thêm vật tư");
+            Common.Common.CreateButtonRefresh(btnReload);
             txtSearch.PlaceholderText = "Mã/tên vật tư...";
         }
 
@@ -456,6 +458,44 @@ namespace MPR_Managerment.Forms.MPRGUI
         {
             frmShowImage frm = new frmShowImage(@"D:\RAC\Image");
             frm.ShowDialog();
+        }
+
+        private async void btnAddProduct_Click(object sender, EventArgs e)
+        {
+            using (var dlg = new frmAddProductSimple())
+            {
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+                var newProduct = dlg.NewProduct;
+
+                try
+                {
+                    bool saved = await _productServices.SaveProduct_Async(newProduct, false);
+                    if (saved)
+                    {
+                        MessageBox.Show("Thêm vật tư mới thành công!", "Thông báo",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        // Tải lại danh sách và cập nhật DataGridView
+                        await LoadItems();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Thêm vật tư không thành công. Vui lòng thử lại.", "Lỗi",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Có lỗi xảy ra: " + ex.Message, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private async void btnReload_Click(object sender, EventArgs e)
+        {
+            await LoadItems();
         }
     }
 }

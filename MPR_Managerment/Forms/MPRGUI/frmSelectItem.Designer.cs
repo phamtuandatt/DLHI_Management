@@ -38,6 +38,7 @@
             btnSearch = new Button();
             btnRefresh = new Button();
             cboMaterial = new ComboBox();
+            btnAddProduct = new Button();
             tableLayoutPanel3 = new TableLayoutPanel();
             lblStatus = new Label();
             groupBox1 = new GroupBox();
@@ -48,6 +49,7 @@
             btnCancels = new Button();
             button6 = new Button();
             button7 = new Button();
+            btnReload = new Button();
             tableLayoutPanel1.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
@@ -78,11 +80,13 @@
             // 
             // tableLayoutPanel2
             // 
-            tableLayoutPanel2.ColumnCount = 7;
+            tableLayoutPanel2.ColumnCount = 9;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 156F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 294F));
-            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60F));
-            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 249F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 51F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -92,6 +96,8 @@
             tableLayoutPanel2.Controls.Add(btnSearch, 4, 0);
             tableLayoutPanel2.Controls.Add(btnRefresh, 5, 0);
             tableLayoutPanel2.Controls.Add(cboMaterial, 3, 0);
+            tableLayoutPanel2.Controls.Add(btnAddProduct, 6, 0);
+            tableLayoutPanel2.Controls.Add(btnReload, 7, 0);
             tableLayoutPanel2.Dock = DockStyle.Fill;
             tableLayoutPanel2.Location = new Point(3, 3);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
@@ -107,7 +113,7 @@
             label2.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             label2.Location = new Point(453, 0);
             label2.Name = "label2";
-            label2.Size = new Size(54, 32);
+            label2.Size = new Size(45, 32);
             label2.TabIndex = 3;
             label2.Text = "Loại:";
             label2.TextAlign = ContentAlignment.MiddleRight;
@@ -138,9 +144,9 @@
             // btnSearch
             // 
             btnSearch.Dock = DockStyle.Fill;
-            btnSearch.Location = new Point(762, 3);
+            btnSearch.Location = new Point(574, 3);
             btnSearch.Name = "btnSearch";
-            btnSearch.Size = new Size(144, 26);
+            btnSearch.Size = new Size(129, 26);
             btnSearch.TabIndex = 2;
             btnSearch.Text = "Tìm";
             btnSearch.UseVisualStyleBackColor = true;
@@ -150,11 +156,11 @@
             // btnRefresh
             // 
             btnRefresh.Dock = DockStyle.Fill;
-            btnRefresh.Location = new Point(912, 3);
+            btnRefresh.Location = new Point(709, 3);
             btnRefresh.Name = "btnRefresh";
-            btnRefresh.Size = new Size(144, 26);
+            btnRefresh.Size = new Size(129, 26);
             btnRefresh.TabIndex = 2;
-            btnRefresh.Text = "Làm mới";
+            btnRefresh.Text = "Xem hình";
             btnRefresh.UseVisualStyleBackColor = true;
             btnRefresh.Click += btnRefresh_Click;
             // 
@@ -162,12 +168,23 @@
             // 
             cboMaterial.Dock = DockStyle.Fill;
             cboMaterial.FormattingEnabled = true;
-            cboMaterial.Location = new Point(513, 5);
+            cboMaterial.Location = new Point(504, 5);
             cboMaterial.Margin = new Padding(3, 5, 3, 3);
             cboMaterial.Name = "cboMaterial";
-            cboMaterial.Size = new Size(243, 23);
+            cboMaterial.Size = new Size(64, 23);
             cboMaterial.TabIndex = 4;
             cboMaterial.Visible = false;
+            // 
+            // btnAddProduct
+            // 
+            btnAddProduct.Dock = DockStyle.Fill;
+            btnAddProduct.Location = new Point(844, 3);
+            btnAddProduct.Name = "btnAddProduct";
+            btnAddProduct.Size = new Size(144, 26);
+            btnAddProduct.TabIndex = 5;
+            btnAddProduct.Text = "Thêm vật tư";
+            btnAddProduct.UseVisualStyleBackColor = true;
+            btnAddProduct.Click += btnAddProduct_Click;
             // 
             // tableLayoutPanel3
             // 
@@ -307,6 +324,17 @@
             button7.UseVisualStyleBackColor = true;
             button7.Visible = false;
             // 
+            // btnReload
+            // 
+            btnReload.Dock = DockStyle.Fill;
+            btnReload.Location = new Point(994, 3);
+            btnReload.Name = "btnReload";
+            btnReload.Size = new Size(144, 26);
+            btnReload.TabIndex = 5;
+            btnReload.Text = "Làm mới";
+            btnReload.UseVisualStyleBackColor = true;
+            btnReload.Click += btnReload_Click;
+            // 
             // frmSelectItem
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -364,5 +392,7 @@
         private Label label2;
         private ComboBox cboMaterial;
         private Label lblStatus;
+        private Button btnAddProduct;
+        private Button btnReload;
     }
 }

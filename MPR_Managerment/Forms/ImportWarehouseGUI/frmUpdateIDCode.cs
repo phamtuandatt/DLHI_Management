@@ -21,7 +21,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         public frmUpdateIDCode(WarehouseImport warehouseImport)
         {
             InitializeComponent();
-            Common.Common.CreateButtonSave(btnSave);
+            Common.Common.CreateButtonSave(btnSave, "");
             Common.Common.CreateButtonCancel(btnCancel, "Hủy");
             _warehouseImport = warehouseImport;
         }

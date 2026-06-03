@@ -28,9 +28,9 @@ namespace MPR_Managerment.Forms.MPRGUI
             InitializeComponent();
 
             Common.Common.CreateButtonPrint(btnPrint);
-            Common.Common.CreateButtonSave(btnSave);
+            Common.Common.CreateButtonSave(btnSave, "");
             Common.Common.CreateButtonCancel(btnCancel, "");
-            Common.Common.CreateButtonAdd(btnAddRow);
+            Common.Common.CreateButtonAdd(btnAddRow, "");
             Common.Common.CreateButtonDelete(btnDeleteRow, "");
             BuidDataSourceGrid();
  

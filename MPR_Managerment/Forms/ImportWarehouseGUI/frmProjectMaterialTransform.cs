@@ -22,7 +22,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
             // Gắn AI Trợ lý — hiển thị nút floating + chat panel
             frmAIChat.Attach(this);
 
-            Common.Common.CreateButtonSave(btnSave);
+            Common.Common.CreateButtonSave(btnSave, "");
             Common.Common.CreateButtonCancel(btnCancel, "🔄 Hủy");
 
             cboProject.Items.Clear();

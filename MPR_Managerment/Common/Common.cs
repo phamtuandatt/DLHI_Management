@@ -260,9 +260,9 @@ namespace MPR_Managerment.Common
             dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
         }
 
-        public static void CreateButtonSave(Button btn)
+        public static void CreateButtonSave(Button btn, string text)
         {
-            btn.Text = "💾 Lưu phiếu";
+            btn.Text = text ?? "💾 Lưu phiếu";
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btn.Cursor = Cursors.Hand;
             btn.BackColor = Color.FromArgb(0, 120, 212);
@@ -270,9 +270,9 @@ namespace MPR_Managerment.Common
             btn.FlatStyle = FlatStyle.Flat;
         }
 
-        public static void CreateButtonAdd(Button btn)
+        public static void CreateButtonAdd(Button btn, string text)
         {
-            btn.Text = "✔ Thêm vào phiếu";
+            btn.Text = text ?? "✔ Thêm vào phiếu";
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btn.Cursor = Cursors.Hand;
             btn.BackColor = Color.FromArgb(40, 167, 69);

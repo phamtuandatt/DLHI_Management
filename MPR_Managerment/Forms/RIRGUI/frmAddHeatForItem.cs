@@ -28,7 +28,7 @@ namespace MPR_Managerment.Forms.RIRGUI
             frmAIChat.Attach(this);
             txtMTR.Text = MRTNo;
 
-            Common.Common.CreateButtonSave(btnSave);
+            Common.Common.CreateButtonSave(btnSave, "");
             Common.Common.CreateButtonCancel(btnCancel, "Hủy");
 
         }

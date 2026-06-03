@@ -77,7 +77,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             Common.Common.CreateButtonSearch(btnSearchItemPO, "🔍 Tìm kiếm");
             Common.Common.CreateButtonRefresh(btnRefresh);
             Common.Common.CreateButtonDelete(btnDeleteRow);
-            Common.Common.CreateButtonSave(btnSaveImport);
+            Common.Common.CreateButtonSave(btnSaveImport, "");
             Common.Common.CreateButtonSearch(btnSearchHisImport, "🔍 Tìm kiếm");
             Common.Common.CreateButtonRefresh(btnRefeshHisImport);
             Common.Common.CreateButtonPrint(btnPrintImportHis, "🖨 In phiếu nhập kho");
