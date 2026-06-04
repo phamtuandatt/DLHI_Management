@@ -83,7 +83,15 @@ namespace MPR_Managerment.Helpers
                         IsBodyHtml = true
                     };
 
-                    mailMessage.To.Add(new MailAddress(supplierEmail, supplierName));
+                    var emails = (supplierEmail ?? "")
+                        .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(e => e.Trim())
+                        .Where(e => !string.IsNullOrWhiteSpace(e));
+
+                    foreach (var email in emails)
+                    {
+                        mailMessage.To.Add(new MailAddress(email, supplierName));
+                    }
 
                     await client.SendMailAsync(mailMessage);
                     return (true, "Gửi email thành công");

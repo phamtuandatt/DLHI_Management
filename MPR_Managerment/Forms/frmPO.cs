@@ -383,6 +383,12 @@ namespace MPR_Managerment.Forms
 
             dgvPO.CellContentClick += DgvPO_CellContentClick;
 
+            // Context menu cho bảng PO
+            var menuPO = new ContextMenuStrip();
+            var itemUnlockSupp = new ToolStripMenuItem("🔓 Mở khóa chỉnh sửa NCC", null, (s, ev) => BtnUnlockSupplier_Click(null, null));
+            menuPO.Items.Add(itemUnlockSupp);
+            dgvPO.ContextMenuStrip = menuPO;
+
             panelTop.Controls.Add(dgvPO);
 
             // ── Bảng Document (📎) góc phải panelTop — INV + Delivery ──
@@ -727,11 +733,37 @@ namespace MPR_Managerment.Forms
             cboSupplier.TextChanged += CboSupplier_TextChanged;
             cboSupplier.KeyDown += CboSupplier_KeyDown;
 
+            // Nút 🔓 unlock Nhà cung cấp ngay cạnh ComboBox
+            var btnUnlockSuppSmall = new Button
+            {
+                Text = "🔒",
+                Size = new Size(26, 26),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(108, 117, 125),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 8),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(2, 1, 0, 0)
+            };
+            btnUnlockSuppSmall.FlatAppearance.BorderSize = 0;
+            btnUnlockSuppSmall.Click += (s, ev) => BtnUnlockSupplier_Click(null, null);
+
+            // Cập nhật text nút dựa theo trạng thái cboSupplier
+            cboSupplier.EnabledChanged += (s, ev) =>
+            {
+                btnUnlockSuppSmall.Text = cboSupplier.Enabled ? "🔓" : "🔒";
+                btnUnlockSuppSmall.BackColor = cboSupplier.Enabled ? Color.FromArgb(220, 53, 69) : Color.FromArgb(108, 117, 125);
+            };
+
             flowRow1.Controls.Add(MakeField("PO No (*):", txtPONo, 60));
             flowRow1.Controls.Add(MakeField("Tên dự án:", txtProjectName, 65));
             flowRow1.Controls.Add(MakeField("Workorder:", txtWorkorderNo, 65));
             flowRow1.Controls.Add(MakeField("MPR No:", txtMPRNo, 55));
-            flowRow1.Controls.Add(MakeField("Nhà CC:", cboSupplier, 50));
+            
+            var suppPanel = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, Margin = new Padding(0) };
+            suppPanel.Controls.Add(MakeField("Nhà CC:", cboSupplier, 50));
+            suppPanel.Controls.Add(btnUnlockSuppSmall);
+            flowRow1.Controls.Add(suppPanel);
 
             // ── Row 2 (y=71): Ngày PO | Trạng thái | Revise ──
             var flowRow2 = MakeRow(71);
@@ -849,7 +881,7 @@ namespace MPR_Managerment.Forms
             {
                 Location = new Point(10, 145), // ngay dưới row3 (107+34+4)
                 AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                AutoSizeMode = AutoSizeMode.GrowOnly,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = true,
                 BackColor = Color.White,
@@ -895,18 +927,20 @@ namespace MPR_Managerment.Forms
                 flowRow3.MaximumSize = new Size(flowW, 0);
                 // flowBtns KHÔNG giới hạn theo rightReserved — luôn hiển thị 1 hàng
                 // khi form đủ rộng; chỉ wrap khi form quá hẹp (< tổng width 4 buttons)
-                flowBtns.MaximumSize = new Size(Math.Max(panelHeader.Width - 20, 100), 0);
+                flowBtns.Width = Math.Max(panelHeader.Width - 20, 100);
+                flowBtns.PerformLayout();
                 // Tính lại Top từng row dựa trên Bottom của row trước (xử lý wrap)
                 flowRow1.Location = new Point(10, 35);
-                flowRow2.Location = new Point(10, flowRow1.Bottom + 4);
-                flowRow3.Location = new Point(10, flowRow2.Bottom + 4);
-                flowBtns.Location = new Point(10, flowRow3.Bottom + 4);
-                panelHeader.Height = flowBtns.Bottom + 8;
+                flowRow2.Location = new Point(10, flowRow1.Bottom + 2);
+                flowRow3.Location = new Point(10, flowRow2.Bottom + 2);
+                flowBtns.Location = new Point(10, flowRow3.Bottom + 2);
+                panelHeader.Height = flowBtns.Bottom + 4;
 
                 // ── Cập nhật chiều cao panelDelivery và dgvFiles theo panelHeader.Height ──
                 int newH = panelHeader.Height;
                 if (panelDelivery != null)
                 {
+                    panelDelivery.Location = new Point(panelHeader.Width - rightReserved, 8);
                     panelDelivery.Height = newH - 16;
                     if (dgvDelivery != null)
                         dgvDelivery.Height = panelDelivery.Height - 26;
@@ -923,6 +957,7 @@ namespace MPR_Managerment.Forms
             flowRow2.SizeChanged += (s, e) => relayoutHeader();
             flowRow3.SizeChanged += (s, e) => relayoutHeader();
             flowBtns.SizeChanged += (s, e) => relayoutHeader();
+            relayoutHeader(); // Tính chiều cao chính xác ngay khi khởi tạo
 
             // ===== PANEL DETAIL =====
             panelDetail = new Panel { Location = new Point(10, 500), Size = new Size(980, 285), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Left };
@@ -4531,7 +4566,17 @@ var sameProjPOs = _poList.Where(p =>
 
         private void BtnUnlockSupplier_Click(object sender, EventArgs e)
         {
-            if (VerifyAdminPasswordForStatus())
+            // Nếu đang mở thì cho phép khóa lại ngay
+            if (cboSupplier.Enabled)
+            {
+                cboSupplier.Enabled = false;
+                _supplierLocked = true;
+                btnUnlockSupplier.Visible = true;
+                return;
+            }
+
+            // Nếu đang khóa thì yêu cầu xác thực mật khẩu Admin để mở khóa
+            if (VerifyAdminPassword())
             {
                 cboSupplier.Enabled = true;
                 _supplierLocked = false;
@@ -7800,7 +7845,11 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
         {
             var suppliers = new SupplierService().GetAll();
             var supplier  = suppliers.Find(s => s.Supplier_ID == po.Supplier_ID);
-            string toEmail = supplier?.Email ?? "";
+            // Tách nhiều email phân biệt bởi ";" và loại bỏ khoảng trắng thừa
+            string toEmail = string.Join("; ", (supplier?.Email ?? "")
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(e => e.Trim())
+                .Where(e => !string.IsNullOrWhiteSpace(e)));
 
             if (string.IsNullOrWhiteSpace(toEmail))
             {

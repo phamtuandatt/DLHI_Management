@@ -6473,21 +6473,21 @@ ORDER BY DisplayName";
 
             var txtFilter = new TextBox { Location = new Point(10, 36), Size = new Size(490, 24), PlaceholderText = "Lọc nhanh theo tên / email..." };
             var clb = new CheckedListBox { Location = new Point(10, 66), Size = new Size(490, 310), CheckOnClick = true, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 9) };
-            var checkedEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var checkedCompanies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in allSuppliers)
                 clb.Items.Add($"{s.Company_Name}  <{s.Email}>", false);
 
             clb.ItemCheck += (sender, e) =>
             {
                 string itemText = clb.Items[e.Index].ToString() ?? "";
-                int lt = itemText.IndexOf('<'), gt = itemText.IndexOf('>');
-                if (lt >= 0 && gt > lt)
+                int lt = itemText.IndexOf('<');
+                if (lt >= 0)
                 {
-                    string email = itemText.Substring(lt + 1, gt - lt - 1).Trim();
+                    string companyName = itemText.Substring(0, lt).Trim();
                     if (e.NewValue == CheckState.Checked)
-                        checkedEmails.Add(email);
+                        checkedCompanies.Add(companyName);
                     else
-                        checkedEmails.Remove(email);
+                        checkedCompanies.Remove(companyName);
                 }
             };
 
@@ -6500,7 +6500,7 @@ ORDER BY DisplayName";
                     if (string.IsNullOrEmpty(kw) || sup.Company_Name.ToLower().Contains(kw) || sup.Email.ToLower().Contains(kw))
                     {
                         int idx = clb.Items.Add($"{sup.Company_Name}  <{sup.Email}>");
-                        if (!string.IsNullOrEmpty(sup.Email) && checkedEmails.Contains(sup.Email))
+                        if (checkedCompanies.Contains(sup.Company_Name))
                             clb.SetItemChecked(idx, true);
                     }
                 }
@@ -6511,8 +6511,30 @@ ORDER BY DisplayName";
             var btnNext     = new Button { Text = "Tiếp theo ▶", Location = new Point(360, 382), Size = new Size(140, 28), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.OK };
             var btnCancelSel = new Button { Text = "Huỷ", Location = new Point(260, 382), Size = new Size(90, 28), FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.Cancel };
             btnNext.FlatAppearance.BorderSize = 0;
-            btnAll.Click  += (s, e) => { for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, true); };
-            btnNone.Click += (s, e) => { for (int i = 0; i < clb.Items.Count; i++) clb.SetItemChecked(i, false); };
+            btnAll.Click  += (s, e) => { 
+                for (int i = 0; i < clb.Items.Count; i++) 
+                {
+                    clb.SetItemChecked(i, true);
+                    string itemText = clb.Items[i].ToString() ?? "";
+                    int lt = itemText.IndexOf('<');
+                    if (lt >= 0)
+                    {
+                        checkedCompanies.Add(itemText.Substring(0, lt).Trim());
+                    }
+                } 
+            };
+            btnNone.Click += (s, e) => { 
+                for (int i = 0; i < clb.Items.Count; i++) 
+                {
+                    clb.SetItemChecked(i, false);
+                    string itemText = clb.Items[i].ToString() ?? "";
+                    int lt = itemText.IndexOf('<');
+                    if (lt >= 0)
+                    {
+                        checkedCompanies.Remove(itemText.Substring(0, lt).Trim());
+                    }
+                } 
+            };
 
             selDlg.Controls.AddRange(new Control[] { txtFilter, clb, btnAll, btnNone, btnNext, btnCancelSel });
             selDlg.AcceptButton = btnNext; selDlg.CancelButton = btnCancelSel;
@@ -6527,17 +6549,25 @@ ORDER BY DisplayName";
             {
                 if (!clb.GetItemChecked(i)) continue;
                 string itemText = clb.Items[i].ToString() ?? "";
-                int lt = itemText.IndexOf('<'), gt = itemText.IndexOf('>');
-                if (lt < 0 || gt < 0) continue;
-                string email = itemText.Substring(lt + 1, gt - lt - 1).Trim();
-                var sup = allSuppliers.Find(x => x.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+                int lt = itemText.IndexOf('<');
+                if (lt < 0) continue;
+                string companyName = itemText.Substring(0, lt).Trim();
+                var sup = allSuppliers.Find(x => string.Equals(x.Company_Name ?? "", companyName, StringComparison.OrdinalIgnoreCase));
                 if (sup != null)
                 {
-                    selectedEmails.Add(sup.Email);
+                    selectedEmails.AddRange((sup.Email ?? "")
+                        .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(e => e.Trim())
+                        .Where(e => !string.IsNullOrWhiteSpace(e)));
+
                     selectedNames.Add(sup.Company_Name);
                     selectedSuppliers.Add(sup);
                 }
             }
+
+            selectedEmails = selectedEmails
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             if (selectedEmails.Count == 0)
             {
