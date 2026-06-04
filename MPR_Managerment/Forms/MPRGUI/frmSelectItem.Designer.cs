@@ -39,6 +39,7 @@
             btnRefresh = new Button();
             cboMaterial = new ComboBox();
             btnAddProduct = new Button();
+            btnReload = new Button();
             tableLayoutPanel3 = new TableLayoutPanel();
             lblStatus = new Label();
             groupBox1 = new GroupBox();
@@ -49,7 +50,6 @@
             btnCancels = new Button();
             button6 = new Button();
             button7 = new Button();
-            btnReload = new Button();
             tableLayoutPanel1.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
@@ -185,6 +185,17 @@
             btnAddProduct.Text = "Thêm vật tư";
             btnAddProduct.UseVisualStyleBackColor = true;
             btnAddProduct.Click += btnAddProduct_Click;
+            // 
+            // btnReload
+            // 
+            btnReload.Dock = DockStyle.Fill;
+            btnReload.Location = new Point(994, 3);
+            btnReload.Name = "btnReload";
+            btnReload.Size = new Size(144, 26);
+            btnReload.TabIndex = 5;
+            btnReload.Text = "Làm mới";
+            btnReload.UseVisualStyleBackColor = true;
+            btnReload.Click += btnReload_Click;
             // 
             // tableLayoutPanel3
             // 
@@ -323,17 +334,6 @@
             button7.Text = "button3";
             button7.UseVisualStyleBackColor = true;
             button7.Visible = false;
-            // 
-            // btnReload
-            // 
-            btnReload.Dock = DockStyle.Fill;
-            btnReload.Location = new Point(994, 3);
-            btnReload.Name = "btnReload";
-            btnReload.Size = new Size(144, 26);
-            btnReload.TabIndex = 5;
-            btnReload.Text = "Làm mới";
-            btnReload.UseVisualStyleBackColor = true;
-            btnReload.Click += btnReload_Click;
             // 
             // frmSelectItem
             // 

@@ -456,7 +456,7 @@ namespace MPR_Managerment.Forms.MPRGUI
 
         private void btnRefresh_Click(object sender, EventArgs e)
         {
-            frmShowImage frm = new frmShowImage(@"D:\RAC\Image");
+            frmShowImage frm = new frmShowImage(@"\\Dlhivina\SHARE\Old\Stationery");
             frm.ShowDialog();
         }
 
