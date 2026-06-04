@@ -2217,57 +2217,153 @@ namespace MPR_Managerment.Forms
             dgvDet.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
             dgvDet.EnableHeadersVisualStyles = false;
 
-            dgvDet.CellDoubleClick += (e, s) =>
+            dgvDet.CellDoubleClick += (sender, e) =>
             {
-                //frmSelectItem frmSelectItem = new frmSelectItem();
-                //frmSelectItem.ShowDialog();
+                // Bỏ qua nếu click vào header
+                if (e.RowIndex < 0) return;
 
-                //if (frmSelectItem.selectedItems.Count <= 0) return;
+                var clickedRow = dgvDet.Rows[e.RowIndex];
                 
-                //// Tìm vị trí insert (trước dòng TOTAL nếu có)
-                //int totalRowIndex = -1;
-                //for (int i = dgvDet.Rows.Count - 1; i >= 0; i--)
-                //{
-                //    if (!dgvDet.Rows[i].IsNewRow && dgvDet.Rows[i].Tag?.ToString() == "TOTAL")
-                //    {
-                //        totalRowIndex = i;
-                //        break;
-                //    }
-                //}
-                
-                //int insertAt = (totalRowIndex >= 0) ? totalRowIndex : dgvDet.Rows.Count;
-                
-                //foreach (var item in frmSelectItem.selectedItems)
-                //{
-                //    dgvDet.Rows.Insert(insertAt, 1);
-                //    dgvDet.Rows[insertAt].Cells["item_name"].Value = item.Name;
-                //    dgvDet.Rows[insertAt].Cells["Description"].Value = item.Des2;
-                //    dgvDet.Rows[insertAt].Cells["Material"].Value = item.ProdMaterialCode;
-                //    dgvDet.Rows[insertAt].Cells["Thickness_mm"].Value = item.A_Thickness;
-                //    dgvDet.Rows[insertAt].Cells["Depth_mm"].Value = item.B_Depth;
-                //    dgvDet.Rows[insertAt].Cells["C_Width_mm"].Value = item.C_Width;
-                //    dgvDet.Rows[insertAt].Cells["D_Web_mm"].Value = item.D_Web;
-                //    dgvDet.Rows[insertAt].Cells["E_Flange_mm"].Value = item.E_Flag;
-                //    dgvDet.Rows[insertAt].Cells["F_Length_mm"].Value = item.F_Length;
-                //    dgvDet.Rows[insertAt].Cells["UNIT"].Value = "";
-                //    dgvDet.Rows[insertAt].Cells["Weight_kg"].Value = item.G_Weight;
-                //    dgvDet.Rows[insertAt].Cells["Id"].Value = item.Id;
+                // Bỏ qua nếu double click vào dòng TOTAL
+                if (clickedRow.Tag?.ToString() == "TOTAL") return;
+
+                // Kiểm tra dòng có dữ liệu hay không (kiểm tra cột item_name)
+                string itemName = clickedRow.Cells["item_name"].Value?.ToString()?.Trim() ?? "";
+                bool isEmptyRow = string.IsNullOrEmpty(itemName);
+
+                // Mở form chọn item
+                frmSelectItem frmSelectItem = new frmSelectItem();
+                frmSelectItem.ShowDialog();
+
+                // Nếu không chọn item nào thì không làm gì
+                if (frmSelectItem.selectedItems == null || frmSelectItem.selectedItems.Count <= 0) return;
+
+                // Tìm vị trí dòng TOTAL
+                int totalRowIndex = -1;
+                for (int i = dgvDet.Rows.Count - 1; i >= 0; i--)
+                {
+                    if (!dgvDet.Rows[i].IsNewRow && dgvDet.Rows[i].Tag?.ToString() == "TOTAL")
+                    {
+                        totalRowIndex = i;
+                        break;
+                    }
+                }
+
+                if (isEmptyRow)
+                {
+                    // Dòng trống: item đầu tiên điền vào chính dòng đang double click.
+                    // Nếu chọn nhiều item thì các item còn lại được chèn thêm phía dưới dòng hiện tại.
+                    int insertAt = e.RowIndex;
+
+                    for (int selectedIndex = 0; selectedIndex < frmSelectItem.selectedItems.Count; selectedIndex++)
+                    {
+                        var item = frmSelectItem.selectedItems[selectedIndex];
+                        DataGridViewRow targetRow;
+
+                        if (selectedIndex == 0)
+                        {
+                            targetRow = clickedRow;
+                        }
+                        else
+                        {
+                            insertAt++;
+
+                            // Không chèn sau dòng TOTAL
+                            if (totalRowIndex >= 0 && insertAt > totalRowIndex)
+                                insertAt = totalRowIndex;
+
+                            dgvDet.Rows.Insert(insertAt, 1);
+                            targetRow = dgvDet.Rows[insertAt];
+
+                            if (totalRowIndex >= 0) totalRowIndex++;
+                        }
+
+                        targetRow.Cells["item_name"].Value = item.Name;
+                        targetRow.Cells["Description"].Value = item.Des2;
+                        targetRow.Cells["Material"].Value = item.ProdMaterialCode;
+                        targetRow.Cells["Thickness_mm"].Value = item.A_Thickness;
+                        targetRow.Cells["Depth_mm"].Value = item.B_Depth;
+                        targetRow.Cells["C_Width_mm"].Value = item.C_Width;
+                        targetRow.Cells["D_Web_mm"].Value = item.D_Web;
+                        targetRow.Cells["E_Flange_mm"].Value = item.E_Flag;
+                        targetRow.Cells["F_Length_mm"].Value = item.F_Length;
+                        targetRow.Cells["UNIT"].Value = item.Unit;
+                        targetRow.Cells["Weight_kg"].Value = item.G_Weight;
+                        targetRow.Cells["Id"].Value = item.Id;
+                        targetRow.Cells["ProductCode"].Value = item.Code ?? "";
+                    }
+                }
+                else
+                {
+                    // Dòng có dữ liệu: thêm các item được chọn vào phía dưới dòng hiện tại
+                    // Insert sau dòng được double click, nhưng trước dòng TOTAL
+                    int insertAt = e.RowIndex + 1;
                     
-                //    insertAt++;
-                //    if (totalRowIndex >= 0) totalRowIndex++;
-                //}
-                
-                //// Cập nhật lại Item_No cho tất cả các dòng (trừ TOTAL)
-                //int itemNo = 1;
-                //foreach (DataGridViewRow row in dgvDet.Rows)
-                //{
-                //    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
-                //    {
-                //        row.Cells["Item_No"].Value = itemNo++;
-                //    }
-                //}
-                
-                //RebuildTotalRow();
+                    // Nếu insert vượt qua TOTAL, điều chỉnh lại
+                    if (totalRowIndex >= 0 && insertAt > totalRowIndex)
+                        insertAt = totalRowIndex;
+
+                    foreach (var item in frmSelectItem.selectedItems)
+                    {
+                        dgvDet.Rows.Insert(insertAt, 1);
+                        dgvDet.Rows[insertAt].Cells["item_name"].Value = item.Name;
+                        dgvDet.Rows[insertAt].Cells["Description"].Value = item.Des2;
+                        dgvDet.Rows[insertAt].Cells["Material"].Value = item.ProdMaterialCode;
+                        dgvDet.Rows[insertAt].Cells["Thickness_mm"].Value = item.A_Thickness;
+                        dgvDet.Rows[insertAt].Cells["Depth_mm"].Value = item.B_Depth;
+                        dgvDet.Rows[insertAt].Cells["C_Width_mm"].Value = item.C_Width;
+                        dgvDet.Rows[insertAt].Cells["D_Web_mm"].Value = item.D_Web;
+                        dgvDet.Rows[insertAt].Cells["E_Flange_mm"].Value = item.E_Flag;
+                        dgvDet.Rows[insertAt].Cells["F_Length_mm"].Value = item.F_Length;
+                        dgvDet.Rows[insertAt].Cells["UNIT"].Value = item.Unit;
+                        dgvDet.Rows[insertAt].Cells["Weight_kg"].Value = item.G_Weight;
+                        dgvDet.Rows[insertAt].Cells["Id"].Value = item.Id;
+                        dgvDet.Rows[insertAt].Cells["ProductCode"].Value = item.Code ?? "";
+
+                        insertAt++;
+                        if (totalRowIndex >= 0) totalRowIndex++;
+                    }
+                }
+
+                // Cập nhật lại Item_No cho tất cả các dòng (trừ TOTAL)
+                int itemNo = 1;
+                foreach (DataGridViewRow row in dgvDet.Rows)
+                {
+                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
+                    {
+                        row.Cells["Item_No"].Value = itemNo++;
+                    }
+                }
+
+                RebuildTotalRow();
+
+                // Focus vào dòng vừa được thao tác
+                if (isEmptyRow)
+                {
+                    // Nếu là dòng trống, focus vào dòng cuối cùng vừa điền/chèn
+                    int lastInsertedRow = e.RowIndex + frmSelectItem.selectedItems.Count - 1;
+                    if (totalRowIndex >= 0 && lastInsertedRow >= totalRowIndex)
+                        lastInsertedRow = totalRowIndex - 1;
+
+                    if (lastInsertedRow >= 0 && lastInsertedRow < dgvDet.Rows.Count)
+                    {
+                        dgvDet.CurrentCell = dgvDet.Rows[lastInsertedRow].Cells[1];
+                        dgvDet.BeginEdit(true);
+                    }
+                }
+                else
+                {
+                    // Nếu thêm mới, focus vào dòng cuối cùng vừa thêm
+                    int lastInsertedRow = e.RowIndex + frmSelectItem.selectedItems.Count;
+                    if (totalRowIndex >= 0 && lastInsertedRow >= totalRowIndex)
+                        lastInsertedRow = totalRowIndex - 1;
+                    
+                    if (lastInsertedRow >= 0 && lastInsertedRow < dgvDet.Rows.Count)
+                    {
+                        dgvDet.CurrentCell = dgvDet.Rows[lastInsertedRow].Cells[1];
+                        dgvDet.BeginEdit(true);
+                    }
+                }
             };
 
             dgvDet.CellFormatting += (s, e) =>
@@ -2631,14 +2727,6 @@ namespace MPR_Managerment.Forms
             // -- THÊM DÒNG
             btnAddRow.Click += (s, e) =>
             {
-                // Mở form chọn item trước, không thêm dòng trắng sẵn
-                frmSelectItem frmSelectItem = new frmSelectItem();
-                frmSelectItem.ShowDialog();
-
-                // Nếu không chọn item nào thì không làm gì
-                if (frmSelectItem.selectedItems == null || frmSelectItem.selectedItems.Count <= 0) return;
-
-                // Tìm vị trí dòng TOTAL
                 int totalRowIndex = -1;
                 for (int i = dgvDet.Rows.Count - 1; i >= 0; i--)
                 {
@@ -2648,52 +2736,10 @@ namespace MPR_Managerment.Forms
                         break;
                     }
                 }
-                
+
                 // Insert trước dòng TOTAL
                 int insertAt = (totalRowIndex >= 0) ? totalRowIndex : dgvDet.Rows.Count;
-                
-                // Với mỗi item được chọn, thêm 1 dòng mới vào dgvDet
-                foreach (var item in frmSelectItem.selectedItems)
-                {
-                    dgvDet.Rows.Insert(insertAt, 1);
-                    dgvDet.Rows[insertAt].Cells["item_name"].Value = item.Name;
-                    dgvDet.Rows[insertAt].Cells["Description"].Value = item.Des2;
-                    dgvDet.Rows[insertAt].Cells["Material"].Value = item.ProdMaterialCode;
-                    dgvDet.Rows[insertAt].Cells["Thickness_mm"].Value = item.A_Thickness;
-                    dgvDet.Rows[insertAt].Cells["Depth_mm"].Value = item.B_Depth;
-                    dgvDet.Rows[insertAt].Cells["C_Width_mm"].Value = item.C_Width;
-                    dgvDet.Rows[insertAt].Cells["D_Web_mm"].Value = item.D_Web;
-                    dgvDet.Rows[insertAt].Cells["E_Flange_mm"].Value = item.E_Flag;
-                    dgvDet.Rows[insertAt].Cells["F_Length_mm"].Value = item.F_Length;
-                    dgvDet.Rows[insertAt].Cells["UNIT"].Value = item.Unit;
-                    dgvDet.Rows[insertAt].Cells["Weight_kg"].Value = item.G_Weight;
-                    dgvDet.Rows[insertAt].Cells["Id"].Value = item.Id;
-
-                    dgvDet.Rows[insertAt].Cells["ProductCode"].Value = item.Code ?? "";
-
-                    insertAt++;
-                    if (totalRowIndex >= 0) totalRowIndex++;
-                }
-
-                // Cập nhật lại Item_No cho tất cả các dòng (trừ TOTAL)
-                int itemNo = 1;
-                foreach (DataGridViewRow row in dgvDet.Rows)
-                {
-                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
-                    {
-                        row.Cells["Item_No"].Value = itemNo++;
-                    }
-                }
-                
-                RebuildTotalRow();
-
-                // Focus vào ô đầu tiên của dòng vừa thêm cuối cùng
-                int lastDataRow = insertAt - 1;
-                if (lastDataRow >= 0 && lastDataRow < dgvDet.Rows.Count)
-                {
-                    dgvDet.CurrentCell = dgvDet.Rows[lastDataRow].Cells[1]; // Focus vào cột item_name
-                    dgvDet.BeginEdit(true);
-                }
+                dgvDet.Rows.Insert(insertAt, 1);
             };
 
             // -- XÓA DÒNG
@@ -2722,7 +2768,7 @@ namespace MPR_Managerment.Forms
                         int itemNo = 1;
                         foreach (DataGridViewRow row in dgvDet.Rows)
                             if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
-                        Common.Common.AutoAdjustColumnWidths(dgvDet);
+                        //Common.Common.AutoAdjustColumnWidths(dgvDet);
                     }
                     catch (Exception ex)
                     {
