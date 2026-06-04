@@ -2492,7 +2492,7 @@ namespace MPR_Managerment.Forms
 
                 string where = "WHERE 1=1";
                 if (!string.IsNullOrEmpty(search))
-                    where += $" AND (h.RIR_No LIKE N'%{search}%' OR h.PONo LIKE N'%{search}%' OR h.Project_Name LIKE N'%{search}%')";
+                    where += $" AND (h.RIR_No LIKE N'%{search}%' OR h.PONo LIKE N'%{search}%' OR h.Project_Name LIKE N'%{search}%' OR pi.ProjectCode LIKE N'%{search}%')";
                 if (filter != "Tất cả")
                     where += $" AND h.Status = N'{filter}'";
 
@@ -2502,7 +2502,7 @@ namespace MPR_Managerment.Forms
                         h.RIR_No                                            AS [RIR No],
                         h.PONo                                              AS [PO No],
                         h.MPR_No                                            AS [MPR No],
-                        h.Project_Name                                      AS [Dự án],
+                        ISNULL(pi.ProjectCode, h.Project_Name)             AS [Mã dự án],
                         h.Issue_Date                                        AS [Ngày phát hành],
                         h.Customer                                          AS [Khách hàng],
                         h.Status                                            AS [Trạng thái],
@@ -2518,8 +2518,10 @@ namespace MPR_Managerment.Forms
                         END                                                 AS [% Pass]
                     FROM RIR_head h
                     LEFT JOIN RIR_detail d ON h.RIR_ID = d.RIR_ID
+                    LEFT JOIN PO_head po ON po.PONo = h.PONo
+                    LEFT JOIN ProjectInfo pi ON pi.ProjectCode = po.ProjectCode
                     {where}
-                    GROUP BY h.RIR_ID, h.RIR_No, h.PONo, h.MPR_No, h.Project_Name,
+                    GROUP BY h.RIR_ID, h.RIR_No, h.PONo, h.MPR_No, ISNULL(pi.ProjectCode, h.Project_Name),
                              h.Issue_Date, h.Customer, h.Status
                     ORDER BY h.Issue_Date DESC";
 

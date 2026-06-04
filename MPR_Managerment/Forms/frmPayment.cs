@@ -80,9 +80,16 @@ namespace MPR_Managerment.Forms
         {
             InitializeComponent();
             BuildUI();
-            LoadData();
+            // Deferred loading: Load data sau khi form hiển thị để tránh blocking UI
+            this.Shown += FrmPayment_Shown;
             this.Resize += (s, e) => ResizeAll();
             frmAIChat.Attach(this);
+        }
+
+        private async void FrmPayment_Shown(object sender, EventArgs e)
+        {
+            this.Shown -= FrmPayment_Shown;  // Chỉ chạy 1 lần
+            await LoadDataAsync();
         }
 
         // Mở với filter sẵn theo PO No (gọi từ frmPO)
@@ -737,6 +744,104 @@ namespace MPR_Managerment.Forms
             dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Due", HeaderText = "Đến hạn", Width = 85, ReadOnly = true });
         }
 
+        // Async loading với parallel queries để tăng tốc
+        private async System.Threading.Tasks.Task LoadDataAsync()
+        {
+            btnRefreshPO.Enabled = false;
+            btnRefreshPO.Text = "⏳ Đang tải...";
+
+            try
+            {
+                // Chạy 3 nguồn dữ liệu song song
+                await System.Threading.Tasks.Task.WhenAll(
+                    LoadSuppliersAsync(),
+                    LoadPOSummaryAsync(),
+                    LoadPrintHistoryAsync(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1).AddSeconds(-1))
+                );
+            }
+            catch (Exception ex)
+            {
+                Err($"Lỗi tải dữ liệu: {ex.Message}");
+            }
+            finally
+            {
+                btnRefreshPO.Enabled = true;
+                btnRefreshPO.Text = "🔄 Làm mới";
+            }
+        }
+
+        // Load suppliers async
+        private async System.Threading.Tasks.Task LoadSuppliersAsync()
+        {
+            await System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    _allSuppliers = _suppSvc.GetAll();
+                }
+                catch { _allSuppliers = new List<Supplier>(); }
+            }).ConfigureAwait(false);
+
+            // Update UI on main thread
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() =>
+                {
+                    cboSuppFilter.Items.Clear();
+                    cboSuppFilter.Items.Add("Tất cả nhà cung cấp");
+                    foreach (var s in _allSuppliers)
+                        cboSuppFilter.Items.Add(s.Company_Name ?? s.Supplier_Name);
+                    if (cboSuppFilter.Items.Count > 0)
+                        cboSuppFilter.SelectedIndex = 0;
+                }));
+            }
+            else
+            {
+                cboSuppFilter.Items.Clear();
+                cboSuppFilter.Items.Add("Tất cả nhà cung cấp");
+                foreach (var s in _allSuppliers)
+                    cboSuppFilter.Items.Add(s.Company_Name ?? s.Supplier_Name);
+                if (cboSuppFilter.Items.Count > 0)
+                    cboSuppFilter.SelectedIndex = 0;
+            }
+        }
+
+        // Load PO summary async
+        private async System.Threading.Tasks.Task LoadPOSummaryAsync()
+        {
+            var result = await System.Threading.Tasks.Task.Run(() =>
+            {
+                var summaries = _svc.GetPOSummaries();
+                var allScheds = _svc.GetAllSchedules();
+                var cache = allScheds
+                    .GroupBy(s => s.PO_ID)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+                return (summaries, cache);
+            }).ConfigureAwait(false);
+
+            _poSummaries = result.summaries;
+            _allSchedulesCache = result.cache;
+
+            // Update grid on main thread
+            if (this.InvokeRequired)
+                this.Invoke(new Action(FilterAndBind));
+            else
+                FilterAndBind();
+        }
+
+        // Load print history async
+        private async System.Threading.Tasks.Task LoadPrintHistoryAsync(DateTime from, DateTime to)
+        {
+            await System.Threading.Tasks.Task.Run(() =>
+            {
+                if (this.InvokeRequired)
+                    this.Invoke(new Action(() => LoadPrintHistory(from, to)));
+                else
+                    LoadPrintHistory(from, to);
+            }).ConfigureAwait(false);
+        }
+
+        // Synchronous wrapper for backward compatibility
         private void LoadData()
         {
             try
@@ -751,7 +856,6 @@ namespace MPR_Managerment.Forms
             catch { }
             LoadPOSummary();
             LoadPrintHistory(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1).AddSeconds(-1));
-            // LoadPaymentProgress phụ thuộc PO được chọn — bỏ qua khi LoadData()
         }
 
         private async void LoadPOSummary()
@@ -864,7 +968,28 @@ namespace MPR_Managerment.Forms
             else if (status != "Tất cả")
                 displayList = displayList.FindAll(p => p.TT_Status == status);
 
-            dgvPO.DataSource = displayList;
+            // Grid binding suspension để tránh event firing quá nhiều
+            dgvPO.SuspendLayout();
+            try
+            {
+                // Tách event handlers trước khi bind
+                dgvPO.SelectionChanged -= DgvPO_SelectionChanged;
+                dgvPO.CellFormatting -= DgvPO_CellFormatting;
+
+                // Bind data
+                dgvPO.DataSource = displayList;
+
+                // Gắn lại event handlers
+                dgvPO.CellFormatting += DgvPO_CellFormatting;
+                dgvPO.SelectionChanged += DgvPO_SelectionChanged;
+                
+                // Force redraw
+                dgvPO.Invalidate();
+            }
+            finally
+            {
+                dgvPO.ResumeLayout(true);
+            }
         }
 
         private void LoadSchedHist()
@@ -1322,6 +1447,7 @@ namespace MPR_Managerment.Forms
             progressPO.Value = pct;
             lblPOProgress.Text = $"{pct}%";
 
+            // Load trực tiếp trên UI thread để tránh cross-thread khi cập nhật grid/label
             LoadSchedHist();
             LoadDocuments();
         }
@@ -1538,25 +1664,29 @@ private void BtnAddSched_Click(object sender, EventArgs e)
                 // Chỉ reload schedule/history của PO này — không reload toàn bộ grid PO
                 LoadSchedHist();
 
-                // Reload dữ liệu từ DB trên background thread
-                await System.Threading.Tasks.Task.Run(() =>
+                // Reload dữ liệu từ DB trên background thread, sau đó cập nhật UI trên main thread
+                var reloadResult = await System.Threading.Tasks.Task.Run(() =>
                 {
                     try
                     {
-                        // Cập nhật cache schedules
                         var newScheds = _svc.GetSchedules(savedPoId);
-                        _allSchedulesCache[savedPoId] = newScheds;
-
-                        // Reload lại summary của PO này từ DB để lấy Next_Due_Date mới nhất
                         var freshSummary = _svc.GetPOSummary(savedPoId);
-                        if (freshSummary != null)
-                        {
-                            int idx = _poSummaries.FindIndex(p => p.PO_ID == savedPoId);
-                            if (idx >= 0) _poSummaries[idx] = freshSummary;
-                        }
+                        return (newScheds, freshSummary);
                     }
-                    catch { }
+                    catch
+                    {
+                        return ((List<PaymentSchedule>)null, (POPaymentSummary)null);
+                    }
                 });
+
+                if (reloadResult.Item1 != null)
+                    _allSchedulesCache[savedPoId] = reloadResult.Item1;
+
+                if (reloadResult.Item2 != null)
+                {
+                    int idx = _poSummaries.FindIndex(p => p.PO_ID == savedPoId);
+                    if (idx >= 0) _poSummaries[idx] = reloadResult.Item2;
+                }
 
                 // Refresh grid PO nhưng giữ nguyên dòng đang chọn
                 FilterAndBind();

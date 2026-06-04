@@ -3457,12 +3457,17 @@ namespace MPR_Managerment.Forms
                         decimal budget = proj?.PJBudget ?? 0;
                         string projectCode = proj?.ProjectCode ?? workorderNo;
 
-                        // ── 2. Tất cả PO cùng project ──
+                        // ── 2. Tất cả PO cùng project (loại bỏ các PO đã huỷ - Cancelled/Cancel) ──
                         var sameProjPOs = _poList.Where(p =>
-                            (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrEmpty(p.Project_Name) && p.Project_Name.Equals(projName, StringComparison.OrdinalIgnoreCase)))
+                            ((!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                             (!string.IsNullOrEmpty(p.Project_Name) && p.Project_Name.Equals(projName, StringComparison.OrdinalIgnoreCase)))
+                            && !string.Equals(p.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(p.Status, "Cancel", StringComparison.OrdinalIgnoreCase))
                             .OrderBy(p => p.PONo).ToList();
-                        if (!sameProjPOs.Any()) sameProjPOs = new List<POHead> { selPO };
+                        if (!sameProjPOs.Any() 
+                            && !string.Equals(selPO.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(selPO.Status, "Cancel", StringComparison.OrdinalIgnoreCase)) 
+                            sameProjPOs = new List<POHead> { selPO };
 
                         // ── 3. Load MPR Notes cho từng PO (PO Description = Notes của MPR tương ứng) ──
                         var mprNotes = new Dictionary<string, string>(); // MPR_No → Notes
