@@ -31,8 +31,9 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvPO;
         private DataGridView dgvDocPO; // Document: INV + Delivery theo PO đang chọn
         private TextBox txtSearch;
-        private Button btnSearch, btnNewPO, btnDeletePO, btnClearHeader, btnExport, btnSavePO;
+        private Button btnSearch, btnNewPO, btnDeletePO, btnClearHeader, btnExport, btnSavePO, btnUnlockSupplier;
         private Button btnSearchBySupp, btnPOStatus;
+        private bool _supplierLocked = false;
         private Label lblStatus;
 
         private TextBox txtPONo, txtProjectName, txtWorkorderNo, txtMPRNo;
@@ -712,32 +713,34 @@ namespace MPR_Managerment.Forms
                 return row;
             }
 
-            // ── Row 1 (y=35): PO No | Tên dự án | Workorder | MPR No ──
+            // ── Row 1 (y=35): PO No | Tên dự án | Workorder | MPR No | Nhà CC ──
             var flowRow1 = MakeRow(35);
             txtPONo = new TextBox { Width = 100, Font = new Font("Segoe UI", 9) };
             txtProjectName = new TextBox { Width = 160, Font = new Font("Segoe UI", 9) };
             txtWorkorderNo = new TextBox { Width = 120, Font = new Font("Segoe UI", 9) };
             txtMPRNo = new TextBox { Width = 220, Font = new Font("Segoe UI", 9) };
             txtMPRNo.Leave += async (s, e) => await LoadMPRFilesAsync();
-            flowRow1.Controls.Add(MakeField("PO No (*):", txtPONo, 60));
-            flowRow1.Controls.Add(MakeField("Tên dự án:", txtProjectName, 65));
-            flowRow1.Controls.Add(MakeField("Workorder:", txtWorkorderNo, 65));
-            flowRow1.Controls.Add(MakeField("MPR No:", txtMPRNo, 55));
 
-            // ── Row 2 (y=71): Nhà CC | Ngày PO | Trạng thái | Revise ──
-            var flowRow2 = MakeRow(71);
             cboSupplier = new ComboBox { Width = 250, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.None, DropDownWidth = 600, MaxDropDownItems = 20 };
             cboSupplier.Validating += CboSupplier_Validating;
             cboSupplier.SelectedIndexChanged += CboSupplier_SelectedIndexChanged;
             cboSupplier.TextChanged += CboSupplier_TextChanged;
             cboSupplier.KeyDown += CboSupplier_KeyDown;
+
+            flowRow1.Controls.Add(MakeField("PO No (*):", txtPONo, 60));
+            flowRow1.Controls.Add(MakeField("Tên dự án:", txtProjectName, 65));
+            flowRow1.Controls.Add(MakeField("Workorder:", txtWorkorderNo, 65));
+            flowRow1.Controls.Add(MakeField("MPR No:", txtMPRNo, 55));
+            flowRow1.Controls.Add(MakeField("Nhà CC:", cboSupplier, 50));
+
+            // ── Row 2 (y=71): Ngày PO | Trạng thái | Revise ──
+            var flowRow2 = MakeRow(71);
             // LoadSupplierCombo() được gọi async trong Shown event
             dtpPODate = new DateTimePicker { Width = 108, Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short };
             cboStatus = new ComboBox { Width = 108, Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
             cboStatus.Items.AddRange(new[] { "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
             cboStatus.SelectedIndex = 0; // Draft
             nudRevise = new NumericUpDown { Width = 52, Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
-            flowRow2.Controls.Add(MakeField("Nhà CC:", cboSupplier, 50));
             flowRow2.Controls.Add(MakeField("Ngày PO:", dtpPODate, 60));
 
             // ── Trạng thái + nút 🔓 unlock bằng mật khẩu Admin ──
@@ -864,6 +867,11 @@ namespace MPR_Managerment.Forms
             btnClearHeader = CreateButton("Làm mới", Color.FromArgb(108, 117, 125), Point.Empty, 100, 32);
             btnClearHeader.Margin = new Padding(0, 0, 6, 0); btnClearHeader.Tag = "100,32";
             btnClearHeader.Click += BtnClearHeader_Click;
+
+            btnUnlockSupplier = CreateButton("🔓 Mở khóa NCC", Color.FromArgb(255, 140, 0), Point.Empty, 125, 32);
+            btnUnlockSupplier.Margin = new Padding(0, 0, 6, 0); btnUnlockSupplier.Tag = "125,32";
+            btnUnlockSupplier.Visible = false;
+            btnUnlockSupplier.Click += BtnUnlockSupplier_Click;
             var btnImportMPR = CreateButton("Import MPR", Color.FromArgb(255, 140, 0), Point.Empty, 120, 32); btnImportMPR.Tag = "120,32";
             btnImportMPR.Margin = new Padding(0, 0, 6, 0);
             btnImportMPR.Click += BtnImportMPR_Click;
@@ -872,6 +880,7 @@ namespace MPR_Managerment.Forms
             btnHistory.Click += (s, e) => { if (string.IsNullOrEmpty(txtPONo.Text)) { SafeWarn("Vui lòng chọn một PO trước!"); return; } new frmReviseHistory(txtPONo.Text).ShowDialog(); };
             flowBtns.Controls.Add(btnSavePO);
             flowBtns.Controls.Add(btnClearHeader);
+            flowBtns.Controls.Add(btnUnlockSupplier);
             flowBtns.Controls.Add(btnImportMPR);
             flowBtns.Controls.Add(btnHistory);
 
@@ -3458,15 +3467,15 @@ namespace MPR_Managerment.Forms
                         string projectCode = proj?.ProjectCode ?? workorderNo;
 
                         // ── 2. Tất cả PO cùng project (loại bỏ các PO đã huỷ - Cancelled/Cancel) ──
-                        var sameProjPOs = _poList.Where(p =>
-                            ((!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
-                             (!string.IsNullOrEmpty(p.Project_Name) && p.Project_Name.Equals(projName, StringComparison.OrdinalIgnoreCase)))
-                            && !string.Equals(p.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
-                            && !string.Equals(p.Status, "Cancel", StringComparison.OrdinalIgnoreCase))
-                            .OrderBy(p => p.PONo).ToList();
+var sameProjPOs = _poList.Where(p =>
+    ((!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
+         (!string.IsNullOrEmpty(p.Project_Name) && p.Project_Name.Equals(projName, StringComparison.OrdinalIgnoreCase)))
+    && !string.Equals(p.Status?.Trim(), "Cancelled", StringComparison.OrdinalIgnoreCase)
+    && !string.Equals(p.Status?.Trim(), "Cancel", StringComparison.OrdinalIgnoreCase))
+    .OrderBy(p => p.PONo).ToList();
                         if (!sameProjPOs.Any() 
-                            && !string.Equals(selPO.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
-                            && !string.Equals(selPO.Status, "Cancel", StringComparison.OrdinalIgnoreCase)) 
+                            && !string.Equals(selPO.Status?.Trim(), "Cancelled", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(selPO.Status?.Trim(), "Cancel", StringComparison.OrdinalIgnoreCase)) 
                             sameProjPOs = new List<POHead> { selPO };
 
                         // ── 3. Load MPR Notes cho từng PO (PO Description = Notes của MPR tương ứng) ──
@@ -4508,8 +4517,27 @@ namespace MPR_Managerment.Forms
             LoadDeliveries();
             LoadDocumentsPO();
 
+            // Khóa NCC đối với PO đã tồn tại
+            if (h.Supplier_ID > 0)
+            {
+                cboSupplier.Enabled = false;
+                _supplierLocked = true;
+                btnUnlockSupplier.Visible = true;
+            }
+
             // Kiểm tra tự động khi mở PO — không thông báo, chỉ cập nhật UI/DB lặng lẽ
             CheckAndAutoCompleteStatus(_selectedPO_ID, silent: true);
+        }
+
+        private void BtnUnlockSupplier_Click(object sender, EventArgs e)
+        {
+            if (VerifyAdminPasswordForStatus())
+            {
+                cboSupplier.Enabled = true;
+                _supplierLocked = false;
+                btnUnlockSupplier.Visible = false;
+                SafeInfo("Đã mở khóa lựa chọn Nhà cung cấp. Vui lòng cẩn trọng khi thay đổi NCC cho PO đã có dữ liệu!", "Mở khóa");
+            }
         }
 
         private void BtnNewPO_Click(object sender, EventArgs e)
@@ -4518,6 +4546,7 @@ namespace MPR_Managerment.Forms
             ClearHeader(); _selectedPO_ID = 0; dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
             dgvDelivery.Rows.Clear();
             UpdateTotal(); txtPONo.Focus(); lblStatus.Text = "Đang tạo đơn PO mới...";
+            cboSupplier.Enabled = true; _supplierLocked = false; btnUnlockSupplier.Visible = false;
         }
 
         // =========================================================================
@@ -6879,6 +6908,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             _isSearching = true; cboSupplier.Text = ""; cboSupplier.SelectedIndex = -1;
             BindSupplierCombo(_supplierTable); _isSearching = false;
             cboSupplier.BackColor = Color.White;
+            cboSupplier.Enabled = true; _supplierLocked = false; btnUnlockSupplier.Visible = false;
         }
 
         // =========================================================================

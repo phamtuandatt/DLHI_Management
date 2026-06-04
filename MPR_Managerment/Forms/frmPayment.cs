@@ -2640,114 +2640,324 @@ private void ResizeAll()
     // ═══════════════════════════════════════════════════════════
     public class frmPaymentRequestPreview : Form
     {
-        private object _po;
-        private string _mprNo;
-        private object _details;
-        private object _supp;
-        private object _schedules;
+        private readonly POPaymentSummary _po;
+        private readonly string _mprNo;
+        private readonly List<PODetail> _details;
+        private readonly Supplier _supp;
+        private readonly List<PaymentSchedule> _schedules;
 
-        public frmPaymentRequestPreview(object po, string mprNo, object details, object supp, object schedules)
+        private DateTimePicker dtpDate;
+        private TextBox txtBenef, txtBankAcc, txtBankName;
+        private ComboBox cboDot;          // Chọn đợt thanh toán
+        private RichTextBox rtbPreview;
+
+        public frmPaymentRequestPreview(POPaymentSummary po, string mprNo,
+            List<PODetail> details, Supplier supp,
+            List<PaymentSchedule> schedules = null)
         {
             _po = po;
             _mprNo = mprNo;
             _details = details;
-            _supp = supp;
-            _schedules = schedules;
+            _supp = supp ?? new Supplier();
+            _schedules = schedules ?? new List<PaymentSchedule>();
+            BuildUI();
+            GeneratePreview();
+        }
 
-            this.Text = "Payment Request Preview";
-            this.Size = new Size(900, 650);
+        private string GetPropValue(object obj, params string[] propNames)
+        {
+            if (obj == null) return "";
+            var type = obj.GetType();
+            foreach (var name in propNames)
+            {
+                var prop = type.GetProperty(name);
+                if (prop != null)
+                {
+                    return prop.GetValue(obj, null)?.ToString() ?? "";
+                }
+            }
+            return "";
+        }
+
+        private void BuildUI()
+        {
+            this.Text = "📄 Trích xuất Payment Request";
+            this.Size = new Size(1100, 700);
             this.StartPosition = FormStartPosition.CenterParent;
             this.BackColor = Color.White;
 
-            BuildPreviewUI();
+            var pLeft = new Panel { Location = new Point(10, 10), Size = new Size(300, 630), BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left };
+            this.Controls.Add(pLeft);
+
+            var lbl1 = new Label { Text = "THÔNG TIN THANH TOÁN", Location = new Point(10, 10), Size = new Size(280, 20), Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212) };
+            pLeft.Controls.Add(lbl1);
+
+            DateTime createdDate = _po.PO_Date ?? DateTime.Today;
+            int y = 40;
+            pLeft.Controls.Add(new Label { Text = "Ngày dự kiến TT (+7):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            dtpDate = new DateTimePicker { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short, Value = createdDate.AddDays(7) };
+            pLeft.Controls.Add(dtpDate);
+
+            // ── Chọn đợt thanh toán → lấy Amount_Plan ──
+            y += 60;
+            pLeft.Controls.Add(new Label { Text = "Đợt thanh toán (Final amount):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            cboDot = new ComboBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), DropDownStyle = ComboBoxStyle.DropDownList };
+            cboDot.Items.Add("— Tính từ chi tiết PO (tổng VAT) —");
+            foreach (var s in _schedules)
+                cboDot.Items.Add($"Đợt {s.Dot_TT}: {s.Amount_Plan:N0} VNĐ  [{s.Status}]");
+            cboDot.SelectedIndex = _schedules.Count > 0 ? 1 : 0;
+            cboDot.SelectedIndexChanged += (s, ev) => GeneratePreview();
+            pLeft.Controls.Add(cboDot);
+
+            string fullName = GetPropValue(_supp, "Company_Name", "CompanyName", "FullName");
+            if (string.IsNullOrEmpty(fullName)) fullName = _po.Supplier_Name;
+
+            y += 60;
+            pLeft.Controls.Add(new Label { Text = "Người thụ hưởng (Beneficiary):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            txtBenef = new TextBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Text = fullName };
+            pLeft.Controls.Add(txtBenef);
+
+            string bankAcc = GetPropValue(_supp, "Bank_Account", "BankAccount", "Account_No");
+            string bankName = GetPropValue(_supp, "Bank_Name", "BankName", "Bank");
+
+            y += 60;
+            pLeft.Controls.Add(new Label { Text = "Số tài khoản (Bank Account):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            txtBankAcc = new TextBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Text = bankAcc };
+            pLeft.Controls.Add(txtBankAcc);
+
+            y += 60;
+            pLeft.Controls.Add(new Label { Text = "Ngân hàng (Bank Name):", Location = new Point(10, y), Size = new Size(280, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+            txtBankName = new TextBox { Location = new Point(10, y + 22), Size = new Size(270, 25), Font = new Font("Segoe UI", 9), Text = bankName };
+            pLeft.Controls.Add(txtBankName);
+
+            y += 60;
+            var btnUpdate = new Button { Text = "🔄 Cập nhật văn bản", Location = new Point(10, y), Size = new Size(270, 35), BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand };
+            btnUpdate.FlatAppearance.BorderSize = 0;
+            btnUpdate.Click += (s, e) => GeneratePreview();
+            pLeft.Controls.Add(btnUpdate);
+
+            var lblNote = new Label { Text = "Lưu ý: Màn hình này hiển thị dạng Tab (khoảng trắng) để bạn dễ xem và sửa nội dung. Khi bấm Copy, code sẽ tự bọc Bảng HTML kẻ ô để dán ra Word/Excel cực chuẩn.", Location = new Point(10, y + 50), Size = new Size(270, 100), Font = new Font("Segoe UI", 8, FontStyle.Italic), ForeColor = Color.Gray };
+            pLeft.Controls.Add(lblNote);
+
+            var pRight = new Panel { Location = new Point(320, 10), Size = new Size(750, 630), BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            this.Controls.Add(pRight);
+
+            var lbl2 = new Label { Text = "NỘI DUNG VĂN BẢN (Có thể chỉnh sửa trực tiếp)", Location = new Point(10, 10), Size = new Size(400, 20), Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(40, 167, 69) };
+            pRight.Controls.Add(lbl2);
+
+            var btnCopy = new Button { Text = "📋 Copy sang Bảng tạm", Location = new Point(590, 5), Size = new Size(150, 30), BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            btnCopy.FlatAppearance.BorderSize = 0;
+            btnCopy.Click += BtnCopy_Click;
+            pRight.Controls.Add(btnCopy);
+
+            rtbPreview = new RichTextBox { Location = new Point(10, 40), Size = new Size(730, 580), Font = new Font("Times New Roman", 11), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            rtbPreview.WordWrap = false;
+            pRight.Controls.Add(rtbPreview);
         }
 
-        private void BuildPreviewUI()
+        private void GeneratePreview()
         {
-            var lblTitle = new Label
-            {
-                Text = "PAYMENT REQUEST",
-                Font = new Font("Segoe UI", 18, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 82, 136),
-                AutoSize = true,
-                Location = new Point(30, 20)
-            };
-            this.Controls.Add(lblTitle);
+            var sb = new System.Text.StringBuilder();
 
-            var lblMPR = new Label
-            {
-                Text = $"MPR No: {_mprNo}",
-                Font = new Font("Segoe UI", 11),
-                AutoSize = true,
-                Location = new Point(30, 60)
-            };
-            this.Controls.Add(lblMPR);
+            // ── Dòng 1: dùng Short_Name (Viết tắt) của NCC ──
+            string suppShort = GetPropValue(_supp, "Short_Name", "ShortName", "Supplier_Name", "SupplierName");
+            if (string.IsNullOrEmpty(suppShort)) suppShort = _po.Supplier_Name;
 
-            // Info panel
-            var infoPanel = new Panel
-            {
-                Location = new Point(30, 90),
-                Size = new Size(820, 120),
-                BackColor = Color.FromArgb(240, 248, 255),
-                BorderStyle = BorderStyle.FixedSingle
-            };
+            sb.AppendLine($"1. Please transfer for Request payment for PO {_po.PONo} to {suppShort} of {_mprNo}");
+            sb.AppendLine();
+            sb.AppendLine("2. Description");
+            sb.AppendLine();
 
-            string poInfo = "";
-            string suppInfo = "";
-            try
-            {
-                var poType = _po.GetType();
-                var poNoProp = poType.GetProperty("PONo") ?? poType.GetProperty("PO_No");
-                var projProp = poType.GetProperty("ProjectName") ?? poType.GetProperty("Project_Name");
-                poInfo = $"PO: {poNoProp?.GetValue(_po)?.ToString() ?? ""}\nDự án: {projProp?.GetValue(_po)?.ToString() ?? ""}";
+            // Header bảng — 11 cột
+            sb.AppendLine("STT\tTên hàng\tVật Liệu\tA(mm)\tB(mm)\tC(mm)\tSL\tĐVT\tKG\tĐơn giá\tThành tiền");
 
-                var suppType = _supp.GetType();
-                var suppNameProp = suppType.GetProperty("Supplier_Name") ?? suppType.GetProperty("Name");
-                suppInfo = $"Nhà cung cấp: {suppNameProp?.GetValue(_supp)?.ToString() ?? ""}";
+            decimal subTotal = 0, finalTotal = 0;
+            decimal vatPct = 0;
+            int stt = 1;
+            foreach (var d in _details)
+            {
+                decimal q = d.Qty_Per_Sheet;
+                decimal wk = d.Weight_kg;
+                decimal p = d.Price;
+                decimal v = d.VAT;
+                if (v > vatPct) vatPct = v; // lấy VAT cao nhất để hiển thị
+
+                string calcMethod = (d.Remarks ?? "").Contains("[CALC:KG]") ? "Theo KG" : "Theo SL";
+                decimal baseVal = calcMethod == "Theo KG" ? wk : q;
+                decimal realPrice = p;
+                if (calcMethod == "Theo KG" && wk > 0 && q > 0) realPrice = (p * q) / wk;
+                decimal amtBeforeVat = Math.Round(baseVal * realPrice, 0);
+                decimal amtAfterVat = Math.Round(amtBeforeVat * (1 + v / 100), 0);
+                subTotal += amtBeforeVat;
+                finalTotal += amtAfterVat;
+
+                // Làm sạch các field — thay \r\n, \n thành space để không vỡ bảng
+                string itemName = (d.Item_Name ?? "").Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim();
+                string material = (d.Material ?? "").Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim();
+
+                sb.AppendLine($"{stt++}\t{itemName}\t{material}\t{d.Asize}\t{d.Bsize}\t{d.Csize}\t{q}\t{d.UNIT}\t{wk}\t{realPrice:N0}\t{amtAfterVat:N0}");
             }
-            catch { }
 
-            var lblInfo = new Label
-            {
-                Text = poInfo + "\n" + suppInfo,
-                Font = new Font("Segoe UI", 10),
-                Location = new Point(10, 10),
-                AutoSize = true
-            };
-            infoPanel.Controls.Add(lblInfo);
-            this.Controls.Add(infoPanel);
+            sb.AppendLine($"\t\t\t\t\t\t\t\t\tSUB-TOTAL\t{subTotal:N0}");
+            sb.AppendLine($"\t\t\t\t\t\t\t\t\tFinal Price Requested (Included {vatPct:N0}% VAT)\t{finalTotal:N0}");
+            sb.AppendLine();
+            sb.AppendLine("3. Amount");
+            sb.AppendLine();
+            sb.AppendLine($"Total Amount:\t\t{subTotal:N0} VNĐ (excluded VAT)");
+            sb.AppendLine();
 
-            // Print button
-            var btnPrint = new Button
+            // ── Final amount: luôn là số tiền SAU thuế ──
+            decimal finalAmt = finalTotal; // mặc định = tổng sau VAT
+            string dotLabel = "";
+            if (cboDot != null && cboDot.SelectedIndex > 0)
             {
-                Text = "🖨 In Payment Request",
-                BackColor = Color.FromArgb(0, 120, 212),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                Size = new Size(220, 40),
-                Location = new Point(30, 560),
-                Cursor = Cursors.Hand
-            };
-            btnPrint.FlatAppearance.BorderSize = 0;
-            btnPrint.Click += (s, e) => { this.DialogResult = DialogResult.OK; this.Close(); };
-            this.Controls.Add(btnPrint);
+                var sched = _schedules[cboDot.SelectedIndex - 1];
+                // Amount_Plan là số tiền kế hoạch — nhân VAT để ra số tiền sau thuế
+                finalAmt = Math.Round(sched.Amount_Plan * (1 + vatPct / 100), 0);
+                dotLabel = $"  (Đợt {sched.Dot_TT} — {sched.Percent_TT}%)";
+            }
 
-            // Close button
-            var btnClose = new Button
+            // VAT amount = finalAmt - (finalAmt / (1 + vatPct/100))
+            decimal baseBeforeVat = vatPct > 0 ? Math.Round(finalAmt / (1 + vatPct / 100), 0) : finalAmt;
+            decimal vatAmount = finalAmt - baseBeforeVat;
+
+            sb.AppendLine("4. Payment information");
+            sb.AppendLine();
+            sb.AppendLine($"Final amount :\t\t{finalAmt:N0} VNĐ included {vatPct:N0}% VAT ({vatAmount:N0} VNĐ){dotLabel}");
+            sb.AppendLine($"Expect payment date:\t{dtpDate.Value:dd/MM/yyyy}");
+            sb.AppendLine($"Name of beneficiary:\t{txtBenef.Text}");
+            sb.AppendLine($"Bank account of beneficiary:\t{txtBankAcc.Text}");
+            sb.AppendLine($"Bank name of beneficiary:\t{txtBankName.Text}");
+            sb.AppendLine();
+            sb.AppendLine("5. Remarks");
+
+            rtbPreview.Text = sb.ToString();
+        }
+
+        private void BtnCopy_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(rtbPreview.Text)) return;
+
+            var sbHtml = new StringBuilder();
+            string[] lines = rtbPreview.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            bool inTable = false;
+
+            foreach (string line in lines)
             {
-                Text = "Đóng",
-                BackColor = Color.FromArgb(180, 180, 180),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10),
-                Size = new Size(100, 40),
-                Location = new Point(260, 560),
-                Cursor = Cursors.Hand
-            };
-            btnClose.FlatAppearance.BorderSize = 0;
-            btnClose.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
-            this.Controls.Add(btnClose);
+                // Làm sạch ký tự newline ẩn trong từng ô trước khi split
+                string cleanLine = line.Replace("\r", " ").Replace("\n", " ");
+                string[] cells = cleanLine.Split('\t');
+
+                if (cells.Length >= 5)
+                {
+                    if (!inTable)
+                    {
+                        // Bảng KHÔNG dùng width:100% để giữ chiều rộng cột cố định
+                        sbHtml.Append("<table border='1' cellspacing='0' cellpadding='5' style='" +
+                            "border-collapse:collapse; font-family:\"Times New Roman\",serif; " +
+                            "font-size:11pt; border:1px solid black; margin-bottom:10px; table-layout:fixed;'>");
+                        // Cố định chiều rộng từng cột — cột Thành tiền (cột 11) giữ nguyên
+                        sbHtml.Append("<colgroup>" +
+                            "<col style='width:35px;'/>" +   // STT
+                            "<col style='width:160px;'/>" +   // Tên hàng
+                            "<col style='width:80px;'/>" +   // Vật liệu
+                            "<col style='width:55px;'/>" +   // A(mm)
+                            "<col style='width:55px;'/>" +   // B(mm)
+                            "<col style='width:55px;'/>" +   // C(mm)
+                            "<col style='width:40px;'/>" +   // SL
+                            "<col style='width:40px;'/>" +   // ĐVT
+                            "<col style='width:55px;'/>" +   // KG
+                            "<col style='width:90px;'/>" +   // Đơn giá
+                            "<col style='width:110px;'/>" +   // Thành tiền — CỐ ĐỊNH
+                            "</colgroup>");
+                        inTable = true;
+                    }
+                    sbHtml.Append("<tr>");
+                    bool isHeader = (cells[0].Trim() == "STT");
+
+                    if (line.Contains("SUB-TOTAL") || line.Contains("Final Price Requested"))
+                    {
+                        string textLabel = cells.FirstOrDefault(c => c.Contains("SUB-TOTAL") || c.Contains("Final Price Requested"))?.Trim() ?? "";
+                        string amountVal = cells.LastOrDefault()?.Trim() ?? "";
+                        sbHtml.Append($"<td colspan='9' style='border:1px solid black; padding:5px; font-weight:bold; text-align:center;'>{textLabel}</td>");
+                        sbHtml.Append("<td style='border:1px solid black;'></td>");
+                        sbHtml.Append($"<td style='border:1px solid black; padding:5px; font-weight:bold; text-align:right;'>{amountVal}</td>");
+                    }
+                    else
+                    {
+                        foreach (string cell in cells)
+                        {
+                            string cellVal = cell.Trim();
+                            if (isHeader)
+                            {
+                                sbHtml.Append($"<th style='background-color:#d9d9d9; border:1px solid black; padding:5px; text-align:center; overflow:hidden;'>{cellVal}</th>");
+                            }
+                            else
+                            {
+                                bool isNumber = decimal.TryParse(cellVal.Replace(",", ""), out _) && cellVal.Length > 0;
+                                bool isSTT = cellVal.Length <= 3 && cellVal.All(char.IsDigit) && cellVal.Length > 0;
+                                string align = isSTT ? "center" : isNumber ? "right" : "left";
+                                sbHtml.Append($"<td style='border:1px solid black; padding:5px; text-align:{align}; overflow:hidden; word-break:break-word;'>{cellVal}</td>");
+                            }
+                        }
+                    }
+                    sbHtml.Append("</tr>");
+                }
+                else
+                {
+                    if (inTable) { sbHtml.Append("</table><br/>"); inTable = false; }
+                    string normalLine = cleanLine.Replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;");
+                    if (string.IsNullOrWhiteSpace(normalLine))
+                        sbHtml.Append("<br/>");
+                    else
+                    {
+                        bool isSection = normalLine.TrimStart().StartsWith("1.") || normalLine.TrimStart().StartsWith("2.") ||
+                                         normalLine.TrimStart().StartsWith("3.") || normalLine.TrimStart().StartsWith("4.") ||
+                                         normalLine.TrimStart().StartsWith("5.");
+                        if (isSection)
+                            sbHtml.Append($"<div style='margin-top:10px; margin-bottom:5px;'><b>{normalLine}</b></div>");
+                        else
+                            sbHtml.Append($"<div style='margin-bottom:5px;'>{normalLine}</div>");
+                    }
+                }
+            }
+            if (inTable) sbHtml.Append("</table>");
+
+            CopyToClipboardAsHtml(sbHtml.ToString(), rtbPreview.Text);
+            MessageBox.Show("✅ Đã copy nội dung vào Bảng tạm!\nDán (Ctrl+V) vào Word hoặc Outlook sẽ hiển thị bảng kẻ ô chuẩn, font Times New Roman.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // =====================================================================
+        // THUẬT TOÁN ĐẨY HTML LÊN CLIPBOARD BẰNG BYTE OFFSET (CHỐNG LỖI UTF-8)
+        // =====================================================================
+        private void CopyToClipboardAsHtml(string htmlFragment, string plainText)
+        {
+            string startHtml = "<html><body style=\"font-family:'Times New Roman', serif; font-size:11pt;\">\r\n\r\n";
+            string endHtml = "\r\n\r\n</body></html>";
+            string htmlContext = startHtml + htmlFragment + endHtml;
+
+            string headerTemplate =
+                "Version:0.9\r\n" +
+                "StartHTML:{0:D8}\r\n" +
+                "EndHTML:{1:D8}\r\n" +
+                "StartFragment:{2:D8}\r\n" +
+                "EndFragment:{3:D8}\r\n";
+
+            int headerLength = Encoding.UTF8.GetByteCount(string.Format(headerTemplate, 0, 0, 0, 0));
+            int htmlContextLength = Encoding.UTF8.GetByteCount(htmlContext);
+
+            int startHtmlOffset = headerLength;
+            int startFragmentOffset = headerLength + Encoding.UTF8.GetByteCount(startHtml);
+            int endFragmentOffset = startFragmentOffset + Encoding.UTF8.GetByteCount(htmlFragment);
+            int endHtmlOffset = headerLength + htmlContextLength;
+
+            string header = string.Format(headerTemplate, startHtmlOffset, endHtmlOffset, startFragmentOffset, endFragmentOffset);
+            string cfHtml = header + htmlContext;
+
+            DataObject obj = new DataObject();
+            obj.SetData(DataFormats.Html, cfHtml);
+            obj.SetData(DataFormats.UnicodeText, plainText);
+            Clipboard.SetDataObject(obj, true);
         }
     }
 }
