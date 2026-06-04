@@ -619,7 +619,7 @@ namespace MPR_Managerment.Forms
             panelContent.Controls.Add(panelVersion);
             panelVersion.Controls.Add(new Label
             {
-                Text = "MPR Management System  v1.0  —  C# Windows Forms + SQL Server Azure",
+                Text = "MPR Management System  v2.0  —  C# Windows Forms + SQL Server Azure",
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.FromArgb(180, 180, 200),
                 Location = new Point(15, 15),
