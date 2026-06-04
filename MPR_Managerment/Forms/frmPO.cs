@@ -6321,7 +6321,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                 BringInputsToFront(dlg);
 
                 // ── XỬ LÝ OK ──
-                btnOK.Click += (s, ev) =>
+                btnOK.Click += async (s, ev) =>
                 {
                     if (dgvDlg.SelectedRows.Count == 0)
                     {
@@ -6330,6 +6330,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     }
                     string selPONo = dgvDlg.SelectedRows[0].Cells["PONo"]?.Value?.ToString() ?? "";
                     string selDaAn = dgvDlg.SelectedRows[0].Cells["MaDuAn"]?.Value?.ToString() ?? "";
+                    string selNCC  = dgvDlg.SelectedRows[0].Cells["NCC"]?.Value?.ToString() ?? "";
 
                     // Lấy ngày giao hàng
                     DateTime expDate;
@@ -6363,6 +6364,9 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                         }
                         LoadDeliveries();
                         dlg.Close();
+
+                        // Gửi thông báo lịch giao hàng lên nhóm Zalo của dự án
+                        await SendDeliveryZaloNotificationAsync(selPONo, selDaAn, selNCC, expDate);
                     }
                     catch (Exception ex)
                     {
@@ -6389,6 +6393,108 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             catch (Exception ex)
             {
                 MessageBox.Show(GetActiveOwner(), "Lỗi mở popup: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // Gửi thông báo lịch giao hàng lên nhóm Zalo của dự án
+        private async System.Threading.Tasks.Task SendDeliveryZaloNotificationAsync(
+            string poNo, string projectCode, string ncc, DateTime expDate)
+        {
+            try
+            {
+                var zSettings = ZaloHelper.LoadSettings();
+                if (!zSettings.Enabled) return;
+
+                // Lấy thông tin nhóm Zalo và chi tiết PO từ DB
+                string zaloGroupName = "";
+                string projectName   = "";
+                System.Data.DataTable dtDetails;
+
+                const string sqlInfo = @"
+                    SELECT pi.ZaloGroupName, pi.ZaloGroupId, pi.ProjectName
+                    FROM ProjectInfo pi
+                    WHERE pi.ProjectCode = @pCode";
+
+                const string sqlDetails = @"
+                    SELECT pd.Item_No, pd.Item_Name, pd.Material,
+                           pd.Asize, pd.Bsize, pd.Csize,
+                           pd.Qty_Per_Sheet AS Qty, pd.UNIT
+                    FROM PO_detail pd
+                    INNER JOIN PO_head ph ON ph.PO_ID = pd.PO_ID
+                    WHERE ph.PONo = @poNo
+                    ORDER BY pd.Item_No";
+
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    // Lấy thông tin dự án / nhóm Zalo
+                    if (!string.IsNullOrWhiteSpace(projectCode))
+                    {
+                        var cmdInfo = new Microsoft.Data.SqlClient.SqlCommand(sqlInfo, conn);
+                        cmdInfo.Parameters.AddWithValue("@pCode", projectCode);
+                        using var rdr = cmdInfo.ExecuteReader();
+                        if (rdr.Read())
+                        {
+                            zaloGroupName = rdr["ZaloGroupName"]?.ToString() ?? "";
+                            projectName   = rdr["ProjectName"]?.ToString() ?? "";
+                            // Dùng ZaloGroupId nếu ZaloGroupName trống
+                            if (string.IsNullOrWhiteSpace(zaloGroupName))
+                                zaloGroupName = rdr["ZaloGroupId"]?.ToString() ?? "";
+                        }
+                    }
+
+                    // Lấy chi tiết PO
+                    var cmdDet = new Microsoft.Data.SqlClient.SqlCommand(sqlDetails, conn);
+                    cmdDet.Parameters.AddWithValue("@poNo", poNo);
+                    dtDetails = new System.Data.DataTable();
+                    dtDetails.Load(cmdDet.ExecuteReader());
+                }
+
+                if (string.IsNullOrWhiteSpace(zaloGroupName)) return; // Không có nhóm Zalo
+
+                // Xây nội dung tin nhắn
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"📦 LỊCH GIAO HÀNG DỰ KIẾN");
+                sb.AppendLine($"━━━━━━━━━━━━━━━━━━━━━━━━");
+                sb.AppendLine($"🔖 Số PO      : {poNo}");
+                if (!string.IsNullOrWhiteSpace(projectName))
+                    sb.AppendLine($"🏗️  Dự án     : {projectName}");
+                if (!string.IsNullOrWhiteSpace(ncc))
+                    sb.AppendLine($"🏭 Nhà CC     : {ncc}");
+                sb.AppendLine($"📅 Exp.Deliv  : {expDate:dd/MM/yyyy}");
+
+                if (dtDetails.Rows.Count > 0)
+                {
+                    sb.AppendLine($"━━━━━━━━━━━━━━━━━━━━━━━━");
+                    sb.AppendLine("📋 Chi tiết vật tư:");
+                    foreach (System.Data.DataRow row in dtDetails.Rows)
+                    {
+                        string itemNo   = row["Item_No"]?.ToString() ?? "";
+                        string name     = row["Item_Name"]?.ToString() ?? "";
+                        string material = row["Material"]?.ToString() ?? "";
+                        string a        = row["Asize"]?.ToString() ?? "";
+                        string b        = row["Bsize"]?.ToString() ?? "";
+                        string c        = row["Csize"]?.ToString() ?? "";
+                        string qty      = row["Qty"]?.ToString() ?? "";
+                        string unit     = row["UNIT"]?.ToString() ?? "";
+
+                        string size = string.Join(" x ", new[] { a, b, c }.Where(v => !string.IsNullOrWhiteSpace(v)));
+
+                        sb.Append($"  {itemNo}. {name}");
+                        if (!string.IsNullOrWhiteSpace(material)) sb.Append($" ({material})");
+                        if (!string.IsNullOrWhiteSpace(size))     sb.Append($" — {size}");
+                        if (!string.IsNullOrWhiteSpace(qty))      sb.Append($" — SL: {qty} {unit}");
+                        sb.AppendLine();
+                    }
+                }
+
+                string message = sb.ToString().TrimEnd();
+                await ZaloHelper.SendToGroupAsync(zSettings, zaloGroupName, message);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Zalo] SendDeliveryZaloNotificationAsync error: {ex.Message}");
             }
         }
 

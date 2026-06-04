@@ -113,14 +113,32 @@ namespace MPR_Managerment.Forms
         {
             InitializeComponent();
             BuildUI();
-            EnsureZaloNotificationTable();
-            LoadData();
             BuildNotificationPanel();
             StartNotifyTimer();
 
             // Ép form gọi sự kiện Resize lần đầu để chia tỷ lệ ngay khi mở
             this.OnResize(EventArgs.Empty);
             frmAIChat.Attach(this);
+
+            // *** PERFORMANCE FIX: Defer DB loading to after form is shown ***
+            // Form hiển thị NGAY LẬP TỨC, sau đó mới load dữ liệu ở background
+            this.Shown += FrmDashboard_Shown;
+        }
+
+        private async void FrmDashboard_Shown(object sender, EventArgs e)
+        {
+            this.Shown -= FrmDashboard_Shown;
+            this.Cursor = Cursors.WaitCursor;
+            try
+            {
+                // EnsureZaloNotificationTable chạy trên background thread
+                await Task.Run(() => EnsureZaloNotificationTable());
+                await LoadDataAsync();
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
         }
 
         private void BuildUI()
@@ -156,7 +174,7 @@ namespace MPR_Managerment.Forms
                 Cursor = Cursors.Hand
             };
             btnRefreshAll.FlatAppearance.BorderSize = 0;
-            btnRefreshAll.Click += (s, e) => LoadData();
+            btnRefreshAll.Click += async (s, e) => await LoadDataAsync();
             panelHeader.Controls.Add(btnRefreshAll);
 
             this.Controls.Add(panelHeader);
@@ -584,7 +602,7 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 9),
                 PlaceholderText = "MPR No hoặc tên dự án..."
             };
-            txtSearchMPR.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) LoadMPRData(); };
+            txtSearchMPR.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await LoadMPRDataAsync(); };
             pFilterMPR.Controls.Add(txtSearchMPR);
 
             pFilterMPR.Controls.Add(new Label { Text = "Trạng thái:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
@@ -596,7 +614,7 @@ namespace MPR_Managerment.Forms
             };
             cboFilterMPR.Items.AddRange(new[] { "Tất cả", "Mới", "Đang xử lý", "Đã duyệt", "Hoàn thành", "Hủy" });
             cboFilterMPR.SelectedIndex = 0;
-            cboFilterMPR.SelectedIndexChanged += (s, e) => LoadMPRData();
+            cboFilterMPR.SelectedIndexChanged += async (s, e) => await LoadMPRDataAsync();
             pFilterMPR.Controls.Add(cboFilterMPR);
 
             pFilterMPR.Controls.Add(new Label { Text = "% Đặt hàng:", Size = new Size(80, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
@@ -614,13 +632,13 @@ namespace MPR_Managerment.Forms
             var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), Point.Empty, 80, 28);
             var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), Point.Empty, 80, 28);
             btnExportMPR = CreateButton("📥 Excel", Color.FromArgb(0, 150, 100), Point.Empty, 80, 28);
-            btnSearch.Click += (s, e) => LoadMPRData();
-            btnClear.Click += (s, e) =>
+            btnSearch.Click += async (s, e) => await LoadMPRDataAsync();
+            btnClear.Click += async (s, e) =>
             {
                 txtSearchMPR.Text = "";
                 cboFilterMPR.SelectedIndex = 0;
                 cboFilterPOStatus.SelectedIndex = 0;
-                LoadMPRData();
+                await LoadMPRDataAsync();
             };
             btnExportMPR.Click += BtnExportMPR_Click;
             btnSaveMPRNote = CreateButton("💾 Lưu ghi chú", Color.FromArgb(0, 120, 212), Point.Empty, 120, 28);
@@ -1121,7 +1139,7 @@ namespace MPR_Managerment.Forms
                 Font = new Font("Segoe UI", 9),
                 PlaceholderText = "RIR No hoặc PO No..."
             };
-            txtSearchRIR.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) LoadRIRData(); };
+            txtSearchRIR.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await LoadRIRDataAsync(); };
             pFilterRIR.Controls.Add(txtSearchRIR);
 
             pFilterRIR.Controls.Add(new Label { Text = "Trạng thái:", Size = new Size(75, 25), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9) });
@@ -1133,15 +1151,15 @@ namespace MPR_Managerment.Forms
             };
             cboFilterRIR.Items.AddRange(new[] { "Tất cả", "Chờ kiểm tra", "Đang kiểm tra", "Hoàn thành" });
             cboFilterRIR.SelectedIndex = 0;
-            cboFilterRIR.SelectedIndexChanged += (s, e) => LoadRIRData();
+            cboFilterRIR.SelectedIndexChanged += async (s, e) => await LoadRIRDataAsync();
             pFilterRIR.Controls.Add(cboFilterRIR);
 
             var btnSearch = CreateButton("🔍 Tìm", Color.FromArgb(0, 120, 212), Point.Empty, 90, 28);
-            btnSearch.Click += (s, e) => LoadRIRData();
+            btnSearch.Click += async (s, e) => await LoadRIRDataAsync();
             pFilterRIR.Controls.Add(btnSearch);
 
             var btnClear = CreateButton("✖ Xóa lọc", Color.FromArgb(108, 117, 125), Point.Empty, 90, 28);
-            btnClear.Click += (s, e) => { txtSearchRIR.Text = ""; cboFilterRIR.SelectedIndex = 0; LoadRIRData(); };
+            btnClear.Click += async (s, e) => { txtSearchRIR.Text = ""; cboFilterRIR.SelectedIndex = 0; await LoadRIRDataAsync(); };
             pFilterRIR.Controls.Add(btnClear);
             tabRIR.Controls.Add(new Label
             {
@@ -1309,6 +1327,26 @@ namespace MPR_Managerment.Forms
 
         private void LoadPOData()
         {
+            LoadPODataAsync().ConfigureAwait(false);
+        }
+
+        private void LoadMPRData()
+        {
+            LoadMPRDataAsync().ConfigureAwait(false);
+        }
+
+        private void LoadRIRData()
+        {
+            LoadRIRDataAsync().ConfigureAwait(false);
+        }
+
+        private async Task LoadDataAsync()
+        {
+            await Task.WhenAll(LoadPODataAsync(), LoadMPRDataAsync(), LoadRIRDataAsync());
+        }
+
+        private async Task LoadPODataAsync()
+        {
             try
             {
                 string search = txtSearchPO.Text.Trim();
@@ -1316,18 +1354,19 @@ namespace MPR_Managerment.Forms
 
                 string searchCondition = "";
                 if (!string.IsNullOrEmpty(search))
-                {
                     searchCondition = $" AND (h.PONo LIKE N'%{search}%' OR h.MPR_No LIKE N'%{search}%' OR h.Project_Name LIKE N'%{search}%')";
-                }
 
                 string filterCondition = "";
                 if (filter != "Tất cả")
-                {
                     filterCondition = $" WHERE [Trạng thái] = N'{filter}'";
-                }
 
                 string sql = $@"
-                    WITH POStats AS (
+                    WITH WI_Agg AS (
+                        SELECT PO_ID, SUM(Qty_Import) AS TotalImport
+                        FROM Warehouse_Import
+                        GROUP BY PO_ID
+                    ),
+                    POStats AS (
                         SELECT
                             h.PO_ID,
                             h.PONo                             AS [PO No],
@@ -1337,14 +1376,15 @@ namespace MPR_Managerment.Forms
                             s.Short_Name                       AS [NCC],
                             h.Revise                           AS [Rev],
                             ISNULL(SUM(d.Qty_Per_Sheet), 0)    AS [Tổng SL đặt],
-                            ISNULL((SELECT SUM(Qty_Import) FROM Warehouse_Import wi WHERE wi.PO_ID = h.PO_ID), ISNULL(SUM(d.Received), 0)) AS [Tổng SL nhận],
+                            ISNULL(wi.TotalImport, ISNULL(SUM(d.Received), 0)) AS [Tổng SL nhận],
                             MIN(d.RequestDay)                  AS [Ngày giao sớm nhất],
                             h.Status                           AS [TrangThaiDB]
-FROM PO_head h
-LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
-LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
+                        FROM PO_head h
+                        LEFT JOIN PO_Detail d ON h.PO_ID = d.PO_ID
+                        LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
+                        LEFT JOIN WI_Agg wi ON wi.PO_ID = h.PO_ID
                         WHERE 1=1 {searchCondition}
-                        GROUP BY h.PO_ID, h.PONo, h.Project_Name, h.MPR_No, h.PO_Date, h.Status, h.Revise, s.Short_Name
+                        GROUP BY h.PO_ID, h.PONo, h.Project_Name, h.MPR_No, h.PO_Date, h.Status, h.Revise, s.Short_Name, wi.TotalImport
                     ),
                     CalculatedPO AS (
                         SELECT
@@ -1376,76 +1416,90 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
                     SELECT * FROM CalculatedPO
                     {filterCondition}
                     ORDER BY [Ngày PO] DESC";
-                using (var conn = DatabaseHelper.GetConnection())
+
+                // Chạy toàn bộ DB I/O trên thread pool, không block UI thread
+                var (dt, sentZalos) = await Task.Run(() =>
                 {
+                    using var conn = DatabaseHelper.GetConnection();
                     conn.Open();
 
-                    // Load sent Zalo POs from DB
-                    _sentZaloPOs.Clear();
+                    var zalos = new HashSet<int>();
                     try
                     {
-                        string sqlZalo = "SELECT PO_ID FROM PO_ZaloNotification";
-                        using (var cmdZalo = new SqlCommand(sqlZalo, conn))
-                        using (var drZalo = cmdZalo.ExecuteReader())
-                        {
-                            while (drZalo.Read())
-                            {
-                                _sentZaloPOs.Add(Convert.ToInt32(drZalo["PO_ID"]));
-                            }
-                        }
+                        using var cmdZalo = new SqlCommand("SELECT PO_ID FROM PO_ZaloNotification", conn);
+                        using var drZalo = cmdZalo.ExecuteReader();
+                        while (drZalo.Read())
+                            zalos.Add(Convert.ToInt32(drZalo["PO_ID"]));
                     }
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine("Load sent Zalo error: " + ex.Message);
                     }
 
-                    var dt = new DataTable();
-                    dt.Load(new SqlCommand(sql, conn).ExecuteReader());
+                    var table = new DataTable();
+                    table.Load(new SqlCommand(sql, conn).ExecuteReader());
+                    return (table, zalos);
+                });
+
+                // *** ISSUE #2 FIX: Suspend layout & binding during grid update ***
+                dgvPO.SuspendLayout();
+                try
+                {
+                    // Temporarily detach event handlers to prevent SelectionChanged from firing 100+ times
+                    dgvPO.SelectionChanged -= DgvPO_SelectionChanged;
+                    dgvPO.CellFormatting -= DgvPO_CellFormatting;
+
+                    // Cập nhật UI (đang trên UI thread sau await)
+                    _sentZaloPOs = sentZalos;
                     dgvPO.DataSource = dt;
                     if (dgvPO.Columns.Contains("PO_ID"))
                         dgvPO.Columns["PO_ID"].Visible = false;
 
-                    dgvPO.CellFormatting -= DgvPO_CellFormatting;
+                    // Re-attach event handlers and trigger CellFormatting
                     dgvPO.CellFormatting += DgvPO_CellFormatting;
-
-                    // Thêm cột nút Gửi Zalo nếu chưa có
-                    if (!dgvPO.Columns.Contains("Gửi Zalo"))
-                    {
-                        var colZalo = new DataGridViewButtonColumn
-                        {
-                            Name = "Gửi Zalo",
-                            HeaderText = "Gửi Zalo",
-                            Text = "📱 Zalo",
-                            UseColumnTextForButtonValue = true,
-                            Width = 80,
-                            FlatStyle = FlatStyle.Flat,
-                            DisplayIndex = dgvPO.Columns.Count
-                        };
-                        colZalo.DefaultCellStyle.BackColor = Color.FromArgb(40, 167, 69);
-                        colZalo.DefaultCellStyle.ForeColor = Color.White;
-                        colZalo.DefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
-                        colZalo.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                        dgvPO.Columns.Add(colZalo);
-                    }
-
-                    AutoAdjustPOColumns(); // Gọi hàm auto giãn cột
-
-                    // Summary
-                    int total = dt.Rows.Count, overdue = 0, completed = 0, inProgress = 0;
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        decimal pct = row["% Giao hàng"] != DBNull.Value ? Convert.ToDecimal(row["% Giao hàng"]) : 0;
-                        string canh = row["Cảnh báo"]?.ToString() ?? "";
-
-                        if (pct >= 100) completed++;
-                        else if (canh.Contains("Quá")) overdue++;
-                        else if (pct > 0) inProgress++;
-                    }
-                    lblPOTotal.Text = total.ToString();
-                    lblPOInProgress.Text = inProgress.ToString();
-                    lblPOOverdue.Text = overdue.ToString();
-                    lblPOCompleted.Text = completed.ToString();
+                    dgvPO.SelectionChanged += DgvPO_SelectionChanged;
+                    dgvPO.Invalidate(); // Force redraw
                 }
+                finally
+                {
+                    dgvPO.ResumeLayout(true); // Resume layout with force layout = true
+                }
+
+                if (!dgvPO.Columns.Contains("Gửi Zalo"))
+                {
+                    var colZalo = new DataGridViewButtonColumn
+                    {
+                        Name = "Gửi Zalo",
+                        HeaderText = "Gửi Zalo",
+                        Text = "📱 Zalo",
+                        UseColumnTextForButtonValue = true,
+                        Width = 80,
+                        FlatStyle = FlatStyle.Flat,
+                        DisplayIndex = dgvPO.Columns.Count
+                    };
+                    colZalo.DefaultCellStyle.BackColor = Color.FromArgb(40, 167, 69);
+                    colZalo.DefaultCellStyle.ForeColor = Color.White;
+                    colZalo.DefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+                    colZalo.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvPO.Columns.Add(colZalo);
+                }
+
+                AutoAdjustPOColumns();
+
+                int total = dt.Rows.Count, overdue = 0, completed = 0, inProgress = 0;
+                foreach (DataRow row in dt.Rows)
+                {
+                    decimal pct = row["% Giao hàng"] != DBNull.Value ? Convert.ToDecimal(row["% Giao hàng"]) : 0;
+                    string canh = row["Cảnh báo"]?.ToString() ?? "";
+
+                    if (pct >= 100) completed++;
+                    else if (canh.Contains("Quá")) overdue++;
+                    else if (pct > 0) inProgress++;
+                }
+                lblPOTotal.Text = total.ToString();
+                lblPOInProgress.Text = inProgress.ToString();
+                lblPOOverdue.Text = overdue.ToString();
+                lblPOCompleted.Text = completed.ToString();
             }
             catch (Exception ex)
             {
@@ -1701,7 +1755,8 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
         private bool SafeAsk(string text, string title = "Xác nhận")
         { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, text, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
 
-        private void LoadMPRData()
+
+        private async Task LoadMPRDataAsync()
         {
             try
             {
@@ -1756,21 +1811,23 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
                     GROUP BY h.MPR_ID, h.MPR_No, h.Project_Name,
                              h.Required_Date, h.Status, h.Rev, h.Created_Date, h.Notes
                     ORDER BY h.Created_Date DESC";
-                using (var conn = DatabaseHelper.GetConnection())
+                // Chạy toàn bộ DB I/O trên thread pool — SP + Notes trong 1 connection
+                var (dt, noteMap) = await Task.Run(() =>
                 {
+                    using var conn = DatabaseHelper.GetConnection();
                     conn.Open();
 
-                    // Call stored procedure that computes MPR dashboard summary on the server
-                    using var cmd = new SqlCommand("sp_GetMPRDashboardSummary", conn) { CommandType = System.Data.CommandType.StoredProcedure };
+                    using var cmd = new SqlCommand("sp_GetMPRDashboardSummary", conn)
+                        { CommandType = System.Data.CommandType.StoredProcedure };
                     cmd.Parameters.AddWithValue("@search", string.IsNullOrEmpty(search) ? (object)DBNull.Value : search);
                     cmd.Parameters.AddWithValue("@status", (filter == "Tất cả") ? (object)DBNull.Value : filter);
-                    var dt = new DataTable();
-                    dt.Load(cmd.ExecuteReader());
+                    var table = new DataTable();
+                    table.Load(cmd.ExecuteReader());
 
-                    // Lọc bỏ revision cũ (Rev < MaxRev) trước khi bind — không hiển thị chỉ đọc
-                    if (dt.Columns.Contains("MaxRev"))
+                    // Lọc bỏ revision cũ (Rev < MaxRev)
+                    if (table.Columns.Contains("MaxRev"))
                     {
-                        var oldRevRows = dt.AsEnumerable()
+                        var oldRevRows = table.AsEnumerable()
                             .Where(r =>
                             {
                                 int.TryParse(r["Rev"]?.ToString() ?? "0", out int rev);
@@ -1779,153 +1836,147 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
                             })
                             .ToList();
                         foreach (var r in oldRevRows)
-                            dt.Rows.Remove(r);
+                            table.Rows.Remove(r);
                     }
 
+                    // Load Notes trong cùng connection, không cần mở thêm
+                    var notes = new System.Collections.Generic.Dictionary<int, string>();
+                    try
+                    {
+                        using var cmdNote = new SqlCommand(
+                            "SELECT MPR_ID, ISNULL(Notes,'') AS Notes FROM MPR_Header", conn);
+                        using var rNote = cmdNote.ExecuteReader();
+                        while (rNote.Read())
+                            notes[Convert.ToInt32(rNote["MPR_ID"])] = rNote["Notes"].ToString();
+                    }
+                    catch { }
+
+                    return (table, notes);
+                });
+
+                // *** ISSUE #2 FIX: Suspend layout & binding during grid update ***
+                dgvMPR.SuspendLayout();
+                try
+                {
+                    // Temporarily detach event handlers
+                    dgvMPR.SelectionChanged -= DgvMPR_SelectionChanged;
+                    dgvMPR.CellFormatting -= DgvMPR_CellFormatting;
+                    dgvMPR.RowPrePaint -= DgvMPR_RowPrePaint;
+
+                    // Cập nhật UI (đang trên UI thread sau await)
                     foreach (DataColumn col in dt.Columns) col.ReadOnly = false;
                     dgvMPR.DataSource = dt;
 
-                    if (dgvMPR.Columns.Contains("MPR_ID"))
-                        dgvMPR.Columns["MPR_ID"].Visible = false;
-                    if (dgvMPR.Columns.Contains("Tổng items")) dgvMPR.Columns["Tổng items"].Visible = false;
-                    if (dgvMPR.Columns.Contains("Ngày đến PO")) dgvMPR.Columns["Ngày đến PO"].Visible = false;
+                if (dgvMPR.Columns.Contains("MPR_ID"))
+                    dgvMPR.Columns["MPR_ID"].Visible = false;
+                if (dgvMPR.Columns.Contains("Tổng items")) dgvMPR.Columns["Tổng items"].Visible = false;
+                if (dgvMPR.Columns.Contains("Ngày đến PO")) dgvMPR.Columns["Ngày đến PO"].Visible = false;
 
-                    // Tat ca cot bound: ReadOnly
-                    foreach (DataGridViewColumn col in dgvMPR.Columns)
-                        col.ReadOnly = true;
-                    if (dgvMPR.Columns.Contains("Ghi chu")) dgvMPR.Columns["Ghi chu"].ReadOnly = false;
+                foreach (DataGridViewColumn col in dgvMPR.Columns)
+                    col.ReadOnly = true;
+                if (dgvMPR.Columns.Contains("Ghi chu")) dgvMPR.Columns["Ghi chu"].ReadOnly = false;
 
-                    // Style older revisions (Rev < MaxRev) as read-only/gray using MaxRev returned by SP
-                    try
+                // Style theo MaxRev / Hủy
+                try
+                {
+                    var grayStyle = new DataGridViewCellStyle
                     {
-                        var grayStyle = new DataGridViewCellStyle
-                        {
-                            ForeColor = Color.FromArgb(160, 160, 160),
-                            BackColor = Color.FromArgb(245, 245, 245),
-                            Font = new Font("Segoe UI", 9, FontStyle.Italic)
-                        };
-                        var normalStyle = new DataGridViewCellStyle
-                        {
-                            ForeColor = Color.Black,
-                            BackColor = Color.White,
-                            Font = new Font("Segoe UI", 9, FontStyle.Regular)
-                        };
+                        ForeColor = Color.FromArgb(160, 160, 160),
+                        BackColor = Color.FromArgb(245, 245, 245),
+                        Font = new Font("Segoe UI", 9, FontStyle.Italic)
+                    };
+                    var normalStyle = new DataGridViewCellStyle
+                    {
+                        ForeColor = Color.Black,
+                        BackColor = Color.White,
+                        Font = new Font("Segoe UI", 9, FontStyle.Regular)
+                    };
+                    var cancelStyle = new DataGridViewCellStyle(grayStyle)
+                    {
+                        Font = new Font("Segoe UI", 9, FontStyle.Strikeout | FontStyle.Bold)
+                    };
 
-                        foreach (DataGridViewRow row in dgvMPR.Rows)
+                    foreach (DataGridViewRow row in dgvMPR.Rows)
+                    {
+                        if (row.IsNewRow) continue;
+                        int.TryParse(row.Cells["Rev"].Value?.ToString() ?? "0", out int rev);
+                        int.TryParse(row.Cells["MaxRev"]?.Value?.ToString() ?? "0", out int maxRev);
+                        string status = row.Cells["Trạng thái"]?.Value?.ToString() ?? "";
+                        bool isCancelled = status == "Hủy";
+
+                        if ((maxRev > 0 && rev < maxRev) || isCancelled)
                         {
-                            if (row.IsNewRow) continue;
-                            int rev = 0; int.TryParse(row.Cells["Rev"].Value?.ToString() ?? "0", out rev);
-                            int maxRev = 0; int.TryParse(row.Cells["MaxRev"]?.Value?.ToString() ?? "0", out maxRev);
-
-                            string status = row.Cells["Trạng thái"]?.Value?.ToString() ?? "";
-                            bool isCancelled = status == "Hủy";
-
-                            if ((maxRev > 0 && rev < maxRev) || isCancelled)
-                            {
-                                row.ReadOnly = true;
-                                row.DefaultCellStyle = grayStyle;
-                                if (isCancelled)
-                                {
-                                    row.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Strikeout | FontStyle.Bold);
-                                }
-                            }
-                            else
-                            {
-                                row.ReadOnly = false;
-                                row.DefaultCellStyle = normalStyle;
-                            }
+                            row.ReadOnly = true;
+                            row.DefaultCellStyle = isCancelled ? cancelStyle : grayStyle;
+                        }
+                        else
+                        {
+                            row.ReadOnly = false;
+                            row.DefaultCellStyle = normalStyle;
                         }
                     }
-                    catch { }
+                }
+                catch { }
 
-                    // Them unbound column Ghi chu neu chua co
-                    if (!dgvMPR.Columns.Contains("Ghi chu"))
+                // Cột Ghi chú
+                if (!dgvMPR.Columns.Contains("Ghi chu"))
+                {
+                    var colNote = new DataGridViewTextBoxColumn
                     {
-                        var colNote = new DataGridViewTextBoxColumn
-                        {
-                            Name = "Ghi chu",
-                            HeaderText = "Ghi chu",
-                            Width = 160,
-                            ReadOnly = false,
-                            DisplayIndex = dgvMPR.Columns.Count // cuoi cung
-                        };
-                        colNote.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 230);
-                        colNote.DefaultCellStyle.SelectionBackColor = Color.FromArgb(255, 245, 180);
-                        colNote.ToolTipText = "Click de nhap ghi chu, bam Luu ghi chu de luu";
-                        dgvMPR.Columns.Add(colNote);
-                    }
-                    else
-                    {
-                        dgvMPR.Columns["Ghi chu"].ReadOnly = false;
-                    }
+                        Name = "Ghi chu",
+                        HeaderText = "Ghi chu",
+                        Width = 160,
+                        ReadOnly = false,
+                        DisplayIndex = dgvMPR.Columns.Count
+                    };
+                    colNote.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 230);
+                    colNote.DefaultCellStyle.SelectionBackColor = Color.FromArgb(255, 245, 180);
+                    colNote.ToolTipText = "Click de nhap ghi chu, bam Luu ghi chu de luu";
+                    dgvMPR.Columns.Add(colNote);
+                }
+                else
+                {
+                    dgvMPR.Columns["Ghi chu"].ReadOnly = false;
+                }
 
-                    // Load Notes tu DB vao unbound column
-                    try
-                    {
-                        using var connNote = DatabaseHelper.GetConnection();
-                        connNote.Open();
-                        var cmdNote = new SqlCommand("SELECT MPR_ID, ISNULL(Notes,'') AS Notes FROM MPR_Header", connNote);
-                        var noteMap = new System.Collections.Generic.Dictionary<int, string>();
-                        using var rNote = cmdNote.ExecuteReader();
-                        while (rNote.Read())
-                            noteMap[Convert.ToInt32(rNote["MPR_ID"])] = rNote["Notes"].ToString();
-
-                        foreach (DataGridViewRow row in dgvMPR.Rows)
-                        {
-                            if (row.IsNewRow) continue;
-                            object idObj = row.Cells["MPR_ID"]?.Value;
-                            if (idObj == null || idObj == DBNull.Value) continue;
-                            int id = Convert.ToInt32(idObj);
-                            if (noteMap.TryGetValue(id, out string note))
-                                row.Cells["Ghi chu"].Value = note;
-                        }
-                    }
-                    catch { }
+                // Điền Notes vào unbound column
+                foreach (DataGridViewRow row in dgvMPR.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    object idObj = row.Cells["MPR_ID"]?.Value;
+                    if (idObj == null || idObj == DBNull.Value) continue;
+                    if (noteMap.TryGetValue(Convert.ToInt32(idObj), out string note))
+                        row.Cells["Ghi chu"].Value = note;
+                }
 
                     AutoAdjustMPRColumns();
 
-                    // Mark older revisions (within same base MPR series) as read-only and gray
-                    try
-                    {
-                        // prepare reusable styles for performance
-                        var grayStyle = new DataGridViewCellStyle
-                        {
-                            ForeColor = Color.FromArgb(160, 160, 160),
-                            BackColor = Color.FromArgb(245, 245, 245),
-                            Font = new Font("Segoe UI", 9, FontStyle.Italic)
-                        };
-                        var normalStyle = new DataGridViewCellStyle
-                        {
-                            ForeColor = Color.Black,
-                            BackColor = Color.White,
-                            Font = new Font("Segoe UI", 9, FontStyle.Regular)
-                        };
-
-                        // (styling performed above using MaxRev returned by SP)
-                    }
-                    catch { }
-
-                    dgvMPR.CellFormatting -= DgvMPR_CellFormatting;
+                    // Re-attach event handlers
                     dgvMPR.CellFormatting += DgvMPR_CellFormatting;
-
-                    int total = dt.Rows.Count, hasPO = 0, noPO = 0, completed = 0;
-                    bool hasTinhCol = dt.Columns.Contains("Tình trạng PO");
-                    bool hasStatusCol = dt.Columns.Contains("Trạng thái");
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        string tinh = hasTinhCol ? row["Tình trạng PO"]?.ToString() ?? "" : "";
-                        string status = hasStatusCol ? row["Trạng thái"]?.ToString() ?? "" : "";
-
-                        if (!tinh.Contains("Chưa có")) hasPO++;
-                        else noPO++;
-
-                        if (status == "Hoàn thành") completed++;
-                    }
-                    lblMPRTotal.Text = total.ToString();
-                    lblMPRHasPO.Text = hasPO.ToString();
-                    lblMPRNoPO.Text = noPO.ToString();
-                    lblMPRCompleted.Text = completed.ToString();
+                    dgvMPR.SelectionChanged += DgvMPR_SelectionChanged;
+                    dgvMPR.RowPrePaint += DgvMPR_RowPrePaint;
+                    dgvMPR.Invalidate(); // Force redraw
                 }
+                finally
+                {
+                    dgvMPR.ResumeLayout(true); // Resume layout with force layout = true
+                }
+
+                int total = dt.Rows.Count, hasPO = 0, noPO = 0, completed = 0;
+                bool hasTinhCol = dt.Columns.Contains("Tình trạng PO");
+                bool hasStatusCol = dt.Columns.Contains("Trạng thái");
+                foreach (DataRow row in dt.Rows)
+                {
+                    string tinh = hasTinhCol ? row["Tình trạng PO"]?.ToString() ?? "" : "";
+                    string status = hasStatusCol ? row["Trạng thái"]?.ToString() ?? "" : "";
+                    if (!tinh.Contains("Chưa có")) hasPO++;
+                    else noPO++;
+                    if (status == "Hoàn thành") completed++;
+                }
+                lblMPRTotal.Text = total.ToString();
+                lblMPRHasPO.Text = hasPO.ToString();
+                lblMPRNoPO.Text = noPO.ToString();
+                lblMPRCompleted.Text = completed.ToString();
             }
             catch (Exception ex)
             {
@@ -2432,7 +2483,7 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
             }
         }
 
-        private void LoadRIRData()
+        private async Task LoadRIRDataAsync()
         {
             try
             {
@@ -2444,10 +2495,11 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
                     where += $" AND (h.RIR_No LIKE N'%{search}%' OR h.PONo LIKE N'%{search}%' OR h.Project_Name LIKE N'%{search}%')";
                 if (filter != "Tất cả")
                     where += $" AND h.Status = N'{filter}'";
+
                 string sql = $@"
                     SELECT
                         h.RIR_ID,
-                        h.RIR_No                             AS [RIR No],
+                        h.RIR_No                                            AS [RIR No],
                         h.PONo                                              AS [PO No],
                         h.MPR_No                                            AS [MPR No],
                         h.Project_Name                                      AS [Dự án],
@@ -2471,30 +2523,53 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
                              h.Issue_Date, h.Customer, h.Status
                     ORDER BY h.Issue_Date DESC";
 
-                using (var conn = DatabaseHelper.GetConnection())
+                // Chạy DB I/O trên thread pool
+                var dt = await Task.Run(() =>
                 {
+                    using var conn = DatabaseHelper.GetConnection();
                     conn.Open();
-                    var dt = new DataTable();
-                    dt.Load(new SqlCommand(sql, conn).ExecuteReader());
+                    var table = new DataTable();
+                    table.Load(new SqlCommand(sql, conn).ExecuteReader());
+                    return table;
+                });
+
+                // *** ISSUE #2 FIX: Suspend layout & binding during grid update ***
+                dgvRIR.SuspendLayout();
+                try
+                {
+                    // Temporarily detach event handlers
+                    dgvRIR.SelectionChanged -= DgvRIR_SelectionChanged;
+                    dgvRIR.CellFormatting -= DgvRIR_CellFormatting;
+                    dgvRIR.RowPrePaint -= DgvRIR_RowPrePaint;
+
+                    // Cập nhật UI (đang trên UI thread sau await)
                     dgvRIR.DataSource = dt;
                     if (dgvRIR.Columns.Contains("RIR_ID"))
                         dgvRIR.Columns["RIR_ID"].Visible = false;
-                    dgvRIR.CellFormatting -= DgvRIR_CellFormatting;
-                    dgvRIR.CellFormatting += DgvRIR_CellFormatting;
 
-                    int total = dt.Rows.Count, pending = 0, inspecting = 0, done = 0;
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        string status = row["Trạng thái"]?.ToString() ?? "";
-                        if (status == "Chờ kiểm tra") pending++;
-                        else if (status == "Đang kiểm tra") inspecting++;
-                        else if (status == "Hoàn thành") done++;
-                    }
-                    lblRIRTotal.Text = total.ToString();
-                    lblRIRPending.Text = pending.ToString();
-                    lblRIRInspecting.Text = inspecting.ToString();
-                    lblRIRDone.Text = done.ToString();
+                    // Re-attach event handlers
+                    dgvRIR.CellFormatting += DgvRIR_CellFormatting;
+                    dgvRIR.SelectionChanged += DgvRIR_SelectionChanged;
+                    dgvRIR.RowPrePaint += DgvRIR_RowPrePaint;
+                    dgvRIR.Invalidate(); // Force redraw
                 }
+                finally
+                {
+                    dgvRIR.ResumeLayout(true); // Resume layout with force layout = true
+                }
+
+                int total = dt.Rows.Count, pending = 0, inspecting = 0, done = 0;
+                foreach (DataRow row in dt.Rows)
+                {
+                    string status = row["Trạng thái"]?.ToString() ?? "";
+                    if (status == "Chờ kiểm tra") pending++;
+                    else if (status == "Đang kiểm tra") inspecting++;
+                    else if (status == "Hoàn thành") done++;
+                }
+                lblRIRTotal.Text = total.ToString();
+                lblRIRPending.Text = pending.ToString();
+                lblRIRInspecting.Text = inspecting.ToString();
+                lblRIRDone.Text = done.ToString();
             }
             catch (Exception ex)
             {
@@ -2887,7 +2962,7 @@ LEFT JOIN Suppliers s ON h.Supplier_ID = s.Supplier_ID
                         this.ClientSize.Width - panelNotify.Width - 10,
                         this.ClientSize.Height - panelNotify.Height - 10);
                 }
-                LoadData();
+                _ = LoadDataAsync();
             }
             else if (force)
             {
