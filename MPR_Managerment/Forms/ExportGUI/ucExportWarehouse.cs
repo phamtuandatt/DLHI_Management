@@ -485,11 +485,12 @@ namespace MPR_Managerment.Forms.ExportGUI
                 {
                     MessageBox.Show(this.FindForm(), "Đã xuất vật tư !.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadProject();
-                    dgvExportQue.Rows.Clear();
-                    dgvExportQue.Refresh();
-                    dgvKho.Rows.Clear();
-                    dgvKho.Refresh();
+
                     dtSelected.Rows.Clear();
+                    dgvExportQue.Refresh();
+
+                    _dtStock.Rows.Clear();
+                    dgvKho.Refresh();
                 }
             }
             catch (Exception ex)
