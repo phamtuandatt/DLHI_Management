@@ -217,6 +217,8 @@ namespace MPR_Managerment.Forms
                     ShowProjectDropdown(e.RowIndex);
                 else if (_dgv.Columns[e.ColumnIndex].Name == "FileType")
                     ShowFileTypeDropdown(e.RowIndex);
+                else if (_dgv.Columns[e.ColumnIndex].Name == "FinalName")
+                    _dgv.BeginEdit(true);
             };
 
             // Double-click cột FileName → mở file gốc

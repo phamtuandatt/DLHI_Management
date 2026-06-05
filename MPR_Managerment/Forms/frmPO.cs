@@ -374,11 +374,11 @@ namespace MPR_Managerment.Forms
                 if (ev.RowIndex < 0) return;
                 if (ev.ColumnIndex >= 0 && dgvPO.Columns[ev.ColumnIndex].Name == "col_SendEmail") return;
                 string poNo = dgvPO.Rows[ev.RowIndex].Cells["PO_No"].Value?.ToString() ?? "";
-                if (!string.IsNullOrEmpty(poNo))
-                {
-                    Clipboard.SetText(poNo);
-                    lblStatus.Text = $"✔ Đã copy: {poNo}";
-                }
+                //if (!string.IsNullOrEmpty(poNo))
+                //{
+                //    //Clipboard.SetText(poNo);
+                //    lblStatus.Text = $"✔ Đã copy: {poNo}";
+                //}
             };
 
             dgvPO.CellContentClick += DgvPO_CellContentClick;

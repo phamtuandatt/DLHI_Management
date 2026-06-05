@@ -983,7 +983,16 @@ namespace MPR_Managerment.Forms
                 // Gắn lại event handlers
                 dgvPO.CellFormatting += DgvPO_CellFormatting;
                 dgvPO.SelectionChanged += DgvPO_SelectionChanged;
-                
+
+                // Kích thủ công SelectionChanged cho dòng đầu tiên:
+                // khi bind DataSource, WinForms auto-select row[0] nhưng event đã bị tách
+                // nên DgvPO_SelectionChanged chưa bao giờ chạy → _selectedPO_ID vẫn = 0.
+                if (dgvPO.Rows.Count > 0)
+                {
+                    dgvPO.ClearSelection();
+                    dgvPO.Rows[0].Selected = true;   // fires SelectionChanged → load schedule/doc
+                }
+
                 // Force redraw
                 dgvPO.Invalidate();
             }
@@ -1472,6 +1481,22 @@ namespace MPR_Managerment.Forms
                     decimal totalPaid = po.Total_Paid;
                     int dotCount = scheds.Count;
 
+                    // Tính VAT thực tế từ các dòng PO — group theo từng mức thuế
+                    var poDetails = _poSvc.GetDetails(_selectedPO_ID);
+                    var vatGroups = poDetails
+                        .GroupBy(d => d.VAT)
+                        .Select(g => new {
+                            Rate     = g.Key,
+                            SubTotal = g.Sum(d => d.VAT > 0 ? d.Amount / (1 + d.VAT / 100) : d.Amount)
+                        })
+                        .OrderBy(g => g.Rate)
+                        .ToList();
+                    decimal detailSubTotal = vatGroups.Sum(g => g.SubTotal);
+                    decimal detailVatTotal = vatGroups.Sum(g => g.SubTotal * g.Rate / 100);
+                    decimal vatRate = detailSubTotal > 0 ? detailVatTotal / detailSubTotal : 0.1m;
+                    // Mixed = có từ 2 mức thuế khác nhau trở lên
+                    bool isMixedVat = vatGroups.Select(g => g.Rate).Distinct().Count() > 1;
+
                     // A1 — (N)th Payment Request
                     int paidDots = scheds.Count(s => s.Status == "Đã TT đủ");
                     string ordinal = (paidDots + 1) switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => $"{paidDots + 1}th" };
@@ -1529,11 +1554,12 @@ namespace MPR_Managerment.Forms
                     decimal sumNet = 0, sumVat = 0, sumTotal = 0;
                     for (int i = 0; i < 5; i++)
                     {
+                        int excelRow = 12 + i; // Rows 12..16
                         if (i < dotCount)
                         {
                             var s = scheds[i];
                             decimal net = s.Amount_Plan;
-                            decimal vat = Math.Round(net * 0.1m, 0);
+                            decimal vat = Math.Round(net * vatRate, 0);
                             decimal tot = Math.Round(net + vat, 0);
                             sumNet += net;
                             sumVat += vat;
@@ -1558,6 +1584,21 @@ namespace MPR_Managerment.Forms
                             ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", FormatAmt0(vat));
                             ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", FormatAmt0(tot));
                             ReplaceCell(ws, $"<<Ngày yêu cầu lần {i + 1}>>", dateValue);
+
+                            // Khi PO có nhiều mức VAT khác nhau: ghi breakdown vào cột Remarks (O)
+                            // Hiển thị tổng sau VAT của từng mức, prorated theo tỉ lệ subtotal
+                            if (isMixedVat && detailSubTotal > 0)
+                            {
+                                var parts = vatGroups
+                                    .Where(g => g.Rate > 0)
+                                    .Select(g =>
+                                    {
+                                        decimal groupSubNet = Math.Round(net * (g.SubTotal / detailSubTotal), 0);
+                                        decimal groupAfterVat = Math.Round(groupSubNet * (1 + g.Rate / 100), 0);
+                                        return $"VAT {g.Rate:0}%: {FormatAmt0(groupAfterVat)}";
+                                    });
+                                ws.Cells[excelRow, 15].Value = string.Join(" | ", parts);
+                            }
                         }
                         else
                         {
@@ -1565,13 +1606,14 @@ namespace MPR_Managerment.Forms
                             ReplaceCell(ws, $"<<Số tiền thuế lần {i + 1}>>", "");
                             ReplaceCell(ws, $"<<Số tiền sau thuế lần {i + 1}>>", "");
                             ReplaceCell(ws, $"<<Ngày yêu cầu lần {i + 1}>>", "");
+                            if (isMixedVat) ws.Cells[excelRow, 15].Value = "";
                         }
                     }
 
                     ReplaceCellAll(ws, "<<Sum>>", new[] { FormatAmt(sumNet), FormatAmt0(sumVat), FormatAmt0(sumTotal) });
 
                     decimal balNet = Math.Max(totalBeforeVat - sumNet, 0);
-                    decimal balTotal = Math.Round(Math.Max(totalBeforeVat * 1.1m - sumTotal - totalPaid, 0), 0);
+                    decimal balTotal = Math.Round(Math.Max(totalBeforeVat * (1 + vatRate) - sumTotal - totalPaid, 0), 0);
                     ReplaceCell(ws, "<<Tổng số tiền trước thuế còn lại>>", FormatAmt(balNet));
                     ReplaceCell(ws, "<<Tổng số tiền sau thuế còn lại>>", FormatAmt0(balTotal));
 
@@ -3600,6 +3642,19 @@ public class frmPaymentRequestPreview : Form
         DataObject obj = new DataObject();
         obj.SetData(DataFormats.Html, cfHtml);
         obj.SetData(DataFormats.UnicodeText, plainText);
-        Clipboard.SetDataObject(obj, true);
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                Clipboard.SetDataObject(obj, true);
+                return;
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                if (attempt == 4) throw;
+                System.Threading.Thread.Sleep(50);
+            }
+        }
     }
 }
