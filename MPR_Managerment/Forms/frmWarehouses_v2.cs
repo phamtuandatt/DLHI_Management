@@ -191,7 +191,8 @@ namespace MPR_Managerment.Forms
                 mainTabControl.TabPages.Add(pageWarehouse);
             }
 
-            if (AppSession.CurrentUser.Username.Equals("lehong"))
+            if (AppSession.CurrentUser.Username.Equals("lehong")
+                || AppSession.CurrentUser.Username.Equals("dunglam"))
             {
                 mainTabControl.TabPages.Add(pageImport);
                 mainTabControl.TabPages.Add(pageExport);
