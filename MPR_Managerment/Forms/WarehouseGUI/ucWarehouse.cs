@@ -369,6 +369,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                     dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Code", HeaderText = "Item Code", ReadOnly = true });
                     dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "SL_Ton", HeaderText = "Số lượng tồn", ReadOnly = true });
                     dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "SL_Xuat", HeaderText = "Số Lượng Xuất (*)", ReadOnly = false });
+                    dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "Remark", HeaderText = "Ghi chú", ReadOnly = false });
 
                     dgvSelected.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID_Code", ReadOnly = false });
                     //dgvSelected.EditingControlShowing += DgvSelectedMakeExport_EditingControlShowing;
@@ -520,6 +521,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                                     ws.Cells[currentRow, 7].Value = slXuat; // Cột Q'ty (G)
                                     ws.Cells[currentRow, 8].Value = row.Cells["DVT"].Value; // Cột Unit (H)
                                     ws.Cells[currentRow, 9].Value = row.Cells["ID_Code"].Value; // Cột ID_Code (I)
+                                    ws.Cells[currentRow, 10].Value = row.Cells["Remark"].Value; // Cột ID_Code (I)
                                 }
 
                                 // 4. Tìm và thay thế <<SUM>> bằng tổng thực tế
