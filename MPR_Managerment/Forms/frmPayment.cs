@@ -90,7 +90,10 @@ namespace MPR_Managerment.Forms
         private async void FrmPayment_Shown(object sender, EventArgs e)
         {
             this.Shown -= FrmPayment_Shown;  // Chỉ chạy 1 lần
-            await LoadDataAsync();
+            var toast = ToastHelper.Attach(this);
+            toast.Show("⏳ Đang tải dữ liệu, vui lòng chờ...");
+            try { await LoadDataAsync(); }
+            finally { toast.Hide(); }
         }
 
         // Mở với filter sẵn theo PO No (gọi từ frmPO)
@@ -749,7 +752,6 @@ namespace MPR_Managerment.Forms
         private async System.Threading.Tasks.Task LoadDataAsync()
         {
             btnRefreshPO.Enabled = false;
-            btnRefreshPO.Text = "⏳ Đang tải...";
 
             try
             {
@@ -861,8 +863,9 @@ namespace MPR_Managerment.Forms
 
         private async void LoadPOSummary()
         {
+            var toastRefresh = ToastHelper.Attach(this);
+            toastRefresh.Show("⏳ Đang tải dữ liệu, vui lòng chờ...");
             btnRefreshPO.Enabled = false;
-            btnRefreshPO.Text = "⏳ Đang tải...";
             try
             {
                 var result = await System.Threading.Tasks.Task.Run(() =>
@@ -881,8 +884,8 @@ namespace MPR_Managerment.Forms
             catch (Exception ex) { Err(ex.Message); }
             finally
             {
+                toastRefresh.Hide();
                 btnRefreshPO.Enabled = true;
-                btnRefreshPO.Text = "🔄 Làm mới";
             }
         }
 

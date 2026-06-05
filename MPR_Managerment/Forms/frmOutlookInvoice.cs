@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 
@@ -691,7 +692,8 @@ namespace MPR_Managerment.Forms
             btnDownload.Enabled = false;
             btnDownloadLinks.Enabled = false;
             progressBar.Visible = true;
-            lblStatus.Text = "Đang tải hóa đơn đính kèm và link email...";
+            var toast = ToastHelper.Attach(this);
+            toast.Show("⏳ Đang tải hóa đơn đính kèm và link email...");
 
             string saveDir = txtSaveDir.Text;
             int daysBack = (int)numDaysBack.Value;
@@ -705,6 +707,7 @@ namespace MPR_Managerment.Forms
             var attachResult = taskAttach.Result;
             var linkResult   = taskLink.Result;
 
+            toast.Hide();
             progressBar.Visible = false;
             btnDownload.Enabled = true;
             btnDownloadLinks.Enabled = true;

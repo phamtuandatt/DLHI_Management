@@ -183,10 +183,16 @@ namespace MPR_Managerment.Forms
             frmAIChat.Attach(this);
             this.Shown += async (s, e) =>
             {
-                await Task.WhenAll(LoadPOAsync(), LoadSupplierComboAsync());
-                LoadDeliveries();
-                if (!string.IsNullOrEmpty(_targetPoNo))
-                    SelectPOByNo(_targetPoNo);
+                var toast = ToastHelper.Attach(this);
+                toast.Show("⏳ Đang tải dữ liệu, vui lòng chờ...");
+                try
+                {
+                    await Task.WhenAll(LoadPOAsync(), LoadSupplierComboAsync());
+                    LoadDeliveries();
+                    if (!string.IsNullOrEmpty(_targetPoNo))
+                        SelectPOByNo(_targetPoNo);
+                }
+                finally { toast.Hide(); }
             };
         }
 
@@ -202,8 +208,14 @@ namespace MPR_Managerment.Forms
             {
                 this.BringToFront();
                 this.Activate();
-                await Task.WhenAll(LoadPOAsync(), LoadSupplierComboAsync());
-                await ImportMPRByNoAsync(_importMprNo, _importMprId);
+                var toast = ToastHelper.Attach(this);
+                toast.Show("⏳ Đang tải dữ liệu, vui lòng chờ...");
+                try
+                {
+                    await Task.WhenAll(LoadPOAsync(), LoadSupplierComboAsync());
+                    await ImportMPRByNoAsync(_importMprNo, _importMprId);
+                }
+                finally { toast.Hide(); }
             };
         }
 
@@ -1022,7 +1034,7 @@ namespace MPR_Managerment.Forms
             dgvMPRFiles.CellMouseEnter += DgvFiles_CellMouseEnter;
             dgvMPRFiles.CellMouseLeave += DgvFiles_CellMouseLeave;
             panelMPRFiles.Controls.Add(dgvMPRFiles);
-            panelDetail.Controls.Add(new Label { Text = "CHI TIẾT ĐƠN HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(300, 25) });
+            panelDetail.Controls.Add(new Label { Text = "CHI TIẾT ĐƠN HÀNG", Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 212), Location = new Point(10, 8), Size = new Size(160, 25) });
 
             // FlowLayoutPanel cho toolbar chi tiết — tự wrap khi form nhỏ
             var flowDetailBtns = new FlowLayoutPanel
@@ -1090,23 +1102,24 @@ namespace MPR_Managerment.Forms
             };
 
 
-            // ── Bộ lọc "Đã lên PO" — nằm trong flowDetailBtns ──────────
-            flowDetailBtns.Controls.Add(new Label
+            // ── Bộ lọc "Đã lên PO" — di chuyển lên cạnh tiêu đề "CHI TIẾT ĐƠN HÀNG" ──────────
+            var lblFilterPO = new Label
             {
                 Text = "Đã lên PO:",
-                AutoSize = false,
-                Size = new Size(62, 28),
-                TextAlign = ContentAlignment.MiddleRight,
-                Font = new Font("Segoe UI", 8, FontStyle.Bold),
-                Margin = new Padding(8, 0, 2, 0)
-            });
+                AutoSize = true,
+                Location = new Point(180, 11),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.Black
+            };
+            panelDetail.Controls.Add(lblFilterPO);
+
             var cboFilterPO = new ComboBox
             {
-                Size = new Size(110, 28),
+                Size = new Size(110, 25),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Name = "cboFilterPO",
-                Margin = new Padding(0, 0, 4, 0)
+                Location = new Point(255, 6)
             };
             cboFilterPO.Items.AddRange(new object[] { "Tất cả", "Đã lên PO", "Chưa lên PO" });
             cboFilterPO.SelectedIndex = 0;
@@ -1125,7 +1138,7 @@ namespace MPR_Managerment.Forms
                     };
                 }
             };
-            flowDetailBtns.Controls.Add(cboFilterPO);
+            panelDetail.Controls.Add(cboFilterPO);
 
             // Đẩy dgvDetails xuống dưới toolbar
             flowDetailBtns.SizeChanged += (s, e) =>
@@ -2476,6 +2489,7 @@ namespace MPR_Managerment.Forms
                 foreach (DataGridViewColumn col in dgvDetails.Columns)
                 {
                     if (!col.Visible) continue;
+                    if (col.Name == "NhapKho") continue;
                     if (col.Name == "Asize" || col.Name == "Bsize" || col.Name == "Csize")
                     {
                         col.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells;
@@ -3157,11 +3171,15 @@ namespace MPR_Managerment.Forms
             }
         }
 
+
         private void BuildDetailColumns()
         {
             dgvDetails.Columns.Clear();
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeliveryLocation", HeaderText = "Nơi giao" });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_No", HeaderText = "STT", ReadOnly = true });
+            // Freeze 2 cột đầu: đặt Frozen=true trên cột cuối cùng trong nhóm freeze
+            dgvDetails.Columns["DeliveryLocation"].Frozen = true;
+            dgvDetails.Columns["Item_No"].Frozen = true;
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Item_Name", HeaderText = "Tên hàng" });
             // Cột Description từ MPR — chỉ hiển thị, không lưu
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -3203,7 +3221,7 @@ namespace MPR_Managerment.Forms
             dgvDetails.Columns.Add(colCalc);
 
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ordered_PO", HeaderText = "Đã lên PO", ReadOnly = true });
-            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "NhapKho", HeaderText = "Nhập kho" });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "NhapKho", HeaderText = "Nhập kho", Visible = true, ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPR_Detail_ID", HeaderText = "MPR_Detail_ID", Visible = false });
 
@@ -3224,6 +3242,7 @@ namespace MPR_Managerment.Forms
                 dgvDetails.Columns["NhapKho"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 dgvDetails.Columns["NhapKho"].DefaultCellStyle.Format = "N2";
                 dgvDetails.Columns["NhapKho"].DefaultCellStyle.NullValue = "";
+                dgvDetails.Columns["NhapKho"].Width = 75;
             }
             dgvDetails.Columns["Item_No"].Width = 40; dgvDetails.Columns["Item_Name"].Width = 150;
             AutoAdjustColumnWidths();
@@ -4569,6 +4588,62 @@ var sameProjPOs = _poList.Where(p =>
             // Nếu đang mở thì cho phép khóa lại ngay
             if (cboSupplier.Enabled)
             {
+                // Kiểm tra xem NCC có thay đổi không
+                if (_selectedPO_ID > 0)
+                {
+                    var currentPO = _poList.Find(x => x.PO_ID == _selectedPO_ID);
+                    if (currentPO != null)
+                    {
+                        int newSupplierId = Convert.ToInt32(cboSupplier.SelectedValue ?? 0);
+                        
+                        // Nếu NCC đã thay đổi, cập nhật vào database và app
+                        if (newSupplierId > 0 && newSupplierId != currentPO.Supplier_ID)
+                        {
+                            try
+                            {
+                                // Cập nhật Supplier_ID trong database
+                                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                                {
+                                    conn.Open();
+                                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                                        "UPDATE PO_head SET Supplier_ID = @SupplierID WHERE PO_ID = @PO_ID", conn);
+                                    cmd.Parameters.AddWithValue("@SupplierID", newSupplierId);
+                                    cmd.Parameters.AddWithValue("@PO_ID", _selectedPO_ID);
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                // Cập nhật trong _poList (dữ liệu local)
+                                currentPO.Supplier_ID = newSupplierId;
+
+                                // Cập nhật UI - refresh grid để hiển thị tên NCC mới
+                                _isLoadingPO = true;
+                                BindPOGrid(_poList);
+                                
+                                // Chọn lại PO hiện tại trong grid
+                                foreach (DataGridViewRow row in dgvPO.Rows)
+                                {
+                                    if (Convert.ToInt32(row.Cells["ID"].Value) == _selectedPO_ID)
+                                    {
+                                        row.Selected = true;
+                                        dgvPO.CurrentCell = row.Cells[0];
+                                        break;
+                                    }
+                                }
+                                _isLoadingPO = false;
+
+                                SafeInfo("Đã cập nhật thông tin Nhà cung cấp thành công!", "Thông báo");
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show(GetActiveOwner(), 
+                                    "Lỗi khi cập nhật Nhà cung cấp: " + ex.Message, 
+                                    "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                return;
+                            }
+                        }
+                    }
+                }
+
                 cboSupplier.Enabled = false;
                 _supplierLocked = true;
                 btnUnlockSupplier.Visible = true;

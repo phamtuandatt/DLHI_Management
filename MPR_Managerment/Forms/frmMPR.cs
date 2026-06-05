@@ -1042,6 +1042,8 @@ namespace MPR_Managerment.Forms
                 RowHeadersVisible = false,
                 Font = new Font("Segoe UI", 9),
                 AllowUserToAddRows = false,
+                AllowUserToResizeColumns = true,
+                AllowUserToOrderColumns = true,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom
             };
@@ -1218,6 +1220,7 @@ namespace MPR_Managerment.Forms
                 HeaderText = "STT",
                 Width = 35,
                 ReadOnly = true,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1225,6 +1228,7 @@ namespace MPR_Managerment.Forms
                 Name = "Item_Name",
                 HeaderText = "Tên vật tư",
                 Width = 120,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1232,6 +1236,7 @@ namespace MPR_Managerment.Forms
                 Name = "Description",
                 HeaderText = "Mô tả",
                 Width = 110,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1239,6 +1244,7 @@ namespace MPR_Managerment.Forms
                 Name = "Material",
                 HeaderText = "Vật liệu",
                 Width = 130,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1246,6 +1252,7 @@ namespace MPR_Managerment.Forms
                 Name = "Thickness_mm",
                 HeaderText = "Dày\n(mm)",
                 Width = 38,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1253,6 +1260,7 @@ namespace MPR_Managerment.Forms
                 Name = "Depth_mm",
                 HeaderText = "-Sâu\n(mm)",
                 Width = 38,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1260,6 +1268,7 @@ namespace MPR_Managerment.Forms
                 Name = "C_Width_mm",
                 HeaderText = "Rộng\n(mm)",
                 Width = 38,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1267,6 +1276,7 @@ namespace MPR_Managerment.Forms
                 Name = "D_Web_mm",
                 HeaderText = "Bụng\n(mm)",
                 Width = 38,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1274,6 +1284,7 @@ namespace MPR_Managerment.Forms
                 Name = "E_Flange_mm",
                 HeaderText = "Cánh\n(mm)",
                 Width = 38,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1281,6 +1292,7 @@ namespace MPR_Managerment.Forms
                 Name = "F_Length_mm",
                 HeaderText = "F-Dài\n(mm)",
                 Width = 65,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1288,6 +1300,7 @@ namespace MPR_Managerment.Forms
                 Name = "UNIT",
                 HeaderText = "ĐVT",
                 Width = 40,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1295,6 +1308,7 @@ namespace MPR_Managerment.Forms
                 Name = "Qty",
                 HeaderText = "SL",
                 Width = 35,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1302,6 +1316,7 @@ namespace MPR_Managerment.Forms
                 Name = "Weight",
                 HeaderText = "KG",
                 Width = 35,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1309,6 +1324,7 @@ namespace MPR_Managerment.Forms
                 Name = "MPS_Info",
                 HeaderText = "MPS Info",
                 Width = 60,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1316,6 +1332,7 @@ namespace MPR_Managerment.Forms
                 Name = "Usage_Location",
                 HeaderText = "Vị trí dùng",
                 Width = 70,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1323,6 +1340,7 @@ namespace MPR_Managerment.Forms
                 Name = "REV",
                 HeaderText = "REV",
                 Width = 35,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1330,6 +1348,7 @@ namespace MPR_Managerment.Forms
                 Name = "Remarks",
                 HeaderText = "Ghi chú",
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
@@ -1338,6 +1357,7 @@ namespace MPR_Managerment.Forms
                 HeaderText = "Đã lên PO",
                 Width = 100,
                 ReadOnly = true,
+                Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
         }
@@ -4635,16 +4655,7 @@ namespace MPR_Managerment.Forms
                     ORDER BY pi.ProjectCode, h.MPR_No, d.Item_No";
 
 
-                DataTable dtFull;
-                using (var conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-                    // Bước 1: tạo temp table #SibDet (tính 1 lần)
-                    new SqlCommand(SQL_SIB, conn) { CommandTimeout = 120 }.ExecuteNonQuery();
-                    // Bước 2: main query dùng #SibDet
-                    dtFull = new DataTable();
-                    dtFull.Load(new SqlCommand(SQL, conn) { CommandTimeout = 120 }.ExecuteReader());
-                }
+                DataTable dtFull = null; // loaded async after popup.Show()
 
                 // ── Popup ──
                 var popup = new Form
@@ -4666,19 +4677,9 @@ namespace MPR_Managerment.Forms
                     Size = new Size(900, 24)
                 });
 
-                int total = dtFull.Rows.Count;
-                int pass = 0, fail = 0, hold = 0, notYet = 0;
-                foreach (DataRow r in dtFull.Rows)
-                {
-                    string kt = r["Kết quả KT"]?.ToString() ?? "";
-                    if (kt == "Pass") pass++;
-                    else if (kt == "Fail") fail++;
-                    else if (kt == "Hold") hold++;
-                    else notYet++;
-                }
                 var lblStat = new Label
                 {
-                    Text = $"Tổng: {total}  |  ✅ Pass: {pass}  |  ❌ Fail: {fail}  |  ⏸ Hold: {hold}  |  ⏳ Chưa KT: {notYet}",
+                    Text = "⏳ Đang tải dữ liệu...",
                     Font = new Font("Segoe UI", 9, FontStyle.Bold),
                     ForeColor = Color.FromArgb(0, 120, 212),
                     Location = new Point(10, 36),
@@ -4712,12 +4713,7 @@ namespace MPR_Managerment.Forms
 
                 addFL("Mã DA:", x1, row1Y, 48);
 
-                // ── Checked-combo dropdown cho Mã DA (chọn nhiều) ──
-                var daProjectList = dtFull.AsEnumerable()
-                    .Select(r => r["Mã dự án"].ToString())
-                    .Where(v => !string.IsNullOrEmpty(v))
-                    .Distinct().OrderBy(v => v).ToList();
-
+                // ── Checked-combo dropdown cho Mã DA (chọn nhiều) — populated after data loads ──
                 var clbDA = new CheckedListBox
                 {
                     Font = new Font("Segoe UI", 9),
@@ -4725,10 +4721,9 @@ namespace MPR_Managerment.Forms
                     BorderStyle = BorderStyle.None,
                     BackColor = Color.White,
                     IntegralHeight = false,
-                    Width = 220
+                    Width = 220,
+                    Height = 4
                 };
-                foreach (var p in daProjectList) clbDA.Items.Add(p, false);
-                clbDA.Height = Math.Min(clbDA.Items.Count, 10) * 17 + 4;
 
                 var panelDropDA = new Panel
                 {
@@ -4947,8 +4942,49 @@ namespace MPR_Managerment.Forms
                         Color.White;
                 };
 
-                Action applyFilter = () =>
+                var toast = ToastHelper.Attach(popup);
+
+                Action applyFilter = null;
+                applyFilter = () =>
                 {
+                    if (dtFull == null)
+                    {
+                        toast.Show("⏳ Đang tải dữ liệu, vui lòng chờ...");
+                        btnFSearch.Enabled = false;
+                        Task.Run(() =>
+                        {
+                            try
+                            {
+                                var dt = new DataTable();
+                                using (var conn = DatabaseHelper.GetConnection())
+                                {
+                                    conn.Open();
+                                    new SqlCommand(SQL_SIB, conn) { CommandTimeout = 120 }.ExecuteNonQuery();
+                                    dt.Load(new SqlCommand(SQL, conn) { CommandTimeout = 120 }.ExecuteReader());
+                                }
+                                popup.Invoke((Action)(() =>
+                                {
+                                    if (popup.IsDisposed) return;
+                                    dtFull = dt;
+                                    toast.Hide();
+                                    btnFSearch.Enabled = true;
+                                    applyFilter();
+                                }));
+                            }
+                            catch (Exception ex)
+                            {
+                                if (!popup.IsDisposed)
+                                    popup.Invoke((Action)(() =>
+                                    {
+                                        toast.Hide();
+                                        lblStat.Text = $"❌ Lỗi tải dữ liệu: {ex.Message}";
+                                        btnFSearch.Enabled = true;
+                                    }));
+                            }
+                        });
+                        return;
+                    }
+
                     var selDA = clbDA.CheckedItems.Cast<string>().ToList();
                     string kName = txtFName.Text.Trim().ToLower();
                     string kA = txtFA.Text.Trim();
@@ -5018,14 +5054,10 @@ namespace MPR_Managerment.Forms
                     }
                 };
 
-                // ItemCheck: update button text + refilter (after applyFilter to avoid CS0841)
+                // ItemCheck: chỉ cập nhật text nút, không tự filter
                 clbDA.ItemCheck += (s, ev) =>
                 {
-                    clbDA.BeginInvoke(new Action(() =>
-                    {
-                        updateBtnDA();
-                        applyFilter();
-                    }));
+                    clbDA.BeginInvoke(new Action(updateBtnDA));
                 };
 
                 btnFSearch.Click += (s, ev) => applyFilter();
@@ -5238,6 +5270,38 @@ namespace MPR_Managerment.Forms
 
                 popup.Owner = this;
                 popup.Show();
+
+                // Load chỉ danh sách Mã DA (query nhẹ) để populate dropdown ngay khi popup mở
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        var daList = new List<string>();
+                        using (var conn = DatabaseHelper.GetConnection())
+                        {
+                            conn.Open();
+                            var cmd = new SqlCommand(
+                                "SELECT DISTINCT ISNULL(ProjectCode,'') FROM ProjectInfo WHERE ISNULL(ProjectCode,'') <> '' ORDER BY 1",
+                                conn) { CommandTimeout = 30 };
+                            using var reader = cmd.ExecuteReader();
+                            while (reader.Read()) daList.Add(reader.GetString(0));
+                        }
+                        popup.Invoke((Action)(() =>
+                        {
+                            if (popup.IsDisposed) return;
+                            foreach (var p in daList) clbDA.Items.Add(p, false);
+                            clbDA.Height = Math.Min(clbDA.Items.Count, 10) * 17 + 4;
+                            panelDropDA.Size = new Size(224, clbDA.Height + 2);
+                            lblStat.Text = "Chọn điều kiện và nhấn [🔍 Lọc] (hoặc Enter) để tìm kiếm.";
+                        }));
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!popup.IsDisposed)
+                            popup.Invoke((Action)(() =>
+                                lblStat.Text = $"❌ Lỗi tải mã dự án: {ex.Message}"));
+                    }
+                });
             }
             catch (Exception ex)
             {

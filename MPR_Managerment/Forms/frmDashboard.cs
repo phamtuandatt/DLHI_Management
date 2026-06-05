@@ -128,6 +128,8 @@ namespace MPR_Managerment.Forms
         private async void FrmDashboard_Shown(object sender, EventArgs e)
         {
             this.Shown -= FrmDashboard_Shown;
+            var toast = ToastHelper.Attach(this);
+            toast.Show("⏳ Đang tải dữ liệu, vui lòng chờ...");
             this.Cursor = Cursors.WaitCursor;
             try
             {
@@ -137,6 +139,7 @@ namespace MPR_Managerment.Forms
             }
             finally
             {
+                toast.Hide();
                 this.Cursor = Cursors.Default;
             }
         }

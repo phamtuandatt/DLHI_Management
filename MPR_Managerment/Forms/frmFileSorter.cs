@@ -344,7 +344,8 @@ namespace MPR_Managerment.Forms
 
             _btnScan.Enabled = false;
             _btnRun.Enabled = false;
-            SetStatus("⏳ Đang chạy OCR...");
+            var toast = ToastHelper.Attach(this);
+            toast.Show("⏳ Đang chạy OCR...");
 
             Task.Run(() =>
             {
@@ -373,7 +374,7 @@ namespace MPR_Managerment.Forms
                             "Cảnh báo OCR", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
                         if (res != DialogResult.Yes)
                         {
-                            this.Invoke(() => { SetStatus("Đã hủy."); _btnScan.Enabled = true; });
+                            this.Invoke(() => { toast.Hide(); SetStatus("Đã hủy."); _btnScan.Enabled = true; });
                             return;
                         }
                     }
@@ -388,19 +389,20 @@ namespace MPR_Managerment.Forms
                         "Cảnh báo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
                     if (res != DialogResult.Yes)
                     {
-                        this.Invoke(() => { SetStatus("Đã hủy."); _btnScan.Enabled = true; });
+                        this.Invoke(() => { toast.Hide(); SetStatus("Đã hủy."); _btnScan.Enabled = true; });
                         return;
                     }
                 }
 
                 // ── Load projects từ DB ──────────────────────────────────
-                this.Invoke(() => SetStatus("⏳ Đang tải dữ liệu dự án từ DB..."));
+                this.Invoke(() => toast.Show("⏳ Đang tải dữ liệu dự án từ DB..."));
                 var projects = LoadProjects();
 
                 if (projects.Count == 0)
                 {
                     this.Invoke(() =>
                     {
+                        toast.Hide();
                         SetStatus("⚠️ Không tìm thấy dự án nào trong DB (bảng ProjectInfo).");
                         _btnScan.Enabled = true;
                     });
@@ -418,18 +420,18 @@ namespace MPR_Managerment.Forms
                 }
                 catch (Exception ex)
                 {
-                    this.Invoke(() => { SetStatus($"❌ Lỗi đọc thư mục: {ex.Message}"); _btnScan.Enabled = true; });
+                    this.Invoke(() => { toast.Hide(); SetStatus($"❌ Lỗi đọc thư mục: {ex.Message}"); _btnScan.Enabled = true; });
                     return;
                 }
 
                 if (files.Length == 0)
                 {
-                    this.Invoke(() => { SetStatus("📂 Thư mục không có file nào."); _btnScan.Enabled = true; });
+                    this.Invoke(() => { toast.Hide(); SetStatus("📂 Thư mục không có file nào."); _btnScan.Enabled = true; });
                     return;
                 }
 
                 // ── Phân tích (có thể dùng projects mới load) ────────────
-                this.Invoke(() => SetStatus("⏳ Đang quét file..."));
+                this.Invoke(() => toast.Show("⏳ Đang quét file..."));
                 _projects = projects; // cập nhật trước khi gọi AnalyzeFile
                 var newItems = new List<SortItem>();
                 foreach (string fp in files)
@@ -438,6 +440,7 @@ namespace MPR_Managerment.Forms
                 // ── Cập nhật UI trên UI thread ───────────────────────────
                 this.Invoke(() =>
                 {
+                    toast.Hide();
                     _items = newItems;
                     _dgv.Rows.Clear();
                     PopulateProjectCombo();
