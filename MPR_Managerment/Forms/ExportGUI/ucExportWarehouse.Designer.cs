@@ -129,6 +129,7 @@
             btnCancelSer.TabIndex = 4;
             btnCancelSer.Text = "✖ Xóa lọc";
             btnCancelSer.UseVisualStyleBackColor = false;
+            btnCancelSer.Click += btnCancelSer_Click;
             // 
             // btnSearch
             // 

@@ -1,4 +1,5 @@
 ﻿using MPR_Managerment.Common;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml.Utils;
@@ -25,6 +26,9 @@ namespace MPR_Managerment.Forms.ExportGUI
         private WarehouseService _warehouseServies = new WarehouseService();
 
         private Dictionary<string, string> _exportQue = new Dictionary<string, string>();
+        private BindingSource _bindingSource = new BindingSource();
+        private Helpers.DataGridViewFilterHelper? _filterHelper;
+        private CheckBox chkFilter;
 
         //private DataGridView dgvKho;
 
@@ -88,7 +92,11 @@ namespace MPR_Managerment.Forms.ExportGUI
             if (_isLoaded)
             {
                 _dtStock = await _warehouseServies.GetImportForExport(cboProject.SelectedValue.ToString());
-                dgvKho.DataSource = _dtStock;
+                _bindingSource.DataSource = _dtStock;
+                dgvKho.DataSource = _bindingSource;
+                _filterHelper = new Helpers.DataGridViewFilterHelper(dgvKho, _dtStock, _bindingSource);
+                _filterHelper.EnableFilter(true);
+
                 dgvKho.Columns["Import_ID"].Visible = false;
                 dgvKho.Columns["PO_ID"].Visible = false;
                 dgvKho.Columns["PO_Detail_ID"].Visible = false;
@@ -719,6 +727,11 @@ namespace MPR_Managerment.Forms.ExportGUI
             //        dgvKho.Rows[e.RowIndex].DefaultCellStyle.ForeColor = Color.Black;
             //    }
             //}
+        }
+
+        private void btnCancelSer_Click(object sender, EventArgs e)
+        {
+            _filterHelper.ClearAllFilters();
         }
     }
 }
