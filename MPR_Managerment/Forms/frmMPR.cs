@@ -34,7 +34,10 @@ namespace MPR_Managerment.Forms
                 new SqlCommand(@"
                     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
                                   WHERE TABLE_NAME='MPR_Details' AND COLUMN_NAME='Is_Deleted')
-                        ALTER TABLE MPR_Details ADD Is_Deleted BIT NOT NULL DEFAULT 0", conn)
+                        ALTER TABLE MPR_Details ADD Is_Deleted BIT NOT NULL DEFAULT 0;
+                    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                                  WHERE TABLE_NAME='MPR_Header' AND COLUMN_NAME='Is_Deleted')
+                        ALTER TABLE MPR_Header ADD Is_Deleted BIT NOT NULL DEFAULT 0;", conn)
                     .ExecuteNonQuery();
             }
             catch { }
@@ -817,6 +820,21 @@ namespace MPR_Managerment.Forms
             btnPrint.Click += BtnPrint_Click;
             panelTop.Controls.Add(btnPrint);
 
+            var btnEmailHistory = new Button
+            {
+                Text = "📋 Lịch sử gửi mail",
+                Location = new Point(975, 47),
+                Size = new Size(130, 30),
+                BackColor = Color.FromArgb(0, 100, 148),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            btnEmailHistory.FlatAppearance.BorderSize = 0;
+            btnEmailHistory.Click += BtnEmailHistory_Click;
+            panelTop.Controls.Add(btnEmailHistory);
+
             lblStatus = new Label
             {
                 Location = new Point(820, 52),
@@ -924,7 +942,9 @@ namespace MPR_Managerment.Forms
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
             cboStatus.Items.AddRange(new[] { "Mới", "Đang xử lý", "Đã duyệt", "Hoàn thành", "Hủy" });
-            cboStatus.SelectedIndex = 0;
+            if (cboStatus.Items.Count > 0)
+                if (cboStatus.Items.Count > 0)
+                    cboStatus.SelectedIndex = 0;
             panelHeader.Controls.Add(cboStatus);
 
             // Hàng 2
@@ -1020,7 +1040,8 @@ namespace MPR_Managerment.Forms
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
             _cboFilterPO.Items.Add("(Tat ca)"); // placeholder, se duoc load dong
-            _cboFilterPO.SelectedIndex = 0;
+            if (_cboFilterPO.Items.Count > 0)
+                _cboFilterPO.SelectedIndex = 0;
             _cboFilterPO.SelectedIndexChanged += (s, ev) => FilterDetailByPO();
             panelDetail.Controls.Add(_cboFilterPO);
 
@@ -1126,6 +1147,12 @@ namespace MPR_Managerment.Forms
             var mpr_header = new MPRHeader() { MPR_ID = mprId, MPR_No = mprNo, Project_Name = projectName };
 
             ExportMPRToExcel(mpr_header, mpr_detail);
+        }
+
+        private void BtnEmailHistory_Click(object? sender, EventArgs e)
+        {
+            var frm = new frmNotificationLog();
+            frm.Show();
         }
 
         // =====================================================================
@@ -4067,6 +4094,27 @@ namespace MPR_Managerment.Forms
 
                 var frm = new frmPO(mprNo, true);
                 frm.SetImportMprId(mpr.MPR_ID);
+                
+                // Kiểm tra xem có filter nào được áp dụng không
+                string currentFilter = _cboFilterPO?.SelectedItem?.ToString() ?? "(Tat ca)";
+                if (currentFilter != "(Tat ca)")
+                {
+                    // Nếu có filter, lấy danh sách Detail_ID từ các dòng hiển thị (visible)
+                    var filteredDetailIds = new List<int>();
+                    foreach (DataGridViewRow row in dgvDetails.Rows)
+                    {
+                        if (!row.IsNewRow && row.Visible)
+                        {
+                            if (int.TryParse(row.Cells["Detail_ID"]?.Value?.ToString() ?? "0", out int detailId) && detailId > 0)
+                            {
+                                filteredDetailIds.Add(detailId);
+                            }
+                        }
+                    }
+                    // Truyền danh sách Detail IDs đã lọc sang frmPO
+                    frm.SetFilteredMprDetailIds(filteredDetailIds);
+                }
+                
                 frm.Show();
 
                 // Đưa focus sang form PO ngay sau khi mở.
@@ -5326,7 +5374,8 @@ namespace MPR_Managerment.Forms
             txtRev.Text = "0";
             txtNotes.Text = "";
             dtpRequiredDate.Value = DateTime.Today;
-            cboStatus.SelectedIndex = 0;
+            if (cboStatus.Items.Count > 0)
+                cboStatus.SelectedIndex = 0;
         }
 
         // =====================================================
@@ -5370,7 +5419,8 @@ namespace MPR_Managerment.Forms
             }
             // Them muc loc rong neu co dong chua len PO
             if (hasEmpty) _cboFilterPO.Items.Add("(Chua len PO)");
-            _cboFilterPO.SelectedIndex = 0; // chon "(Tat ca)"
+            if (_cboFilterPO.Items.Count > 0)
+                _cboFilterPO.SelectedIndex = 0; // chon "(Tat ca)"
             _cboFilterPO.SelectedIndexChanged += (s, ev) => FilterDetailByPO();
         }
 
@@ -5694,7 +5744,7 @@ SELECT
     ISNULL(mp.PO_List, N'')     AS PO_List
 FROM FilteredMPR f
 LEFT JOIN MPR_PO mp ON mp.MPR_ID = f.MPR_ID
-LEFT JOIN Project_Info pi ON pi.ProjectCode = f.Project_Code
+                    LEFT JOIN ProjectInfo pi ON pi.ProjectCode = f.Project_Code
 WHERE f.rn = 1";
 
                 // Dynamic filters
@@ -5745,7 +5795,7 @@ WHERE f.rn = 1";
                         string sqlProj = @"
 SELECT DISTINCT ISNULL(pi.ProjectName, h.Project_Code) AS DisplayName, h.Project_Code
 FROM MPR_Header h
-LEFT JOIN Project_Info pi ON pi.ProjectCode = h.Project_Code
+                    LEFT JOIN ProjectInfo pi ON pi.ProjectCode = h.Project_Code
 WHERE ISNULL(h.Is_Deleted,0) = 0
 ORDER BY DisplayName";
                         var dt = new DataTable();
@@ -5763,7 +5813,9 @@ ORDER BY DisplayName";
                     }
                 }
                 catch { /* ignore — combobox just shows (Tất cả) */ }
-                cboProject.SelectedIndex = 0;
+                if (cboProject.Items.Count > 0)
+                    if (cboProject.Items.Count > 0)
+                        cboProject.SelectedIndex = 0;
             }
 
             // ── Wire events ──────────────────────────────────────────────────

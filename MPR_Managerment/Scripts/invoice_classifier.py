@@ -34,11 +34,11 @@ except ImportError:
 # ── Cấu hình kết nối DB ────────────────────────────────────────────────────────
 DB_CONN = (
     "DRIVER={ODBC Driver 17 for SQL Server};"
-    "SERVER=tcp:dlhivietnam.database.windows.net,1433;"
+    "SERVER=tcp:dlhi.database.windows.net,1433;"
     "DATABASE=MPR_Management;"
-    "UID=DLHI_Admin;"
+    "UID=davidhoang;"
     "PWD=Hoangquyen@1905;"
-    "Encrypt=yes;TrustServerCertificate=yes;"
+    "Encrypt=yes;TrustServerCertificate=no;"
 )
 
 # Label phổ biến trong PDF hóa đơn để nhận dạng số PO

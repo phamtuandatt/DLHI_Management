@@ -2488,27 +2488,29 @@ private void ResizeAll()
             }
         }
 
-        // panelPrintHistory should appear below BOTH panelSched AND panelHist to avoid overlap
+        // panelPrintHistory moved to below panelSched (left side)
         if (panelPrintHistory != null)
         {
-            int baseTop = Math.Max(panelSched?.Bottom ?? 0, panelHist?.Bottom ?? 0) + 5;
-            panelPrintHistory.Top = baseTop;
+            panelPrintHistory.Top = (panelSched?.Bottom ?? 0) + 5;
+            panelPrintHistory.Left = 5;
             panelPrintHistory.Width = leftW;
-            panelPrintHistory.Height = Math.Max(100, h - baseTop - 10);
+            panelPrintHistory.Height = Math.Max(100, h - panelPrintHistory.Top - 10);
             dgvPrintHistory.Width = panelPrintHistory.Width - 10;
-            dgvPrintHistory.Height = panelPrintHistory.Height - 63; // toolbar + margin
+            dgvPrintHistory.Height = panelPrintHistory.Height - 63;
             if (_phDateTo != null)
                 _phDateTo.Width = Math.Min(115, (panelPrintHistory.Width - 470) / 2);
         }
 
+        // panelHist now sits on the right side, occupying the full height
         if (panelHist != null)
         {
-                    panelHist.Left = w / 2 + 3;
-                    panelHist.Width = w / 2 - 8;
-                    panelHist.Height = Math.Max(200, h - panelHist.Top - 10);
-                    dgvHistory.Width = panelHist.Width - 10;
-                    dgvHistory.Height = panelHist.Height - 62;
-                }
+            panelHist.Left = w / 2 + 3;
+            panelHist.Top = 317;
+            panelHist.Width = w / 2 - 8;
+            panelHist.Height = Math.Max(200, h - panelHist.Top - 10);
+            dgvHistory.Width = panelHist.Width - 10;
+            dgvHistory.Height = panelHist.Height - 62;
+        }
 
                 // ── Tab Debt: pNCC chiếm 50% width, pDet chiếm phần còn lại ──
                 if (_pNCC != null && _pDet != null)

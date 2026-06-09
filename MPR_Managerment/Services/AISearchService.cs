@@ -586,6 +586,25 @@ JSON:";
                         OfficeOpenXml.Style.ExcelBorderStyle.Medium;
                 }
 
+                // ── Detect cột ngày tháng ──
+                var dateColIdx = new System.Collections.Generic.HashSet<int>();
+                for (int c = 0; c < dt.Columns.Count; c++)
+                {
+                    var col = dt.Columns[c];
+                    if (col.DataType == typeof(DateTime) || col.DataType == typeof(DateTime?))
+                    {
+                        dateColIdx.Add(c);
+                    }
+                    else
+                    {
+                        // Kiểm tra theo tên cột
+                        string cn = col.ColumnName.ToLower();
+                        if (cn.Contains("date") || cn.Contains("ngay") || cn.Contains("ngày") ||
+                            cn.EndsWith("_dt") || cn.StartsWith("dt_"))
+                            dateColIdx.Add(c);
+                    }
+                }
+
                 // ── Dữ liệu ──
                 for (int r = 0; r < dt.Rows.Count; r++)
                 {
@@ -593,7 +612,32 @@ JSON:";
                     {
                         var cell = ws.Cells[r + 5, c + 1];
                         var val = dt.Rows[r][c];
-                        cell.Value = val == DBNull.Value ? "" : val;
+
+                        if (val == DBNull.Value || val == null)
+                        {
+                            cell.Value = "";
+                        }
+                        else if (dateColIdx.Contains(c))
+                        {
+                            if (val is DateTime dtVal)
+                            {
+                                cell.Value = dtVal;
+                                cell.Style.Numberformat.Format = "dd/MM/yyyy";
+                            }
+                            else if (DateTime.TryParse(val.ToString(), out DateTime parsed))
+                            {
+                                cell.Value = parsed;
+                                cell.Style.Numberformat.Format = "dd/MM/yyyy";
+                            }
+                            else
+                            {
+                                cell.Value = val;
+                            }
+                        }
+                        else
+                        {
+                            cell.Value = val;
+                        }
 
                         // Zebra stripe
                         if (r % 2 == 1)
@@ -1792,12 +1836,56 @@ IF NOT EXISTS (SELECT 1 FROM AI_Skill WHERE Skill_Name = N'Danh sách NCC' AND S
                     cell.Style.Font.Color.SetColor(System.Drawing.Color.White);
                 }
 
+                // Detect cột ngày tháng
+                var dateColIdx = new System.Collections.Generic.HashSet<int>();
+                for (int c = 0; c < _lastQueryResult.Columns.Count; c++)
+                {
+                    var col = _lastQueryResult.Columns[c];
+                    if (col.DataType == typeof(DateTime) || col.DataType == typeof(DateTime?))
+                    {
+                        dateColIdx.Add(c);
+                    }
+                    else
+                    {
+                        string cn = col.ColumnName.ToLower();
+                        if (cn.Contains("date") || cn.Contains("ngay") || cn.Contains("ngày") ||
+                            cn.EndsWith("_dt") || cn.StartsWith("dt_"))
+                            dateColIdx.Add(c);
+                    }
+                }
+
                 // Data
                 for (int r = 0; r < _lastQueryResult.Rows.Count; r++)
                     for (int c = 0; c < _lastQueryResult.Columns.Count; c++)
                     {
+                        var cell = ws.Cells[r + 5, c + 1];
                         var val = _lastQueryResult.Rows[r][c];
-                        ws.Cells[r + 5, c + 1].Value = val == DBNull.Value ? "" : val;
+
+                        if (val == DBNull.Value || val == null)
+                        {
+                            cell.Value = "";
+                        }
+                        else if (dateColIdx.Contains(c))
+                        {
+                            if (val is DateTime dtVal)
+                            {
+                                cell.Value = dtVal;
+                                cell.Style.Numberformat.Format = "dd/MM/yyyy";
+                            }
+                            else if (DateTime.TryParse(val.ToString(), out DateTime parsed))
+                            {
+                                cell.Value = parsed;
+                                cell.Style.Numberformat.Format = "dd/MM/yyyy";
+                            }
+                            else
+                            {
+                                cell.Value = val;
+                            }
+                        }
+                        else
+                        {
+                            cell.Value = val;
+                        }
                     }
 
                 ws.Cells[ws.Dimension.Address].AutoFitColumns();

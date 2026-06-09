@@ -27,6 +27,7 @@ namespace MPR_Managerment.Forms
         private string _targetPoNo = "";
         private string _importMprNo = "";
         private int _importMprId = 0;
+        private List<int> _filteredMprDetailIds = null;
 
         private DataGridView dgvPO;
         private DataGridView dgvDocPO; // Document: INV + Delivery theo PO đang chọn
@@ -220,6 +221,7 @@ namespace MPR_Managerment.Forms
         }
 
         public void SetImportMprId(int id) { _importMprId = id; }
+        public void SetFilteredMprDetailIds(List<int> ids) { _filteredMprDetailIds = ids; }
 
         private void SelectPOByNo(string poNo)
         {
@@ -2901,7 +2903,7 @@ namespace MPR_Managerment.Forms
                         for (int i = 1; i < detailCount; i++)
                         {
                             // Copy từ dòng startRow sang dòng startRow + i
-                            ws.Cells[startRow, 1, startRow, 16].Copy(ws.Cells[startRow + i, 1]);
+                            ws.Cells[startRow, 1, startRow, 17].Copy(ws.Cells[startRow + i, 1]);
                         }
                     }
 
@@ -3007,6 +3009,8 @@ namespace MPR_Managerment.Forms
 
                     // Gán nhãn và tính tổng chưa thuế (Sub-total) bằng Formula Excel
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
+                    ws.Cells[subTotalRow, 9].Formula = $"=SUM(I{startRow}:I{startRow + detailCount - 1})";
+                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0.00";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
                     ws.Cells[subTotalRow, 14].Style.Numberformat.Format = "#,##0.00";
 
@@ -4932,7 +4936,7 @@ var sameProjPOs = _poList.Where(p =>
                     ws.Cells[8, 11].Value = DateTime.Today.AddDays(7).ToString("dd/MM/yyyy");
 
                     int startRow = 8;
-                    if (details.Count > 1) { ws.InsertRow(startRow + 1, details.Count - 1); for (int i = 1; i < details.Count; i++) ws.Cells[startRow, 1, startRow, 16].Copy(ws.Cells[startRow + i, 1]); }
+                    if (details.Count > 1) { ws.InsertRow(startRow + 1, details.Count - 1); for (int i = 1; i < details.Count; i++) ws.Cells[startRow, 1, startRow, 17].Copy(ws.Cells[startRow + i, 1]); }
                     decimal totalAfterVAT = 0;
                     for (int i = 0; i < details.Count; i++)
                     {
@@ -4958,6 +4962,8 @@ var sameProjPOs = _poList.Where(p =>
                     }
                     int subTotalRow = startRow + details.Count;
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
+                    ws.Cells[subTotalRow, 9].Formula = $"=SUM(I{startRow}:I{startRow + details.Count - 1})";
+                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0.00";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + details.Count - 1})";
                     ws.Cells[subTotalRow + 1, 3].Value = "Final Price Requested (Included VAT)";
                     ws.Cells[subTotalRow + 1, 14].Value = totalAfterVAT;
@@ -5087,7 +5093,7 @@ var sameProjPOs = _poList.Where(p =>
                     {
                         ws.InsertRow(startRow + 1, detailCount - 1);
                         for (int i = 1; i < detailCount; i++)
-                            ws.Cells[startRow, 1, startRow, 16].Copy(ws.Cells[startRow + i, 1]);
+                            ws.Cells[startRow, 1, startRow, 17].Copy(ws.Cells[startRow + i, 1]);
                     }
 
                     decimal totalAfterVAT = 0;
@@ -5169,6 +5175,8 @@ var sameProjPOs = _poList.Where(p =>
                     int subTotalRow = startRow + detailCount;
                     int vatRow = subTotalRow + 1;
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
+                    ws.Cells[subTotalRow, 9].Formula = $"=SUM(I{startRow}:I{startRow + detailCount - 1})";
+                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0.00";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
                     ws.Cells[subTotalRow, 14].Style.Numberformat.Format = amtFmt;
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
@@ -5812,6 +5820,13 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
                     // Gán giá trị cho các biến đã khai báo trước
                     activeDetails = details.Where(d => !d.Is_Deleted).ToList();
+
+                    // Nếu có danh sách Detail IDs được lọc từ frmMPR, chỉ lấy những dòng đó
+                    if (_filteredMprDetailIds != null && _filteredMprDetailIds.Count > 0)
+                    {
+                        activeDetails = activeDetails.Where(d => _filteredMprDetailIds.Contains(d.Detail_ID)).ToList();
+                    }
+
                     skipped = details.Count - activeDetails.Count;
                     int itemNo = 1;
                     foreach (var d in activeDetails)
@@ -5959,7 +5974,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     UPDATE PO_DeliveryTracking
                     SET Status = 'Overdue'
                     WHERE ExpDelivery < CAST(GETDATE() AS DATE)
-                      AND ISNULL(Status,'Pending') NOT IN ('Done','Overdue')";
+                      AND ISNULL(Status,'Pending') NOT IN ('Done','Overdue','In Transit','Completed','Cancelled')";
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -6501,6 +6516,11 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
                     string note = txtDlgNote.Text.Trim();
 
+                    // Block UI trong suốt quá trình lưu + gửi thông báo
+                    btnOK.Enabled     = false;
+                    btnCancel.Enabled = false;
+                    btnOK.Text        = "⏳ Đang gửi...";
+
                     try
                     {
                         string sqlIns = @"
@@ -6516,14 +6536,17 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                             cmd.Parameters.AddWithValue("@note", note);
                             cmd.ExecuteNonQuery();
                         }
+                        // Gửi thông báo TRƯỚC KHI đóng dialog (tránh SynchronizationContext bị huỷ sau Close)
+                        await SendDeliveryZaloNotificationAsync(selPONo, selDaAn, selNCC, expDate);
                         LoadDeliveries();
                         dlg.Close();
-
-                        // Gửi thông báo lịch giao hàng lên nhóm Zalo của dự án
-                        await SendDeliveryZaloNotificationAsync(selPONo, selDaAn, selNCC, expDate);
                     }
                     catch (Exception ex)
                     {
+                        // Khôi phục nút nếu lỗi để user có thể thử lại
+                        btnOK.Text        = "✔ OK";
+                        btnOK.Enabled     = true;
+                        btnCancel.Enabled = true;
                         MessageBox.Show(GetActiveOwner(), "Lỗi lưu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 };
