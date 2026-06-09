@@ -67,7 +67,7 @@ namespace MPR_Managerment.Services
                 {
                     await conn.OpenAsync();
                     int rows = await cmd.ExecuteNonQueryAsync();
-                    return rows > 0;
+                    return rows >= 0;
                 }
                 catch (Exception ex)
                 {

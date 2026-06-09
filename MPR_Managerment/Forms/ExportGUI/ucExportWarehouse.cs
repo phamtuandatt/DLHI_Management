@@ -1,4 +1,5 @@
 ﻿using MPR_Managerment.Common;
+using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using OfficeOpenXml.Utils;
@@ -25,6 +26,9 @@ namespace MPR_Managerment.Forms.ExportGUI
         private WarehouseService _warehouseServies = new WarehouseService();
 
         private Dictionary<string, string> _exportQue = new Dictionary<string, string>();
+        private BindingSource _bindingSource = new BindingSource();
+        private Helpers.DataGridViewFilterHelper? _filterHelper;
+        private CheckBox chkFilter;
 
         //private DataGridView dgvKho;
 
@@ -88,7 +92,11 @@ namespace MPR_Managerment.Forms.ExportGUI
             if (_isLoaded)
             {
                 _dtStock = await _warehouseServies.GetImportForExport(cboProject.SelectedValue.ToString());
-                dgvKho.DataSource = _dtStock;
+                _bindingSource.DataSource = _dtStock;
+                dgvKho.DataSource = _bindingSource;
+                _filterHelper = new Helpers.DataGridViewFilterHelper(dgvKho, _dtStock, _bindingSource);
+                _filterHelper.EnableFilter(true);
+
                 dgvKho.Columns["Import_ID"].Visible = false;
                 dgvKho.Columns["PO_ID"].Visible = false;
                 dgvKho.Columns["PO_Detail_ID"].Visible = false;
@@ -201,6 +209,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                 // Các thông tin mặc định khác (nếu có)
                 newRow["Export_Date"] = DateTime.Now;
                 newRow["Created_Date"] = DateTime.Now;
+                newRow["QC_Code"] = sourceRow["QC_Code"] ?? "";
 
                 dtSelected.Rows.Add(newRow);
             }
@@ -230,6 +239,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             dtSelected.Columns.Add("Created_By", typeof(string));
             dtSelected.Columns.Add("Created_Date", typeof(DateTime));
             dtSelected.Columns.Add("Warehouse_ID", typeof(int));
+            dtSelected.Columns.Add("QC_Code", typeof(string));
 
             dgvExportQue.DataSource = dtSelected;
 
@@ -483,8 +493,11 @@ namespace MPR_Managerment.Forms.ExportGUI
                 var rs = await _warehouseServies.SaveExportList(dtSelected, "", AppSession.CurrentUser?.Full_Name ?? "");
                 if (rs)
                 {
+                    ExportExcel();
                     MessageBox.Show(this.FindForm(), "Đã xuất vật tư !.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadProject();
+
+                    _exportQue.Clear();
 
                     dtSelected.Rows.Clear();
                     dgvExportQue.Refresh();
@@ -500,10 +513,139 @@ namespace MPR_Managerment.Forms.ExportGUI
 
         }
 
+        private void ExportExcel()
+        {
+            try
+            {
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pxk_template.xlsx");
+                if (!File.Exists(templatePath))
+                {
+                    MessageBox.Show("Không tìm thấy file template!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                var saveDialog = new SaveFileDialog
+                {
+                    Title = "Lưu Phiếu Xuất Kho",
+                    Filter = "Excel Files|*.xlsx",
+                    FileName = $"PXK_{DateTime.Now:ddMMyyyy_HHmm}",
+                    InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+
+                if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+                File.Copy(templatePath, saveDialog.FileName, true);
+                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
+                using (var package = new OfficeOpenXml.ExcelPackage(new FileInfo(saveDialog.FileName)))
+                {
+                    var ws = package.Workbook.Worksheets[0]; // Lấy sheet "PXK"
+
+                    // 1. Thay thế <<DATE>> (Giả định nằm ở ô H8 dựa trên cấu trúc template của bạn)
+                    // Tìm kiếm text <<DATE>> trong vùng Header để thay thế
+                    for (int r = 1; r <= 10; r++)
+                    {
+                        for (int c = 1; c <= 10; c++)
+                        {
+                            if (ws.Cells[r, c].Text.Contains("<<DATE>>"))
+                            {
+                                ws.Cells[r, c].Value = ws.Cells[r, c].Text.Replace("<<DATE>>", DateTime.Now.ToString("dd/MM/yyyy"));
+                            }
+                        }
+                    }
+
+                    ReplaceCell(ws, "<<PROJECT-NAME>>", cboProject.Text ?? "");
+                    ReplaceCell(ws, "<<USER>>", AppSession.CurrentUser.Full_Name ?? "");
+
+                    int startRow = 11; // Dòng bắt đầu điền dữ liệu (Dòng có STT 1)
+                    int detailCount = dgvExportQue.Rows.Count;
+                    decimal totalQty = 0;
+
+                    // 2. Chèn dòng nếu nhiều hơn 1 item để không đè lên phần chữ ký
+                    if (detailCount > 1)
+                    {
+                        ws.InsertRow(startRow + 1, detailCount - 1, startRow);
+                    }
+
+                    // 3. Vòng lặp điền dữ liệu
+                    for (int i = 0; i < detailCount; i++)
+                    {
+                        var row = dgvExportQue.Rows[i];
+                        int currentRow = startRow + i;
+
+                        decimal slXuat = Convert.ToDecimal(row.Cells["Qty_Export"].Value ?? 0);
+                        totalQty += slXuat;
+
+                        ws.Cells[currentRow, 1].Value = i + 1; // Cột No (A)
+                        ws.Cells[currentRow, 2].Value = row.Cells["ID_Code"].Value; // Cột Code (B)
+                        ws.Cells[currentRow, 3].Value = row.Cells["Item_Name"].Value; // Cột Name (C)
+                        ws.Cells[currentRow, 4].Value = /*row.Cells["Ma_Phieu"].Value*/ ""; // Cột DWG No (D)
+                        ws.Cells[currentRow, 5].Value = row.Cells["Size"].Value; // Cột Size (E)
+                        ws.Cells[currentRow, 6].Value = row.Cells["Material"].Value; // Cột Grade (F)
+                        ws.Cells[currentRow, 7].Value = slXuat; // Cột Q'ty (G)
+                        ws.Cells[currentRow, 8].Value = row.Cells["UNIT"].Value; // Cột Unit (H)
+                        ws.Cells[currentRow, 9].Value = row.Cells["QC_Code"].Value; // Cột ID_Code (I)
+                        ws.Cells[currentRow, 10].Value = row.Cells["Notes"].Value; // Cột ID_Code (I)
+                    }
+
+                    // 4. Tìm và thay thế <<SUM>> bằng tổng thực tế
+                    // Duyệt tìm ô chứa <<SUM>> bên dưới vùng dữ liệu vừa điền
+                    int searchEndRow = startRow + detailCount + 5;
+                    for (int r = startRow + detailCount; r <= searchEndRow; r++)
+                    {
+                        for (int c = 1; c <= 10; c++)
+                        {
+                            if (ws.Cells[r, c].Text.Contains("<<SUM>>"))
+                            {
+                                ws.Cells[r, c].Value = totalQty;
+                                ws.Cells[r, c].Style.Font.Bold = true;
+                                ws.Cells[r, c].Style.Numberformat.Format = "#,##0";
+                            }
+                        }
+                    }
+
+                    package.Save();
+                }
+
+                //MessageBox.Show("Xuất phiếu xuất kho thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                //dlg.DialogResult = DialogResult.OK;
+                var result = MessageBox.Show(
+                $"✅ Xuất phiếu nhập kho thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file ngay không?",
+                "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (result == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = saveDialog.FileName,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ReplaceCell(OfficeOpenXml.ExcelWorksheet ws, string placeholder, string value)
+        { for (int r = 1; r <= ws.Dimension.End.Row; r++) for (int c = 1; c <= ws.Dimension.End.Column; c++) if (ws.Cells[r, c].Value?.ToString() == placeholder) ws.Cells[r, c].Value = value; }
+
+
         private void btnClear_Click(object sender, EventArgs e)
         {
-
+            var result = MessageBox.Show(
+                $"❓Bạn đang tạo phiếu xuất kho cho dự án {cboProject.Text.Trim().ToUpper()}\n\nBạn có muốn hủy bỏ phiếu hiện tại không?",
+                "Thông báo", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result == DialogResult.Yes)
+            {
+                _exportQue.Clear();
+                dtSelected.Rows.Clear();
+                dgvExportQue.Refresh();
+                _dtStock.Rows.Clear();
+                dgvKho.Refresh();
+            }
         }
+
 
         private void dgvHis_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
@@ -585,6 +727,11 @@ namespace MPR_Managerment.Forms.ExportGUI
             //        dgvKho.Rows[e.RowIndex].DefaultCellStyle.ForeColor = Color.Black;
             //    }
             //}
+        }
+
+        private void btnCancelSer_Click(object sender, EventArgs e)
+        {
+            _filterHelper.ClearAllFilters();
         }
     }
 }
