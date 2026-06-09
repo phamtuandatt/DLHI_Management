@@ -72,8 +72,10 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                 ForeColor = _textColor,
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9),
-                Padding = new Padding(3),
-                PlaceholderText = "Search..."
+                Padding = new Padding(3, 5, 0, 3),
+                PlaceholderText = "Search...",
+                TextAlign = HorizontalAlignment.Left,
+                Top = (this.ClientSize.Height - this.Height) / 2
             };
             txtSearch.TextChanged += (s, e) => FilterList(columnName, table, currentSelected);
 
@@ -96,13 +98,13 @@ namespace MPR_Managerment.Forms.WarehouseGUI
 
             // OK/Cancel Buttons Panel
             var pnlButtons = new Panel { Dock = DockStyle.Fill, BackColor = _menuBackColor };
-            btnOk = CreateModernButton("OK", null, new Point(pnlButtons.Width / 2 - 70, 5));
+            btnOk = CreateModernButton("OK", null, new Point(pnlButtons.Width / 2 - 7, 5));
             btnOk.Click += (s, e) => {
                 SelectedValues = clbValues.CheckedItems.Cast<string>().ToList();
                 Canceled = false;
                 this.Close();
             };
-            btnCancel = CreateModernButton("Cancel", null, new Point(pnlButtons.Width / 2 + 20, 5));
+            btnCancel = CreateModernButton("Cancel", null, new Point(pnlButtons.Width / 2 + 83, 5));
             btnCancel.Click += (s, e) => this.Close();
             pnlButtons.Controls.AddRange(new Control[] { btnOk, btnCancel });
 
