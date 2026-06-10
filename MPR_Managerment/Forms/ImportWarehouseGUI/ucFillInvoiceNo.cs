@@ -28,6 +28,9 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         private DataTable dtSelected = new DataTable();
         private DataTable dtInvoices = new DataTable();
 
+        private BindingSource _bindingSource = new BindingSource();
+        private Helpers.DataGridViewFilterHelper? _filterHelper;
+
         public ucFillInvoiceNo()
         {
             InitializeComponent();
@@ -83,7 +86,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
 
             var lstColumn = new List<string>()
             {
-                "Import_ID", "Import_Date", "Qty_Exported", "Weight_Exported", "MPR_No", "PO_Date", 
+                "Import_ID", "Import_Date", "Qty_Exported", "Weight_Exported", "MPR_No", "PO_Date",
             };
             Common.Common.HideColumnDataGridView(dgvInvoices, lstColumn);
         }
@@ -91,7 +94,10 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
         private async Task LoadInvoices()
         {
             dtInvoices = await _warehouseServices.GetInvoices();
-            dgvInvoices.DataSource = dtInvoices;
+            _bindingSource.DataSource = dtInvoices;
+            dgvInvoices.DataSource = _bindingSource;
+            _filterHelper = new Helpers.DataGridViewFilterHelper(dgvInvoices, dtInvoices, _bindingSource);
+            _filterHelper.EnableFilter(true);
         }
 
         private void OpenFormModifyItem(int importId)
@@ -520,6 +526,13 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
                     row.Cells[columnName].Value = value;
                 }
             }
+        }
+
+        private async void btnRefreshListInv_Click(object sender, EventArgs e)
+        {
+            dtInvoices = await _warehouseServices.GetInvoices();
+            _bindingSource.DataSource = dtInvoices;
+            dgvInvoices.DataSource = _bindingSource;
         }
     }
 }
