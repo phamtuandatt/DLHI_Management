@@ -4725,25 +4725,63 @@ var sameProjPOs = _poList.Where(p =>
                 cmdUpdate.Parameters.AddWithValue("@poId", poId);
                 cmdUpdate.ExecuteNonQuery();
 
-                // Cập nhật UI
-                var cboIdx = cboStatus.Items.IndexOf("Completed");
-                if (cboIdx >= 0) cboStatus.SelectedIndex = cboIdx;
+                // Cập nhật PO_DeliveryTracking của PO này thành Completed
+                var cmdUpdateTracking = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    UPDATE dt
+                    SET Status = CASE
+                                     WHEN ISNULL(dt.Status, 'Pending') = 'Done' THEN dt.Status
+                                     ELSE 'Completed'
+                                 END
+                    FROM PO_DeliveryTracking dt
+                    INNER JOIN PO_head ph ON ph.PONo = dt.PONo
+                    WHERE ph.PO_ID = @poId
+                      AND ISNULL(dt.Status, 'Pending') NOT IN ('Done', 'Completed')", conn);
+                cmdUpdateTracking.Parameters.AddWithValue("@poId", poId);
+                cmdUpdateTracking.ExecuteNonQuery();
 
-                // Cập nhật _poList
-                var po = _poList.Find(p => p.PO_ID == poId);
-                if (po != null) po.Status = "Completed";
+                // Cập nhật UI an toàn trên UI thread
+                Action updateUI = () =>
+                {
+                    var cboIdx = cboStatus.Items.IndexOf("Completed");
+                    if (cboIdx >= 0) cboStatus.SelectedIndex = cboIdx;
 
-                // Cập nhật dòng trong dgvPO
-                if (dgvPO.Columns.Contains("Status"))
-                    foreach (DataGridViewRow row in dgvPO.Rows)
-                        if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == poId)
-                        { row.Cells["Status"].Value = "Completed"; break; }
+                    // Cập nhật _poList
+                    var po = _poList.Find(p => p.PO_ID == poId);
+                    if (po != null) po.Status = "Completed";
 
-                if (!silent)
-                    MessageBox.Show(GetActiveOwner(),
-                        $"✅ Tiến độ nhập kho đạt {progress:F1}%\n" +
-                        "Trạng thái PO đã tự động chuyển sang \"Completed\".",
-                        "Hoàn tất giao hàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    // Cập nhật dòng trong dgvPO
+                    if (dgvPO.Columns.Contains("Status"))
+                    {
+                        foreach (DataGridViewRow row in dgvPO.Rows)
+                        {
+                            if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == poId)
+                            {
+                                row.Cells["Status"].Value = "Completed";
+                                break;
+                            }
+                        }
+                    }
+
+                    // Tải lại bảng theo dõi giao hàng để chuyển PO vào History
+                    LoadDeliveries();
+
+                    if (!silent)
+                    {
+                        MessageBox.Show(GetActiveOwner(),
+                            $"✅ Tiến độ nhập kho đạt {progress:F1}%\n" +
+                            "Trạng thái PO đã tự động chuyển sang \"Completed\" và chuyển vào History.",
+                            "Hoàn tất giao hàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                if (this.InvokeRequired)
+                {
+                    this.BeginInvoke(updateUI);
+                }
+                else
+                {
+                    updateUI();
+                }
             }
             catch (Exception ex)
             {
@@ -4872,6 +4910,13 @@ var sameProjPOs = _poList.Where(p =>
 
                 // Reload details (sync nhưng chỉ 1 PO — nhanh)
                 LoadDetails(savedId);
+
+                // Nếu PO có trạng thái là Completed, tự động cập nhật trạng thái giao hàng và tải lại grid để chuyển PO vào History
+                if (h.Status == "Completed")
+                {
+                    await Task.Run(() => SyncCompletedPOsToDeliveryHistory());
+                    LoadDeliveries();
+                }
             }
             catch (Exception ex)
             {
@@ -5924,11 +5969,38 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
         // DELIVERY TRACKING — Load, Add popup, Done, Delete, Auto-clean
         // =========================================================================
 
+        private void SyncCompletedPOsToDeliveryHistory()
+        {
+            try
+            {
+                string sql = @"
+                    UPDATE dt
+                    SET Status = CASE
+                                     WHEN ISNULL(dt.Status, 'Pending') = 'Done' THEN dt.Status
+                                     ELSE 'Completed'
+                                 END
+                    FROM PO_DeliveryTracking dt
+                    INNER JOIN PO_head ph ON ph.PONo = dt.PONo
+                    WHERE ISNULL(ph.Status, '') = 'Completed'
+                      AND ISNULL(dt.Status, 'Pending') NOT IN ('Done', 'Completed')";
+                using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    new Microsoft.Data.SqlClient.SqlCommand(sql, conn).ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("SyncCompletedPOsToDeliveryHistory: " + ex.Message);
+            }
+        }
+
         private void LoadDeliveries()
         {
             dgvDelivery.Rows.Clear();
             try
             {
+                SyncCompletedPOsToDeliveryHistory();
                 UpdateOverdueDeliveries();
 
                 string sql = @"
@@ -5942,8 +6014,8 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                     LEFT JOIN PO_head     ph ON ph.PONo        = dt.PONo
                     LEFT JOIN ProjectInfo pi ON pi.WorkorderNo = ph.WorkorderNo
                     LEFT JOIN Suppliers   s  ON s.Supplier_ID  = ph.Supplier_ID
-                    WHERE ISNULL(dt.Status,'Pending') != 'Done'
-                       AND dt.PONo NOT IN (SELECT PONo FROM PO_head WHERE ISNULL(Status,'') = 'Cancelled')
+                    WHERE ISNULL(dt.Status,'Pending') NOT IN ('Done', 'Completed')
+                       AND ISNULL(ph.Status, '') NOT IN ('Completed', 'Cancelled')
                     ORDER BY dt.ExpDelivery ASC";
 
                 using (var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection())
@@ -6667,7 +6739,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                 }
 
                 string message = sb.ToString().TrimEnd();
-                await ZaloHelper.SendToGroupAsync(zSettings, zaloGroupName, message);
+                ZaloNotificationService.Instance.Enqueue(zaloGroupName, message, poNo);
             }
             catch (Exception ex)
             {
@@ -6693,7 +6765,9 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
         {
             try
             {
-                // Load TOÀN BỘ lịch sử từ PO_DeliveryTracking (kể cả đã Done và quá hạn)
+                SyncCompletedPOsToDeliveryHistory();
+
+                // Load TOÀN BỘ lịch sử từ PO_DeliveryTracking (kể cả đã Done, Completed và quá hạn)
                 string sql = @"
                     SELECT
                         dt.TrackID                                              AS [TrackID],

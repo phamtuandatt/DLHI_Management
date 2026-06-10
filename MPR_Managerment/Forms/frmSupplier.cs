@@ -14,6 +14,7 @@ namespace MPR_Managerment.Forms
     {
         // ── Service (đã sửa Search dùng SQL thẳng, không dùng SP lỗi) ──
         private readonly SupplierService _service = new SupplierService();
+        private readonly UserService _userService = new UserService();
 
         private List<Supplier> _suppliers = new List<Supplier>();
         private int _selectedSupplierID = 0;
@@ -498,6 +499,17 @@ namespace MPR_Managerment.Forms
                 return;
             }
 
+            // Prompt mật khẩu admin
+            string adminPwd = ShowPasswordDialog("Xác nhận quyền Admin", "Nhập mật khẩu Admin để xóa:");
+            if (string.IsNullOrEmpty(adminPwd)) return;
+
+            if (!_userService.VerifyAdminPassword(adminPwd))
+            {
+                MessageBox.Show(TopOwner, "Mật khẩu Admin không chính xác!", "Lỗi",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             string name = txtCompanyName.Text.Trim();
             if (MessageBox.Show(TopOwner,
                     $"Bạn có chắc muốn xóa nhà cung cấp '{name}'?\nHành động này không thể hoàn tác!",
@@ -509,7 +521,7 @@ namespace MPR_Managerment.Forms
             {
                 try
                 {
-                    _service.Delete(_selectedSupplierID, _currentUser);
+                    _service.Delete(_selectedSupplierID);
                     MessageBox.Show(TopOwner, "✅ Xóa thành công!", "Thông báo",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                     LoadSuppliers();
@@ -521,6 +533,30 @@ namespace MPR_Managerment.Forms
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
+        }
+
+        private string ShowPasswordDialog(string title, string promptText)
+        {
+            Form prompt = new Form()
+            {
+                Width = 400,
+                Height = 180,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                Text = title,
+                StartPosition = FormStartPosition.CenterParent,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+            Label textLabel = new Label() { Left = 20, Top = 20, Text = promptText, Width = 350 };
+            TextBox textBox = new TextBox() { Left = 20, Top = 50, Width = 340, UseSystemPasswordChar = true };
+            Button confirmation = new Button() { Text = "Xác nhận", Left = 260, Width = 100, Top = 90, DialogResult = DialogResult.OK, BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            confirmation.Click += (sender, e) => { prompt.Close(); };
+            prompt.Controls.Add(textBox);
+            prompt.Controls.Add(confirmation);
+            prompt.Controls.Add(textLabel);
+            prompt.AcceptButton = confirmation;
+
+            return prompt.ShowDialog() == DialogResult.OK ? textBox.Text : "";
         }
 
         // =================================================================

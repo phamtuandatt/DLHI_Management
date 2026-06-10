@@ -17,7 +17,7 @@ using System.Windows.Forms;
 
 namespace MPR_Managerment.Forms
 {
-    public partial class frmPayment : Form
+    public partial class frmPayment : Form, IRefreshable // Implement IRefreshable interface
     {
         private readonly PaymentService _svc = new PaymentService();
         private readonly POService _poSvc = new POService();
@@ -36,6 +36,10 @@ namespace MPR_Managerment.Forms
         private string _currentUser = AppSession.CurrentUser?.Username ?? "Admin";
         private Dictionary<int, List<PaymentSchedule>> _allSchedulesCache
             = new Dictionary<int, List<PaymentSchedule>>();
+        // Cache tổng số tiền đã thanh toán (sau thuế) từ Zalo_PaymentImport theo PONo (toàn thời gian)
+        private Dictionary<string, decimal> _zaloPaidCache = new Dictionary<string, decimal>();
+        // Cache tổng tiền đã TT trong kỳ được chọn (dùng cho tab Báo cáo công nợ)
+        private Dictionary<string, decimal> _zaloInRangeCache = new Dictionary<string, decimal>();
 
         // Controls chính
         private TabControl tabs;
@@ -62,6 +66,10 @@ namespace MPR_Managerment.Forms
         // Tab Debt
         private DateTimePicker dtpFrom, dtpTo;
         private ComboBox cboSuppFilter;
+        private ComboBox cboDebtStatus;          // Lọc trạng thái TT
+        private CheckBox chkOverdueOnly;         // Chỉ hiện quá hạn
+        private TextBox txtDebtSearch;           // Tìm PO / Dự án
+        private Panel _pDebtCards;              // Panel cards — cần dịch chuyển
         private DataGridView dgvDebtSupp, dgvDebtDetail;
         private Label lblSumValue, lblSumPaid, lblSumDebt, lblSumOverdue;
         private Button btnExportDebt;
@@ -153,7 +161,7 @@ namespace MPR_Managerment.Forms
 
             Lbl(pFilter, "Trạng thái:", 278, 12, 85, 20);
             cboStatusFilter = Cbo(pFilter, 363, 8, 180,
-                new[] { "Tất cả", "Chưa TT", "Một phần", "Đã TT đủ", "⚠ Quá hạn" });
+                new[] { "Tất cả", "Pending", "Thanh toán 1 phần", "Đã thanh toán", "⚠ Quá hạn" });
             cboStatusFilter.SelectedIndexChanged += (s, e) => FilterAndBind();
 
             btnRefreshPO = Btn("🔄 Làm mới", Color.FromArgb(0, 120, 212), 555, 8, 105, 26);
@@ -647,36 +655,85 @@ namespace MPR_Managerment.Forms
         }
         private void BuildTabDebt()
         {
-            var pF = P(tabDebt, 5, 5, 0, 45, Color.White);
+            // ── Hàng 1: Date range + quick-date buttons + NCC ──
+            var pF = P(tabDebt, 5, 5, 0, 92, Color.White);
             pF.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            Lbl(pF, "Từ ngày:", 6, 13, 65, 20);
+            // Row 1
+            Lbl(pF, "Từ ngày:", 6, 13, 62, 20);
             dtpFrom = new DateTimePicker
             {
-                Location = new Point(71, 9),
-                Size = new Size(125, 26),
+                Location = new Point(68, 9),
+                Size = new Size(115, 26),
                 Font = new Font("Segoe UI", 9),
                 Format = DateTimePickerFormat.Short,
                 Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
             };
             pF.Controls.Add(dtpFrom);
 
-            Lbl(pF, "Đến ngày:", 205, 13, 70, 20);
+            Lbl(pF, "Đến:", 190, 13, 38, 20);
             dtpTo = new DateTimePicker
             {
-                Location = new Point(275, 9),
-                Size = new Size(125, 26),
+                Location = new Point(228, 9),
+                Size = new Size(115, 26),
                 Font = new Font("Segoe UI", 9),
                 Format = DateTimePickerFormat.Short,
                 Value = DateTime.Today
             };
             pF.Controls.Add(dtpTo);
 
-            Lbl(pF, "Nhà cung cấp:", 410, 13, 100, 20);
+            // Quick date buttons
+            int qx = 354;
+            foreach (var (label, color, tag) in new (string, Color, string)[]
+            {
+                ("Tháng này",   Color.FromArgb(0,120,212),   "thisMonth"),
+                ("Tháng trước", Color.FromArgb(100,100,180), "lastMonth"),
+                ("Quý này",     Color.FromArgb(0,150,100),   "thisQuarter"),
+                ("Năm nay",     Color.FromArgb(80,80,80),    "thisYear"),
+            })
+            {
+                var b = new Button
+                {
+                    Text = label, Tag = tag,
+                    Location = new Point(qx, 8),
+                    Size = new Size(88, 26),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = color,
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+                b.FlatAppearance.BorderSize = 0;
+                b.Click += (s, _) =>
+                {
+                    var today = DateTime.Today;
+                    switch (((Button)s).Tag?.ToString())
+                    {
+                        case "thisMonth":
+                            dtpFrom.Value = new DateTime(today.Year, today.Month, 1);
+                            dtpTo.Value = today; break;
+                        case "lastMonth":
+                            var lm = today.AddMonths(-1);
+                            dtpFrom.Value = new DateTime(lm.Year, lm.Month, 1);
+                            dtpTo.Value = new DateTime(lm.Year, lm.Month, DateTime.DaysInMonth(lm.Year, lm.Month)); break;
+                        case "thisQuarter":
+                            int q = (today.Month - 1) / 3;
+                            dtpFrom.Value = new DateTime(today.Year, q * 3 + 1, 1);
+                            dtpTo.Value = today; break;
+                        case "thisYear":
+                            dtpFrom.Value = new DateTime(today.Year, 1, 1);
+                            dtpTo.Value = today; break;
+                    }
+                };
+                pF.Controls.Add(b);
+                qx += 92;
+            }
+
+            Lbl(pF, "NCC:", qx + 4, 13, 38, 20);
             cboSuppFilter = new ComboBox
             {
-                Location = new Point(510, 9),
-                Size = new Size(220, 26),
+                Location = new Point(qx + 42, 9),
+                Size = new Size(200, 26),
                 Font = new Font("Segoe UI", 9),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -684,22 +741,61 @@ namespace MPR_Managerment.Forms
             cboSuppFilter.SelectedIndex = 0;
             pF.Controls.Add(cboSuppFilter);
 
-            var bView = Btn("🔍 Xem báo cáo", Color.FromArgb(0, 120, 212), 745, 8, 145, 30);
+            var bView = Btn("🔍 Xem báo cáo", Color.FromArgb(0, 120, 212), qx + 250, 8, 140, 28);
             bView.Click += BtnViewDebt_Click;
             pF.Controls.Add(bView);
 
-            btnExportDebt = Btn("📥 Xuất Excel", Color.FromArgb(0, 150, 100), 900, 8, 125, 30);
+            btnExportDebt = Btn("📥 Xuất Excel", Color.FromArgb(0, 150, 100), qx + 398, 8, 120, 28);
             btnExportDebt.Click += BtnExportDebt_Click;
             pF.Controls.Add(btnExportDebt);
 
-            var pCards = P(tabDebt, 5, 55, 0, 72, Color.White);
-            pCards.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            lblSumValue = Card(pCards, 10, "Tổng giá trị PO", Color.FromArgb(0, 120, 212));
-            lblSumPaid = Card(pCards, 225, "Đã thanh toán", Color.FromArgb(40, 167, 69));
-            lblSumDebt = Card(pCards, 440, "Còn nợ", Color.FromArgb(255, 140, 0));
-            lblSumOverdue = Card(pCards, 655, "Quá hạn (PO)", Color.FromArgb(220, 53, 69));
+            // Row 2: Status filter + overdue checkbox + search
+            Lbl(pF, "Trạng thái:", 6, 55, 78, 20);
+            cboDebtStatus = new ComboBox
+            {
+                Location = new Point(84, 51),
+                Size = new Size(155, 26),
+                Font = new Font("Segoe UI", 9),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cboDebtStatus.Items.AddRange(new object[] { "Tất cả", "Pending", "Thanh toán 1 phần", "Đã thanh toán", "⚠ Quá hạn" });
+            cboDebtStatus.SelectedIndex = 0;
+            cboDebtStatus.SelectedIndexChanged += (s, e) => FilterAndBindDebt();
+            pF.Controls.Add(cboDebtStatus);
 
-            _pNCC = P(tabDebt, 5, 132, 380, 0, Color.White);
+            chkOverdueOnly = new CheckBox
+            {
+                Text = "⚠ Chỉ quá hạn",
+                Location = new Point(250, 52),
+                Size = new Size(130, 24),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 53, 69),
+                Cursor = Cursors.Hand
+            };
+            chkOverdueOnly.CheckedChanged += (s, e) => FilterAndBindDebt();
+            pF.Controls.Add(chkOverdueOnly);
+
+            Lbl(pF, "Tìm PO / Dự án:", 392, 55, 118, 20);
+            txtDebtSearch = new TextBox
+            {
+                Location = new Point(510, 51),
+                Size = new Size(220, 26),
+                Font = new Font("Segoe UI", 9),
+                PlaceholderText = "PO No hoặc tên dự án..."
+            };
+            txtDebtSearch.TextChanged += (s, e) => FilterAndBindDebt();
+            pF.Controls.Add(txtDebtSearch);
+
+            // ── Cards tổng kết ──
+            _pDebtCards = P(tabDebt, 5, 102, 0, 72, Color.White);
+            _pDebtCards.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            lblSumValue   = Card(_pDebtCards, 10,  "Tổng giá trị PO", Color.FromArgb(0, 120, 212));
+            lblSumPaid    = Card(_pDebtCards, 225, "Đã thanh toán",   Color.FromArgb(40, 167, 69));
+            lblSumDebt    = Card(_pDebtCards, 440, "Còn nợ",          Color.FromArgb(255, 140, 0));
+            lblSumOverdue = Card(_pDebtCards, 655, "Quá hạn (PO)",    Color.FromArgb(220, 53, 69));
+
+            // ── Panel NCC (trái) ──
+            _pNCC = P(tabDebt, 5, 179, 380, 0, Color.White);
             var pNCC = _pNCC;
             pNCC.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom;
             Lbl(pNCC, "TỔNG HỢP THEO NHÀ CUNG CẤP", 8, 5, 360, 20, true, Color.FromArgb(0, 120, 212));
@@ -711,7 +807,8 @@ namespace MPR_Managerment.Forms
             dgvDebtSupp.CellFormatting += DgvDebtSupp_CellFormatting;
             BuildDebtSuppCols();
 
-            _pDet = P(tabDebt, 390, 132, 0, 0, Color.White);
+            // ── Panel Chi tiết PO (phải) ──
+            _pDet = P(tabDebt, 390, 179, 0, 0, Color.White);
             var pDet = _pDet;
             pDet.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             Lbl(pDet, "CHI TIẾT TỪNG ĐƠN PO", 8, 5, 400, 20, true, Color.FromArgb(0, 120, 212));
@@ -720,31 +817,35 @@ namespace MPR_Managerment.Forms
             dgvDebtDetail.ColumnHeadersHeight = 50;
             dgvDebtDetail.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
             dgvDebtDetail.CellFormatting += DgvDebtDetail_CellFormatting;
+            dgvDebtDetail.CellDoubleClick += DgvDebtDetail_CellDoubleClick;
             BuildDebtDetailCols();
         }
 
         private void BuildDebtSuppCols()
         {
             dgvDebtSupp.Columns.Clear();
-            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_SuppID", Visible = false });
-            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Name", HeaderText = "Nhà cung cấp", Width = 400, ReadOnly = true });
-            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_TotalPO", HeaderText = "Số PO", Width = 55, ReadOnly = true });
-            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Value", HeaderText = "Tổng PO", Width = 105, ReadOnly = true });
-            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Debt", HeaderText = "Còn nợ", Width = 105, ReadOnly = true });
-            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Overdue", HeaderText = "Quá hạn", Width = 65, ReadOnly = true });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_SuppID",  Visible = false });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Name",    HeaderText = "Nhà cung cấp",   Width = 200, ReadOnly = true });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_TotalPO", HeaderText = "Số PO",          Width = 50,  ReadOnly = true });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Value",   HeaderText = "Tổng PO",        Width = 105, ReadOnly = true });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Paid",    HeaderText = "Đã thanh toán",  Width = 105, ReadOnly = true });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Debt",    HeaderText = "Còn nợ",         Width = 105, ReadOnly = true });
+            dgvDebtSupp.Columns.Add(new DataGridViewTextBoxColumn { Name = "D_Overdue", HeaderText = "Quá hạn\n(PO)", Width = 65,  ReadOnly = true });
         }
 
         private void BuildDebtDetailCols()
         {
             dgvDebtDetail.Columns.Clear();
-            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_PONo", HeaderText = "PO No", Width = 110, ReadOnly = true });
-            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Project", HeaderText = "Dự án", FillWeight = 100, ReadOnly = true });
-            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_PODate", HeaderText = "Ngày PO", Width = 85, ReadOnly = true });
-            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Total", HeaderText = "Giá trị PO", Width = 100, ReadOnly = true });
-            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Before", HeaderText = "TT trước kỳ", Width = 100, ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_POID",    Visible = false });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_PONo",    HeaderText = "PO No",        Width = 110, ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Project", HeaderText = "Mã dự án",     FillWeight = 100, ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_PODate",  HeaderText = "Ngày PO",      Width = 85,  ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Total",   HeaderText = "Giá trị PO",   Width = 100, ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Before",  HeaderText = "TT trước kỳ", Width = 100, ReadOnly = true });
             dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_InRange", HeaderText = "TT trong kỳ", Width = 100, ReadOnly = true });
-            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Remain", HeaderText = "Còn nợ", Width = 100, ReadOnly = true });
-            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Status", HeaderText = "Trạng thái", Width = 95, ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Remain",  HeaderText = "Còn nợ",       Width = 100, ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Percent", HeaderText = "% TT",         Width = 60,  ReadOnly = true });
+            dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Status",  HeaderText = "Trạng thái",   Width = 95,  ReadOnly = true });
             dgvDebtDetail.Columns.Add(new DataGridViewTextBoxColumn { Name = "DD_Due", HeaderText = "Đến hạn", Width = 85, ReadOnly = true });
         }
 
@@ -819,11 +920,13 @@ namespace MPR_Managerment.Forms
                 var cache = allScheds
                     .GroupBy(s => s.PO_ID)
                     .ToDictionary(g => g.Key, g => g.ToList());
-                return (summaries, cache);
+                var zaloPaid = LoadZaloPaidCache();
+                return (summaries, cache, zaloPaid);
             }).ConfigureAwait(false);
 
             _poSummaries = result.summaries;
             _allSchedulesCache = result.cache;
+            _zaloPaidCache = result.zaloPaid;
 
             // Update grid on main thread
             if (this.InvokeRequired)
@@ -875,10 +978,12 @@ namespace MPR_Managerment.Forms
                     var cache = allScheds
                         .GroupBy(s => s.PO_ID)
                         .ToDictionary(g => g.Key, g => g.ToList());
-                    return (summaries, cache);
+                    var zaloPaid = LoadZaloPaidCache();
+                    return (summaries, cache, zaloPaid);
                 });
                 _poSummaries = result.summaries;
                 _allSchedulesCache = result.cache;
+                _zaloPaidCache = result.zaloPaid;
                 FilterAndBind();
             }
             catch (Exception ex) { Err(ex.Message); }
@@ -906,16 +1011,19 @@ namespace MPR_Managerment.Forms
             var displayList = list.ConvertAll(p =>
             {
                 decimal totalPO = p.Total_PO_Amount;
-                decimal totalPaid = p.Total_Paid;
+
+                // Lấy số tiền đã thanh toán (sau thuế) từ Zalo_PaymentImport (cột "Đã thanh toán")
+                string poKey = (p.PONo ?? "").ToUpperInvariant()
+                    .Replace(" ", "").Replace("\t", "").Replace("\r", "").Replace("\n", "");
+                _zaloPaidCache.TryGetValue(poKey, out decimal totalPaid);
+
                 decimal remain = totalPO - totalPaid;
                 if (remain < 0) remain = 0;
 
                 decimal pct = totalPO > 0 ? (totalPaid / totalPO) * 100 : 0;
                 if (pct > 100) pct = 100;
 
-                string realStatus = "Chưa TT";
-                if (totalPaid >= totalPO && totalPO > 0) realStatus = "Đã TT đủ";
-                else if (totalPaid > 0) realStatus = "Một phần";
+                string realStatus = GetZaloStatus(p.PONo, totalPO);
 
                 bool isNew = p.PO_Date.HasValue && (DateTime.Now - p.PO_Date.Value).TotalDays <= 3;
                 string poDisplayObj = isNew ? $"🔥 {p.PONo} (Mới)" : p.PONo;
@@ -1114,7 +1222,7 @@ namespace MPR_Managerment.Forms
                         ISNULL(ph.Total_Amount, 0) AS Total_Amount,
                         ISNULL(z.Progress_Status, '') AS EC_Status,
                         z.Paid_Date AS Paid_Date,
-                        CASE WHEN z.Paid_Date IS NOT NULL THEN ISNULL(z.Final_Amount, 0) ELSE 0 END AS Paid_Amount,
+                        ISNULL(z.Final_Amount, 0) AS Paid_Amount,
                         ISNULL(z.Note, '') AS ZNote
                     FROM PO_head ph
                     LEFT JOIN (
@@ -1137,15 +1245,15 @@ namespace MPR_Managerment.Forms
                     decimal net    = Convert.ToDecimal(reader["Amount_Net"]);
                     decimal paid   = reader["Paid_Amount"] != DBNull.Value ? Convert.ToDecimal(reader["Paid_Amount"]) : 0;
                     bool hasPaid   = reader["Paid_Date"] != DBNull.Value;
-                    decimal finalAmount = paid > 0 ? paid : total;
-                    decimal remain = finalAmount - paid;
+                    // Hiển thị: total = giá trị hợp đồng, remain = total - paid
+                    decimal remain = Math.Max(total - paid, 0);
 
                     int i = dgvHistory.Rows.Add();
                     dgvHistory.Rows[i].Cells["H_PONo"].Value     = reader["PONo"]?.ToString() ?? "";
-                    dgvHistory.Rows[i].Cells["H_PreTax"].Value   = net > 0   ? FormatAmt(net)    : "";
-                    dgvHistory.Rows[i].Cells["H_Total"].Value    = finalAmount > 0 ? FormatAmt(finalAmount)  : "";
+                    dgvHistory.Rows[i].Cells["H_PreTax"].Value   = net > 0    ? FormatAmt(net)   : "";
+                    dgvHistory.Rows[i].Cells["H_Total"].Value    = total > 0  ? FormatAmt(total) : "";
                     dgvHistory.Rows[i].Cells["H_ECStatus"].Value = reader["EC_Status"]?.ToString() ?? "";
-                    dgvHistory.Rows[i].Cells["H_Paid"].Value     = hasPaid   ? FormatAmt(paid)   : "";
+                    dgvHistory.Rows[i].Cells["H_Paid"].Value     = paid > 0   ? FormatAmt(paid)  : "";
                     dgvHistory.Rows[i].Cells["H_PaidDate"].Value = hasPaid
                         ? Convert.ToDateTime(reader["Paid_Date"]).ToString("dd/MM/yyyy")
                         : "";
@@ -1241,6 +1349,119 @@ namespace MPR_Managerment.Forms
         private void FilterHistoryGrid()
         {
             // Filter đã được thay bằng load theo project — method giữ lại để tránh lỗi tham chiếu
+        }
+
+        // Tính trạng thái thanh toán dựa trên Zalo_PaymentImport (dùng chung cho cả 2 tab)
+        private string GetZaloStatus(string poNo, decimal totalPOAmount)
+        {
+            string key = (poNo ?? "").ToUpperInvariant()
+                .Replace(" ", "").Replace("\t", "").Replace("\r", "").Replace("\n", "");
+            _zaloPaidCache.TryGetValue(key, out decimal zaloPaid);
+
+            if (zaloPaid <= 0) return "Pending";
+            decimal remain = totalPOAmount - zaloPaid;
+            return remain <= 0 ? "Đã thanh toán" : "Thanh toán 1 phần";
+        }
+
+        // Load tiền đã TT trong kỳ từ Zalo_PaymentImport.
+        // Mỗi PONo chỉ lấy 1 dòng đại diện (rn=1, ưu tiên dòng có Paid_Date mới nhất)
+        // rồi lọc dòng đó có Paid_Date nằm trong kỳ.
+        private Dictionary<string, decimal> LoadZaloInRangeCache(DateTime from, DateTime to)
+        {
+            var cache = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                var chk = new Microsoft.Data.SqlClient.SqlCommand(
+                    "SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='Zalo_PaymentImport'", conn);
+                if ((int)chk.ExecuteScalar() == 0) return cache;
+
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    SELECT PO_Key, ISNULL(Final_Amount, 0) AS Paid_In_Range
+                    FROM (
+                        SELECT
+                            UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),
+                                CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ','')) AS PO_Key,
+                            Final_Amount,
+                            Paid_Date,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),
+                                    CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ',''))
+                                ORDER BY CASE WHEN Paid_Date IS NOT NULL THEN 0 ELSE 1 END,
+                                         File_Date DESC, Import_ID DESC
+                            ) AS rn
+                        FROM Zalo_PaymentImport
+                        WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),
+                                  CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ','') <> ''
+                    ) z
+                    WHERE rn = 1
+                      AND Paid_Date >= @from AND Paid_Date <= @to", conn);
+                cmd.Parameters.AddWithValue("@from", from.Date);
+                cmd.Parameters.AddWithValue("@to", to.Date);
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                {
+                    string key = rdr["PO_Key"]?.ToString() ?? "";
+                    decimal paid = rdr["Paid_In_Range"] != DBNull.Value ? Convert.ToDecimal(rdr["Paid_In_Range"]) : 0;
+                    if (!string.IsNullOrEmpty(key))
+                        cache[key] = paid;
+                }
+            }
+            catch { }
+            return cache;
+        }
+
+        // Load tiền đã TT từ Zalo_PaymentImport.
+        // Lấy Final_Amount của dòng mới nhất theo PO_No (ưu tiên dòng có Paid_Date).
+        // Không yêu cầu Paid_Date IS NOT NULL vì cột này có thể NULL do import từ
+        // file Excel sai vị trí cột (đã được fix bởi header detection).
+        private Dictionary<string, decimal> LoadZaloPaidCache()
+        {
+            var cache = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                var chk = new Microsoft.Data.SqlClient.SqlCommand(
+                    "SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='Zalo_PaymentImport'", conn);
+                if ((int)chk.ExecuteScalar() == 0) return cache;
+
+                var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    SELECT PO_Key, ISNULL(Final_Amount, 0) AS Da_TT
+                    FROM (
+                        SELECT
+                            UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),
+                                CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ','')) AS PO_Key,
+                            Final_Amount,
+                            Paid_Date,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),
+                                    CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ',''))
+                                ORDER BY CASE WHEN Paid_Date IS NOT NULL THEN 0 ELSE 1 END,
+                                         File_Date DESC, Import_ID DESC
+                            ) AS rn
+                        FROM Zalo_PaymentImport
+                        WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(PO_No,''))),
+                                  CHAR(160),''),CHAR(9),''),CHAR(13),''),CHAR(10),''),' ','') <> ''
+                          AND ISNULL(Final_Amount, 0) > 0
+                    ) z
+                    WHERE rn = 1", conn);
+
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                {
+                    string key = rdr["PO_Key"]?.ToString() ?? "";
+                    decimal paid = rdr["Da_TT"] != DBNull.Value ? Convert.ToDecimal(rdr["Da_TT"]) : 0;
+                    if (!string.IsNullOrEmpty(key) && paid > 0)
+                        cache[key] = paid;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[LoadZaloPaidCache] Error: " + ex.Message);
+            }
+            return cache;
         }
 
 
@@ -1960,9 +2181,9 @@ namespace MPR_Managerment.Forms
             {
                 string v = e.Value?.ToString() ?? "";
                 e.CellStyle.ForeColor =
-                    v == "Đã TT đủ" ? Color.FromArgb(40, 167, 69) :
-                    v == "Một phần" ? Color.FromArgb(255, 140, 0) :
-                                      Color.FromArgb(0, 120, 212);
+                    v == "Đã thanh toán"    ? Color.FromArgb(40, 167, 69) :
+                    v == "Thanh toán 1 phần" ? Color.FromArgb(255, 140, 0) :
+                                               Color.FromArgb(0, 120, 212);   // Pending
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
             if (col == "Qua_Han" && e.Value?.ToString() != "")
@@ -2204,6 +2425,53 @@ private void BtnAddSched_Click(object sender, EventArgs e)
         }
 
 
+        // Implement IRefreshable interface method
+        public async void RefreshData()
+        {
+            // Reload data and rebind grids
+            await LoadDataAsync();
+            FilterAndBind();
+            LoadSchedHist(); // Ensure schedules and history are also reloaded
+
+            // Need to re-select the current PO if it's still valid
+            if (_selectedPO_ID > 0)
+            {
+                var currentPO = _poSummaries.Find(p => p.PO_ID == _selectedPO_ID);
+                if (currentPO != null)
+                {
+                    // Re-select the row in the PO grid
+                    foreach (DataGridViewRow row in dgvPO.Rows)
+                    {
+                        if (Convert.ToInt32(row.Cells["ID"].Value ?? 0) == _selectedPO_ID)
+                        {
+                            dgvPO.ClearSelection();
+                            row.Selected = true;
+                            dgvPO.CurrentCell = row.Cells["PO_No"];
+                            break;
+                        }
+                    }
+                    LoadSchedHist();
+                }
+                else
+                {
+                    _selectedPO_ID = 0;
+                    ClearDetailViews();
+                }
+            }
+            else
+            {
+                ClearDetailViews();
+            }
+        }
+
+        private void ClearDetailViews()
+        {
+            dgvSchedule?.Rows.Clear();
+            dgvHistory?.Rows.Clear();
+            _schedules?.Clear();
+            _histories?.Clear();
+        }
+
         private void BtnDelPayment_Click(object sender, EventArgs e)
         {
             // Lấy Print_ID trực tiếp từ dòng đang chọn — tránh lỗi khi dòng bị ẩn bởi filter
@@ -2289,61 +2557,156 @@ private void BtnAddSched_Click(object sender, EventArgs e)
                     if (s != null) suppId = s.Supplier_ID;
                 }
 
-                _debtReport = _svc.GetDebtReport(dtpFrom.Value, dtpTo.Value, suppId);
-                _suppDebt = _svc.GetSupplierDebt();
+                _debtReport       = _svc.GetDebtReport(dtpFrom.Value, dtpTo.Value, suppId);
+                _suppDebt         = _svc.GetSupplierDebt();
+                _zaloPaidCache    = LoadZaloPaidCache();
+                _zaloInRangeCache = LoadZaloInRangeCache(dtpFrom.Value, dtpTo.Value);
 
-                // Lọc danh sách NCC theo suppId đã chọn
-                var suppDebtFiltered = suppId.HasValue
-                    ? _suppDebt.FindAll(x => x.Supplier_ID == suppId.Value)
-                    : _suppDebt;
-
-                dgvDebtSupp.Rows.Clear();
-                decimal tVal = 0, tPaid = 0, tDebt = 0; int tOver = 0;
-                foreach (var s in suppDebtFiltered)
-                {
-                    int i = dgvDebtSupp.Rows.Add();
-                    var r = dgvDebtSupp.Rows[i];
-                    r.Cells["D_SuppID"].Value = s.Supplier_ID;
-                    r.Cells["D_Name"].Value = s.Supplier_Name;
-                    r.Cells["D_TotalPO"].Value = s.Total_PO;
-                    r.Cells["D_Value"].Value = FormatAmt(s.Total_PO_Value);
-                    r.Cells["D_Debt"].Value = FormatAmt(s.Total_Debt);
-                    r.Cells["D_Overdue"].Value = s.Overdue_PO_Count > 0 ? $"⚠ {s.Overdue_PO_Count}" : "—";
-
-                    tVal += s.Total_PO_Value;
-                    tPaid += s.Total_Paid;
-                    tDebt += s.Total_Debt;
-                    tOver += s.Overdue_PO_Count;
-                }
-
-                // Cập nhật cards tổng kê (kiểm tra Visible cho phân quyền)
-                if (lblSumValue != null && lblSumValue.Visible) lblSumValue.Text = $"{FormatAmt(tVal)} VNĐ";
-                if (lblSumPaid != null && lblSumPaid.Visible) lblSumPaid.Text = $"{FormatAmt(tPaid)} VNĐ";
-                if (lblSumDebt != null && lblSumDebt.Visible) lblSumDebt.Text = $"{FormatAmt(tDebt)} VNĐ";
-                if (lblSumOverdue != null) lblSumOverdue.Text = $"{tOver} PO";
-
-                // Chi tiết: nếu lọc theo NCC thì hiện detail NCC đó luôn
-                if (suppId.HasValue)
-                    BindDebtDetail(_debtReport.FindAll(d => d.Supplier_ID == suppId.Value));
-                else
-                    BindDebtDetail(_debtReport);
+                // Lọc NCC theo suppId rồi bind + cập nhật cards
+                FilterAndBindDebt();
             }
             catch (Exception ex) { Err(ex.Message); }
+        }
+
+        // Lọc + bind lại cả 2 grid theo các bộ lọc hiện tại (không query DB lại)
+        private void FilterAndBindDebt()
+        {
+            if (_suppDebt == null || _debtReport == null) return;
+
+            int? suppId = null;
+            if (cboSuppFilter?.SelectedIndex > 0)
+            {
+                var name = cboSuppFilter.SelectedItem.ToString();
+                var s = _allSuppliers.Find(x => (x.Company_Name ?? x.Supplier_Name) == name);
+                if (s != null) suppId = s.Supplier_ID;
+            }
+
+            string statusFilter = cboDebtStatus?.SelectedItem?.ToString() ?? "Tất cả";
+            bool overdueOnly    = chkOverdueOnly?.Checked ?? false;
+            string search       = txtDebtSearch?.Text.Trim().ToLower() ?? "";
+
+            // ── Lọc _debtReport để bind Detail ──
+            var filteredDetail = _debtReport.FindAll(d =>
+            {
+                if (suppId.HasValue && d.Supplier_ID != suppId.Value) return false;
+                if (overdueOnly && !d.Is_Overdue) return false;
+                if (statusFilter != "Tất cả")
+                {
+                    string zaloSt = d.Is_Overdue ? "⚠ Quá hạn" : GetZaloStatus(d.PONo, d.Total_Amount);
+                    if (zaloSt != statusFilter) return false;
+                }
+                if (!string.IsNullOrEmpty(search))
+                {
+                    string wono = _poSummaries.Find(p => p.PO_ID == d.PO_ID)?.WorkorderNo ?? "";
+                    if (!d.PONo.ToLower().Contains(search) &&
+                        !wono.ToLower().Contains(search) &&
+                        !(d.Project_Name ?? "").ToLower().Contains(search)) return false;
+                }
+                return true;
+            });
+
+            // ── Lọc _suppDebt để bind NCC ──
+            // Lấy tập Supplier_ID còn xuất hiện trong filteredDetail
+            var activeSuppIds = new HashSet<int>(filteredDetail.Select(d => d.Supplier_ID));
+            var filteredSupp = _suppDebt.FindAll(s =>
+            {
+                if (!activeSuppIds.Contains(s.Supplier_ID)) return false;
+                if (suppId.HasValue && s.Supplier_ID != suppId.Value) return false;
+                if (overdueOnly && s.Overdue_PO_Count == 0) return false;
+                return true;
+            });
+
+            // ── Bind NCC grid — tính Đã TT và Còn nợ từ Zalo cache ──
+            dgvDebtSupp.Rows.Clear();
+            decimal tVal = 0, tPaid = 0, tDebt = 0; int tOver = 0;
+            foreach (var s in filteredSupp)
+            {
+                // Tổng tiền đã TT (Zalo) cho tất cả PO của NCC này trong filteredDetail
+                decimal suppZaloPaid = filteredDetail
+                    .Where(d => d.Supplier_ID == s.Supplier_ID)
+                    .Sum(d =>
+                    {
+                        string k = (d.PONo ?? "").ToUpperInvariant()
+                            .Replace(" ", "").Replace("\t", "").Replace("\r", "").Replace("\n", "");
+                        _zaloPaidCache.TryGetValue(k, out decimal p);
+                        return p;
+                    });
+                decimal suppZaloDebt = filteredDetail
+                    .Where(d => d.Supplier_ID == s.Supplier_ID)
+                    .Sum(d =>
+                    {
+                        string k = (d.PONo ?? "").ToUpperInvariant()
+                            .Replace(" ", "").Replace("\t", "").Replace("\r", "").Replace("\n", "");
+                        _zaloPaidCache.TryGetValue(k, out decimal p);
+                        return Math.Max(d.Total_Amount - p, 0);
+                    });
+
+                int i = dgvDebtSupp.Rows.Add();
+                var r = dgvDebtSupp.Rows[i];
+                r.Cells["D_SuppID"].Value  = s.Supplier_ID;
+                r.Cells["D_Name"].Value    = s.Supplier_Name;
+                r.Cells["D_TotalPO"].Value = s.Total_PO;
+                r.Cells["D_Value"].Value   = FormatAmt(s.Total_PO_Value);
+                r.Cells["D_Paid"].Value    = FormatAmt(suppZaloPaid);
+                r.Cells["D_Debt"].Value    = FormatAmt(suppZaloDebt);
+                r.Cells["D_Overdue"].Value = s.Overdue_PO_Count > 0 ? $"⚠ {s.Overdue_PO_Count}" : "—";
+
+                tVal  += s.Total_PO_Value;
+                tPaid += suppZaloPaid;
+                tDebt += suppZaloDebt;
+                tOver += s.Overdue_PO_Count;
+            }
+
+            // Cards tổng kết
+            if (lblSumValue  != null && lblSumValue.Visible)  lblSumValue.Text  = $"{FormatAmt(tVal)} VNĐ";
+            if (lblSumPaid   != null && lblSumPaid.Visible)   lblSumPaid.Text   = $"{FormatAmt(tPaid)} VNĐ";
+            if (lblSumDebt   != null && lblSumDebt.Visible)   lblSumDebt.Text   = $"{FormatAmt(tDebt)} VNĐ";
+            if (lblSumOverdue != null)                         lblSumOverdue.Text = $"{tOver} PO";
+
+            // ── Bind Detail grid ──
+            BindDebtDetail(filteredDetail);
         }
 
         private void DgvDebtSupp_SelectionChanged(object sender, EventArgs e)
         {
             if (dgvDebtSupp.SelectedRows.Count == 0) return;
             int sid = Convert.ToInt32(dgvDebtSupp.SelectedRows[0].Cells["D_SuppID"].Value);
-            BindDebtDetail(_debtReport.FindAll(r => r.Supplier_ID == sid));
+
+            // Giữ nguyên bộ lọc status/overdue/search khi click NCC
+            string statusFilter = cboDebtStatus?.SelectedItem?.ToString() ?? "Tất cả";
+            bool overdueOnly    = chkOverdueOnly?.Checked ?? false;
+            string search       = txtDebtSearch?.Text.Trim().ToLower() ?? "";
+
+            var items = _debtReport.FindAll(d =>
+            {
+                if (d.Supplier_ID != sid) return false;
+                if (overdueOnly && !d.Is_Overdue) return false;
+                if (statusFilter != "Tất cả")
+                {
+                    string zaloSt = d.Is_Overdue ? "⚠ Quá hạn" : GetZaloStatus(d.PONo, d.Total_Amount);
+                    if (zaloSt != statusFilter) return false;
+                }
+                if (!string.IsNullOrEmpty(search))
+                {
+                    string wono = _poSummaries.Find(p => p.PO_ID == d.PO_ID)?.WorkorderNo ?? "";
+                    if (!d.PONo.ToLower().Contains(search) &&
+                        !wono.ToLower().Contains(search) &&
+                        !(d.Project_Name ?? "").ToLower().Contains(search)) return false;
+                }
+                return true;
+            });
+            BindDebtDetail(items);
         }
 
         private void DgvDebtSupp_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (e.RowIndex < 0) return;
-            if (dgvDebtSupp.Columns[e.ColumnIndex].Name == "D_Debt")
+            string col = dgvDebtSupp.Columns[e.ColumnIndex].Name;
+            if (col == "D_Paid")
+            { e.CellStyle.ForeColor = Color.FromArgb(40, 167, 69); e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold); }
+            if (col == "D_Debt")
             { e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69); e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold); }
-            if (dgvDebtSupp.Columns[e.ColumnIndex].Name == "D_Overdue" && e.Value?.ToString() != "—")
+            if (col == "D_Overdue" && e.Value?.ToString() != "—")
             { e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69); e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold); }
         }
 
@@ -2354,15 +2717,34 @@ private void BtnAddSched_Click(object sender, EventArgs e)
             {
                 int i = dgvDebtDetail.Rows.Add();
                 var r = dgvDebtDetail.Rows[i];
-                r.Cells["DD_PONo"].Value = d.PONo;
-                r.Cells["DD_Project"].Value = d.Project_Name;
-                r.Cells["DD_PODate"].Value = d.PO_Date?.ToString("dd/MM/yyyy") ?? "";
-                r.Cells["DD_Total"].Value = FormatAmt(d.Total_Amount);
-                r.Cells["DD_Before"].Value = FormatAmt(d.Paid_Before_Range);
-                r.Cells["DD_InRange"].Value = FormatAmt(d.Paid_In_Range);
-                r.Cells["DD_Remain"].Value = FormatAmt(d.Remaining_Debt);
-                r.Cells["DD_Status"].Value = d.Is_Overdue ? "⚠ Quá hạn" : d.Payment_Status;
-                r.Cells["DD_Due"].Value = d.Next_Due_Date?.ToString("dd/MM/yyyy") ?? "—";
+                // Lấy mã dự án (WorkorderNo) từ _poSummaries; fallback về Project_Name
+                string workorderNo = _poSummaries.Find(p => p.PO_ID == d.PO_ID)?.WorkorderNo ?? d.Project_Name;
+                r.Cells["DD_POID"].Value    = d.PO_ID;
+                r.Cells["DD_PONo"].Value    = d.PONo;
+                r.Cells["DD_Project"].Value = workorderNo;
+                r.Cells["DD_PODate"].Value  = d.PO_Date?.ToString("dd/MM/yyyy") ?? "";
+                // Lấy số tiền đã TT từ Zalo: toàn thời gian và trong kỳ
+                string poKey = (d.PONo ?? "").ToUpperInvariant()
+                    .Replace(" ", "").Replace("\t", "").Replace("\r", "").Replace("\n", "");
+                _zaloPaidCache.TryGetValue(poKey, out decimal zaloPaidTotal);
+                _zaloInRangeCache.TryGetValue(poKey, out decimal zaloInRange);
+                decimal zaloBefore = Math.Max(zaloPaidTotal - zaloInRange, 0);
+                decimal zaloRemain = Math.Max(d.Total_Amount - zaloPaidTotal, 0);
+
+                r.Cells["DD_Total"].Value   = FormatAmt(d.Total_Amount);
+                r.Cells["DD_Before"].Value  = FormatAmt(zaloBefore);
+                r.Cells["DD_InRange"].Value = FormatAmt(zaloInRange);
+                r.Cells["DD_Remain"].Value  = FormatAmt(zaloRemain);
+
+                // % đã thanh toán (dựa trên tổng Zalo)
+                decimal pct = d.Total_Amount > 0 ? Math.Round(zaloPaidTotal / d.Total_Amount * 100, 1) : 0;
+                r.Cells["DD_Percent"].Value = $"{pct}%";
+
+                string ddStatus = d.Is_Overdue
+                    ? "⚠ Quá hạn"
+                    : GetZaloStatus(d.PONo, d.Total_Amount);
+                r.Cells["DD_Status"].Value  = ddStatus;
+                r.Cells["DD_Due"].Value     = d.Next_Due_Date?.ToString("dd/MM/yyyy") ?? "—";
             }
         }
 
@@ -2374,16 +2756,59 @@ private void BtnAddSched_Click(object sender, EventArgs e)
             {
                 string v = e.Value?.ToString() ?? "";
                 e.CellStyle.ForeColor =
-                    v.Contains("Quá hạn") ? Color.FromArgb(220, 53, 69) :
-                    v == "Đã TT đủ" ? Color.FromArgb(40, 167, 69) :
-                    v == "Một phần" ? Color.FromArgb(255, 140, 0) :
-                                            Color.FromArgb(0, 120, 212);
+                    v.Contains("Quá hạn")       ? Color.FromArgb(220, 53, 69) :
+                    v == "Đã thanh toán"         ? Color.FromArgb(40, 167, 69) :
+                    v == "Thanh toán 1 phần"     ? Color.FromArgb(255, 140, 0) :
+                                                   Color.FromArgb(0, 120, 212);   // Pending
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
             if (col == "DD_Remain")
             {
                 e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69);
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            }
+            if (col == "DD_Percent")
+            {
+                // Màu theo % thanh toán: xanh ≥100%, cam 1-99%, đỏ 0%
+                string pctStr = e.Value?.ToString()?.TrimEnd('%') ?? "0";
+                if (decimal.TryParse(pctStr, out decimal pct))
+                {
+                    e.CellStyle.ForeColor = pct >= 100 ? Color.FromArgb(40, 167, 69) :
+                                            pct > 0    ? Color.FromArgb(255, 140, 0) :
+                                                         Color.FromArgb(220, 53, 69);
+                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                }
+            }
+            if (col == "DD_Due")
+            {
+                // Tô đỏ nếu đến hạn đã qua
+                string dateStr = e.Value?.ToString() ?? "";
+                if (DateTime.TryParseExact(dateStr, "dd/MM/yyyy",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var due) && due < DateTime.Today)
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69);
+                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                }
+            }
+        }
+
+        private void DgvDebtDetail_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            string poNo = dgvDebtDetail.Rows[e.RowIndex].Cells["DD_PONo"].Value?.ToString() ?? "";
+            if (string.IsNullOrEmpty(poNo)) return;
+
+            // Chuyển sang Tab PO và lọc theo PO No
+            tabs.SelectedTab = tabPO;
+            txtSearchPO.Text = poNo;
+            FilterAndBind();
+
+            // Tự động chọn dòng đầu nếu tìm thấy đúng 1 PO
+            if (dgvPO.Rows.Count == 1)
+            {
+                dgvPO.ClearSelection();
+                dgvPO.Rows[0].Selected = true;
             }
         }
 
@@ -2518,7 +2943,7 @@ private void ResizeAll()
                     int nccW = (int)(w * 0.50);
                     int detLeft = nccW + 10;
                     int detW = w - detLeft - 5;
-                    int panelTop = 132;
+                    int panelTop = 179;
                     int panelH = Math.Max(100, h - panelTop - 5);
 
                     _pNCC.Left = 5;

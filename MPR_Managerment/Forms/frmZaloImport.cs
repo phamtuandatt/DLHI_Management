@@ -1,5 +1,6 @@
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
+using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -205,6 +206,14 @@ namespace MPR_Managerment.Forms
                     dr.Cells["P_Amount"].Value= FormatAmt(r.Amount);
                     dr.Cells["P_VAT"].Value   = FormatAmt(r.VAT);
                     dr.Cells["P_Final"].Value = FormatAmt(r.FinalAmount);
+
+                    decimal finalAmt = r.FinalAmount ?? 0;
+                    decimal paidAmt = r.PaidDate.HasValue ? finalAmt : 0;
+                    decimal remain = finalAmt - paidAmt;
+
+                    dr.Cells["P_Paid"].Value  = paidAmt > 0 ? FormatAmt(paidAmt) : "";
+                    dr.Cells["P_Remain"].Value = FormatAmt(remain);
+
                     dr.Cells["P_D1"].Value    = FormatAmt(r.Dot1);
                     dr.Cells["P_D2"].Value    = FormatAmt(r.Dot2);
                     dr.Cells["P_D3"].Value    = FormatAmt(r.Dot3);
@@ -226,22 +235,28 @@ namespace MPR_Managerment.Forms
         {
             var files = ZaloImportService.FindImportFiles();
             if (files.Count == 0) { Status("Không tìm thấy file nào!"); return; }
-            DoImport(files[0].Item1, files[0].Item2);
+            DoImport(files[0].Item1, files[0].Item2, clearFirst: true);
         }
 
         private void BtnImportSelected_Click(object sender, EventArgs e)
         {
             if (lstFiles.SelectedItem is not FileItem item) { Status("Vui lòng chọn file trong danh sách!"); return; }
-            DoImport(item.Path, item.Date);
+            DoImport(item.Path, item.Date, clearFirst: false);
         }
 
-        private async void DoImport(string path, DateTime date)
+        private async void DoImport(string path, DateTime date, bool clearFirst = false)
         {
             SetBusy(true);
-            Status($"Đang import {Path.GetFileName(path)}...");
             try
             {
-                var result = await System.Threading.Tasks.Task.Run(() =>
+                if (clearFirst)
+                {
+                    Status("Đang xóa dữ liệu cũ cùng ngày...");
+                    await Task.Run(() => ZaloImportService.ClearByDate(date));
+                }
+
+                Status($"Đang import {Path.GetFileName(path)}...");
+                var result = await Task.Run(() =>
                     ZaloImportService.ImportToDB(path, date));
 
                 if (result.Success)
@@ -251,6 +266,21 @@ namespace MPR_Managerment.Forms
                     // Chuyển sang tab DB và load
                     tabs.SelectedTab = tabDB;
                     LoadDBGrid();
+
+                    // -------------------------------------------------
+                    // Update PO payment status based on imported data (Background)
+                    // -------------------------------------------------
+                    var rows = ZaloImportService.ReadFile(path);
+                    var distinctPo = rows.Select(r => r.PONo).Where(p => !string.IsNullOrEmpty(p)).Distinct().ToList();
+                    
+                    Task.Run(() =>
+                    {
+                        foreach (var po in distinctPo)
+                        {
+                            UpdatePaymentStatusByPONo(po);
+                        }
+                        Invoke(new Action(() => Status("✅ Đã cập nhật xong trạng thái PO.")));
+                    });
                 }
                 else
                 {
@@ -259,6 +289,100 @@ namespace MPR_Managerment.Forms
                 }
             }
             finally { SetBusy(false); }
+        }
+
+        // -----------------------------------------------------------------
+        // Replicated logic from frmPayment.cs to update PO payment status
+        // -----------------------------------------------------------------
+        private void UpdatePaymentStatusByPONo(string poNo)
+        {
+            if (string.IsNullOrEmpty(poNo)) return;
+
+            using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+            conn.Open();
+
+            // 1. Tổng đã TT từ PO_HistoryPaid theo PONo
+            var cmdPaid = new Microsoft.Data.SqlClient.SqlCommand(
+                "SELECT ISNULL(SUM(Amount_Total), 0) AS Total_Paid FROM PO_HistoryPaid WHERE PONo = @poNo",
+                conn);
+            cmdPaid.Parameters.AddWithValue("@poNo", poNo);
+            decimal totalPaid = Convert.ToDecimal(cmdPaid.ExecuteScalar() ?? 0);
+
+            // 2. Tổng kế hoạch từ PO_Payment_Schedule
+            var cmdPlan = new Microsoft.Data.SqlClient.SqlCommand(@"
+                SELECT ISNULL(SUM(ps.Amount_Plan), 0) AS Total_Plan
+                FROM PO_Payment_Schedule ps
+                INNER JOIN PO_head ph ON ph.PO_ID = ps.PO_ID
+                WHERE ph.PONo = @poNo2", conn);
+            cmdPlan.Parameters.AddWithValue("@poNo2", poNo);
+            decimal totalPlan = Convert.ToDecimal(cmdPlan.ExecuteScalar() ?? 0);
+
+            // 3. Xác định trạng thái tổng (Tính cả Zalo_PaymentImport)
+            var cmdZalo = new Microsoft.Data.SqlClient.SqlCommand(
+                "SELECT ISNULL(SUM(Final_Amount), 0) FROM Zalo_PaymentImport WHERE PO_No = @poNo", conn);
+            cmdZalo.Parameters.AddWithValue("@poNo", poNo);
+            decimal zaloPaid = Convert.ToDecimal(cmdZalo.ExecuteScalar() ?? 0);
+            
+            decimal effectivePaid = totalPaid + zaloPaid;
+            
+            string newPoStatus = effectivePaid <= 0 ? "Chưa TT"
+                               : effectivePaid >= totalPlan ? "Đã TT đủ"
+                               : "Một phần";
+
+            // 4. Cập nhật từng đợt
+            var cmdDots = new Microsoft.Data.SqlClient.SqlCommand(@"
+                SELECT ps.Schedule_ID, ps.Amount_Plan, ps.Dot_TT
+                FROM PO_Payment_Schedule ps
+                INNER JOIN PO_head ph ON ph.PO_ID = ps.PO_ID
+                WHERE ph.PONo = @poNo3", conn);
+            cmdDots.Parameters.AddWithValue("@poNo3", poNo);
+
+            var dotUpdates = new List<(int sid, string status)>();
+            using (var rdr = cmdDots.ExecuteReader())
+                while (rdr.Read())
+                {
+                    int sid = Convert.ToInt32(rdr["Schedule_ID"]);
+                    int dotTT = Convert.ToInt32(rdr["Dot_TT"]);
+                    decimal plan = rdr["Amount_Plan"] != DBNull.Value ? Convert.ToDecimal(rdr["Amount_Plan"]) : 0;
+                    
+                    // Lấy Paid từ cả 2 nguồn
+                    var cmdDotPaid = new Microsoft.Data.SqlClient.SqlCommand(@"
+                        SELECT (SELECT ISNULL(SUM(hp.Amount_Total), 0) 
+                                FROM PO_PrintRequestHistory prh 
+                                INNER JOIN PO_HistoryPaid hp ON hp.Print_ID = prh.Print_ID 
+                                WHERE prh.PONo = @p AND prh.Dot_TT = @d)
+                             + (SELECT ISNULL(SUM(Final_Amount), 0) 
+                                FROM Zalo_PaymentImport 
+                                WHERE PO_No = @p AND Progress_Status LIKE '%Đợt ' + CAST(@d AS NVARCHAR))", conn);
+                    cmdDotPaid.Parameters.AddWithValue("@p", poNo);
+                    cmdDotPaid.Parameters.AddWithValue("@d", dotTT);
+                    decimal dotPaid = Convert.ToDecimal(cmdDotPaid.ExecuteScalar() ?? 0);
+                    
+                    string dotSt = dotPaid <= 0 ? "Chưa TT"
+                                   : dotPaid >= plan ? "Đã TT đủ"
+                                   : "Một phần";
+                    dotUpdates.Add((sid, dotSt));
+                }
+
+            foreach (var (sid, st) in dotUpdates)
+            {
+                var c = new Microsoft.Data.SqlClient.SqlCommand(
+                    "UPDATE PO_Payment_Schedule SET Status = @st WHERE Schedule_ID = @sid", conn);
+                c.Parameters.AddWithValue("@st", st);
+                c.Parameters.AddWithValue("@sid", sid);
+                c.ExecuteNonQuery();
+            }
+
+            // 5. Cập nhật PO_head.Status
+            var cmdPO = new Microsoft.Data.SqlClient.SqlCommand(
+                "UPDATE PO_head SET Status = @st WHERE PONo = @poNo5", conn);
+            cmdPO.Parameters.AddWithValue("@st", newPoStatus);
+            cmdPO.Parameters.AddWithValue("@poNo5", poNo);
+            cmdPO.ExecuteNonQuery();
+
+            // Debug
+            System.Diagnostics.Debug.WriteLine(
+                $"[UpdatePaymentStatus] {poNo} → {newPoStatus} (paid={totalPaid:N2} / plan={totalPlan:N2})");
         }
 
         private void BtnViewDB_Click(object sender, EventArgs e) => LoadDBGrid();
@@ -293,7 +417,15 @@ namespace MPR_Managerment.Forms
                     dr.Cells["DB_Ecount"].Value  = rdr["Ecount_No"]?.ToString() ?? "";
                     dr.Cells["DB_Amount"].Value  = rdr["Amount"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Amount"])) : "";
                     dr.Cells["DB_VAT"].Value     = rdr["VAT"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["VAT"])) : "";
-                    dr.Cells["DB_Final"].Value   = rdr["Final_Amount"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Final_Amount"])) : "";
+                    decimal dbFinal = rdr["Final_Amount"] != DBNull.Value ? Convert.ToDecimal(rdr["Final_Amount"]) : 0;
+                    bool dbHasPaid = rdr["Paid_Date"] != DBNull.Value;
+                    decimal dbPaid = dbHasPaid ? dbFinal : 0;
+                    decimal dbRemain = dbFinal - dbPaid;
+
+                    dr.Cells["DB_Final"].Value   = dbFinal > 0 ? FormatAmt(dbFinal) : "";
+                    dr.Cells["DB_Paid"].Value    = dbPaid > 0 ? FormatAmt(dbPaid) : "";
+                    dr.Cells["DB_Remain"].Value  = FormatAmt(dbRemain);
+
                     dr.Cells["DB_D1"].Value      = rdr["Dot1"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot1"])) : "";
                     dr.Cells["DB_D2"].Value      = rdr["Dot2"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot2"])) : "";
                     dr.Cells["DB_D3"].Value      = rdr["Dot3"] != DBNull.Value ? FormatAmt(Convert.ToDecimal(rdr["Dot3"])) : "";
@@ -377,6 +509,8 @@ namespace MPR_Managerment.Forms
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Amount", HeaderText = "Amount",       Width = 110, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_VAT",    HeaderText = "VAT",          Width = 90,  ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Final",  HeaderText = "Final Amount", Width = 110, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Paid",   HeaderText = "Đã TT",        Width = 110, ReadOnly = true });
+            dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Remain", HeaderText = "Còn lại",      Width = 110, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D1",     HeaderText = "Đợt 1",        Width = 100, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D2",     HeaderText = "Đợt 2",        Width = 100, ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_D3",     HeaderText = "Đợt 3",        Width = 100, ReadOnly = true });
@@ -384,7 +518,7 @@ namespace MPR_Managerment.Forms
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_FTCash", HeaderText = "FT / Cash",    Width = 90,  ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_PayDate",HeaderText = "Paid Date",        Width = 90,  ReadOnly = true });
             dgvPreview.Columns.Add(new DataGridViewTextBoxColumn { Name = "P_Status", HeaderText = "Status",       Width = 90,  ReadOnly = true });
-            StyleAmtCols(dgvPreview, "P_Amount","P_VAT","P_Final","P_D1","P_D2","P_D3","P_D4");
+            StyleAmtCols(dgvPreview, "P_Amount", "P_VAT", "P_Final", "P_Paid", "P_Remain", "P_D1", "P_D2", "P_D3", "P_D4");
         }
 
         private void BuildDBCols()
@@ -398,6 +532,8 @@ namespace MPR_Managerment.Forms
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Amount",   HeaderText = "Amount",       Width = 110, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_VAT",      HeaderText = "VAT",          Width = 90,  ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Final",    HeaderText = "Final Amount", Width = 110, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Paid",     HeaderText = "Đã TT",        Width = 110, ReadOnly = true });
+            dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Remain",   HeaderText = "Còn lại",      Width = 110, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D1",       HeaderText = "Đợt 1",        Width = 100, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D2",       HeaderText = "Đợt 2",        Width = 100, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_D3",       HeaderText = "Đợt 3",        Width = 100, ReadOnly = true });
@@ -408,7 +544,7 @@ namespace MPR_Managerment.Forms
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_Note",     HeaderText = "Ghi chú",      Width = 200, ReadOnly = false });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_ImportAt", HeaderText = "Imported At",  Width = 130, ReadOnly = true });
             dgvDB.Columns.Add(new DataGridViewTextBoxColumn { Name = "DB_ImportID", Visible = false });
-            StyleAmtCols(dgvDB, "DB_Amount","DB_VAT","DB_Final","DB_D1","DB_D2","DB_D3","DB_D4");
+            StyleAmtCols(dgvDB, "DB_Amount", "DB_VAT", "DB_Final", "DB_Paid", "DB_Remain", "DB_D1", "DB_D2", "DB_D3", "DB_D4");
             dgvDB.CellEndEdit += DgvDB_NoteEndEdit;
         }
 
@@ -419,7 +555,29 @@ namespace MPR_Managerment.Forms
                 if (e.RowIndex < 0) return;
                 string cn = dgv.Columns[e.ColumnIndex].Name;
                 if (Array.IndexOf(cols, cn) >= 0)
+                {
                     e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+
+                    // Color logic for Paid/Remain to match frmPayment
+                    if (cn.EndsWith("_Paid"))
+                    {
+                        string val = e.Value?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(val))
+                        {
+                            e.CellStyle.ForeColor = Color.FromArgb(40, 167, 69); // Green
+                            e.CellStyle.Font = new Font(dgv.Font, FontStyle.Bold);
+                        }
+                    }
+                    if (cn.EndsWith("_Remain"))
+                    {
+                        string val = e.Value?.ToString() ?? "";
+                        if (val != "0" && !string.IsNullOrEmpty(val))
+                        {
+                            e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69); // Red
+                            e.CellStyle.Font = new Font(dgv.Font, FontStyle.Bold);
+                        }
+                    }
+                }
             };
         }
 

@@ -324,6 +324,22 @@ namespace MPR_Managerment.Services
             cmd.ExecuteNonQuery();
         }
 
+        // =====================================================
+        //  KIỂM TRA PASSWORD ADMIN
+        // =====================================================
+        public bool VerifyAdminPassword(string password)
+        {
+            string hash = HashPassword(password);
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand(@"
+                SELECT 1 FROM Users u
+                JOIN Roles r ON u.Role_ID = r.Role_ID
+                WHERE r.Role_Name = 'Admin' AND u.Password_Hash = @hash AND u.Is_Active = 1", conn);
+            cmd.Parameters.AddWithValue("@hash", hash);
+            return cmd.ExecuteScalar() != null;
+        }
+
 
         // =====================================================
         //  LẤY QUYỀN CHI TIẾT THEO MODULE:ACTION

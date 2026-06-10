@@ -74,6 +74,117 @@ namespace MPR_Managerment.Services
             return result;
         }
 
+        // Hardcode fallback: dùng khi header không tìm thấy
+        private static readonly Dictionary<string, int> _fallbackCols = new()
+        {
+            ["PONo"]           = 3,
+            ["EcountNo"]       = 4,
+            ["TitleEN"]        = 5,
+            ["GWNo"]           = 7,
+            ["Amount"]         = 8,
+            ["VAT"]            = 9,
+            ["FinalAmount"]    = 10,
+            ["Dot1"]           = 12,
+            ["Dot2"]           = 13,
+            ["Dot3"]           = 14,
+            ["Dot4"]           = 15,
+            ["Dot5"]           = 16,
+            ["Dot6"]           = 17,
+            ["Dot7"]           = 18,
+            ["Dot8"]           = 19,
+            ["FTCash"]         = 22,
+            ["PaidDate"]       = 23,
+            ["ProgressStatus"] = 27,
+        };
+
+        // Các từ khóa nhận diện header — so sánh không phân biệt hoa/thường, chứa chuỗi
+        private static readonly Dictionary<string, string[]> _colKeywords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PONo"]           = [ "PO No", "PO Number", "PONo", "PO_No" ],
+            ["EcountNo"]       = [ "Ecount No", "EcountNo", "Ecount" ],
+            ["TitleEN"]        = [ "Title EN", "Title(EN)", "TitleEN", "Title" ],
+            ["GWNo"]           = [ "GW No", "GWNo", "GW Number" ],
+            ["Amount"]         = [ "Amount" ],
+            ["VAT"]            = [ "VAT" ],
+            ["FinalAmount"]    = [ "Final Amount", "Final_Amount", "FinalAmount", "Total Amount" ],
+            ["Dot1"]           = [ "Đợt 1", "Dot 1", "Dot1", "Payment 1", "1st Payment" ],
+            ["Dot2"]           = [ "Đợt 2", "Dot 2", "Dot2", "Payment 2", "2nd Payment" ],
+            ["Dot3"]           = [ "Đợt 3", "Dot 3", "Dot3", "Payment 3", "3rd Payment" ],
+            ["Dot4"]           = [ "Đợt 4", "Dot 4", "Dot4", "Payment 4", "4th Payment" ],
+            ["Dot5"]           = [ "Đợt 5", "Dot 5", "Dot5", "Payment 5", "5th Payment" ],
+            ["Dot6"]           = [ "Đợt 6", "Dot 6", "Dot6", "Payment 6", "6th Payment" ],
+            ["Dot7"]           = [ "Đợt 7", "Dot 7", "Dot7", "Payment 7", "7th Payment" ],
+            ["Dot8"]           = [ "Đợt 8", "Dot 8", "Dot8", "Payment 8", "8th Payment" ],
+            ["FTCash"]         = [ "FT/Cash", "FT Cash", "FTCash", "FT" ],
+            ["PaidDate"]       = [ "Paid Date", "PaidDate", "Payment Date", "Date Paid" ],
+            ["ProgressStatus"] = [ "Progress", "Status", "Progress Status", "ProgressStatus" ],
+        };
+
+        /// <summary>
+        /// Quét header row để lấy index thực tế của từng cột.
+        /// Trả về dict fieldName → columnIndex (1-based).
+        /// Field nào không tìm thấy thì dùng giá trị fallback.
+        /// </summary>
+        private static Dictionary<string, int> DetectColumns(ExcelWorksheet ws)
+        {
+            var result = new Dictionary<string, int>(_fallbackCols);
+
+            int lastCol = ws.Dimension?.End.Column ?? 0;
+            if (lastCol == 0) return result;
+
+            // Tìm header row: quét row 1–5, ưu tiên row chứa nhiều keyword nhất
+            int bestHeaderRow = -1, bestScore = 0;
+            for (int r = 1; r <= Math.Min(5, ws.Dimension?.End.Row ?? 5); r++)
+            {
+                int score = 0;
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    string cellText = NormalizeHeader(ws.Cells[r, c].Text);
+                    foreach (var keywords in _colKeywords.Values)
+                        if (keywords.Any(k => cellText.Contains(NormalizeHeader(k))))
+                        { score++; break; }
+                }
+                if (score > bestScore) { bestScore = score; bestHeaderRow = r; }
+            }
+
+            if (bestHeaderRow < 0 || bestScore == 0) return result;
+
+            // Build header → column index map từ header row tìm được
+            var headerMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int c = 1; c <= lastCol; c++)
+            {
+                string h = NormalizeHeader(ws.Cells[bestHeaderRow, c].Text);
+                if (!string.IsNullOrEmpty(h)) headerMap[h] = c;
+            }
+
+            // Gán index thực tế cho từng field
+            foreach (var (field, keywords) in _colKeywords)
+            {
+                foreach (var kw in keywords)
+                {
+                    string normKw = NormalizeHeader(kw);
+                    // Tìm exact match trước, sau đó contain
+                    var match = headerMap.FirstOrDefault(kv => kv.Key == normKw);
+                    if (match.Key == null)
+                        match = headerMap.FirstOrDefault(kv => kv.Key.Contains(normKw) || normKw.Contains(kv.Key));
+                    if (match.Key != null)
+                    {
+                        result[field] = match.Value;
+                        break;
+                    }
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[ZaloImport] Header detected at row {bestHeaderRow}, score={bestScore}");
+            foreach (var kv in result)
+                System.Diagnostics.Debug.WriteLine($"  {kv.Key} → col {kv.Value}");
+
+            return result;
+        }
+
+        private static string NormalizeHeader(string s) =>
+            (s ?? "").Replace("\n", " ").Replace("\r", " ").Replace("_", " ").Trim().ToUpperInvariant();
+
         // Đọc dữ liệu từ file Excel — chỉ sheet "Payment list", từ row 4
         public static List<ZaloImportRow> ReadFile(string filePath)
         {
@@ -87,41 +198,67 @@ namespace MPR_Managerment.Services
 
             int lastRow = ws.Dimension?.End.Row ?? 0;
 
-            for (int r = 4; r <= lastRow; r++)
-            {
-                // Bỏ qua dòng hoàn toàn trống (kiểm tra H hoặc J có giá trị)
-                var h = GetDecimal(ws.Cells[r, 8]);
-                var j = GetDecimal(ws.Cells[r, 10]);
-                string poNo = CleanStr(ws.Cells[r, 3].Text);
-                string gwNo = CleanStr(ws.Cells[r, 7].Text);
+            // Detect column positions dynamically from header row
+            var cols = DetectColumns(ws);
 
-                if (h == null && j == null && string.IsNullOrEmpty(poNo) && string.IsNullOrEmpty(gwNo))
+            // Dòng dữ liệu bắt đầu sau header row (header row nằm trong rows 1-5)
+            // Tìm dataStartRow = header row + 1, nhưng tối thiểu là 4 (theo cấu trúc file cũ)
+            int dataStart = cols == _fallbackCols ? 4
+                : Math.Max(4, GetHeaderRow(ws) + 1);
+
+            for (int r = dataStart; r <= lastRow; r++)
+            {
+                string poNo = CleanStr(ws.Cells[r, cols["PONo"]].Text);
+                string gwNo = CleanStr(ws.Cells[r, cols["GWNo"]].Text);
+                var amount     = GetDecimal(ws.Cells[r, cols["Amount"]]);
+                var finalAmt   = GetDecimal(ws.Cells[r, cols["FinalAmount"]]);
+
+                if (amount == null && finalAmt == null && string.IsNullOrEmpty(poNo) && string.IsNullOrEmpty(gwNo))
                     continue;
 
                 rows.Add(new ZaloImportRow
                 {
-                    RowIndex     = r,
-                    PONo         = poNo,
-                    EcountNo     = CleanStr(ws.Cells[r, 4].Text),
-                    TitleEN      = CleanStr(ws.Cells[r, 5].Text),
-                    GWNo         = CleanStr(ws.Cells[r, 7].Text),
-                    Amount       = h,
-                    VAT          = GetDecimal(ws.Cells[r, 9]),
-                    FinalAmount  = j,
-                    Dot1         = GetDecimal(ws.Cells[r, 12]),
-                    Dot2         = GetDecimal(ws.Cells[r, 13]),
-                    Dot3         = GetDecimal(ws.Cells[r, 14]),
-                    Dot4         = GetDecimal(ws.Cells[r, 15]),
-                    Dot5         = GetDecimal(ws.Cells[r, 16]),
-                    Dot6         = GetDecimal(ws.Cells[r, 17]),
-                    Dot7         = GetDecimal(ws.Cells[r, 18]),
-                    Dot8         = GetDecimal(ws.Cells[r, 19]),
-                    FTCash       = ws.Cells[r, 22].Text?.Trim(),
-                    PaidDate  = GetDate(ws.Cells[r, 23]),
-                    ProgressStatus = ws.Cells[r, 27].Text?.Trim(),
+                    RowIndex       = r,
+                    PONo           = poNo,
+                    EcountNo       = CleanStr(ws.Cells[r, cols["EcountNo"]].Text),
+                    TitleEN        = CleanStr(ws.Cells[r, cols["TitleEN"]].Text),
+                    GWNo           = CleanStr(ws.Cells[r, cols["GWNo"]].Text),
+                    Amount         = amount,
+                    VAT            = GetDecimal(ws.Cells[r, cols["VAT"]]),
+                    FinalAmount    = finalAmt,
+                    Dot1           = GetDecimal(ws.Cells[r, cols["Dot1"]]),
+                    Dot2           = GetDecimal(ws.Cells[r, cols["Dot2"]]),
+                    Dot3           = GetDecimal(ws.Cells[r, cols["Dot3"]]),
+                    Dot4           = GetDecimal(ws.Cells[r, cols["Dot4"]]),
+                    Dot5           = GetDecimal(ws.Cells[r, cols["Dot5"]]),
+                    Dot6           = GetDecimal(ws.Cells[r, cols["Dot6"]]),
+                    Dot7           = GetDecimal(ws.Cells[r, cols["Dot7"]]),
+                    Dot8           = GetDecimal(ws.Cells[r, cols["Dot8"]]),
+                    FTCash         = ws.Cells[r, cols["FTCash"]].Text?.Trim(),
+                    PaidDate       = GetDate(ws.Cells[r, cols["PaidDate"]]),
+                    ProgressStatus = ws.Cells[r, cols["ProgressStatus"]].Text?.Trim(),
                 });
             }
             return rows;
+        }
+
+        private static int GetHeaderRow(ExcelWorksheet ws)
+        {
+            int lastCol = ws.Dimension?.End.Column ?? 0;
+            int bestHeaderRow = 3, bestScore = 0;
+            for (int r = 1; r <= Math.Min(5, ws.Dimension?.End.Row ?? 5); r++)
+            {
+                int score = 0;
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    string cellText = NormalizeHeader(ws.Cells[r, c].Text);
+                    foreach (var keywords in _colKeywords.Values)
+                        if (keywords.Any(k => cellText.Contains(NormalizeHeader(k))))
+                        { score++; break; }
+                }
+                if (score > bestScore) { bestScore = score; bestHeaderRow = r; }
+            }
+            return bestHeaderRow;
         }
 
         // Import vào DB, ghi đè nếu trùng (File_Date + Row_Index)
@@ -245,7 +382,7 @@ namespace MPR_Managerment.Services
                     Dot8            DECIMAL(18,2) NULL,
                     FT_Cash         NVARCHAR(500) NULL,
                     Paid_Date    DATE NULL,
-                    Progress_Status NVARCHAR(100) NULL,
+                    Progress_Status NVARCHAR(500) NULL,
                     Imported_At     DATETIME DEFAULT GETDATE(),
                     Source_File     NVARCHAR(500) NULL,
                     CONSTRAINT UQ_ZaloImport UNIQUE (File_Date, Row_Index)
@@ -254,12 +391,23 @@ namespace MPR_Managerment.Services
                     ALTER TABLE Zalo_PaymentImport ADD FT_Cash NVARCHAR(500) NULL;
                 IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='FT_Cash' AND CHARACTER_MAXIMUM_LENGTH < 500)
                     ALTER TABLE Zalo_PaymentImport ALTER COLUMN FT_Cash NVARCHAR(500) NULL;
+                IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='Progress_Status' AND CHARACTER_MAXIMUM_LENGTH < 500)
+                    ALTER TABLE Zalo_PaymentImport ALTER COLUMN Progress_Status NVARCHAR(500) NULL;
                 IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='Paid_Date')
                     ALTER TABLE Zalo_PaymentImport ADD Paid_Date DATE NULL;
                 IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Zalo_PaymentImport' AND COLUMN_NAME='Note')
                     ALTER TABLE Zalo_PaymentImport ADD Note NVARCHAR(500) NULL;
                 UPDATE Zalo_PaymentImport SET PO_No = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(PO_No)), CHAR(160), ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), ''), ' ', '');
                 UPDATE Zalo_PaymentImport SET PO_No = NULL WHERE ISNULL(PO_No,'') = '';", conn).ExecuteNonQuery();
+        }
+
+        public static void ClearByDate(DateTime fileDate)
+        {
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            var cmd = new SqlCommand("DELETE FROM Zalo_PaymentImport WHERE File_Date = @fd", conn);
+            cmd.Parameters.AddWithValue("@fd", fileDate.Date);
+            cmd.ExecuteNonQuery();
         }
 
         public static void SaveNote(int importId, string note)

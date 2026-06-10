@@ -153,7 +153,7 @@ namespace MPR_Managerment.Services
         }
 
         // ===== DELETE =====
-        public void Delete(int supplierId, string deletedBy)
+        public void Delete(int supplierId)
         {
             using (var conn = DatabaseHelper.GetConnection())
             {
@@ -161,7 +161,6 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand("sp_DeleteSupplier", conn);
                 cmd.CommandType = System.Data.CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@Supplier_ID", supplierId);
-                cmd.Parameters.AddWithValue("@Deleted_By", deletedBy);
                 cmd.ExecuteNonQuery();
             }
         }
