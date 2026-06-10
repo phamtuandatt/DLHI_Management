@@ -86,7 +86,7 @@ namespace MPR_Managerment.Forms
 
         private string _projectCodeImport = string.Empty;
         private Form TopOwner => (this.TopLevelControl as Form) ?? this;
-        private Form GetActiveOwner() { var f = TopOwner; f.BringToFront(); f.Activate(); return f; }
+private IWin32Window GetActiveOwner() => this;
         // Suppress DgvPO_SelectionChanged khi show dialog để tránh sync DB calls
         // bị trigger trong message pump của MessageBox (đặc biệt khi frmPO là popup)
         private void SafeWarn(string text, string title = "Thông báo")
@@ -3469,16 +3469,16 @@ namespace MPR_Managerment.Forms
             string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "PaymentStatus_template.xlsx");
             if (!File.Exists(templatePath)) { SafeErr($"Không tìm thấy template:\n{templatePath}"); return; }
 
-            // Hỏi trước: mở trực tiếp hay lưu file
-            var choice = MessageBox.Show(
-                GetActiveOwner(),
-                "Bạn muốn làm gì với file Budget?\n\n" +
-                "  [Yes]    → Mở trực tiếp (không lưu)\n" +
-                "  [No]     → Lưu file rồi mở\n" +
-                "  [Cancel] → Huỷ",
-                "Xuất Budget",
-                MessageBoxButtons.YesNoCancel,
-                MessageBoxIcon.Question);
+    // Hỏi trước: mở trực tiếp hay lưu file
+    var choice = MessageBox.Show(
+        this,
+        "Bạn muốn làm gì với file Budget?\n\n" +
+        "  [Yes]    → Mở trực tiếp (không lưu)\n" +
+        "  [No]     → Lưu file rồi mở\n" +
+        "  [Cancel] → Huỷ",
+        "Xuất Budget",
+        MessageBoxButtons.YesNoCancel,
+        MessageBoxIcon.Question);
 
             if (choice == DialogResult.Cancel) return;
 

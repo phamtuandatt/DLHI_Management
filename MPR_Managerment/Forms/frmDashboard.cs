@@ -1759,8 +1759,12 @@ namespace MPR_Managerment.Forms
         { var f = TopOwner; f.BringToFront(); f.Activate(); return MessageBox.Show(f, text, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes; }
 
 
-        private async Task LoadMPRDataAsync()
-        {
+private async Task LoadMPRDataAsync()
+{
+    var toast = ToastHelper.Attach(this);
+    toast.Show("⏳ Đang tải dữ liệu MPR, vui lòng chờ...");
+    this.Cursor = Cursors.WaitCursor;
+    tabMain.Enabled = false;
             try
             {
                 string search = txtSearchMPR.Text.Trim();
@@ -1981,11 +1985,17 @@ namespace MPR_Managerment.Forms
                 lblMPRNoPO.Text = noPO.ToString();
                 lblMPRCompleted.Text = completed.ToString();
             }
-            catch (Exception ex)
-            {
-                SafeMsg("Lỗi tải MPR: " + ex.Message, "Lỗi");
-            }
-        }
+catch (Exception ex)
+{
+    SafeMsg("Lỗi tải MPR: " + ex.Message, "Lỗi");
+}
+finally
+{
+    toast.Hide();
+    this.Cursor = Cursors.Default;
+    tabMain.Enabled = true;
+}
+}
 
         private void DgvMPR_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
