@@ -340,29 +340,55 @@ namespace MPR_Managerment.Helpers
 
             // Poll cho đến khi ô contenteditable xuất hiện (tối đa 8s, poll mỗi 300ms)
             // Delay cứng 1500ms không đủ khi Zalo web đang render lại chat panel
-            string safeMsg = EscapeJs(message);
             string typeRes = "no_input";
             for (int waitStep = 0; waitStep < 27 && typeRes.Trim('"') != "ok"; waitStep++)
             {
                 await Task.Delay(300);
-                typeRes = await wv2.ExecuteScriptAsync($@"
-                    (function() {{
+                typeRes = await wv2.ExecuteScriptAsync(@"
+                    (function() {
                         var els = document.querySelectorAll('div[contenteditable=""true""]');
-                        for (var el of els) {{
+                        for (var el of els) {
                             if (el.offsetParent === null) continue;
                             el.focus();
-                            // Xoá nội dung cũ nếu còn sót từ lần gửi trước
                             document.execCommand('selectAll', false, null);
                             document.execCommand('delete', false, null);
-                            document.execCommand('insertText', false, '{safeMsg}');
                             return 'ok';
-                        }}
+                        }
                         return 'no_input';
-                    }})()");
+                    })()");
             }
 
             if (typeRes.Trim('"') == "no_input")
                 return (false, "Không tìm thấy ô nhập tin nhắn.");
+
+            // Gửi từng dòng bằng Input.insertText, giữa các dòng dùng Shift+Enter để xuống dòng.
+            // Gửi toàn bộ text (có \n) một lần khiến Zalo Web kích hoạt handler gửi tin tại \n đầu tiên
+            // → chỉ dòng tiêu đề được gửi, phần còn lại mất. Shift+Enter (modifiers=8) tạo
+            // xuống dòng trong ô nhập mà không trigger gửi tin.
+            const string shiftEnterDown = @"{""type"":""keyDown"",""key"":""Enter"",""code"":""Enter"",""windowsVirtualKeyCode"":13,""nativeVirtualKeyCode"":13,""modifiers"":8}";
+            const string shiftEnterChar = @"{""type"":""char"",""key"":""\r"",""code"":""Enter"",""windowsVirtualKeyCode"":13,""nativeVirtualKeyCode"":13,""modifiers"":8}";
+            const string shiftEnterUp   = @"{""type"":""keyUp"",""key"":""Enter"",""code"":""Enter"",""windowsVirtualKeyCode"":13,""nativeVirtualKeyCode"":13,""modifiers"":8}";
+
+            var lines = message.Split('\n');
+            for (int li = 0; li < lines.Length; li++)
+            {
+                if (!string.IsNullOrEmpty(lines[li]))
+                {
+                    string cdpLineJson = System.Text.Json.JsonSerializer.Serialize(lines[li]);
+                    await wv2.CoreWebView2.CallDevToolsProtocolMethodAsync(
+                        "Input.insertText", $@"{{""text"":{cdpLineJson}}}");
+                    await Task.Delay(50);
+                }
+                if (li < lines.Length - 1)
+                {
+                    await wv2.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", shiftEnterDown);
+                    await Task.Delay(30);
+                    await wv2.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", shiftEnterChar);
+                    await Task.Delay(30);
+                    await wv2.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", shiftEnterUp);
+                    await Task.Delay(50);
+                }
+            }
 
             await Task.Delay(400);
 

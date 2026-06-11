@@ -6584,22 +6584,35 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                         SafeWarn("Vui lòng chọn một PO!");
                         return;
                     }
-                    string selPONo = dgvDlg.SelectedRows[0].Cells["PONo"]?.Value?.ToString() ?? "";
-                    string selDaAn = dgvDlg.SelectedRows[0].Cells["MaDuAn"]?.Value?.ToString() ?? "";
-                    string selNCC  = dgvDlg.SelectedRows[0].Cells["NCC"]?.Value?.ToString() ?? "";
 
-                    // Lấy ngày giao hàng
+                    // 1. Validate ngày giao hàng
                     DateTime expDate;
                     if (dtpCustomDate.Visible)
+                    {
                         expDate = dtpCustomDate.Value.Date;
+                    }
                     else
                     {
                         string datePart = cboExpDelivery.SelectedItem?.ToString().Split(' ')[0] ?? "";
                         if (!DateTime.TryParseExact(datePart, "dd/MM/yyyy",
                             System.Globalization.CultureInfo.InvariantCulture,
                             System.Globalization.DateTimeStyles.None, out expDate))
-                            expDate = DateTime.Today.AddDays(30);
+                        {
+                            SafeWarn("Vui lòng chọn ngày giao hàng hợp lệ!");
+                            return;
+                        }
                     }
+
+                    if (expDate < DateTime.Today)
+                    {
+                        SafeWarn("Ngày giao hàng không được ở trong quá khứ!");
+                        return;
+                    }
+
+                    string selPONo = dgvDlg.SelectedRows[0].Cells["PONo"]?.Value?.ToString() ?? "";
+                    string selDaAn = dgvDlg.SelectedRows[0].Cells["MaDuAn"]?.Value?.ToString() ?? "";
+                    string selNCC  = dgvDlg.SelectedRows[0].Cells["NCC"]?.Value?.ToString() ?? "";
+                    var supplier = new SupplierService().GetAll().FirstOrDefault(s => s.Short_Name == selNCC || s.Company_Name == selNCC);
 
                     string note = txtDlgNote.Text.Trim();
 
@@ -6624,7 +6637,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                             cmd.ExecuteNonQuery();
                         }
                         // Gửi thông báo TRƯỚC KHI đóng dialog (tránh SynchronizationContext bị huỷ sau Close)
-                        await SendDeliveryZaloNotificationAsync(selPONo, selDaAn, selNCC, expDate);
+                        await SendDeliveryZaloNotificationAsync(selPONo, selDaAn, selNCC, expDate, supplier);
                         LoadDeliveries();
                         dlg.Close();
                     }
@@ -6662,7 +6675,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
         // Gửi thông báo lịch giao hàng lên nhóm Zalo của dự án
         private async System.Threading.Tasks.Task SendDeliveryZaloNotificationAsync(
-            string poNo, string projectCode, string ncc, DateTime expDate)
+            string poNo, string projectCode, string ncc, DateTime expDate, MPR_Managerment.Models.Supplier supplier)
         {
             try
             {
@@ -7940,13 +7953,17 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                 }
                 dlg.Close();
 
-                string msg =
-                    $"📋 DLHI Thông báo:\n" +
-                    $"Chúng tôi đã gửi đơn đặt hàng (PO) cho:\n" +
-                    $"🔹 Số PO     : {po.PONo}\n" +
-                    $"🔹 Dự án    : {po.Project_Name}\n" +
-                    $"🔹 Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}\n" +
-                    $"Xin vui lòng kiểm tra Email, Rất mong sớm nhận được xác nhận từ Quý công ty!";
+                var supplier = new SupplierService().GetAll().FirstOrDefault(s => s.Supplier_ID == po.Supplier_ID);
+
+string msg =
+    $"📋 DLHI Thông báo:\n" +
+    $"Chúng tôi đã gửi Đơn Đặt Hàng (PO) tới Quý công ty:\n" +
+    $"🔹 Số PO     : {po.PONo}\n" +
+    $"🔹 Dự án    : {po.Project_Name}\n" +
+    $"🔹 NCC      : {supplier?.Short_Name ?? supplier?.Company_Name ?? "-"}\n" +
+    $"🔹 Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}\n" +
+    $"🔹 Ghi chú   : {po.Notes?.Trim()}\n" +
+    $"✔ Vui lòng kiểm tra Email và phản hồi xác nhận. Cảm ơn!";
 
                 _SendZaloToSelectedGroupsPO(selected, msg, po.PONo);
             };
