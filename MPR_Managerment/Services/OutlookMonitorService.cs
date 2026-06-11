@@ -19,6 +19,28 @@ namespace MPR_Managerment.Services
         [JsonPropertyName("files")] public List<string>? Files { get; set; }
         [JsonPropertyName("message")] public string? Message { get; set; }
         [JsonPropertyName("pid")] public int Pid { get; set; }
+        [JsonPropertyName("forwarded")] public bool? Forwarded { get; set; }
+        [JsonPropertyName("forward_error")] public string? ForwardError { get; set; }
+        [JsonPropertyName("marked_read")] public bool? MarkedRead { get; set; }
+        [JsonPropertyName("classify_classified")] public int? ClassifyClassified { get; set; }
+        [JsonPropertyName("classify_unclassified")] public int? ClassifyUnclassified { get; set; }
+        [JsonPropertyName("classify_error")] public string? ClassifyError { get; set; }
+    }
+
+    public class SuccessLogEntry
+    {
+        [JsonPropertyName("time")] public string Time { get; set; } = "";
+        [JsonPropertyName("subject")] public string Subject { get; set; } = "";
+        [JsonPropertyName("sender")] public string Sender { get; set; } = "";
+        [JsonPropertyName("files")] public List<string> Files { get; set; } = new();
+        [JsonPropertyName("file_paths")] public List<string> FilePaths { get; set; } = new();
+        [JsonPropertyName("forwarded_to")] public List<string> ForwardedTo { get; set; } = new();
+        [JsonPropertyName("forwarded")] public bool Forwarded { get; set; }
+        [JsonPropertyName("forward_error")] public string? ForwardError { get; set; }
+        [JsonPropertyName("marked_read")] public bool MarkedRead { get; set; }
+        [JsonPropertyName("classify_classified")] public int ClassifyClassified { get; set; }
+        [JsonPropertyName("classify_unclassified")] public int ClassifyUnclassified { get; set; }
+        [JsonPropertyName("classify_error")] public string? ClassifyError { get; set; }
     }
 
     public static class OutlookMonitorService
@@ -33,10 +55,15 @@ namespace MPR_Managerment.Services
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "MPR_Invoices", "monitor_log.json");
 
+        public static readonly string SuccessLogFile = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "MPR_Invoices", "invoice_success_log.json");
+
         private const string TaskName = "MPR_OutlookInvoiceMonitor";
         private const string RegKey = @"SOFTWARE\MPR_Managerment";
         private const string RegValuePersistent = "MonitorPersistent";
         private const string RegValueSaveDir = "MonitorSaveDir";
+        private const string RegValueForwardTo = "MonitorForwardTo";
 
         public static string SaveDir
         {
@@ -56,6 +83,48 @@ namespace MPR_Managerment.Services
                 {
                     using var key = Registry.CurrentUser.CreateSubKey(RegKey);
                     key.SetValue(RegValueSaveDir, value);
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>Thư mục "Chưa phân loại" — nơi classifier đặt file không tìm được PO.</summary>
+        public static string UnclassifiedDir =>
+            Path.Combine(SaveDir, "Chua phan loai");
+
+        /// <summary>Đếm số file PDF hiện có trong thư mục Chưa phân loại.</summary>
+        public static int CountUnclassified()
+        {
+            try
+            {
+                string dir = UnclassifiedDir;
+                if (!Directory.Exists(dir)) return 0;
+                return Directory.GetFiles(dir, "*.pdf", SearchOption.TopDirectoryOnly).Length;
+            }
+            catch { return 0; }
+        }
+
+        /// <summary>
+        /// Danh sách email kế toán để chuyển tiếp, phân cách bằng dấu phẩy.
+        /// Lưu vào registry để persist kể cả khi tắt app.
+        /// </summary>
+        public static string ForwardTo
+        {
+            get
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(RegKey);
+                    return key?.GetValue(RegValueForwardTo) as string ?? "";
+                }
+                catch { return ""; }
+            }
+            set
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.CreateSubKey(RegKey);
+                    key.SetValue(RegValueForwardTo, value ?? "");
                 }
                 catch { }
             }
@@ -118,10 +187,11 @@ namespace MPR_Managerment.Services
             if (!File.Exists(ScriptPath))
                 return $"Không tìm thấy script: {ScriptPath}";
 
+            string fwdArg = string.IsNullOrWhiteSpace(ForwardTo) ? "" : $" --forward-to \"{ForwardTo}\"";
             var psi = new ProcessStartInfo
             {
                 FileName = "python",
-                Arguments = $"\"{ScriptPath}\" --save-dir \"{dir}\" --log-file \"{LogFile}\" --pid-file \"{PidFile}\"",
+                Arguments = $"\"{ScriptPath}\" --save-dir \"{dir}\" --log-file \"{LogFile}\" --success-log-file \"{SuccessLogFile}\" --pid-file \"{PidFile}\"{fwdArg}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -226,6 +296,21 @@ namespace MPR_Managerment.Services
             catch { return new(); }
         }
 
+        /// <summary>
+        /// Đọc nhật ký thành công (invoice_success_log.json).
+        /// File này KHÔNG bao giờ bị xóa tự động — là lịch sử vĩnh viễn.
+        /// </summary>
+        public static List<SuccessLogEntry> ReadSuccessLog()
+        {
+            if (!File.Exists(SuccessLogFile)) return new();
+            try
+            {
+                return JsonSerializer.Deserialize<List<SuccessLogEntry>>(File.ReadAllText(SuccessLogFile))
+                    ?? new List<SuccessLogEntry>();
+            }
+            catch { return new(); }
+        }
+
         // ── Persistent monitoring (Task Scheduler) ────────────────────────────
 
         /// <summary>
@@ -256,7 +341,8 @@ namespace MPR_Managerment.Services
             {
                 // Tìm đường dẫn python thực (pythonw để không hiện cửa sổ console)
                 string pythonExe = FindPythonExe();
-                string arguments = $"\"{ScriptPath}\" --save-dir \"{saveDir}\" --log-file \"{LogFile}\" --pid-file \"{PidFile}\"";
+                string fwdPart = string.IsNullOrWhiteSpace(ForwardTo) ? "" : $" --forward-to \"{ForwardTo}\"";
+                string arguments = $"\"{ScriptPath}\" --save-dir \"{saveDir}\" --log-file \"{LogFile}\" --success-log-file \"{SuccessLogFile}\" --pid-file \"{PidFile}\"{fwdPart}";
                 string userId = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
 
                 // Dùng XML task definition để tránh vấn đề quoting phức tạp

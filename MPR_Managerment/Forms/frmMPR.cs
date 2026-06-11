@@ -1374,7 +1374,7 @@ namespace MPR_Managerment.Forms
             {
                 Name = "Remarks",
                 HeaderText = "Ghi chú",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                Width = 150,
                 Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleLeft }
             });

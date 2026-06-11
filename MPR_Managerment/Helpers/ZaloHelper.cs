@@ -286,7 +286,33 @@ namespace MPR_Managerment.Helpers
             if (searchRes.Trim('"') == "no_input")
                 return (false, "Không tìm thấy ô tìm kiếm trên Zalo Web.");
 
-            await Task.Delay(2200); // Chờ kết quả tìm kiếm
+            // Poll cho đến khi kết quả tìm kiếm xuất hiện (tối đa 6s, poll mỗi 300ms)
+            // delay cứng 2200ms thiếu khi Zalo web đang re-render danh sách
+            bool searchReady = false;
+            for (int w = 0; w < 20 && !searchReady; w++)
+            {
+                await Task.Delay(300);
+                string probe = await wv2.ExecuteScriptAsync(@"
+                    (function() {
+                        var ss = [
+                            'div[class*=""conv-item""]',
+                            'div[class*=""conversation-item""]',
+                            'div[class*=""item-chat""]',
+                            'div[class*=""contact-item""]',
+                            'div[class*=""listItem""]',
+                            'div[class*=""chat-item""]',
+                            '[class*=""result-item""]'
+                        ];
+                        for (var sel of ss) {
+                            var items = document.querySelectorAll(sel);
+                            for (var item of items) {
+                                if (item.offsetParent !== null) return 'found';
+                            }
+                        }
+                        return 'waiting';
+                    })()");
+                searchReady = probe.Trim('"') == "found";
+            }
 
             // Click vào kết quả đầu tiên
             string clickRes = await wv2.ExecuteScriptAsync(@"
@@ -312,21 +338,28 @@ namespace MPR_Managerment.Helpers
             if (clickRes.Trim('"') == "not_found")
                 return (false, $"Không tìm thấy nhóm '{groupName}' trong Zalo. Kiểm tra lại tên nhóm.");
 
-            await Task.Delay(1500);
-
-            // Gõ tin nhắn vào ô contenteditable
+            // Poll cho đến khi ô contenteditable xuất hiện (tối đa 8s, poll mỗi 300ms)
+            // Delay cứng 1500ms không đủ khi Zalo web đang render lại chat panel
             string safeMsg = EscapeJs(message);
-            string typeRes = await wv2.ExecuteScriptAsync($@"
-                (function() {{
-                    var els = document.querySelectorAll('div[contenteditable=""true""]');
-                    for (var el of els) {{
-                        if (el.offsetParent === null) continue;
-                        el.focus();
-                        document.execCommand('insertText', false, '{safeMsg}');
-                        return 'ok';
-                    }}
-                    return 'no_input';
-                }})()");
+            string typeRes = "no_input";
+            for (int waitStep = 0; waitStep < 27 && typeRes.Trim('"') != "ok"; waitStep++)
+            {
+                await Task.Delay(300);
+                typeRes = await wv2.ExecuteScriptAsync($@"
+                    (function() {{
+                        var els = document.querySelectorAll('div[contenteditable=""true""]');
+                        for (var el of els) {{
+                            if (el.offsetParent === null) continue;
+                            el.focus();
+                            // Xoá nội dung cũ nếu còn sót từ lần gửi trước
+                            document.execCommand('selectAll', false, null);
+                            document.execCommand('delete', false, null);
+                            document.execCommand('insertText', false, '{safeMsg}');
+                            return 'ok';
+                        }}
+                        return 'no_input';
+                    }})()");
+            }
 
             if (typeRes.Trim('"') == "no_input")
                 return (false, "Không tìm thấy ô nhập tin nhắn.");
@@ -354,7 +387,9 @@ namespace MPR_Managerment.Helpers
             await Task.Delay(60);
             await wv2.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", cdpKeyUp);
 
-            await Task.Delay(1200);
+            // Chờ Zalo xử lý xong gửi tin và reset về trạng thái sẵn sàng
+            // (2s đủ để message submit, tránh race condition với tin nhắn kế tiếp)
+            await Task.Delay(2000);
             return (true, "");
         }
 

@@ -24,6 +24,8 @@ namespace MPR_Managerment.Forms
         private Button btnDownloadLinks = null!;
         private Label lblMonitorStatus = null!;
         private Label lblOutlookStatus = null!;
+        private TextBox txtForwardTo = null!;
+        private ListView lvSuccessLog = null!;
         private ListView lvFiles = null!;
         private Label lblStatus = null!;
         private ProgressBar progressBar = null!;
@@ -31,6 +33,8 @@ namespace MPR_Managerment.Forms
         private System.Windows.Forms.Timer timerOutlookCheck = null!;
         private bool _outlookCheckBusy = false;
         private SplitContainer splitMain = null!;
+        private Panel pnlUnclassified = null!;
+        private Label lblUnclassifiedAlert = null!;
 
         // Log panel
         private ListView lvLog = null!;
@@ -113,7 +117,7 @@ namespace MPR_Managerment.Forms
             pnlHeader.Controls.AddRange(new Control[] { lblTitle, lblMonitorStatus, lblSep, lblOutlookStatus });
 
             // ── Panel cấu hình ──────────────────────────────────────────────────
-            var pnlTop = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(10) };
+            var pnlTop = new Panel { Dock = DockStyle.Top, Height = 165, Padding = new Padding(10) };
 
             var lblDir = new Label { Text = "Thư mục lưu:", Location = new Point(10, 15), AutoSize = true };
             txtSaveDir = new TextBox { Location = new Point(110, 12), Width = 550, Text = OutlookMonitorService.SaveDir };
@@ -151,16 +155,42 @@ namespace MPR_Managerment.Forms
                 frm.Show(this);
             };
 
+            // ── Dòng email kế toán ────────────────────────────────────────────
+            var lblFwd = new Label
+            {
+                Text = "Email kế toán:",
+                Location = new Point(10, 82), AutoSize = true,
+                ForeColor = Color.FromArgb(30, 30, 50)
+            };
+            txtForwardTo = new TextBox
+            {
+                Location = new Point(110, 79),
+                Width = 490,
+                Text = OutlookMonitorService.ForwardTo,
+                PlaceholderText = "ke.toan@cty.com, giamdoc@cty.com  (cách nhau dấu phẩy)"
+            };
+            var btnSaveFwd = new Button
+            {
+                Text = "💾 Lưu",
+                Location = new Point(608, 78), Width = 100, Height = 26,
+                BackColor = Color.FromArgb(39, 174, 96), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
+            };
+            btnSaveFwd.Click += (s, e) =>
+            {
+                OutlookMonitorService.ForwardTo = txtForwardTo.Text.Trim();
+                lblStatus.Text = "Đã lưu email kế toán. Khởi động lại Automatic để áp dụng.";
+            };
+
             var separator = new Label
             {
                 Text = "── Tự động theo dõi email mới (chạy liên tục, kể cả khi tắt app) ──────",
-                Location = new Point(10, 84), AutoSize = true, ForeColor = Color.Gray
+                Location = new Point(10, 116), AutoSize = true, ForeColor = Color.Gray
             };
 
             btnStartMonitor = new Button
             {
                 Text = "▶ Bật Automatic",
-                Location = new Point(10, 104), Width = 155, Height = 28,
+                Location = new Point(10, 136), Width = 155, Height = 28,
                 BackColor = Color.FromArgb(39, 174, 96), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
             btnStartMonitor.Click += BtnStartMonitor_Click;
@@ -168,7 +198,7 @@ namespace MPR_Managerment.Forms
             btnStopMonitor = new Button
             {
                 Text = "■ Tắt Automatic",
-                Location = new Point(175, 104), Width = 140, Height = 28,
+                Location = new Point(175, 136), Width = 140, Height = 28,
                 BackColor = Color.FromArgb(192, 57, 43), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
             btnStopMonitor.Click += BtnStopMonitor_Click;
@@ -176,7 +206,7 @@ namespace MPR_Managerment.Forms
             btnDownloadLinks = new Button
             {
                 Text = "🔗 Tải từ link email",
-                Location = new Point(330, 104), Width = 155, Height = 28,
+                Location = new Point(330, 136), Width = 155, Height = 28,
                 BackColor = Color.FromArgb(41, 128, 185), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
             btnDownloadLinks.Click += BtnDownloadLinks_Click;
@@ -184,6 +214,7 @@ namespace MPR_Managerment.Forms
             pnlTop.Controls.AddRange(new Control[] {
                 lblDir, txtSaveDir, btnBrowse,
                 lblDays, numDaysBack, btnDownload, btnOpenFolder, btnClassify,
+                lblFwd, txtForwardTo, btnSaveFwd,
                 separator, btnStartMonitor, btnStopMonitor, btnDownloadLinks
             });
 
@@ -225,7 +256,16 @@ namespace MPR_Managerment.Forms
 
             splitMain.Panel1.Controls.Add(lvFiles);
 
-            // ── Panel log monitor (phải) ─────────────────────────────────────────
+            // ── TabControl bên phải: Nhật ký monitor | Lịch sử thành công ──────
+            var tabRight = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9) };
+
+            // ─────────────────── Tab 1: Nhật ký monitor ──────────────────────
+            var tabMonitor = new TabPage("📋  Nhật ký monitor")
+            {
+                BackColor = Color.FromArgb(24, 26, 38),
+                Padding = new Padding(0)
+            };
+
             var pnlLog = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(24, 26, 38) };
 
             var pnlLogHeader = new Panel
@@ -247,8 +287,7 @@ namespace MPR_Managerment.Forms
             {
                 Text = "Xóa log",
                 Dock = DockStyle.Right,
-                Width = 75,
-                Height = 28,
+                Width = 75, Height = 28,
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = Color.FromArgb(150, 160, 190),
                 BackColor = Color.FromArgb(50, 52, 75),
@@ -259,7 +298,6 @@ namespace MPR_Managerment.Forms
             pnlLogHeader.Controls.Add(lblLogTitle);
             pnlLogHeader.Controls.Add(btnClearLog);
 
-            // Thống kê
             var pnlLogStats = new Panel
             {
                 Dock = DockStyle.Top, Height = 52,
@@ -310,8 +348,109 @@ namespace MPR_Managerment.Forms
             pnlLog.Controls.Add(lvLog);
             pnlLog.Controls.Add(pnlLogStats);
             pnlLog.Controls.Add(pnlLogHeader);
+            tabMonitor.Controls.Add(pnlLog);
 
-            splitMain.Panel2.Controls.Add(pnlLog);
+            // ─────────────────── Tab 2: Lịch sử thành công ───────────────────
+            var tabSuccess = new TabPage("✅  Lịch sử thành công")
+            {
+                BackColor = Color.FromArgb(22, 24, 35),
+                Padding = new Padding(0)
+            };
+
+            var pnlSuccessTop = new Panel
+            {
+                Dock = DockStyle.Top, Height = 40,
+                BackColor = Color.FromArgb(28, 40, 28),
+                Padding = new Padding(8, 0, 8, 0)
+            };
+            var lblSuccessTitle = new Label
+            {
+                Text = "✅  Nhật ký hóa đơn đã tải + chuyển tiếp thành công (lưu vĩnh viễn)",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(140, 220, 140),
+                Dock = DockStyle.Left,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoSize = false, Width = 400
+            };
+            var btnRefreshSuccess = new Button
+            {
+                Text = "🔄 Làm mới",
+                Dock = DockStyle.Right,
+                Width = 90, Height = 28,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.FromArgb(140, 220, 140),
+                BackColor = Color.FromArgb(35, 60, 35),
+                Font = new Font("Segoe UI", 8)
+            };
+            btnRefreshSuccess.FlatAppearance.BorderColor = Color.FromArgb(60, 100, 60);
+            btnRefreshSuccess.Click += (s, e) => LoadSuccessLog();
+            var btnOpenSuccessLog = new Button
+            {
+                Text = "📂 Mở file log",
+                Dock = DockStyle.Right,
+                Width = 95, Height = 28,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.FromArgb(180, 200, 255),
+                BackColor = Color.FromArgb(35, 40, 65),
+                Font = new Font("Segoe UI", 8)
+            };
+            btnOpenSuccessLog.FlatAppearance.BorderColor = Color.FromArgb(60, 70, 120);
+            btnOpenSuccessLog.Click += (s, e) =>
+            {
+                string f = OutlookMonitorService.SuccessLogFile;
+                if (File.Exists(f))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(f) { UseShellExecute = true });
+                else
+                    MessageBox.Show("Chưa có nhật ký thành công nào.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+            pnlSuccessTop.Controls.Add(lblSuccessTitle);
+            pnlSuccessTop.Controls.Add(btnRefreshSuccess);
+            pnlSuccessTop.Controls.Add(btnOpenSuccessLog);
+
+            lvSuccessLog = new ListView
+            {
+                Dock = DockStyle.Fill,
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = true,
+                BackColor = Color.FromArgb(22, 24, 35),
+                ForeColor = Color.FromArgb(200, 220, 200),
+                Font = new Font("Segoe UI", 8.5f),
+                BorderStyle = BorderStyle.None,
+                HeaderStyle = ColumnHeaderStyle.Clickable
+            };
+            lvSuccessLog.Columns.Add("Thời gian", 115);
+            lvSuccessLog.Columns.Add("Tiêu đề email", 200);
+            lvSuccessLog.Columns.Add("Người gửi", 130);
+            lvSuccessLog.Columns.Add("File đã tải", 130);
+            lvSuccessLog.Columns.Add("Chuyển tiếp", 80);
+            lvSuccessLog.Columns.Add("Đến địa chỉ", 170);
+
+            // Cho phép copy nội dung khi Ctrl+C
+            lvSuccessLog.KeyDown += (s, e) =>
+            {
+                if (e.Control && e.KeyCode == Keys.C && lvSuccessLog.SelectedItems.Count > 0)
+                {
+                    var lines = lvSuccessLog.SelectedItems.Cast<ListViewItem>()
+                        .Select(i => string.Join("\t", i.SubItems.Cast<ListViewItem.ListViewSubItem>().Select(si => si.Text)));
+                    Clipboard.SetText(string.Join("\n", lines));
+                }
+            };
+
+            tabSuccess.Controls.Add(lvSuccessLog);
+            tabSuccess.Controls.Add(pnlSuccessTop);
+
+            tabRight.TabPages.Add(tabMonitor);
+            tabRight.TabPages.Add(tabSuccess);
+
+            // Load lịch sử thành công khi chuyển sang tab
+            tabRight.SelectedIndexChanged += (s, e) =>
+            {
+                if (tabRight.SelectedTab == tabSuccess)
+                    LoadSuccessLog();
+            };
+
+            splitMain.Panel2.Controls.Add(tabRight);
 
             // ── Panel gán dự án / PO ────────────────────────────────────────────
             pnlAssign = new Panel
@@ -359,6 +498,66 @@ namespace MPR_Managerment.Forms
                 lblAssignInfo, lblProj, cboProject, lblPO, cboPO, btnAssign
             });
 
+            // ── Thông báo "Chưa phân loại" ──────────────────────────────────────
+            pnlUnclassified = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 36,
+                BackColor = Color.FromArgb(255, 243, 205),
+                Visible = false
+            };
+            pnlUnclassified.Paint += (s, e) =>
+                e.Graphics.DrawLine(new Pen(Color.FromArgb(255, 200, 60), 2), 0, 0, pnlUnclassified.Width, 0);
+
+            lblUnclassifiedAlert = new Label
+            {
+                AutoSize = true,
+                Location = new Point(12, 9),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(130, 80, 0)
+            };
+
+            var btnOpenUnclassified = new Button
+            {
+                Text = "Mở thư mục",
+                Location = new Point(420, 6), Width = 110, Height = 24,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(255, 200, 60),
+                ForeColor = Color.FromArgb(80, 50, 0),
+                Font = new Font("Segoe UI", 8.5f)
+            };
+            btnOpenUnclassified.FlatAppearance.BorderColor = Color.FromArgb(200, 150, 30);
+            btnOpenUnclassified.Click += (s, e) =>
+            {
+                string dir = OutlookMonitorService.UnclassifiedDir;
+                if (Directory.Exists(dir))
+                    System.Diagnostics.Process.Start("explorer.exe", dir);
+                else
+                    MessageBox.Show("Thư mục chưa được tạo.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+
+            var btnClassifyUnclassified = new Button
+            {
+                Text = "Phân loại ngay",
+                Location = new Point(540, 6), Width = 120, Height = 24,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(142, 68, 173),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 8.5f)
+            };
+            btnClassifyUnclassified.FlatAppearance.BorderColor = Color.FromArgb(100, 50, 130);
+            btnClassifyUnclassified.Click += (s, e) =>
+            {
+                string dir = OutlookMonitorService.UnclassifiedDir;
+                var files = Directory.Exists(dir)
+                    ? Directory.GetFiles(dir, "*.pdf", SearchOption.TopDirectoryOnly).ToList()
+                    : new List<string>();
+                var frm = new frmInvoiceClassifier { PreSelectedFiles = files };
+                frm.Show(this);
+            };
+
+            pnlUnclassified.Controls.AddRange(new Control[] { lblUnclassifiedAlert, btnOpenUnclassified, btnClassifyUnclassified });
+
             // ── Status bar ──────────────────────────────────────────────────────
             var pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 35 };
             progressBar = new ProgressBar { Location = new Point(10, 8), Width = 200, Height = 18, Style = ProgressBarStyle.Marquee, Visible = false };
@@ -367,6 +566,7 @@ namespace MPR_Managerment.Forms
 
             Controls.Add(splitMain);
             Controls.Add(pnlAssign);
+            Controls.Add(pnlUnclassified);
             Controls.Add(pnlTop);
             Controls.Add(pnlHeader);
             Controls.Add(pnlBottom);
@@ -568,12 +768,32 @@ namespace MPR_Managerment.Forms
                 _totalEmailsReceived++;
                 _totalFilesDownloaded += evt.Files.Count;
                 UpdateLogStats();
+
+                string fwdStatus = evt.Forwarded == true ? "✉ Đã chuyển tiếp" : (evt.Forwarded == false ? "⚠ Chưa chuyển tiếp" : "");
+                string detail = string.Join(", ", evt.Files.Select(Path.GetFileName));
+                if (!string.IsNullOrEmpty(fwdStatus)) detail += $" | {fwdStatus}";
+
+                // Classify info
+                if (evt.ClassifyError != null)
+                    detail += $" | ⚠ Phân loại lỗi";
+                else if (evt.ClassifyUnclassified > 0)
+                    detail += $" | 📂 {evt.ClassifyUnclassified} chưa phân loại";
+                else if (evt.ClassifyClassified > 0)
+                    detail += $" | ✅ {evt.ClassifyClassified} đã phân loại";
+
                 AddLogEntry(evt.Time, "✅ Tải được",
                     $"{evt.Subject ?? ""} / {evt.Sender ?? ""}",
                     evt.Files.Count.ToString(),
-                    string.Join(", ", evt.Files.Select(Path.GetFileName)),
+                    detail,
                     Color.FromArgb(60, 100, 60));
-                lblStatus.Text = $"[{DateTime.Now:HH:mm:ss}] Tải {evt.Files.Count} file từ: {evt.Subject}";
+
+                string statusMsg = $"[{DateTime.Now:HH:mm:ss}] Tải {evt.Files.Count} file từ: {evt.Subject}";
+                if (!string.IsNullOrEmpty(fwdStatus)) statusMsg += $" — {fwdStatus}";
+                lblStatus.Text = statusMsg;
+
+                // Cập nhật thông báo Chưa phân loại nếu có file mới vào đó
+                if ((evt.ClassifyUnclassified ?? 0) > 0 || evt.ClassifyError != null)
+                    RefreshUnclassifiedAlert();
             }
             else if (evt.Event == "started")
             {
@@ -584,6 +804,41 @@ namespace MPR_Managerment.Forms
                 AddLogEntry(evt.Time, "⚠ Lỗi", evt.Message ?? "", "", "", Color.FromArgb(100, 40, 40));
                 lblStatus.Text = $"Lỗi: {evt.Message}";
             }
+        }
+
+        private void LoadSuccessLog()
+        {
+            if (InvokeRequired) { Invoke(LoadSuccessLog); return; }
+            var entries = OutlookMonitorService.ReadSuccessLog();
+            lvSuccessLog.BeginUpdate();
+            lvSuccessLog.Items.Clear();
+            // Hiển thị mới nhất lên đầu
+            foreach (var e in Enumerable.Reverse(entries))
+            {
+                string timeStr = DateTime.TryParse(e.Time, out var dt) ? dt.ToString("dd/MM/yyyy HH:mm:ss") : e.Time;
+                string filesStr = string.Join(", ", e.Files);
+                string fwdStr = e.Forwarded ? "✅ Đã gửi" : "❌ Thất bại";
+                string toStr = e.ForwardedTo.Count > 0 ? string.Join(", ", e.ForwardedTo) : "—";
+
+                var item = new ListViewItem(timeStr);
+                item.SubItems.Add(e.Subject.Length > 50 ? e.Subject[..47] + "..." : e.Subject);
+                item.SubItems.Add(e.Sender);
+                item.SubItems.Add(filesStr.Length > 40 ? filesStr[..37] + "..." : filesStr);
+                item.SubItems.Add(fwdStr);
+                item.SubItems.Add(toStr.Length > 50 ? toStr[..47] + "..." : toStr);
+
+                item.BackColor = e.Forwarded
+                    ? Color.FromArgb(25, 45, 25)
+                    : Color.FromArgb(50, 25, 25);
+                item.ForeColor = Color.FromArgb(200, 220, 200);
+
+                // Tooltip: hiện đường dẫn file đầy đủ khi hover
+                if (e.FilePaths.Count > 0)
+                    item.ToolTipText = string.Join("\n", e.FilePaths);
+
+                lvSuccessLog.Items.Add(item);
+            }
+            lvSuccessLog.EndUpdate();
         }
 
         private void AddLogEntry(string time, string type, string subject, string fileCount, string detail, Color rowColor)
@@ -796,7 +1051,23 @@ namespace MPR_Managerment.Forms
                     splitMain.SplitterDistance = Math.Max(400, splitMain.Width - 380);
                 }
                 catch { }
+                RefreshUnclassifiedAlert();
             });
+        }
+
+        private void RefreshUnclassifiedAlert()
+        {
+            if (InvokeRequired) { Invoke(RefreshUnclassifiedAlert); return; }
+            int count = OutlookMonitorService.CountUnclassified();
+            if (count > 0)
+            {
+                lblUnclassifiedAlert.Text = $"⚠  Có {count} hóa đơn trong thư mục \"Chưa phân loại\" chưa được xử lý";
+                pnlUnclassified.Visible = true;
+            }
+            else
+            {
+                pnlUnclassified.Visible = false;
+            }
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)

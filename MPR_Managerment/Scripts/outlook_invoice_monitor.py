@@ -1,6 +1,6 @@
 """
-Outlook Invoice Monitor - polling Inbox moi 30 giay, tai PDF dinh kem.
-Dung: python outlook_invoice_monitor.py --save-dir "D:/..." --log-file "D:/...monitor.log"
+Outlook Invoice Monitor - polling Inbox moi 30 giay, tai PDF dinh kem,
+chuyen tiep email toi nhom ke toan, danh dau da doc, ghi success log.
 """
 
 import os
@@ -10,6 +10,7 @@ import json
 import re
 import time
 import argparse
+import subprocess
 from datetime import datetime
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
@@ -24,7 +25,23 @@ except ImportError:
 
 ALLOWED_EXTENSIONS = [".pdf"]
 POLL_INTERVAL = 30        # giay giua moi lan scan
-INBOX_SCAN_LIMIT = 20     # so email toi da scan moi lan
+# Inbox quet toi da 50 email moi nhat; Invoice folder quet tat ca (khong gioi han)
+INBOX_SCAN_LIMIT = 50
+
+# Khi app C# dong, stdout pipe bi dut — flag cho phep script tiep tuc chay o log-only mode
+_stdout_alive = True
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _safe_print(obj: dict) -> None:
+    global _stdout_alive
+    if not _stdout_alive:
+        return
+    try:
+        print(json.dumps(obj, ensure_ascii=False), flush=True)
+    except (BrokenPipeError, OSError):
+        _stdout_alive = False
 
 
 def sanitize_folder_name(name: str) -> str:
@@ -32,6 +49,7 @@ def sanitize_folder_name(name: str) -> str:
 
 
 def _append_log(log_file: str, entry: dict):
+    """Ghi vao monitor_log.json (rolling 500 ban ghi)."""
     try:
         logs = []
         if os.path.exists(log_file):
@@ -46,8 +64,142 @@ def _append_log(log_file: str, entry: dict):
         pass
 
 
-def process_msg(msg, base_dir: str, log_file: str) -> bool:
-    """Tai PDF dinh kem cua msg. Tra ve True neu co file duoc tai."""
+def _append_success_log(success_log_file: str, entry: dict):
+    """
+    Ghi vao success_log.json — nhat ki vinh vien (KHONG tu xoa).
+    Moi ban ghi la mot email da duoc tai file + chuyen tiep thanh cong.
+    """
+    try:
+        os.makedirs(os.path.dirname(success_log_file), exist_ok=True)
+        logs = []
+        if os.path.exists(success_log_file):
+            with open(success_log_file, "r", encoding="utf-8") as f:
+                logs = json.load(f)
+        logs.append(entry)
+        with open(success_log_file, "w", encoding="utf-8") as f:
+            json.dump(logs, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+# ── Core functions ────────────────────────────────────────────────────────────
+
+_TARGET_FOLDER_NAMES = {"inbox", "invoice", "hop thu den"}
+
+
+def _collect_folders_recursive(parent, results: list, depth: int = 0):
+    """Duyet de quy tim tat ca folder co ten khop, toi da 5 cap."""
+    if depth > 5:
+        return
+    try:
+        count = parent.Folders.Count
+    except Exception:
+        return
+    for fi in range(1, count + 1):
+        try:
+            folder = parent.Folders[fi]
+            if folder.Name.lower() in _TARGET_FOLDER_NAMES:
+                results.append(folder)
+            # Van duyet sau de tim "Invoice" long trong "mail 2024/Invoice" v.v.
+            _collect_folders_recursive(folder, results, depth + 1)
+        except (IndexError, KeyError):
+            break
+        except Exception:
+            pass
+
+
+def get_all_inbox_folders(namespace):
+    """Lay tat ca folder ten khop tu moi account, de quy toan cay thu muc."""
+    folders = []
+    try:
+        root = namespace.Folders
+        for ai in range(1, root.Count + 1):
+            try:
+                store = root[ai]
+                _collect_folders_recursive(store, folders)
+            except (IndexError, KeyError):
+                break
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return folders
+
+
+def forward_email(msg, forward_to: list[str]) -> tuple[bool, str]:
+    """
+    Chuyen tiep email toi danh sach dia chi.
+    Tra ve (True, "") neu thanh cong, (False, reason) neu that bai.
+    """
+    if not forward_to:
+        return True, ""
+    try:
+        fwd = msg.Forward()
+        for addr in forward_to:
+            addr = addr.strip()
+            if addr:
+                recipient = fwd.Recipients.Add(addr)
+                recipient.Type = 1  # olTo
+        fwd.Recipients.ResolveAll()
+        fwd.Send()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def mark_as_read(msg) -> bool:
+    """Danh dau email la da doc. Tra ve True neu thanh cong."""
+    try:
+        msg.UnRead = False
+        return True
+    except Exception:
+        return False
+
+
+def classify_downloaded_files(downloaded: list[str], base_dir: str) -> dict:
+    """
+    Goi invoice_classifier.py de phan loai cac file PDF vua tai.
+    Tra ve dict: {"classified": int, "unclassified": int, "error": str|None}
+    """
+    classifier_script = os.path.join(os.path.dirname(__file__), "invoice_classifier.py")
+    if not os.path.exists(classifier_script):
+        return {"classified": 0, "unclassified": 0, "error": f"Khong tim thay: {classifier_script}"}
+
+    unclassified_base = os.path.join(base_dir, "Chua phan loai")
+    files_arg = " ".join(f'"{f}"' for f in downloaded)
+    cmd = [
+        sys.executable, classifier_script,
+        "--files", *downloaded,
+        "--unclassified-base", unclassified_base
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", timeout=120
+        )
+        if not result.stdout.strip():
+            return {"classified": 0, "unclassified": 0, "error": result.stderr.strip() or "Script khong tra ve ket qua"}
+        data = json.loads(result.stdout)
+        if not data.get("success"):
+            return {"classified": 0, "unclassified": 0, "error": data.get("error", "Loi phan loai")}
+        summary = data.get("summary", {})
+        return {
+            "classified": summary.get("classified", 0),
+            "unclassified": summary.get("unclassified", 0),
+            "error": None
+        }
+    except subprocess.TimeoutExpired:
+        return {"classified": 0, "unclassified": 0, "error": "Timeout sau 120 giay"}
+    except Exception as e:
+        return {"classified": 0, "unclassified": 0, "error": str(e)}
+
+
+def process_msg(msg, base_dir: str, log_file: str,
+                success_log_file: str, forward_to: list[str]) -> bool:
+    """
+    Tai PDF dinh kem, chuyen tiep email, danh dau da doc.
+    Tra ve True neu co file duoc tai.
+    """
     try:
         subject = msg.Subject or ""
         sender  = msg.SenderName or msg.SenderEmailAddress or "Unknown"
@@ -71,18 +223,7 @@ def process_msg(msg, base_dir: str, log_file: str) -> bool:
             att.SaveAsFile(dest)
             downloaded.append(dest)
 
-        if downloaded:
-            evt = {
-                "event": "downloaded",
-                "time": datetime.now().isoformat(),
-                "subject": subject,
-                "sender": sender,
-                "files": downloaded
-            }
-            print(json.dumps(evt, ensure_ascii=False), flush=True)
-            _append_log(log_file, evt)
-            return True
-        else:
+        if not downloaded:
             info = {
                 "event": "no_pdf",
                 "time": datetime.now().isoformat(),
@@ -90,37 +231,65 @@ def process_msg(msg, base_dir: str, log_file: str) -> bool:
                 "sender": sender,
                 "attachments_total": att_count
             }
-            print(json.dumps(info, ensure_ascii=False), flush=True)
+            _safe_print(info)
             _append_log(log_file, info)
             return False
+
+        # Chuyen tiep email
+        fwd_ok, fwd_err = forward_email(msg, forward_to)
+
+        # Danh dau da doc
+        read_ok = mark_as_read(msg)
+
+        # Phan loai hoa don sau khi tai
+        classify_result = classify_downloaded_files(downloaded, base_dir)
+
+        # Event ra stdout + monitor_log
+        evt = {
+            "event": "downloaded",
+            "time": datetime.now().isoformat(),
+            "subject": subject,
+            "sender": sender,
+            "files": downloaded,
+            "forwarded": fwd_ok,
+            "forward_error": fwd_err if not fwd_ok else None,
+            "marked_read": read_ok,
+            "classify_classified": classify_result["classified"],
+            "classify_unclassified": classify_result["unclassified"],
+            "classify_error": classify_result["error"]
+        }
+        _safe_print(evt)
+        _append_log(log_file, evt)
+
+        # Ghi success log vinh vien
+        success_entry = {
+            "time": datetime.now().isoformat(),
+            "subject": subject,
+            "sender": sender,
+            "files": [os.path.basename(f) for f in downloaded],
+            "file_paths": downloaded,
+            "forwarded_to": forward_to if fwd_ok else [],
+            "forwarded": fwd_ok,
+            "forward_error": fwd_err if not fwd_ok else None,
+            "marked_read": read_ok,
+            "classify_classified": classify_result["classified"],
+            "classify_unclassified": classify_result["unclassified"],
+            "classify_error": classify_result["error"]
+        }
+        _append_success_log(success_log_file, success_entry)
+
+        return True
+
     except Exception as e:
         err = {"event": "error", "time": datetime.now().isoformat(), "message": f"process_msg: {e}"}
-        print(json.dumps(err, ensure_ascii=False), flush=True)
+        _safe_print(err)
         _append_log(log_file, err)
         return False
 
 
-def get_all_inbox_folders(namespace):
-    """Lay tat ca Inbox va Invoice folder tu moi account."""
-    folders = []
-    try:
-        root = namespace.Folders
-        for ai in range(1, root.Count + 1):
-            store = root[ai]
-            try:
-                for fi in range(1, store.Folders.Count + 1):
-                    folder = store.Folders[fi]
-                    name_lower = folder.Name.lower()
-                    if name_lower in ("inbox", "invoice", "hop thu den"):
-                        folders.append(folder)
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return folders
-
-
-def poll_inbox(namespace, base_dir: str, log_file: str, processed_ids: set):
+def poll_inbox(namespace, base_dir: str, log_file: str,
+               success_log_file: str, forward_to: list[str],
+               processed_ids: set):
     """Scan tat ca Inbox/Invoice folder, xu ly email chua xu ly."""
     new_count = 0
     folders = get_all_inbox_folders(namespace)
@@ -128,7 +297,10 @@ def poll_inbox(namespace, base_dir: str, log_file: str, processed_ids: set):
         try:
             items = folder.Items
             items.Sort("[ReceivedTime]", True)
-            for i in range(1, min(items.Count + 1, INBOX_SCAN_LIMIT + 1)):
+            # Invoice folder: quet tat ca; Inbox: gioi han INBOX_SCAN_LIMIT
+            is_invoice = folder.Name.lower() == "invoice"
+            scan_limit = items.Count if is_invoice else INBOX_SCAN_LIMIT
+            for i in range(1, min(items.Count + 1, scan_limit + 1)):
                 try:
                     msg = items[i]
                     if msg.Class != 43:
@@ -137,27 +309,41 @@ def poll_inbox(namespace, base_dir: str, log_file: str, processed_ids: set):
                     if entry_id in processed_ids:
                         continue
                     processed_ids.add(entry_id)
-                    if process_msg(msg, base_dir, log_file):
+                    if process_msg(msg, base_dir, log_file, success_log_file, forward_to):
                         new_count += 1
+                except (IndexError, KeyError):
+                    # Email bi xoa/di chuyen trong luc duyet — binh thuong
+                    break
                 except Exception as e:
                     err = {"event": "error", "time": datetime.now().isoformat(), "message": f"poll item: {e}"}
-                    print(json.dumps(err, ensure_ascii=False), flush=True)
+                    _safe_print(err)
                     _append_log(log_file, err)
         except Exception as e:
             err = {"event": "error", "time": datetime.now().isoformat(), "message": f"poll_folder: {e}"}
-            print(json.dumps(err, ensure_ascii=False), flush=True)
+            _safe_print(err)
             _append_log(log_file, err)
     return new_count
 
+
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--save-dir", required=True)
     parser.add_argument("--log-file", required=True)
+    parser.add_argument("--success-log-file", default="")
+    parser.add_argument("--forward-to", default="",
+                        help="Danh sach email cach nhau dau phay, vd: ke.toan@cty.com,gd@cty.com")
     parser.add_argument("--pid-file", default="")
     args = parser.parse_args()
 
     os.makedirs(args.save_dir, exist_ok=True)
+
+    # Default success log file neu khong truyen
+    success_log_file = args.success_log_file or os.path.join(
+        os.path.dirname(args.log_file), "invoice_success_log.json")
+
+    forward_to = [e.strip() for e in args.forward_to.split(",") if e.strip()] if args.forward_to else []
 
     if args.pid_file:
         try:
@@ -173,41 +359,50 @@ def main():
         outlook   = win32com.client.Dispatch("Outlook.Application")
         namespace = outlook.GetNamespace("MAPI")
     except Exception as e:
-        print(json.dumps({"event": "error", "message": f"Khong the ket noi Outlook: {e}"}), flush=True)
+        _safe_print({"event": "error", "message": f"Khong the ket noi Outlook: {e}"})
         sys.exit(1)
 
-    print(json.dumps({
+    _safe_print({
         "event": "started",
         "time": datetime.now().isoformat(),
         "pid": os.getpid(),
-        "save_dir": args.save_dir
-    }, ensure_ascii=False), flush=True)
+        "save_dir": args.save_dir,
+        "forward_to": forward_to
+    })
 
     _append_log(args.log_file, {
         "event": "started",
         "time": datetime.now().isoformat(),
-        "pid": os.getpid()
+        "pid": os.getpid(),
+        "forward_to": forward_to
     })
 
     processed_ids: set = set()
 
-    # Scan lan dau de danh dau email cu (khong tai lai)
+    # Init scan: chi danh dau email DA DOC la da xu ly de tranh tai lai.
+    # Email CHUA DOC (UnRead=True) se duoc xu ly o poll dau tien.
     try:
         for folder in get_all_inbox_folders(namespace):
             try:
                 items = folder.Items
                 items.Sort("[ReceivedTime]", True)
-                for i in range(1, min(items.Count + 1, INBOX_SCAN_LIMIT + 1)):
+                for i in range(1, items.Count + 1):
                     try:
                         msg = items[i]
-                        if msg.Class == 43:
+                        if msg.Class == 43 and not msg.UnRead:
                             processed_ids.add(msg.EntryID)
+                    except (IndexError, KeyError):
+                        break
                     except Exception:
                         pass
             except Exception:
                 pass
-        info = {"event": "init", "time": datetime.now().isoformat(), "marked_existing": len(processed_ids)}
-        print(json.dumps(info, ensure_ascii=False), flush=True)
+        info = {
+            "event": "init",
+            "time": datetime.now().isoformat(),
+            "marked_read_as_processed": len(processed_ids)
+        }
+        _safe_print(info)
         _append_log(args.log_file, info)
     except Exception as e:
         _append_log(args.log_file, {"event": "error", "time": datetime.now().isoformat(), "message": f"init scan: {e}"})
@@ -220,9 +415,10 @@ def main():
             now = time.time()
             if now - last_poll >= POLL_INTERVAL:
                 poll_info = {"event": "polling", "time": datetime.now().isoformat()}
-                print(json.dumps(poll_info, ensure_ascii=False), flush=True)
+                _safe_print(poll_info)
                 _append_log(args.log_file, poll_info)
-                poll_inbox(namespace, args.save_dir, args.log_file, processed_ids)
+                poll_inbox(namespace, args.save_dir, args.log_file,
+                           success_log_file, forward_to, processed_ids)
                 last_poll = now
             time.sleep(2)
     except KeyboardInterrupt:
@@ -233,7 +429,7 @@ def main():
                 os.remove(args.pid_file)
             except Exception:
                 pass
-        print(json.dumps({"event": "stopped", "time": datetime.now().isoformat()}), flush=True)
+        _safe_print({"event": "stopped", "time": datetime.now().isoformat()})
 
 
 if __name__ == "__main__":

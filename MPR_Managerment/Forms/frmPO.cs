@@ -4793,6 +4793,7 @@ var sameProjPOs = _poList.Where(p =>
         {
             if (!PermissionHelper.Check("PO", "Lưu PO", "Lưu PO")) return;
             dgvDetails.EndEdit();
+            CommitAllEdits();
             if (string.IsNullOrWhiteSpace(txtPONo.Text))
             {
                 SafeWarn("Vui lòng nhập PO No!"); txtPONo.Focus(); return;
@@ -4814,6 +4815,7 @@ var sameProjPOs = _poList.Where(p =>
             this.Cursor = Cursors.WaitCursor;
             try
             {
+                var newRows = GetDetailsFromGrid();
                 string basePONo = txtPONo.Text.Trim();
                 int revIdx = basePONo.LastIndexOf("_Rev"); if (revIdx > 0) basePONo = basePONo.Substring(0, revIdx);
                 string finalPONo = basePONo;
@@ -4877,7 +4879,7 @@ var sameProjPOs = _poList.Where(p =>
 
                 await Task.Run(() =>
                 {
-                    SaveDetailsToDb();
+                    SaveDetailsToDb(newRows, _selectedPO_ID);
                     RefreshMPRDetailLinks(_selectedPO_ID);
                     CheckAndAutoCompleteStatus(_selectedPO_ID);
                 });
@@ -4932,6 +4934,14 @@ var sameProjPOs = _poList.Where(p =>
                 btnSavePO.Enabled = true;
                 this.Cursor = Cursors.Default;
             }
+        }
+
+        private void CommitAllEdits()
+        {
+            if (dgvDetails.IsCurrentCellInEditMode)
+                dgvDetails.EndEdit();
+            if (dgvDetails.IsCurrentCellDirty)
+                dgvDetails.CommitEdit(DataGridViewDataErrorContexts.Commit);
         }
 
         // =========================================================================
@@ -5276,7 +5286,8 @@ var sameProjPOs = _poList.Where(p =>
 
             try
             {
-                SaveDetailsToDb();
+                var newRows = GetDetailsFromGrid();
+                SaveDetailsToDb(newRows, _selectedPO_ID);
                 // Cập nhật lại link MPR_Detail_ID sau khi lưu
                 RefreshMPRDetailLinks(_selectedPO_ID);
                 MessageBox.Show(GetActiveOwner(), $"✅ Đã lưu {dgvDetails.Rows.Count} dòng chi tiết thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -5356,20 +5367,13 @@ var sameProjPOs = _poList.Where(p =>
         // =========================================================================
         // HÀM CHUNG lưu detail — dùng bởi cả BtnSavePO và BtnSaveDetail
         // =========================================================================
-        private void SaveDetailsToDb()
+        private System.Collections.Generic.List<PODetail> GetDetailsFromGrid()
         {
-            var oldDetails = _service.GetDetails(_selectedPO_ID);
-
-            // ── Thu thập dữ liệu mới từ grid ──
             var newRows = new System.Collections.Generic.List<PODetail>();
             int itemNo = 1;
             foreach (DataGridViewRow row in dgvDetails.Rows)
             {
                 if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
-                //decimal q = decimal.TryParse(row.Cells["Qty"].Value?.ToString(), out decimal _q) ? _q : 0;
-                //decimal wk = decimal.TryParse(row.Cells["Weight"].Value?.ToString(), out decimal _wk) ? _wk : 0;
-                //decimal p = decimal.TryParse((row.Cells["Price"].Value?.ToString() ?? "0").Replace(",", ""), out decimal _p) ? _p : 0;
-                //decimal vat = decimal.TryParse(row.Cells["VAT"].Value?.ToString(), out decimal _vt) ? _vt : 0;
 
                 decimal q = Common.Common.ParseDecimalRaw(row.Cells["Qty"].Value?.ToString());
                 decimal wk = Common.Common.ParseDecimalRaw(row.Cells["Weight"].Value?.ToString());
@@ -5411,6 +5415,12 @@ var sameProjPOs = _poList.Where(p =>
                     MPR_Detail_ID = mprDetailId
                 });
             }
+            return newRows;
+        }
+
+        private void SaveDetailsToDb(System.Collections.Generic.List<PODetail> newRows, int poId)
+        {
+            var oldDetails = _service.GetDetails(poId);
 
             // ── So sánh cũ vs mới → ghi Revise History ──
             var reviseLogs = new System.Collections.Generic.List<(int ino, string col, string oldV, string newV)>();
@@ -5440,10 +5450,10 @@ var sameProjPOs = _poList.Where(p =>
 
             // ── Xóa cũ, insert mới ──
             foreach (var d in oldDetails) _service.DeleteDetail(d.PO_Detail_ID);
-            foreach (var d in newRows) _service.InsertDetail(d, _selectedPO_ID);
+            foreach (var d in newRows) _service.InsertDetail(d, poId);
 
             // ── Ghi Revise History ──
-            if (reviseLogs.Count > 0 && _selectedPO_ID > 0)
+            if (reviseLogs.Count > 0 && poId > 0)
             {
                 try
                 {
@@ -5454,7 +5464,7 @@ var sameProjPOs = _poList.Where(p =>
                         var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
                             INSERT INTO PO_Revise_Transactions (po_id, item_no, column_name_change, old_value, new_value, trans_date)
                             VALUES (@poId, @itemNo, @col, @oldVal, @newVal, GETDATE())", conn);
-                        cmd.Parameters.AddWithValue("@poId", _selectedPO_ID);
+                        cmd.Parameters.AddWithValue("@poId", poId);
                         cmd.Parameters.AddWithValue("@itemNo", ino);
                         cmd.Parameters.AddWithValue("@col", col);
                         cmd.Parameters.AddWithValue("@oldVal", oldV);
