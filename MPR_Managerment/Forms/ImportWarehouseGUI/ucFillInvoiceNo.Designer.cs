@@ -45,6 +45,7 @@
             panel4 = new Panel();
             dgvInvoices = new DataGridView();
             panel5 = new Panel();
+            btnRefreshListInv = new Button();
             txtInvoiceSearch = new TextBox();
             label5 = new Label();
             groupBox1 = new GroupBox();
@@ -276,6 +277,7 @@
             // 
             // panel5
             // 
+            panel5.Controls.Add(btnRefreshListInv);
             panel5.Controls.Add(txtInvoiceSearch);
             panel5.Controls.Add(label5);
             panel5.Dock = DockStyle.Top;
@@ -283,6 +285,23 @@
             panel5.Name = "panel5";
             panel5.Size = new Size(1137, 29);
             panel5.TabIndex = 7;
+            // 
+            // btnRefreshListInv
+            // 
+            btnRefreshListInv.BackColor = Color.IndianRed;
+            btnRefreshListInv.Dock = DockStyle.Right;
+            btnRefreshListInv.FlatStyle = FlatStyle.Flat;
+            btnRefreshListInv.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnRefreshListInv.ForeColor = Color.White;
+            btnRefreshListInv.Location = new Point(1036, 0);
+            btnRefreshListInv.Margin = new Padding(3, 2, 10, 2);
+            btnRefreshListInv.Name = "btnRefreshListInv";
+            btnRefreshListInv.Padding = new Padding(0, 0, 10, 0);
+            btnRefreshListInv.Size = new Size(101, 29);
+            btnRefreshListInv.TabIndex = 10;
+            btnRefreshListInv.Text = "🔄 Làm mới";
+            btnRefreshListInv.UseVisualStyleBackColor = false;
+            btnRefreshListInv.Click += btnRefreshListInv_Click;
             // 
             // txtInvoiceSearch
             // 
@@ -423,5 +442,6 @@
         private Panel panel5;
         private TextBox txtInvoiceSearch;
         private Label label5;
+        private Button btnRefreshListInv;
     }
 }

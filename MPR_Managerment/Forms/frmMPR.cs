@@ -2263,6 +2263,7 @@ namespace MPR_Managerment.Forms
             dgvDet.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvDet.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8, FontStyle.Bold);
             dgvDet.EnableHeadersVisualStyles = false;
+            dgvDet.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
             dgvDet.CellDoubleClick += (sender, e) =>
             {
@@ -2419,6 +2420,31 @@ namespace MPR_Managerment.Forms
                 Common.Common.ColorRowsByIdGroups(dgvDet, "Id");
             };
 
+            // Tự động tăng chiều cao dòng khi có xuống dòng
+            void AutoAdjustRowHeight()
+            {
+                foreach (DataGridViewRow row in dgvDet.Rows)
+                {
+                    if (row.IsNewRow || row.Tag?.ToString() == "TOTAL") continue;
+                    int maxHeight = 21; // chiều cao mặc định
+                    foreach (DataGridViewCell cell in row.Cells)
+                    {
+                        if (cell.Value != null)
+                        {
+                            string text = cell.Value.ToString();
+                            if (text.Contains("\n"))
+                            {
+                                int lineCount = text.Split('\n').Length;
+                                int newHeight = Math.Max(21, lineCount * 18 + 4);
+                                maxHeight = Math.Max(maxHeight, newHeight);
+                            }
+                        }
+                    }
+                    if (row.Height < maxHeight)
+                        row.Height = maxHeight;
+                }
+            }
+
             dgvDet.CellEndEdit += (s, e) =>
             {
                 // Chỉ kiểm tra nếu cột đang sửa là "SL_Xuat"
@@ -2455,6 +2481,9 @@ namespace MPR_Managerment.Forms
                         row.Cells["Weight_kg"].Value = 0;
                     }
                 }
+
+                // Tự động điều chỉnh chiều cao dòng sau khi sửa
+                AutoAdjustRowHeight();
             };
 
             // Các cột theo MPR_Details
@@ -2605,7 +2634,45 @@ namespace MPR_Managerment.Forms
             // Gọi hàm thêm dòng tổng ngay sau khi khởi tạo
             AddTotalRow();
 
-            // Paste từ Excel — 1 lần, xử lý đúng new row placeholder và dòng TOTAL
+            dgvDet.EditingControlShowing += (s, ev) =>
+            {
+                // Ensure the control is a TextBox (standard text cell)
+                if (ev.Control is TextBox textBox)
+                {
+                    // Enable multiline mode to support Alt+Enter for line breaks
+                    textBox.Multiline = true;
+                    textBox.AcceptsReturn = true;
+                    textBox.WordWrap = true;
+                    
+                    // Always remove the handler first to prevent duplicate bindings
+                    textBox.KeyDown -= TextBox_KeyDown;
+                    textBox.KeyDown += TextBox_KeyDown;
+                }
+            };
+
+            void TextBox_KeyDown(object? sender, KeyEventArgs e)
+            {
+                // Kiểm tra nếu người dùng nhấn tổ hợp Alt + Enter
+                if (e.Alt && e.KeyCode == Keys.Menu)
+                {
+                    TextBox txtBox = sender as TextBox;
+                    if (txtBox != null)
+                    {
+                        // Chèn ký tự xuống dòng (Newline) vào vị trí con trỏ
+                        int selectionIndex = txtBox.SelectionStart;
+                        txtBox.Text = txtBox.Text.Insert(selectionIndex, Environment.NewLine);
+
+                        // Đặt lại vị trí con trỏ sau ký tự vừa chèn
+                        txtBox.SelectionStart = selectionIndex + Environment.NewLine.Length;
+
+                        // Đánh dấu sự kiện đã được xử lý để tránh phát ra âm thanh "ting" của Windows
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                    }
+                }
+            }
+
+            // Xử lý Alt+Enter (xuống dòng) và Ctrl+V (paste từ Excel)
             dgvDet.KeyDown += (s, ev) =>
             {
                 if (ev.Control && ev.KeyCode == Keys.V)

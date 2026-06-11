@@ -373,6 +373,7 @@
             dgvHis.RowHeadersWidth = 51;
             dgvHis.Size = new Size(1181, 463);
             dgvHis.TabIndex = 5;
+            //dgvHis.CellDoubleClick += dgvHis_CellDoubleClick;
             dgvHis.CellFormatting += dgvHis_CellFormatting;
             // 
             // btnClearSearch
@@ -431,11 +432,11 @@
             // label3
             // 
             label3.AutoSize = true;
-            label3.Location = new Point(372, 23);
+            label3.Location = new Point(363, 25);
             label3.Name = "label3";
-            label3.Size = new Size(41, 15);
+            label3.Size = new Size(60, 15);
             label3.TabIndex = 1;
-            label3.Text = "Dự án:";
+            label3.Text = "Đến ngày:";
             // 
             // cboProjectCheck
             // 
@@ -452,11 +453,11 @@
             // label7
             // 
             label7.AutoSize = true;
-            label7.Location = new Point(190, 23);
+            label7.Location = new Point(185, 25);
             label7.Name = "label7";
-            label7.Size = new Size(41, 15);
+            label7.Size = new Size(53, 15);
             label7.TabIndex = 1;
-            label7.Text = "Dự án:";
+            label7.Text = "Từ ngày:";
             // 
             // ucExportWarehouse
             // 
