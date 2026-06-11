@@ -14,7 +14,7 @@ namespace MPR_Managerment.Forms
     {
         // Controls
         private Label lblFolder;
-        private Button btnImportLatest, btnImportSelected, btnRefreshFiles, btnViewDB;
+        private Button btnImportLatest, btnImportSelected, btnRefreshFiles, btnViewDB, btnMarkOldPaid;
         private TextBox txtSearchPO;
         private ListBox lstFiles;
         private DataGridView dgvPreview, dgvDB;
@@ -44,7 +44,7 @@ namespace MPR_Managerment.Forms
         {
             Text = "📥  Zalo Import — 품의서";
             BackColor = Color.FromArgb(245, 245, 245);
-            Size = new Size(1280, 750);
+            Size = new Size(1400, 750);
             MinimumSize = new Size(900, 550);
 
             SuspendLayout();
@@ -64,23 +64,25 @@ namespace MPR_Managerment.Forms
             btnImportLatest  = MkBtn("⚡ Import file mới nhất", Color.FromArgb(0,120,212),   126, 33, 175, 28);
             btnImportSelected= MkBtn("📥 Import file đã chọn", Color.FromArgb(40,167,69),   309, 33, 175, 28);
             btnViewDB        = MkBtn("🗄️ Xem DB",              Color.FromArgb(102,51,153),  492, 33, 100, 28);
+            btnMarkOldPaid   = MkBtn("✅ Đánh dấu Đã TT (≤30/12/25)", Color.FromArgb(180, 90, 0), 600, 33, 210, 28);
             btnRefreshFiles.Click   += (s, e) => RefreshFileList();
             btnImportLatest.Click   += BtnImportLatest_Click;
             btnImportSelected.Click += BtnImportSelected_Click;
             btnViewDB.Click         += BtnViewDB_Click;
+            btnMarkOldPaid.Click    += BtnMarkOldPaid_Click;
             chkAutoWatch = new CheckBox
             {
                 Text = "Tự động import khi có file mới",
-                Location = new Point(602, 38), Size = new Size(235, 18),
+                Location = new Point(1115, 38), Size = new Size(235, 18),
                 Font = new Font("Segoe UI", 9), Checked = true
             };
             chkAutoWatch.CheckedChanged += ChkAutoWatch_Changed;
 
-            var lblSearch = new Label { Text = "🔍 PO No:", Location = new Point(845, 38), Size = new Size(65, 26), Font = new Font("Segoe UI", 9), TextAlign = ContentAlignment.MiddleLeft };
-            txtSearchPO = new TextBox { Location = new Point(912, 36), Size = new Size(220, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm theo PO No..." };
+            var lblSearch = new Label { Text = "🔍 PO No:", Location = new Point(820, 38), Size = new Size(65, 26), Font = new Font("Segoe UI", 9), TextAlign = ContentAlignment.MiddleLeft };
+            txtSearchPO = new TextBox { Location = new Point(887, 36), Size = new Size(220, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm theo PO No..." };
             txtSearchPO.TextChanged += (s, e) => FilterByPO();
 
-            panelTop.Controls.AddRange(new Control[] { btnRefreshFiles, btnImportLatest, btnImportSelected, btnViewDB, chkAutoWatch, lblSearch, txtSearchPO });
+            panelTop.Controls.AddRange(new Control[] { btnRefreshFiles, btnImportLatest, btnImportSelected, btnViewDB, btnMarkOldPaid, chkAutoWatch, lblSearch, txtSearchPO });
 
             // ── Watch label (Bottom) ──
             lblWatch = new Label
@@ -386,6 +388,77 @@ namespace MPR_Managerment.Forms
         }
 
         private void BtnViewDB_Click(object sender, EventArgs e) => LoadDBGrid();
+
+        private async void BtnMarkOldPaid_Click(object sender, EventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Thao tác này sẽ đánh dấu Đã thanh toán cho tất cả các PO có Ecount No từ 30/12/2025 trở về trước (chưa có ngày thanh toán).\n\nBạn có chắc chắn muốn tiếp tục?",
+                "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (confirm != DialogResult.Yes) return;
+
+            SetBusy(true);
+            Status("Đang cập nhật trạng thái thanh toán...");
+            try
+            {
+                var cutoff = new DateTime(2025, 12, 30);
+                List<string> affectedPOs = new();
+
+                await Task.Run(() =>
+                {
+                    using var conn = DatabaseHelper.GetConnection();
+                    conn.Open();
+
+                    // Lấy danh sách PO bị ảnh hưởng trước khi update
+                    var cmdSelect = new Microsoft.Data.SqlClient.SqlCommand(@"
+                        SELECT DISTINCT PO_No
+                        FROM Zalo_PaymentImport
+                        WHERE Paid_Date IS NULL
+                          AND Ecount_No IS NOT NULL AND Ecount_No != ''
+                          AND TRY_CAST(REPLACE(
+                                CASE WHEN CHARINDEX('-', Ecount_No) > 0
+                                     THEN SUBSTRING(Ecount_No, 1, CHARINDEX('-', Ecount_No) - 1)
+                                     ELSE Ecount_No END,
+                              '/', '-') AS DATE) <= @cutoff", conn);
+                    cmdSelect.Parameters.AddWithValue("@cutoff", cutoff);
+                    using (var rdr = cmdSelect.ExecuteReader())
+                        while (rdr.Read())
+                            if (!string.IsNullOrEmpty(rdr[0]?.ToString()))
+                                affectedPOs.Add(rdr[0].ToString()!);
+
+                    // Cập nhật Paid_Date = date parse từ Ecount_No
+                    var cmdUpdate = new Microsoft.Data.SqlClient.SqlCommand(@"
+                        UPDATE Zalo_PaymentImport
+                        SET Paid_Date = TRY_CAST(REPLACE(
+                                CASE WHEN CHARINDEX('-', Ecount_No) > 0
+                                     THEN SUBSTRING(Ecount_No, 1, CHARINDEX('-', Ecount_No) - 1)
+                                     ELSE Ecount_No END,
+                              '/', '-') AS DATE)
+                        WHERE Paid_Date IS NULL
+                          AND Ecount_No IS NOT NULL AND Ecount_No != ''
+                          AND TRY_CAST(REPLACE(
+                                CASE WHEN CHARINDEX('-', Ecount_No) > 0
+                                     THEN SUBSTRING(Ecount_No, 1, CHARINDEX('-', Ecount_No) - 1)
+                                     ELSE Ecount_No END,
+                              '/', '-') AS DATE) <= @cutoff2", conn);
+                    cmdUpdate.Parameters.AddWithValue("@cutoff2", cutoff);
+                    cmdUpdate.ExecuteNonQuery();
+
+                    // Cập nhật trạng thái PO_head và PO_Payment_Schedule cho các PO bị ảnh hưởng
+                    foreach (var po in affectedPOs)
+                        UpdatePaymentStatusByPONo(po);
+                });
+
+                Status($"✅ Đã đánh dấu Đã TT cho {affectedPOs.Count} PO có Ecount No ≤ 30/12/2025.");
+                tabs.SelectedTab = tabDB;
+                LoadDBGrid();
+            }
+            catch (Exception ex)
+            {
+                Status("❌ Lỗi: " + ex.Message);
+                MessageBox.Show(ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally { SetBusy(false); }
+        }
 
         private void LoadDBGrid()
         {

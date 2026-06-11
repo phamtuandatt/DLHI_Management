@@ -4805,6 +4805,11 @@ var sameProjPOs = _poList.Where(p =>
             }
             if (dgvDetails.Rows.Count == 0 && MessageBox.Show(GetActiveOwner(), "Don hang nay chua co chi tiet vat tu nao.\nBan co chac chan muon luu chi voi Header khong?", "Canh bao", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) return;
 
+            if (!dtpPOExpectDelivery.Checked)
+            {
+                SafeWarn("Vui lòng nhập Ngày giao hàng trước khi lưu PO!"); dtpPOExpectDelivery.Focus(); return;
+            }
+
             btnSavePO.Enabled = false;
             this.Cursor = Cursors.WaitCursor;
             try
@@ -7120,6 +7125,7 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             txtPONo.Text = ""; txtProjectName.Text = ""; txtWorkorderNo.Text = ""; txtMPRNo.Text = "";
             txtNotes.Text = "";
             nudRevise.Value = 0; dtpPODate.Value = DateTime.Today; cboStatus.SelectedIndex = 0; // Draft
+            dtpPOExpectDelivery.ShowCheckBox = true; dtpPOExpectDelivery.Checked = false;
             cboPaymentTerm.SelectedIndex = 0;
             // Reset Nha CC ve rong
             _isSearching = true; cboSupplier.Text = ""; cboSupplier.SelectedIndex = -1;

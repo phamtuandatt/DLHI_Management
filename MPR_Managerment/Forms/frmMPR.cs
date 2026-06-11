@@ -107,7 +107,7 @@ namespace MPR_Managerment.Forms
         private bool _isLoadingMPR = false; // suppress DgvMPR_SelectionChanged khi đang bind
         private List<MPRDetail> _details = new List<MPRDetail>();
         private int _selectedMPR_ID = 0;
-        private string _currentUser = "Admin";
+        private string _currentUser = AppSession.CurrentUser?.Full_Name ?? "Admin";
         private readonly Dictionary<int, System.Windows.Forms.Timer> _emailPollers = new();
 
         // Thêm biến để lưu ID truyền từ Dashboard sang
@@ -3832,6 +3832,22 @@ namespace MPR_Managerment.Forms
                             "UPDATE MPR_Details SET Is_Deleted=1 WHERE MPR_ID=@mid AND Item_No=0", conn);
                         cmdMarkDel.Parameters.AddWithValue("@mid", targetId);
                         cmdMarkDel.ExecuteNonQuery();
+
+                        // Cập nhật Header
+                        var header = new MPRHeader
+                        {
+                            MPR_ID = targetId,
+                            MPR_No = oldMprNo,
+                            Project_Name = txtProjectName.Text.Trim(),
+                            Project_Code = txtProjectCode.Text.Trim(),
+                            Department = txtDepartment.Text.Trim(),
+                            Requestor = txtRequestor.Text.Trim(),
+                            Required_Date = dtpRequiredDate.Value,
+                            Rev = int.TryParse(txtRev.Text, out int r) ? r : 0,
+                            Status = cboStatus.SelectedItem?.ToString() ?? "Mới",
+                            Notes = txtNotes.Text.Trim()
+                        };
+                        _service.UpdateHeader(header, _currentUser);
                     }
 
                     string msg = isAdmin
@@ -5560,7 +5576,9 @@ namespace MPR_Managerment.Forms
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgv.ColumnHeadersHeight = 38;
             dgv.EnableHeadersVisualStyles = false;
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(240, 248, 255);
             dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 210, 255);
@@ -5581,20 +5599,20 @@ namespace MPR_Managerment.Forms
 
             // ── Columns ──────────────────────────────────────────────────────
             dgv.Columns.Clear();
-            var cols = new[]
+            var cols = new[]  // (name, header, fillWeight, minWidth)
             {
-                ("MPR_No",      "Số MPR",         90),
-                ("Project_Name","Tên dự án",       200),
-                ("Project_Code","Mã dự án",        110),
-                ("Required_Date","Ngày yêu cầu",   105),
-                ("Total_Items", "Tổng SL hạng mục", 55),
-                ("PO_Count",    "Số lượng PO",     65),
-                ("Status_Cat",  "Trạng thái",      140),
-                ("PO_List",     "Số PO",           220),
+                ("MPR_No",       "Số MPR",            90,  70),
+                ("Project_Name", "Tên dự án",         200, 100),
+                ("Project_Code", "Mã dự án",          110,  80),
+                ("Required_Date","Ngày yêu cầu",      105,  90),
+                ("Total_Items",  "Tổng SL\nhạng mục",  90,  78),
+                ("PO_Count",     "Số lượng PO",        105,  88),
+                ("Status_Cat",   "Trạng thái",         140,  88),
+                ("PO_List",      "Số PO",              220,  50),
             };
-            foreach (var (name, hdr, w) in cols)
+            foreach (var (name, hdr, w, minW) in cols)
             {
-                var col = new DataGridViewTextBoxColumn { Name = name, HeaderText = hdr, DataPropertyName = name, FillWeight = w };
+                var col = new DataGridViewTextBoxColumn { Name = name, HeaderText = hdr, DataPropertyName = name, FillWeight = w, MinimumWidth = minW };
                 col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
                 dgv.Columns.Add(col);
             }
@@ -5648,11 +5666,51 @@ namespace MPR_Managerment.Forms
                 lblSummary.Text = $"Tổng: {total}  |  Chưa BG: {chua}  |  Chờ BG: {cho}  |  Đã PO: {daPO}";
             }
 
+            // ── Loading overlay ───────────────────────────────────────────────
+            Label lblLoading = null;
+            System.Windows.Forms.Timer timerShowLoading = null;
+
+            void ShowLoading()
+            {
+                if (lblLoading == null)
+                {
+                    lblLoading = new Label
+                    {
+                        Text = "⏳  Đang tải dữ liệu...",
+                        Font = new Font("Segoe UI", 13, FontStyle.Bold),
+                        ForeColor = Color.White,
+                        BackColor = Color.FromArgb(180, 30, 30, 30),
+                        TextAlign = ContentAlignment.MiddleCenter,
+                        Dock = DockStyle.Fill,
+                        Visible = false
+                    };
+                    pnlGrid.Controls.Add(lblLoading);
+                    lblLoading.BringToFront();
+                }
+                timerShowLoading?.Stop();
+                timerShowLoading = new System.Windows.Forms.Timer { Interval = 500 };
+                timerShowLoading.Tick += (ts, te) => { timerShowLoading.Stop(); if (lblLoading != null) lblLoading.Visible = true; popup.Enabled = false; };
+                timerShowLoading.Start();
+            }
+
+            void HideLoading()
+            {
+                timerShowLoading?.Stop();
+                if (lblLoading != null) lblLoading.Visible = false;
+                popup.Enabled = true;
+            }
+
             // ── Load data ────────────────────────────────────────────────────
-            void LoadData()
+            async System.Threading.Tasks.Task LoadDataAsync()
             {
                 string projFilter  = cboProject.SelectedValue?.ToString() ?? "";
                 string mprFilter   = txtMPRNo.Text.Trim();
+
+                ShowLoading();
+                try
+                {
+                    var result = await System.Threading.Tasks.Task.Run(() =>
+                    {
 
                 const string SQL_SIB = @"
 IF OBJECT_ID('tempdb..#SibDetStatus') IS NOT NULL DROP TABLE #SibDetStatus;
@@ -5755,32 +5813,37 @@ WHERE f.rn = 1";
                     whereParts.Add($"  AND f.MPR_No LIKE @mprNo");
                 if (whereParts.Count > 0)
                     SQL += "\n" + string.Join("\n", whereParts);
-
                 SQL += "\nORDER BY pi.ProjectName, f.MPR_No";
 
-                try
-                {
-                    using (var conn = DatabaseHelper.GetConnection())
-                    {
-                        conn.Open();
-                        var cmdSib = new SqlCommand(SQL_SIB, conn) { CommandTimeout = 120 };
-                        cmdSib.ExecuteNonQuery();
+                        var dtResult = new DataTable();
+                        using (var conn = DatabaseHelper.GetConnection())
+                        {
+                            conn.Open();
+                            var cmdSib = new SqlCommand(SQL_SIB, conn) { CommandTimeout = 120 };
+                            cmdSib.ExecuteNonQuery();
 
-                        var cmd = new SqlCommand(SQL, conn) { CommandTimeout = 120 };
-                        if (!string.IsNullOrEmpty(projFilter))
-                            cmd.Parameters.AddWithValue("@projCode", projFilter);
-                        if (!string.IsNullOrEmpty(mprFilter))
-                            cmd.Parameters.AddWithValue("@mprNo", "%" + mprFilter + "%");
+                            var cmd = new SqlCommand(SQL, conn) { CommandTimeout = 120 };
+                            if (!string.IsNullOrEmpty(projFilter))
+                                cmd.Parameters.AddWithValue("@projCode", projFilter);
+                            if (!string.IsNullOrEmpty(mprFilter))
+                                cmd.Parameters.AddWithValue("@mprNo", "%" + mprFilter + "%");
 
-                        dtAll = new DataTable();
-                        dtAll.Load(cmd.ExecuteReader());
-                    }
+                            dtResult.Load(cmd.ExecuteReader());
+                        }
+                        return dtResult;
+                    });
+
+                    dtAll = result;
                     ApplyFilter(currentFilter);
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show(TopOwner, "Lỗi tải dữ liệu MPR Status:\n" + ex.Message, "Lỗi",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    HideLoading();
                 }
             }
 
@@ -5819,8 +5882,8 @@ ORDER BY DisplayName";
             }
 
             // ── Wire events ──────────────────────────────────────────────────
-            btnSearch.Click += (s, ev) => LoadData();
-            txtMPRNo.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Enter) LoadData(); };
+            btnSearch.Click += async (s, ev) => await LoadDataAsync();
+            txtMPRNo.KeyDown += async (s, ev) => { if (ev.KeyCode == Keys.Enter) await LoadDataAsync(); };
             foreach (var btn in filterBtns)
             {
                 var cap = btn.Tag?.ToString() ?? "";
@@ -5828,10 +5891,10 @@ ORDER BY DisplayName";
             }
 
             // ── Initialize ───────────────────────────────────────────────────
-            popup.Load += (s, ev) =>
+            popup.Load += async (s, ev) =>
             {
                 LoadProjects();
-                LoadData();
+                await LoadDataAsync();
             };
 
             popup.ShowDialog(this);
@@ -6681,10 +6744,43 @@ ORDER BY DisplayName";
                 }
             }
 
+            // After gathering supplier emails, also include all users from the Purchasing department (Bộ phận mua hàng)
+            // Fetch emails from the Users table where Department = N'Mua Hàng'
+            var deptEmails = new List<string>();
+            try
+            {
+                using var conn = Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                // We use LIKE N'Mua Hàng%' because the Department field might contain position info (e.g., "Mua Hàng||Staff")
+                using var cmd = new SqlCommand("SELECT Email FROM Users WHERE (Department = N'Mua Hàng' OR Department LIKE N'Mua Hàng||%') AND Email IS NOT NULL", conn);
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                {
+                    var em = rdr.GetString(0);
+                    if (!string.IsNullOrWhiteSpace(em))
+                    {
+                        // Split possible multiple emails separated by ';'
+                        var split = em.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var s in split)
+                        {
+                            var trimmed = s.Trim();
+                            if (!string.IsNullOrEmpty(trimmed))
+                                deptEmails.Add(trimmed);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log or ignore – failure to fetch department emails should not block email sending
+                MessageBox.Show(TopOwner, $"Lỗi khi lấy email bộ phận mua hàng: {ex.Message}", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            // Combine supplier emails with department emails, then deduplicate
+            selectedEmails.AddRange(deptEmails);
             selectedEmails = selectedEmails
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-
             if (selectedEmails.Count == 0)
             {
                 MessageBox.Show(TopOwner, "Chưa chọn nhà cung cấp nào!", "Thiếu lựa chọn", MessageBoxButtons.OK, MessageBoxIcon.Warning);

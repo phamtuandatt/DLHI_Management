@@ -1737,8 +1737,9 @@ namespace MPR_Managerment.Forms
                     string contractDate = po.PO_Date.HasValue ? po.PO_Date.Value.ToString("dd/MM/yyyy") : "";
                     FillNextCell(ws, "A6", "Contract date", contractDate);
 
-                    // I6 Payment date — ngày hôm nay
-                    string paymentDate = DateTime.Today.ToString("dd/MM/yyyy");
+                    // I6 Payment date — thứ 4 tuần sau
+                    DateTime nextWed = GetNextWednesday();
+                    string paymentDate = nextWed.ToString("dd/MM/yyyy");
                     FillRightCell(ws, "I6", "Payment date", paymentDate);
 
                     // C7 — Contract amount (tổng trước VAT)
@@ -1795,9 +1796,9 @@ namespace MPR_Managerment.Forms
                                 actualPayDates.TryGetValue(s.Dot_TT, out dateValue);
                                 dateValue = dateValue ?? (s.Due_Date.HasValue ? s.Due_Date.Value.ToString("dd/MM/yyyy") : "");
                             }
-                            else if (i == scheds.FindIndex(x => x.Status != "Đã TT đủ"))
+                            else if (tot > 0 && i == scheds.FindIndex(x => x.Status != "Đã TT đủ"))
                             {
-                                dateValue = s.Due_Date.HasValue ? s.Due_Date.Value.ToString("dd/MM/yyyy") : DateTime.Today.ToString("dd/MM/yyyy");
+                                dateValue = GetNextWednesday().ToString("dd/MM/yyyy");
                             }
                             else
                             {
@@ -2073,6 +2074,17 @@ namespace MPR_Managerment.Forms
         }
 
         private string FormatAmt0(decimal v) => v == 0 ? "0" : v.ToString("#,##0");
+
+        private static DateTime GetNextWednesday()
+        {
+            DateTime today = DateTime.Today;
+            // Tìm thứ 2 của tuần hiện tại (tuần bắt đầu thứ 2, Chủ nhật = cuối tuần)
+            int dow = (int)today.DayOfWeek; // Sun=0, Mon=1..Sat=6
+            int daysToThisMonday = dow == 0 ? -6 : 1 - dow;
+            DateTime thisMonday = today.AddDays(daysToThisMonday);
+            // Thứ 4 tuần sau = thứ 2 tuần này + 7 ngày + 2 ngày
+            return thisMonday.AddDays(9);
+        }
 
         private string GetSupplierProp(Supplier s, params string[] props)
         {
