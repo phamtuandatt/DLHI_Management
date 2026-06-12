@@ -105,7 +105,29 @@ namespace MPR_Managerment.Helpers
             }
         }
 
-        // Keep-alive kiểm tra login thực sự mỗi 2 phút
+        // Tự động bấm "Kích hoạt" nếu Zalo hiện dialog "đang mở trên tab khác"
+        public static async Task<bool> TryDismissActivationDialogAsync(WebView2 wv2)
+        {
+            try
+            {
+                string res = await wv2.ExecuteScriptAsync(@"
+                    (function() {
+                        var btns = document.querySelectorAll('button');
+                        for (var i = 0; i < btns.length; i++) {
+                            var t = (btns[i].innerText || btns[i].textContent || '').trim();
+                            if (t.includes('ch ho') || t.includes('Activate')) {
+                                btns[i].click();
+                                return 'clicked';
+                            }
+                        }
+                        return 'none';
+                    })()");
+                return res.Trim('"') == "clicked";
+            }
+            catch { return false; }
+        }
+
+        // Keep-alive kiểm tra login và tự kích hoạt nếu bị dialog chặn — mỗi 2 phút
         private static void _StartKeepAlive()
         {
             _keepAlive = new System.Windows.Forms.Timer { Interval = 120_000 };
@@ -114,6 +136,10 @@ namespace MPR_Managerment.Helpers
                 try
                 {
                     if (_wv2 == null || _wv2.IsDisposed) return;
+
+                    // Tự kích hoạt nếu đang bị dialog "tab khác" chặn
+                    await TryDismissActivationDialogAsync(_wv2);
+                    await Task.Delay(1500);
 
                     string result = await _wv2.ExecuteScriptAsync(@"
                         (function() {
@@ -251,6 +277,10 @@ namespace MPR_Managerment.Helpers
         private static async Task<(bool ok, string error)> PerformSendAsync(
             WebView2 wv2, string groupName, string message)
         {
+            // Tự kích hoạt nếu Zalo đang hiện dialog "tab khác" trước khi làm bất cứ điều gì
+            bool dismissed = await ZaloSession.TryDismissActivationDialogAsync(wv2);
+            if (dismissed) await Task.Delay(2500); // chờ Zalo reload lại sau kích hoạt
+
             // Kiểm tra đã đăng nhập chưa
             string loginCheck = await wv2.ExecuteScriptAsync(@"
                 (function() {
@@ -338,6 +368,24 @@ namespace MPR_Managerment.Helpers
             if (clickRes.Trim('"') == "not_found")
                 return (false, $"Không tìm thấy nhóm '{groupName}' trong Zalo. Kiểm tra lại tên nhóm.");
 
+            // Đóng search overlay sau khi click — quan trọng khi gửi liên tiếp cùng một nhóm.
+            // Nếu nhóm đó đang active, Zalo web không tự đóng overlay sau khi click,
+            // khiến contenteditable bị overlay che và bị mất focus trap → Enter không gửi được.
+            await wv2.ExecuteScriptAsync(@"
+                (function() {
+                    var inputs = document.querySelectorAll('input');
+                    for (var i = 0; i < inputs.length; i++) {
+                        var el = inputs[i];
+                        if (el.offsetParent === null) continue;
+                        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                        setter.call(el, '');
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.blur();
+                        return;
+                    }
+                })()");
+            await Task.Delay(800);
+
             // Poll cho đến khi ô contenteditable xuất hiện (tối đa 8s, poll mỗi 300ms)
             // Delay cứng 1500ms không đủ khi Zalo web đang render lại chat panel
             string typeRes = "no_input";
@@ -356,6 +404,55 @@ namespace MPR_Managerment.Helpers
                         }
                         return 'no_input';
                     })()");
+            }
+
+            if (typeRes.Trim('"') == "no_input")
+            {
+                // Zalo có thể đã đóng conversation panel sau khi clear search overlay.
+                // Thử click lại vào conversation item trong sidebar trái (không qua search).
+                string retryClick = await wv2.ExecuteScriptAsync(@"
+                    (function() {
+                        var ss = [
+                            'div[class*=""conv-item""]',
+                            'div[class*=""conversation-item""]',
+                            'div[class*=""item-chat""]',
+                            'div[class*=""contact-item""]',
+                            'div[class*=""listItem""]',
+                            'div[class*=""chat-item""]'
+                        ];
+                        for (var sel of ss) {
+                            var items = document.querySelectorAll(sel);
+                            for (var item of items) {
+                                if (item.offsetParent !== null && item.getAttribute('data-active') !== null) {
+                                    item.click(); return 'retry_clicked';
+                                }
+                            }
+                            // Nếu không có data-active, click cái đầu tiên visible
+                            for (var item of items) {
+                                if (item.offsetParent !== null) { item.click(); return 'retry_fallback'; }
+                            }
+                        }
+                        return 'none';
+                    })()");
+                await Task.Delay(1000);
+
+                // Poll lần 2 sau khi retry click
+                for (int waitStep2 = 0; waitStep2 < 15 && typeRes.Trim('"') != "ok"; waitStep2++)
+                {
+                    await Task.Delay(300);
+                    typeRes = await wv2.ExecuteScriptAsync(@"
+                        (function() {
+                            var els = document.querySelectorAll('div[contenteditable=""true""]');
+                            for (var el of els) {
+                                if (el.offsetParent === null) continue;
+                                el.focus();
+                                document.execCommand('selectAll', false, null);
+                                document.execCommand('delete', false, null);
+                                return 'ok';
+                            }
+                            return 'no_input';
+                        })()");
+                }
             }
 
             if (typeRes.Trim('"') == "no_input")

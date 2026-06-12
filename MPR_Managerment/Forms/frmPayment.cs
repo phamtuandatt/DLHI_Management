@@ -217,9 +217,9 @@ namespace MPR_Managerment.Forms
             if (canEdit)
             {
                 var bAdd = Btn("+ Thêm", Color.FromArgb(40, 167, 69), 8, 28, 72, 24);
-                var bDel = Btn("Xóa", Color.FromArgb(220, 53, 69), 84, 28, 48, 24);
-                var bSave = Btn("💾 Lưu", Color.FromArgb(0, 120, 212), 136, 28, 65, 24);
-                var bReq = Btn("📄 Eccount", Color.FromArgb(102, 51, 153), 205, 28, 88, 24);
+                var bSave = Btn("💾 Lưu", Color.FromArgb(0, 120, 212), 84, 28, 65, 24);
+                var bReq = Btn("📄 Eccount", Color.FromArgb(102, 51, 153), 153, 28, 88, 24);
+                var bDel = Btn("Xóa", Color.FromArgb(220, 53, 69), 245, 28, 48, 24);
                 var bPrint = Btn("🖨 In Req", Color.FromArgb(0, 150, 100), 297, 28, 78, 24);
                 var bPrintDoc = Btn("🖨 In tài liệu", Color.FromArgb(102, 51, 153), 379, 28, 100, 24);
 
@@ -2535,6 +2535,39 @@ private void BtnAddSched_Click(object sender, EventArgs e)
             var poHead = _poSvc.GetAll().Find(p => p.PO_ID == _selectedPO_ID);
             string mprNo = poHead?.MPR_No ?? "";
 
+            // Kiểm tra PO đã từng được tạo Eccount trước đó chưa
+            try
+            {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                using var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    SELECT TOP 1 Printed_Date, ISNULL(Dot_Label,'') AS Dot_Label
+                    FROM PO_PrintRequestHistory
+                    WHERE PONo = @poNo
+                    ORDER BY Printed_Date DESC", conn);
+                cmd.Parameters.AddWithValue("@poNo", po?.PONo ?? "");
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    string printedDate = reader["Printed_Date"] != DBNull.Value
+                        ? Convert.ToDateTime(reader["Printed_Date"]).ToString("dd/MM/yyyy HH:mm")
+                        : "";
+                    string dotLabel = reader["Dot_Label"]?.ToString() ?? "";
+                    string dotInfo = string.IsNullOrEmpty(dotLabel) ? "" : $" ({dotLabel})";
+
+                    var result = MessageBox.Show(
+                        $"⚠️ PO {po?.PONo} đã được tạo Eccount trước đó{dotInfo} vào lúc {printedDate}.\n\n" +
+                        $"Vui lòng kiểm tra lại trước khi tạo mới!\n\n" +
+                        $"Bấm [OK] để tiếp tục tạo Eccount, [Cancel] để hủy.",
+                        "Kiểm tra lại",
+                        MessageBoxButtons.OKCancel,
+                        MessageBoxIcon.Warning);
+
+                    if (result != DialogResult.OK) return;
+                }
+            }
+            catch { }
+
             var details = _poSvc.GetDetails(_selectedPO_ID);
 
             Supplier supp = null;
@@ -3899,8 +3932,8 @@ public class frmPaymentRequestPreview : Form
             decimal baseVal = calcMethod == "Theo KG" ? wk : q;
             decimal realPrice = p;
             if (calcMethod == "Theo KG" && wk > 0 && q > 0) realPrice = (p * q) / wk;
-            decimal amtBeforeVat = Math.Round(baseVal * realPrice, 2);
-            decimal amtAfterVat = Math.Round(amtBeforeVat * (1 + v / 100), 2);
+            decimal amtBeforeVat = Math.Round(baseVal * realPrice, 0);
+            decimal amtAfterVat = Math.Round(amtBeforeVat * (1 + v / 100), 0);
             subTotal += amtBeforeVat;
             finalTotal += amtAfterVat;
 
@@ -3919,19 +3952,19 @@ public class frmPaymentRequestPreview : Form
         sb.AppendLine($"Total Amount:\t\t{FormatAmt(subTotal)} VNĐ (excluded VAT)");
         sb.AppendLine();
 
-        // ── Final amount: luôn là số tiền SAU thuế ──
-        decimal finalAmt = finalTotal; // mặc định = tổng sau VAT
+        // ── Final amount: luôn là số tiền SAU thuế, làm tròn không lấy số thập phân ──
+        decimal finalAmt = Math.Round(finalTotal, 0); // mặc định = tổng sau VAT
         string dotLabel = "";
         if (cboDot != null && cboDot.SelectedIndex > 0)
         {
             var sched = _schedules[cboDot.SelectedIndex - 1];
             // Amount_Plan là số tiền kế hoạch — nhân VAT để ra số tiền sau thuế
-            finalAmt = Math.Round(sched.Amount_Plan * (1 + vatPct / 100), 2);
+            finalAmt = Math.Round(sched.Amount_Plan * (1 + vatPct / 100), 0);
             dotLabel = $"  (Đợt {sched.Dot_TT} — {sched.Percent_TT}%)";
         }
 
         // VAT amount = finalAmt - (finalAmt / (1 + vatPct/100))
-        decimal baseBeforeVat = vatPct > 0 ? Math.Round(finalAmt / (1 + vatPct / 100), 2) : finalAmt;
+        decimal baseBeforeVat = vatPct > 0 ? Math.Round(finalAmt / (1 + vatPct / 100), 0) : finalAmt;
         decimal vatAmount = finalAmt - baseBeforeVat;
 
         sb.AppendLine("4. Payment information");
@@ -4038,23 +4071,16 @@ public class frmPaymentRequestPreview : Form
 
         CopyToClipboardAsHtml(sbHtml.ToString(), rtbPreview.Text);
         MessageBox.Show(TopOwner, "✅ Đã copy nội dung vào Bảng tạm!\nDán (Ctrl+V) vào Word hoặc Outlook sẽ hiển thị bảng kẻ ô chuẩn, font Times New Roman.", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        this.Close();
     }
 
     // =====================================================================
     // THUẬT TOÁN ĐẨY HTML LÊN CLIPBOARD BẰNG BYTE OFFSET (CHỐNG LỖI UTF-8)
     // =====================================================================
-    // =====================================================================
-    // HELPER: Format số tiền — hiện 2 thập phân chỉ khi cần, bỏ ",00"
-    // Ví dụ: 1234567      → "1,234,567"
-    //         1234567.5    → "1,234,567.50"
-    //         1234567.12   → "1,234,567.12"
-    // =====================================================================
+    // HELPER: Format số tiền — luôn làm tròn, không lấy số thập phân (VNĐ)
     private static string FormatAmt(decimal value)
     {
-        // Nếu phần thập phân bằng 0 → chỉ hiện số nguyên
-        return value == Math.Floor(value)
-            ? value.ToString("N0")
-            : value.ToString("N2");
+        return Math.Round(value, 0).ToString("N0");
     }
 
     private void CopyToClipboardAsHtml(string htmlFragment, string plainText)
