@@ -96,6 +96,7 @@ namespace MPR_Managerment.Forms.ImportWarehouseGUI
             dtInvoices = await _warehouseServices.GetInvoices();
             _bindingSource.DataSource = dtInvoices;
             dgvInvoices.DataSource = _bindingSource;
+            _filterHelper?.EnableFilter(false);
             _filterHelper = new Helpers.DataGridViewFilterHelper(dgvInvoices, dtInvoices, _bindingSource);
             _filterHelper.EnableFilter(true);
         }

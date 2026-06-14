@@ -30,6 +30,9 @@ namespace MPR_Managerment.Forms.ExportGUI
         private Helpers.DataGridViewFilterHelper? _filterHelper;
         private CheckBox chkFilter;
 
+        private BindingSource _bindingHisSource = new BindingSource();
+        private Helpers.DataGridViewFilterHelper? _hisFilterHelper;
+
         //private DataGridView dgvKho;
 
         private bool _isLoaded = false;
@@ -42,6 +45,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             LoadProject();
             InitGridSelected();
 
+            dtpStart.Value = DateTime.Today.AddDays(-30);
 
             FormartGrid(dgvKho, Color.FromArgb(0, 120, 212), true);
             FormartGrid(dgvExportQue, Color.FromArgb(255, 140, 0), false);
@@ -94,6 +98,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                 _dtStock = await _warehouseServies.GetImportForExport(cboProject.SelectedValue.ToString());
                 _bindingSource.DataSource = _dtStock;
                 dgvKho.DataSource = _bindingSource;
+                _filterHelper?.EnableFilter(false);
                 _filterHelper = new Helpers.DataGridViewFilterHelper(dgvKho, _dtStock, _bindingSource);
                 _filterHelper.EnableFilter(true);
 
@@ -118,6 +123,11 @@ namespace MPR_Managerment.Forms.ExportGUI
                 dgvKho.Columns["MPR_No"].Visible = false;
                 dgvKho.Columns["PO_Date"].Visible = false;
                 dgvKho.Columns["WorkorderNo"].Visible = false;
+
+                foreach (DataGridViewColumn column in dgvKho.Columns)
+                {
+                    column.SortMode = DataGridViewColumnSortMode.NotSortable;
+                }
             }
         }
 
@@ -454,9 +464,13 @@ namespace MPR_Managerment.Forms.ExportGUI
         private async void btnSearchHis_Click(object sender, EventArgs e)
         {
             if (cboProjectCheck.Items.Count == 0) return;
-            var dtW = await _warehouseServies.GetHistoryExportByProject(cboProjectCheck.SelectedValue.ToString());
-
-            dgvHis.DataSource = Common.Common.SearchDate(dtpStart.Value, dtpTo.Value, dtW, new List<string> { "Export_Date" });
+            var dtW = await _warehouseServies.GetHistoryExportByProject(cboProjectCheck.SelectedValue.ToString(), dtpStart.Value.ToString("dd/MM/yyyy"), dtpTo.Value.ToString("dd/MM/yyyy"));
+            //var dtV = Common.Common.SearchDate(dtpStart.Value, dtpTo.Value, dtW, new List<string> { "Export_Date" });
+            _bindingHisSource.DataSource = dtW;
+            dgvHis.DataSource = _bindingHisSource;
+            _hisFilterHelper?.EnableFilter(false);
+            _hisFilterHelper = new DataGridViewFilterHelper(dgvHis, dtW, _bindingHisSource);
+            _hisFilterHelper.EnableFilter(true);
 
             dgvHis.Columns["Export_ID"].Visible = false;
             dgvHis.Columns["Import_ID"].Visible = false;
@@ -474,6 +488,11 @@ namespace MPR_Managerment.Forms.ExportGUI
             }
 
             lblInfoXK.Text = $"📋 Tổng: {dtW.Rows.Count} phiếu  |  SL xuất: {totalQty:N2}  |  KG xuất: {totalKg:N2}";
+
+            foreach (DataGridViewColumn column in dgvHis.Columns)
+            {
+                column.SortMode = DataGridViewColumnSortMode.NotSortable;
+            }
         }
 
         private void dgvKho_CellClick(object sender, DataGridViewCellEventArgs e)
@@ -732,6 +751,89 @@ namespace MPR_Managerment.Forms.ExportGUI
         private void btnCancelSer_Click(object sender, EventArgs e)
         {
             _filterHelper.ClearAllFilters();
+        }
+
+        private void btnClearSearch_Click(object sender, EventArgs e)
+        {
+            _hisFilterHelper.ClearAllFilters();
+        }
+
+        private void btnExportExcel_Click(object sender, EventArgs e)
+        {
+            if (dgvHis.Rows.Count == 0)
+            {
+                MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                var saveDialog = new SaveFileDialog
+                {
+                    Title = "Lưu Lịch Sử Xuất Kho",
+                    Filter = "Excel Files|*.xlsx",
+                    FileName = $"LichSuXuatKho_{DateTime.Now:ddMMyyyy_HHmm}",
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+
+                if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                using (var package = new OfficeOpenXml.ExcelPackage())
+                {
+                    var ws = package.Workbook.Worksheets.Add("LichSuXuatKho");
+
+                    // Header
+                    int colIndex = 1;
+                    List<int> visibleColIndices = new List<int>();
+                    for (int i = 0; i < dgvHis.Columns.Count; i++)
+                    {
+                        if (dgvHis.Columns[i].Visible && !dgvHis.Columns[i].Name.Contains("ID", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ws.Cells[1, colIndex].Value = dgvHis.Columns[i].HeaderText;
+                            ws.Cells[1, colIndex].Style.Font.Bold = true;
+                            ws.Cells[1, colIndex].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                            ws.Cells[1, colIndex].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 120, 212));
+                            ws.Cells[1, colIndex].Style.Font.Color.SetColor(Color.White);
+                            ws.Cells[1, colIndex].Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                            visibleColIndices.Add(i);
+                            colIndex++;
+                        }
+                    }
+
+                    // Data
+                    for (int i = 0; i < dgvHis.Rows.Count; i++)
+                    {
+                        int c = 1;
+                        foreach (int colIdx in visibleColIndices)
+                        {
+                            var cell = ws.Cells[i + 2, c];
+                            cell.Value = dgvHis.Rows[i].Cells[colIdx].Value;
+                            cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                            c++;
+                        }
+                    }
+
+                    ws.Cells.AutoFitColumns();
+                    package.SaveAs(new System.IO.FileInfo(saveDialog.FileName));
+                }
+
+                var result = MessageBox.Show(
+                            $"✅ Xuất file phiếu nhập kho thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file ngay không?",
+                            "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (result == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = saveDialog.FileName,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

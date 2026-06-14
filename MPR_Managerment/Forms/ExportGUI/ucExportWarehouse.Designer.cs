@@ -50,6 +50,7 @@
             dtpTo = new DateTimePicker();
             dtpStart = new DateTimePicker();
             dgvHis = new DataGridView();
+            btnExportExcel = new Button();
             btnClearSearch = new Button();
             btnSearchHis = new Button();
             lblInfoXK = new Label();
@@ -82,7 +83,7 @@
             groupBox1.Margin = new Padding(3, 2, 3, 2);
             groupBox1.Name = "groupBox1";
             groupBox1.Padding = new Padding(3, 2, 3, 2);
-            groupBox1.Size = new Size(1211, 369);
+            groupBox1.Size = new Size(1455, 369);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             // 
@@ -110,7 +111,7 @@
             dgvKho.Name = "dgvKho";
             dgvKho.ReadOnly = true;
             dgvKho.RowHeadersWidth = 51;
-            dgvKho.Size = new Size(1181, 262);
+            dgvKho.Size = new Size(1425, 262);
             dgvKho.TabIndex = 5;
             dgvKho.CellClick += dgvKho_CellClick;
             dgvKho.CellDoubleClick += dgvKho_CellDoubleClick;
@@ -214,7 +215,7 @@
             groupBox2.Margin = new Padding(3, 2, 3, 2);
             groupBox2.Name = "groupBox2";
             groupBox2.Padding = new Padding(3, 2, 3, 2);
-            groupBox2.Size = new Size(1211, 493);
+            groupBox2.Size = new Size(1455, 493);
             groupBox2.TabIndex = 1;
             groupBox2.TabStop = false;
             // 
@@ -232,7 +233,7 @@
             dgvExportQue.Margin = new Padding(3, 2, 3, 2);
             dgvExportQue.Name = "dgvExportQue";
             dgvExportQue.RowHeadersWidth = 51;
-            dgvExportQue.Size = new Size(1181, 440);
+            dgvExportQue.Size = new Size(1425, 440);
             dgvExportQue.TabIndex = 5;
             dgvExportQue.CellFormatting += dgvExportQue_CellFormatting;
             // 
@@ -273,7 +274,7 @@
             btnXoaRow.FlatStyle = FlatStyle.Flat;
             btnXoaRow.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnXoaRow.ForeColor = Color.White;
-            btnXoaRow.Location = new Point(1086, 16);
+            btnXoaRow.Location = new Point(1330, 16);
             btnXoaRow.Margin = new Padding(3, 2, 3, 2);
             btnXoaRow.Name = "btnXoaRow";
             btnXoaRow.Size = new Size(109, 29);
@@ -313,6 +314,7 @@
             groupBox3.Controls.Add(dtpTo);
             groupBox3.Controls.Add(dtpStart);
             groupBox3.Controls.Add(dgvHis);
+            groupBox3.Controls.Add(btnExportExcel);
             groupBox3.Controls.Add(btnClearSearch);
             groupBox3.Controls.Add(btnSearchHis);
             groupBox3.Controls.Add(lblInfoXK);
@@ -325,7 +327,7 @@
             groupBox3.Margin = new Padding(3, 2, 3, 2);
             groupBox3.Name = "groupBox3";
             groupBox3.Padding = new Padding(3, 2, 3, 2);
-            groupBox3.Size = new Size(1211, 549);
+            groupBox3.Size = new Size(1455, 549);
             groupBox3.TabIndex = 1;
             groupBox3.TabStop = false;
             groupBox3.Enter += groupBox3_Enter;
@@ -371,10 +373,24 @@
             dgvHis.Name = "dgvHis";
             dgvHis.ReadOnly = true;
             dgvHis.RowHeadersWidth = 51;
-            dgvHis.Size = new Size(1181, 463);
+            dgvHis.Size = new Size(1425, 463);
             dgvHis.TabIndex = 5;
-            //dgvHis.CellDoubleClick += dgvHis_CellDoubleClick;
             dgvHis.CellFormatting += dgvHis_CellFormatting;
+            // 
+            // btnExportExcel
+            // 
+            btnExportExcel.BackColor = Color.FromArgb(24, 92, 55);
+            btnExportExcel.FlatStyle = FlatStyle.Flat;
+            btnExportExcel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnExportExcel.ForeColor = Color.White;
+            btnExportExcel.Location = new Point(1170, 18);
+            btnExportExcel.Margin = new Padding(3, 2, 3, 2);
+            btnExportExcel.Name = "btnExportExcel";
+            btnExportExcel.Size = new Size(94, 29);
+            btnExportExcel.TabIndex = 4;
+            btnExportExcel.Text = "📊 Excel\n";
+            btnExportExcel.UseVisualStyleBackColor = false;
+            btnExportExcel.Click += btnExportExcel_Click;
             // 
             // btnClearSearch
             // 
@@ -389,6 +405,7 @@
             btnClearSearch.TabIndex = 4;
             btnClearSearch.Text = "🗑 Xóa lọc";
             btnClearSearch.UseVisualStyleBackColor = false;
+            btnClearSearch.Click += btnClearSearch_Click;
             // 
             // btnSearchHis
             // 
@@ -455,7 +472,7 @@
             label7.AutoSize = true;
             label7.Location = new Point(185, 25);
             label7.Name = "label7";
-            label7.Size = new Size(53, 15);
+            label7.Size = new Size(52, 15);
             label7.TabIndex = 1;
             label7.Text = "Từ ngày:";
             // 
@@ -469,7 +486,7 @@
             Controls.Add(groupBox1);
             Margin = new Padding(3, 2, 3, 2);
             Name = "ucExportWarehouse";
-            Size = new Size(1211, 1437);
+            Size = new Size(1455, 1437);
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvKho).EndInit();
@@ -500,6 +517,7 @@
         private Label lblInfoXK;
         private Label label6;
         private Button btnClearSearch;
+        private Button btnExportExcel;
         private Button btnSearchHis;
         private ComboBox cboProjectCheck;
         private Label label7;

@@ -31,6 +31,26 @@ namespace MPR_Managerment.Forms.WarehouseGUI
         {
             InitializeComponent(columnName, table, currentSelected);
             PopulateList(columnName, table, currentSelected);
+
+            this.Deactivate += (s, e) =>
+            {
+                this.Close();
+            };
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+
+            // 0x0086 corresponds to WM_NCACTIVATE
+            if (m.Msg == 0x0086 && this.Visible)
+            {
+                // Check if the current mouse position is completely outside the form's boundaries
+                if (!this.RectangleToScreen(this.DisplayRectangle).Contains(Cursor.Position))
+                {
+                    this.Close();
+                }
+            }
         }
 
         private void InitializeComponent(string columnName, DataTable table, List<string> currentSelected)

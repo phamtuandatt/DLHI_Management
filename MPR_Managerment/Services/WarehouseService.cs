@@ -70,9 +70,9 @@ namespace MPR_Managerment.Services
             return true;
         }
 
-        public async Task<DataTable> GetHistoryExportByProject(string projectCode)
+        public async Task<DataTable> GetHistoryExportByProject(string projectCode, string fromDate, string toDate)
         {
-            string sqlQuery = string.Format("SELECT *FROM Warehouse_Export WHERE Project_Code = '{0}'", projectCode);
+            string sqlQuery = string.Format("SET DATEFORMAT DMY SELECT *FROM Warehouse_Export WHERE Project_Code = '{0}' AND Created_Date BETWEEN '{1}' AND '{2}'", projectCode, fromDate, toDate);
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
                 SqlCommand cmd = new SqlCommand(sqlQuery, conn);
