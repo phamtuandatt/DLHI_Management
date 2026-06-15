@@ -86,6 +86,9 @@
     <None Update="Templates\painting_consumable_list_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Templates\PaymentStatus_template.xlsx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Templates\payment_template.xlsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
