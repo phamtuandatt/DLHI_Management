@@ -1,4 +1,4 @@
-﻿using MPR_Managerment.Models;
+using MPR_Managerment.Models;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
 using System;
@@ -1992,6 +1992,43 @@ private IWin32Window GetActiveOwner() => this;
                 var suppliers = new SupplierService().GetAll();
                 // Nạp ProjectCode (Mã dự án) từ ProjectService để hiển thị trong cột "Mã DA"
                 var projects = new ProjectService().GetAll();
+
+                // Lấy tất cả Paid_Date từ Zalo_PaymentImport, gộp nhiều ngày theo từng PO
+                var paidDateMap = new Dictionary<string, List<DateTime>>(StringComparer.OrdinalIgnoreCase);
+                string paidDateError = null;
+                try
+                {
+                    using var connPD = Helpers.DatabaseHelper.GetConnection();
+                    connPD.Open();
+                    using var cmdPD = new Microsoft.Data.SqlClient.SqlCommand(
+                        "SELECT PO_No, Paid_Date FROM Zalo_PaymentImport WHERE Paid_Date IS NOT NULL AND ISNULL(PO_No,'') <> ''",
+                        connPD);
+                    using var rdrPD = cmdPD.ExecuteReader();
+                    while (rdrPD.Read())
+                    {
+                        string rawKey = rdrPD["PO_No"]?.ToString() ?? "";
+                        // Normalize: xóa tất cả whitespace + NBSP, uppercase
+                        string key = System.Text.RegularExpressions.Regex.Replace(rawKey, @"\s", "")
+                            .Replace(" ", "").ToUpperInvariant();
+                        if (string.IsNullOrEmpty(key)) continue;
+                        DateTime dt2 = Convert.ToDateTime(rdrPD["Paid_Date"]);
+                        if (!paidDateMap.ContainsKey(key)) paidDateMap[key] = new List<DateTime>();
+                        paidDateMap[key].Add(dt2.Date);
+                    }
+                }
+                catch (Exception exPD) { paidDateError = exPD.Message; }
+
+                // Chuyển sang dict string (các ngày duy nhất, tăng dần)
+                var paidDateStr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var kv in paidDateMap)
+                {
+                    var dates = kv.Value.Distinct().OrderBy(d => d).Select(d => d.ToString("dd/MM/yyyy"));
+                    paidDateStr[kv.Key] = string.Join(", ", dates);
+                }
+
+                if (paidDateError != null)
+                    MessageBox.Show("Lỗi tải Paid Date:\n" + paidDateError, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
                 var dt = new System.Data.DataTable();
                 dt.Columns.Add("PO_ID", typeof(int));
                 dt.Columns.Add("PO No", typeof(string));
@@ -2002,6 +2039,7 @@ private IWin32Window GetActiveOwner() => this;
                 dt.Columns.Add("Workorder", typeof(string));
                 dt.Columns.Add("Ngày PO", typeof(string));
                 dt.Columns.Add("Trạng thái", typeof(string));
+                dt.Columns.Add("Paid Date", typeof(string));
                 dt.Columns.Add("Tổng tiền", typeof(string));
                 foreach (var h in _poList)
                 {
@@ -2011,10 +2049,14 @@ private IWin32Window GetActiveOwner() => this;
                         (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(h.WorkorderNo, StringComparison.OrdinalIgnoreCase)) ||
                         (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(h.Project_Name, StringComparison.OrdinalIgnoreCase)));
                     string maDA = prj?.ProjectCode ?? "";
-                    dt.Rows.Add(h.PO_ID, h.PONo, supp?.Company_Name ?? supp?.Short_Name ?? "",
+                    string poKey = System.Text.RegularExpressions.Regex.Replace(h.PONo ?? "", @"\s", "")
+                        .Replace(" ", "").ToUpperInvariant();
+                    string paidDate = paidDateStr.TryGetValue(poKey, out var pd) ? pd : "";
+                    string trangThai = !string.IsNullOrEmpty(paidDate) ? "Đã thanh toán" : "";
+                    dt.Rows.Add(h.PO_ID, h.PONo, supp?.Short_Name ?? supp?.Company_Name ?? "",
                         maDA, h.Project_Name, h.MPR_No, h.WorkorderNo,
                         h.PO_Date.HasValue ? h.PO_Date.Value.ToString("dd/MM/yyyy") : "",
-                        h.Status, h.Total_Amount.ToString("N2", _numCulture));
+                        trangThai, paidDate, h.Total_Amount.ToString("N2", _numCulture));
                 }
                 var dtFull = dt.Copy();
                 System.Data.DataTable dtCurrent = dtFull.Copy();
@@ -2848,6 +2890,8 @@ private IWin32Window GetActiveOwner() => this;
             {
                 var po = _poList.Find(p => p.PO_ID == _selectedPO_ID);
                 var details = _service.GetDetails(_selectedPO_ID); if (po == null) return;
+                bool isCancelledPO = string.Equals(po.Status?.Trim(), "Cancelled", StringComparison.OrdinalIgnoreCase)
+                                  || string.Equals(po.Status?.Trim(), "Cancel", StringComparison.OrdinalIgnoreCase);
                 var suppliers = new SupplierService().GetAll();
                 var supplier = suppliers.Find(s => s.Supplier_ID == Convert.ToInt32(cboSupplier.SelectedValue?.ToString() ?? "0"));
                 var projects = new ProjectService().GetAll();
@@ -2928,6 +2972,14 @@ private IWin32Window GetActiveOwner() => this;
                             rem = rem.Replace("[CALC:SL]", "").Trim();
                         }
 
+                        // PO Cancelled: ẩn đơn giá, thành tiền và khối lượng
+                        if (isCancelledPO)
+                        {
+                            realPrice = 0;
+                            q = 0;
+                            wk = 0;
+                        }
+
                         // Gán giá trị
                         ws.Cells[row, 1].Value = i + 1;
                         ws.Cells[row, 2].Value = d.Item_Name ?? "";
@@ -2938,15 +2990,15 @@ private IWin32Window GetActiveOwner() => this;
                         ws.Cells[row, 5].Value = d.Bsize;
                         ws.Cells[row, 6].Value = d.Csize;
 
-                        ws.Cells[row, 7].Value = d.Qty_Per_Sheet;
+                        ws.Cells[row, 7].Value = q;
                         ws.Cells[row, 8].Value = d.UNIT ?? "";
-                        ws.Cells[row, 9].Value = d.Weight_kg;
+                        ws.Cells[row, 9].Value = wk;
                         ws.Cells[row, 10].Value = d.MPSNo ?? "";
                         ws.Cells[row, 11].Value = po.Expected_Delivery;
                         ws.Cells[row, 12].Value = "Kho DLHI";
                         //ws.Cells[row, 13].Value = Math.Round(realPrice, 0);
                         ws.Cells[row, 13].Value = realPrice;
-                        ws.Cells[row, 14].Value = d.Amount;
+                        ws.Cells[row, 14].Value = isCancelledPO ? 0 : d.Amount;
                         //ws.Cells[row, 16].Value = rem;
 
                         // --- CỦNG CỐ ĐỊNH DẠNG MERGE CHO REMARKS ---
@@ -2993,14 +3045,14 @@ private IWin32Window GetActiveOwner() => this;
 
                     // 1. Tính tổng tiền sau thuế từ DataTable
                     decimal totalAfterVAT = 0;
-                    foreach (var dr in details)
+                    if (!isCancelledPO)
                     {
-                        // Sử dụng hàm SafeParse chúng ta đã xây dựng để tránh lỗi định dạng số
-                        decimal amount = dr.Amount; // Thành tiền chưa thuế
-                        decimal vatPercent = dr.VAT; // Thuế suất (ví dụ: 8 hoặc 10)
-
-                        // Tính thành tiền sau thuế của từng dòng và cộng dồn
-                        totalAfterVAT += amount * (1 + vatPercent / 100);
+                        foreach (var dr in details)
+                        {
+                            decimal amount = dr.Amount;
+                            decimal vatPercent = dr.VAT;
+                            totalAfterVAT += amount * (1 + vatPercent / 100);
+                        }
                     }
 
                     // 2. Xác định vị trí các dòng tổng kết

@@ -339,32 +339,35 @@ namespace MPR_Managerment.Forms
                 WHERE ph.PONo = @poNo3", conn);
             cmdDots.Parameters.AddWithValue("@poNo3", poNo);
 
-            var dotUpdates = new List<(int sid, string status)>();
+            // Đọc hết dữ liệu trước khi đóng reader, tránh lỗi multiple active DataReaders
+            var dotRows = new List<(int sid, int dotTT, decimal plan)>();
             using (var rdr = cmdDots.ExecuteReader())
                 while (rdr.Read())
-                {
-                    int sid = Convert.ToInt32(rdr["Schedule_ID"]);
-                    int dotTT = Convert.ToInt32(rdr["Dot_TT"]);
-                    decimal plan = rdr["Amount_Plan"] != DBNull.Value ? Convert.ToDecimal(rdr["Amount_Plan"]) : 0;
-                    
-                    // Lấy Paid từ cả 2 nguồn
-                    var cmdDotPaid = new Microsoft.Data.SqlClient.SqlCommand(@"
-                        SELECT (SELECT ISNULL(SUM(hp.Amount_Total), 0) 
-                                FROM PO_PrintRequestHistory prh 
-                                INNER JOIN PO_HistoryPaid hp ON hp.Print_ID = prh.Print_ID 
-                                WHERE prh.PONo = @p AND prh.Dot_TT = @d)
-                             + (SELECT ISNULL(SUM(Final_Amount), 0) 
-                                FROM Zalo_PaymentImport 
-                                WHERE PO_No = @p AND Progress_Status LIKE '%Đợt ' + CAST(@d AS NVARCHAR))", conn);
-                    cmdDotPaid.Parameters.AddWithValue("@p", poNo);
-                    cmdDotPaid.Parameters.AddWithValue("@d", dotTT);
-                    decimal dotPaid = Convert.ToDecimal(cmdDotPaid.ExecuteScalar() ?? 0);
-                    
-                    string dotSt = dotPaid <= 0 ? "Chưa TT"
-                                   : dotPaid >= plan ? "Đã TT đủ"
-                                   : "Một phần";
-                    dotUpdates.Add((sid, dotSt));
-                }
+                    dotRows.Add((
+                        Convert.ToInt32(rdr["Schedule_ID"]),
+                        Convert.ToInt32(rdr["Dot_TT"]),
+                        rdr["Amount_Plan"] != DBNull.Value ? Convert.ToDecimal(rdr["Amount_Plan"]) : 0));
+
+            var dotUpdates = new List<(int sid, string status)>();
+            foreach (var (sid, dotTT, plan) in dotRows)
+            {
+                var cmdDotPaid = new Microsoft.Data.SqlClient.SqlCommand(@"
+                    SELECT (SELECT ISNULL(SUM(hp.Amount_Total), 0)
+                            FROM PO_PrintRequestHistory prh
+                            INNER JOIN PO_HistoryPaid hp ON hp.Print_ID = prh.Print_ID
+                            WHERE prh.PONo = @p AND prh.Dot_TT = @d)
+                         + (SELECT ISNULL(SUM(Final_Amount), 0)
+                            FROM Zalo_PaymentImport
+                            WHERE PO_No = @p AND Progress_Status LIKE '%Đợt ' + CAST(@d AS NVARCHAR))", conn);
+                cmdDotPaid.Parameters.AddWithValue("@p", poNo);
+                cmdDotPaid.Parameters.AddWithValue("@d", dotTT);
+                decimal dotPaid = Convert.ToDecimal(cmdDotPaid.ExecuteScalar() ?? 0);
+
+                string dotSt = dotPaid <= 0 ? "Chưa TT"
+                               : dotPaid >= plan ? "Đã TT đủ"
+                               : "Một phần";
+                dotUpdates.Add((sid, dotSt));
+            }
 
             foreach (var (sid, st) in dotUpdates)
             {

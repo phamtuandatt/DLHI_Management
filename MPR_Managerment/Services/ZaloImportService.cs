@@ -116,7 +116,7 @@ namespace MPR_Managerment.Services
             ["Dot7"]           = [ "Đợt 7", "Dot 7", "Dot7", "Payment 7", "7th Payment" ],
             ["Dot8"]           = [ "Đợt 8", "Dot 8", "Dot8", "Payment 8", "8th Payment" ],
             ["FTCash"]         = [ "FT/Cash", "FT Cash", "FTCash", "FT" ],
-            ["PaidDate"]       = [ "Paid Date", "PaidDate", "Payment Date", "Date Paid" ],
+            ["PaidDate"]       = [ "Transferred", "Transfer Date", "Paid Date", "PaidDate", "Payment Date", "Date Paid", "Date Transfer" ],
             ["ProgressStatus"] = [ "Progress", "Status", "Progress Status", "ProgressStatus" ],
         };
 
@@ -202,9 +202,8 @@ namespace MPR_Managerment.Services
             var cols = DetectColumns(ws);
 
             // Dòng dữ liệu bắt đầu sau header row (header row nằm trong rows 1-5)
-            // Tìm dataStartRow = header row + 1, nhưng tối thiểu là 4 (theo cấu trúc file cũ)
-            int dataStart = cols == _fallbackCols ? 4
-                : Math.Max(4, GetHeaderRow(ws) + 1);
+            int headerRow = GetHeaderRow(ws);
+            int dataStart = headerRow + 1;
 
             for (int r = dataStart; r <= lastRow; r++)
             {

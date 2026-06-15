@@ -26,6 +26,7 @@ namespace MPR_Managerment.Forms
         private readonly List<POHead> _allPO;          // danh sách đầy đủ được truyền từ frmPO
         private List<Supplier> _suppliers;
         private Dictionary<int, double> _progressMap = new Dictionary<int, double>();
+        private Dictionary<string, string> _paidDateMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // ── Controls ──────────────────────────────────────────────────────────
         private TextBox txtSearchNCC;
@@ -207,6 +208,7 @@ namespace MPR_Managerment.Forms
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Trang_Thai", HeaderText = "Trạng thái", FillWeight = 90 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Tong_Tien", HeaderText = "Tổng tiền", FillWeight = 110 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Revise", HeaderText = "Rev", FillWeight = 50 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Paid_Date", HeaderText = "Paid Date", FillWeight = 90 });
         }
 
         // ── Tải dữ liệu lần đầu ──────────────────────────────────────────────
@@ -254,7 +256,106 @@ namespace MPR_Managerment.Forms
                 _loading = false;
             }
 
+            LoadPaidDates();
             ApplyFilter();
+        }
+
+        private string RobustNormalize(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "";
+            // Loại bỏ tất cả ký tự không phải chữ hoặc số, chuyển về chữ hoa
+            // Ví dụ: DV-WOL-PC-010 -> DVWOLPC010, PO 24-001 -> PO24001
+            return new string(input.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        }
+
+        private void LoadPaidDates()
+        {
+            _paidDateMap.Clear();
+            int recordCount = 0;
+            try
+            {
+                using var conn = Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                
+                // Lấy tất cả bản ghi có Paid_Date. Mở rộng lấy thêm Title_EN và GW_No để tăng khả năng khớp
+                         using var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
+                         SELECT ISNULL(PO_No, '') as PO_No, ISNULL(Ecount_No, '') as Ecount_No, 
+                            ISNULL(Title_EN, '') as Title_EN, ISNULL(GW_No, '') as GW_No, Paid_Date 
+                         FROM Zalo_PaymentImport 
+                         WHERE Paid_Date IS NOT NULL", conn);
+ 
+                 var raw = new Dictionary<string, List<DateTime>>(StringComparer.OrdinalIgnoreCase);
+                 using (var rdr = cmd.ExecuteReader())
+                 {
+                     while (rdr.Read())
+                     {
+                         recordCount++;
+                         DateTime dt = Convert.ToDateTime(rdr["Paid_Date"]);
+                         string dbPo = rdr["PO_No"].ToString().Trim();
+                         string dbEc = rdr["Ecount_No"].ToString().Trim();
+                         string dbTi = rdr["Title_EN"].ToString().Trim();
+                         string dbGw = rdr["GW_No"].ToString().Trim();
+ 
+                         // Danh sách các key có thể dùng để khớp cho bản ghi này
+                         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                         
+                         void AddKey(string k) {
+                             if (string.IsNullOrEmpty(k)) return;
+                             keys.Add(k);
+                             string norm = RobustNormalize(k);
+                             if (!string.IsNullOrEmpty(norm)) keys.Add(norm);
+                         }
+ 
+                         AddKey(dbPo);
+                         AddKey(dbEc);
+                         AddKey(dbGw);
+ 
+                         // Đối với Title_EN, nếu chứa số PO (ví dụ "Thanh toán cho PO-123") thì cũng cố gắng bóc tách
+                         if (!string.IsNullOrEmpty(dbTi)) {
+                             keys.Add(dbTi);
+                             // Nếu trong Title có chứa số PO dạng DV-...
+                             if (dbTi.Contains("DV-")) {
+                                 int idx = dbTi.IndexOf("DV-");
+                                 string sub = dbTi.Substring(idx).Split(' ')[0]; // lấy chuỗi liên tục từ DV-
+                                 AddKey(sub);
+                             }
+                         }
+                         if (!string.IsNullOrEmpty(dbEc))
+                         {
+                             keys.Add(dbEc);
+                             keys.Add(RobustNormalize(dbEc));
+                         }
+ 
+                        // NEW: Add digit‑only key for PO_No to improve matching (e.g., “12345”)
+                        if (!string.IsNullOrEmpty(dbPo)) {
+                            string digitsOnly = new string(dbPo.Where(char.IsDigit).ToArray());
+                            if (digitsOnly.Length >= 3) AddKey(digitsOnly);
+                        }
+
+                         foreach (var k in keys)
+                         {
+                             if (!raw.ContainsKey(k)) raw[k] = new List<DateTime>();
+                             raw[k].Add(dt);
+                         }
+                     }
+                 }
+
+                foreach (var kv in raw)
+                {
+                    var distinctDates = kv.Value.Select(d => d.Date).Distinct().OrderBy(d => d).Select(d => d.ToString("dd/MM/yyyy"));
+                    _paidDateMap[kv.Key] = string.Join(", ", distinctDates);
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"[LoadPaidDates] Loaded {recordCount} records, map size: {_paidDateMap.Count}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Lỗi tải Paid Date:\n" + ex.Message,
+                    "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
         }
 
         // ── Lọc và bind lại grid ─────────────────────────────────────────────
@@ -310,10 +411,40 @@ namespace MPR_Managerment.Forms
                 row.Cells["Trang_Thai"].Value = h.Status;
                 row.Cells["Tong_Tien"].Value = h.Total_Amount.ToString("N0");
                 row.Cells["Revise"].Value = h.Revise;
+
+                // Tìm kiếm Paid Date từ Map
+                string displayPaidDate = "";
+                string poNo = (h.PONo ?? "").Trim();
+
+                if (!string.IsNullOrEmpty(poNo))
+                {
+                    // Ưu tiên 1: Khớp theo chuỗi chuẩn hóa Alphanumeric (Ví dụ: DV-WOL-01 -> DVWOL01)
+                    // Cách này hiệu quả nhất vì ZaloImportService thường xóa khoảng trắng khi lưu.
+                    string norm = RobustNormalize(poNo);
+                    
+                    if (_paidDateMap.TryGetValue(poNo, out string d1))
+                    {
+                        displayPaidDate = d1;
+                    }
+                    else if (!string.IsNullOrEmpty(norm) && _paidDateMap.TryGetValue(norm, out string d2))
+                    {
+                        displayPaidDate = d2;
+                    }
+                    else
+                    {
+                        // Ưu tiên 2: Khớp theo phần số (nếu có ít nhất 3 chữ số)
+                        string digitsOnly = new string(poNo.Where(char.IsDigit).ToArray());
+                        if (digitsOnly.Length >= 3 && _paidDateMap.TryGetValue(digitsOnly, out string d3))
+                        {
+                            displayPaidDate = d3;
+                        }
+                    }
+                }
+
+                row.Cells["Paid_Date"].Value = displayPaidDate;
             }
 
-            lblCount.Text = $"Tìm thấy {list.Count} đơn PO" +
-                            (list.Count > 0 ? " — Double-click hoặc nhấn 'Chọn PO này' để xác nhận." : "");
+            lblCount.Text = $"Tìm thấy {list.Count} đơn PO (Đã tải {_paidDateMap.Count} đầu mã thanh toán)";
         }
 
         // ── Tô màu cột % Tiến độ ─────────────────────────────────────────────
