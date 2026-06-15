@@ -4197,6 +4197,27 @@ btnPrintDoc.Click += (s, e) =>
             // ═══════════════════════════════════════════════════
             // ASYNC LOAD — không block UI thread
             // ═══════════════════════════════════════════════════
+            // Cache kết quả DoFindDoc theo PO_No để không bị mất khi reload
+            var docCache = new Dictionary<string, (string inv, string del, string invPath, string delPath)>(StringComparer.OrdinalIgnoreCase);
+
+            void ApplyDocCache()
+            {
+                if (docCache.Count == 0) return;
+                foreach (DataGridViewRow row in dgv.Rows)
+                {
+                    string poNo = row.Cells["FT_PONo"].Value?.ToString() ?? "";
+                    if (docCache.TryGetValue(poNo, out var d))
+                    {
+                        row.Cells["FT_INV_Path"].Value  = d.invPath;
+                        row.Cells["FT_Del_Path"].Value  = d.delPath;
+                        row.Cells["FT_INV"].Value       = d.inv;
+                        row.Cells["FT_Delivery"].Value  = d.del;
+                    }
+                }
+                lblFindDone.Text    = "✔ Đã tìm xong tài liệu liên quan";
+                lblFindDone.Visible = true;
+            }
+
             async void DoLoadData()
             {
                 btnSearch.Enabled = false;
@@ -4236,6 +4257,16 @@ btnPrintDoc.Click += (s, e) =>
                         if ((int)chk.ExecuteScalar() == 0) return list;
 
                         var cmd = new Microsoft.Data.SqlClient.SqlCommand($@"
+                            WITH LatestImport AS (
+                                SELECT *, ROW_NUMBER() OVER (PARTITION BY PO_No ORDER BY File_Date DESC, Import_ID DESC) AS rn
+                                FROM Zalo_PaymentImport
+                                WHERE FT_Cash IS NOT NULL AND FT_Cash <> ''
+                            ),
+                            UniqueProject AS (
+                                SELECT PONo, MIN(Project_Name) AS Project_Name
+                                FROM PO_head
+                                GROUP BY PONo
+                            )
                             SELECT z.File_Date, z.PO_No, z.Ecount_No, z.Final_Amount, z.Paid_Date,
                                    z.FT_Cash, z.Progress_Status, z.Note,
                                    ISNULL(ph.Project_Name, '') AS Project_Name,
@@ -4243,11 +4274,11 @@ btnPrintDoc.Click += (s, e) =>
                                     FROM PO_PrintRequestHistory prh
                                     WHERE UPPER(LTRIM(RTRIM(ISNULL(prh.PONo,'')))) =
                                           UPPER(LTRIM(RTRIM(ISNULL(z.PO_No,''))))) AS Print_Count
-                            FROM Zalo_PaymentImport z
-                            LEFT JOIN PO_head ph
+                            FROM LatestImport z
+                            LEFT JOIN UniqueProject ph
                                    ON UPPER(LTRIM(RTRIM(ISNULL(ph.PONo,'')))) =
                                       UPPER(LTRIM(RTRIM(ISNULL(z.PO_No,''))))
-                            WHERE z.FT_Cash IS NOT NULL AND z.FT_Cash <> ''
+                            WHERE z.rn = 1
                               {ftWhere}
                               AND z.File_Date >= @from AND z.File_Date <= @to
                               {projWhere}
@@ -4313,6 +4344,7 @@ btnPrintDoc.Click += (s, e) =>
                     UpdateStatusButtonText();
 
                     ApplyLocalFilter(); // áp dụng filter client-side + cập nhật lblCount
+                    ApplyDocCache();   // khôi phục INV/Delivery đã tìm trước đó
                 }
                 catch (Exception ex) { lblCount.Text = "❌ Lỗi: " + ex.Message; }
                 finally { btnSearch.Enabled = true; }
@@ -4363,6 +4395,10 @@ btnPrintDoc.Click += (s, e) =>
                         row.Cells["FT_INV"].Value       = inv;
                         row.Cells["FT_Delivery"].Value  = del;
                         if (!string.IsNullOrEmpty(ip) || !string.IsNullOrEmpty(dp)) found++;
+                        // Lưu vào cache để DoLoadData có thể khôi phục sau khi reload
+                        string poKey = row.Cells["FT_PONo"].Value?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(poKey))
+                            docCache[poKey] = (inv, del, ip, dp);
                     }
                     lblCount.Text = $"Tổng: {dgv.Rows.Count} bản ghi  |  Tài liệu: {found} PO  |  Double-click ô INV / Delivery để mở file";
                 }
