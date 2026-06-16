@@ -33,7 +33,7 @@ namespace MPR_Managerment.Forms
     public partial class frmWarehouses_v2 : Form
     {
         private TabControl mainTabControl;
-        private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo, pageFillInvoiceNo_v2;
+        private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo, pageFillInvoiceNo_v2, pageExportWarehouse_V2;
         private TabPage pageSaveDelivertNote;
         private List<ProjectInfo> _dtProject = new List<ProjectInfo>();
         private DateTimePicker dtpFromDate, dtpToDate;
@@ -97,6 +97,7 @@ namespace MPR_Managerment.Forms
             SetupFillInvoiceNotLayout(pageFillInvoiceNo);
             SetupFillInvoiceNoLayout_v2(pageFillInvoiceNo_v2);
             SetupSaveDeliveryNotetLayout(pageSaveDelivertNote);
+            SetupExportWarehouseLayout_V2(pageExportWarehouse_V2);
             TrackButtonClick();
             LoadComboboxProject();
             HandleComboBoxIndexChange();
@@ -176,6 +177,10 @@ namespace MPR_Managerment.Forms
             pageSaveDelivertNote.Text = "🗄️ Phiếu giao hàng";
             pageSaveDelivertNote.BackColor = Color.White;
 
+            pageExportWarehouse_V2 = new TabPage();
+            pageExportWarehouse_V2.Text = "  📤  Xuất kho  ";
+            pageExportWarehouse_V2.BackColor = Color.White;
+
             // 5. Thêm các Page vào TabControl
             if (AppSession.CurrentUser.Role_ID == 1)
             {
@@ -185,14 +190,20 @@ namespace MPR_Managerment.Forms
                 mainTabControl.TabPages.Add(pageFillInvoiceNo_v2);
                 mainTabControl.TabPages.Add(pageFillInvoiceNo);
                 mainTabControl.TabPages.Add(pageSaveDelivertNote);
+                mainTabControl.TabPages.Add(pageExportWarehouse_V2);
             }
             else
             {
                 mainTabControl.TabPages.Add(pageWarehouse);
             }
 
-            if (AppSession.CurrentUser.Username.Equals("lehong")
-                || AppSession.CurrentUser.Username.Equals("dunglam"))
+            if (AppSession.CurrentUser.Username.Equals("lehong"))
+            {
+                mainTabControl.TabPages.Add(pageImport);
+                mainTabControl.TabPages.Add(pageExport);
+                mainTabControl.TabPages.Add(pageExportWarehouse_V2);
+            }
+            if (AppSession.CurrentUser.Username.Equals("dunglam"))
             {
                 mainTabControl.TabPages.Add(pageImport);
                 mainTabControl.TabPages.Add(pageExport);
@@ -883,6 +894,14 @@ namespace MPR_Managerment.Forms
             ucDelivery.Dock = DockStyle.Fill;
             parent.Controls.Add(ucDelivery);
             ucDelivery.BringToFront();
+        }
+
+        public void SetupExportWarehouseLayout_V2(TabPage parent)
+        { 
+            ucExportWarehouse_V2 ucExportWarehouse_V2 = new ucExportWarehouse_V2();
+            ucExportWarehouse_V2.Dock = DockStyle.Fill;
+            parent.Controls.Add(ucExportWarehouse_V2);
+            ucExportWarehouse_V2.BringToFront();
         }
 
         public void SetupFillInvoiceNotLayout(TabPage parent)
