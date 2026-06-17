@@ -32,7 +32,15 @@ namespace MPR_Managerment.Forms.ExportGUI
 
             Common.Common.CreateButtonSearch(btnSearch, "🔍 Tìm kiếm");
             Common.Common.CreateButtonRefresh(btnRefresh);
-            
+            Common.Common.CreateButtonAdd(btnAddXK, "✅ Thêm phiếu mới");
+            Common.Common.CreateButtonPrint(btnInXK, "🖨 In");
+            Common.Common.CreateButtonSave(btnUpdateStatus, "Cập nhật trạng thái        ⏷");
+
+            // Initialize status dropdown menu
+            btnUpdateStatus.Click += (s, e) => {
+                _statusMenu.Show(btnUpdateStatus, new System.Drawing.Point(0, btnUpdateStatus.Height));
+            };
+
             btnSearch.Click += BtnSearch_Click;
             btnRefresh.Click += BtnRefresh_Click;
 
@@ -175,6 +183,54 @@ namespace MPR_Managerment.Forms.ExportGUI
             {
                 string exportNo = grid.Rows[e.RowIndex].Cells["Export_No"].Value?.ToString() ?? "N/A";
                 MessageBox.Show($"Chức năng In phiếu xuất kho {exportNo} sẽ được cập nhật sau.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // Handle status menu item click
+        private async void StatusMenu_ItemClicked(object? sender, ToolStripItemClickedEventArgs e)
+        {
+            string newStatus = e.ClickedItem.Text;
+            await UpdateSelectedRowsStatusAsync(newStatus);
+        }
+
+        // Update status of selected rows in the grid and database
+        private async Task UpdateSelectedRowsStatusAsync(string newStatus)
+        {
+            var rowsToUpdate = new List<int>();
+            foreach (DataGridViewRow row in dgvHisExport.Rows)
+            {
+                if (row.Cells["Select"].Value is bool isSelected && isSelected)
+                {
+                    if (row.Cells["Export_ID"].Value != null)
+                    {
+                        rowsToUpdate.Add(Convert.ToInt32(row.Cells["Export_ID"].Value));
+                        row.Cells["Status"].Value = newStatus;
+                    }
+                }
+            }
+
+            if (rowsToUpdate.Count == 0) return;
+
+            string ids = string.Join(",", rowsToUpdate);
+            string sql = $"UPDATE [dbo].[ExportWarehouseHeader] SET Status = @status, Update_By = @user, Update_Date = GETDATE() WHERE Export_ID IN ({ids})";
+
+            try
+            {
+                using (SqlConnection conn = DatabaseHelper.GetConnection())
+                {
+                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@status", newStatus);
+                        cmd.Parameters.AddWithValue("@user", Environment.UserName);
+                        await conn.OpenAsync();
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+                MessageBox.Show($"Cập nhật trạng thái thành công cho {rowsToUpdate.Count} dòng.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi khi cập nhật trạng thái: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

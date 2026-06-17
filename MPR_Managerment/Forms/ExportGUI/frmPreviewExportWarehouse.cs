@@ -123,7 +123,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             if (e.ColumnIndex == 0 && e.RowIndex >= 0)
             {
                 bool isChecked = (bool)dgvDetails.Rows[e.RowIndex].Cells[0].EditedFormattedValue;
-                btnDelete.Visible = dgvDetails.Rows.Cast<DataGridViewRow>().Any(r => (bool)(r.Cells[0].EditedFormattedValue ?? false));
+                btnDelete.Enabled = dgvDetails.Rows.Cast<DataGridViewRow>().Any(r => (bool)(r.Cells[0].EditedFormattedValue ?? false));
             }
         }
 
@@ -136,7 +136,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                     _dtDetails.Rows.RemoveAt(i);
                 }
             }
-            btnDelete.Visible = false;
+            btnDelete.Enabled = false;
         }
 
         private void btnSave_Click(object sender, EventArgs e)

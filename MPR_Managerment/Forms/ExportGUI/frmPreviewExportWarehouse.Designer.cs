@@ -36,6 +36,7 @@
             panel6 = new Panel();
             flowLayoutPanel2 = new FlowLayoutPanel();
             btnDelete = new Button();
+            btnAddRow = new Button();
             ((System.ComponentModel.ISupportInitialize)dgvDetails).BeginInit();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
@@ -278,6 +279,7 @@
             // flowLayoutPanel2
             // 
             flowLayoutPanel2.Controls.Add(btnDelete);
+            flowLayoutPanel2.Controls.Add(btnAddRow);
             flowLayoutPanel2.Location = new Point(3, 81);
             flowLayoutPanel2.Name = "flowLayoutPanel2";
             flowLayoutPanel2.Size = new Size(703, 36);
@@ -285,15 +287,22 @@
             // 
             // btnDelete
             // 
-            btnDelete.AutoSize = true;
-            btnDelete.Dock = DockStyle.Fill;
+            btnDelete.Enabled = false;
             btnDelete.Location = new Point(3, 3);
             btnDelete.Name = "btnDelete";
             btnDelete.Size = new Size(150, 30);
             btnDelete.TabIndex = 4;
             btnDelete.Text = "Delete";
-            btnDelete.Visible = false;
             btnDelete.Click += btnDelete_Click;
+            // 
+            // btnAddRow
+            // 
+            btnAddRow.Location = new Point(159, 3);
+            btnAddRow.Name = "btnAddRow";
+            btnAddRow.Size = new Size(150, 30);
+            btnAddRow.TabIndex = 4;
+            btnAddRow.Text = "Thêm dòng";
+            btnAddRow.Click += btnDelete_Click;
             // 
             // frmPreviewExportWarehouse
             // 
@@ -317,9 +326,9 @@
             panel4.ResumeLayout(false);
             panel4.PerformLayout();
             flowLayoutPanel2.ResumeLayout(false);
-            flowLayoutPanel2.PerformLayout();
             ResumeLayout(false);
         }
+
         private System.Windows.Forms.TextBox txtToProject;
         private System.Windows.Forms.TextBox txtCreateBy;
         private System.Windows.Forms.DataGridView dgvDetails;
@@ -344,5 +353,6 @@
         private Button btnDelete;
         private FlowLayoutPanel flowLayoutPanel3;
         private Button btnCancel;
+        private Button btnAddRow;
     }
 }
