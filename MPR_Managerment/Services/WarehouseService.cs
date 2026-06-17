@@ -10,6 +10,23 @@ namespace MPR_Managerment.Services
 {
     public class WarehouseService
     {
+
+        public async Task<DataTable> GetWarehouse_ForExport_V2(string projectCode = "OVPP1")
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = $"SELECT Import_ID, ID_Code , Item_Name, Size, UNIT FROM Warehouse_Import WHERE Project_Code = '{projectCode}'";
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
+
         public async Task<DataTable> GetRIROfProject(string keyword)
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())

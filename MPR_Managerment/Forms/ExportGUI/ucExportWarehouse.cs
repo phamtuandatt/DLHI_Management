@@ -788,7 +788,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                     List<int> visibleColIndices = new List<int>();
                     for (int i = 0; i < dgvHis.Columns.Count; i++)
                     {
-                        if (dgvHis.Columns[i].Visible && !dgvHis.Columns[i].Name.Contains("ID", StringComparison.OrdinalIgnoreCase))
+                        if (dgvHis.Columns[i].Visible)
                         {
                             ws.Cells[1, colIndex].Value = dgvHis.Columns[i].HeaderText;
                             ws.Cells[1, colIndex].Style.Font.Bold = true;
@@ -808,7 +808,18 @@ namespace MPR_Managerment.Forms.ExportGUI
                         foreach (int colIdx in visibleColIndices)
                         {
                             var cell = ws.Cells[i + 2, c];
-                            cell.Value = dgvHis.Rows[i].Cells[colIdx].Value;
+                            var cellValue = dgvHis.Rows[i].Cells[colIdx].Value;
+
+                            if (cellValue is DateTime dtValue)
+                            {
+                                cell.Value = dtValue;
+                                cell.Style.Numberformat.Format = "dd/MM/yyyy";
+                            }
+                            else
+                            {
+                                cell.Value = cellValue;
+                            }
+
                             cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
                             c++;
                         }

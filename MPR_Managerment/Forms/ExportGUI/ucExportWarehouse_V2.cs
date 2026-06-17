@@ -29,9 +29,14 @@ namespace MPR_Managerment.Forms.ExportGUI
             await LoadProjectsAsync();
             LoadStatuses();
             await LoadHisExportAsync();
+
+            Common.Common.CreateButtonSearch(btnSearch, "🔍 Tìm kiếm");
+            Common.Common.CreateButtonRefresh(btnRefresh);
             
             btnSearch.Click += BtnSearch_Click;
             btnRefresh.Click += BtnRefresh_Click;
+
+            dtpFromDate.Value = DateTime.Today.AddDays(-30);
         }
 
         private async Task LoadProjectsAsync()
@@ -79,7 +84,7 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             dgvHisExport.ReadOnly = false;
             dgvHisExport.AllowUserToAddRows = false;
-            dgvHisExport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvHisExport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             dgvHisExport.BackgroundColor = Color.White;
             dgvHisExport.BorderStyle = BorderStyle.FixedSingle;
             dgvHisExport.RowHeadersVisible = false;
@@ -91,7 +96,7 @@ namespace MPR_Managerment.Forms.ExportGUI
 
             if (!dgvHisExport.Columns.Contains("Select"))
             {
-                var chkCol = new DataGridViewCheckBoxColumn { Name = "Select", HeaderText = "", Width = 40, ReadOnly = false };
+                var chkCol = new DataGridViewCheckBoxColumn { Name = "Select", HeaderText = "", Width = 30, ReadOnly = false };
                 dgvHisExport.Columns.Insert(0, chkCol);
             }
 
@@ -106,6 +111,20 @@ namespace MPR_Managerment.Forms.ExportGUI
                 if (col.Name != "Select") col.ReadOnly = true;
                 if (col.Name.Contains("ID", StringComparison.OrdinalIgnoreCase)) col.Visible = false;
             }
+
+            // Set specific column widths
+            if (dgvHisExport.Columns.Contains("Select")) { dgvHisExport.Columns["Select"].Width = 30; dgvHisExport.Columns["Select"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Export_No")) { dgvHisExport.Columns["Export_No"].Width = 150; dgvHisExport.Columns["Export_No"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("From_Project_Name")) { dgvHisExport.Columns["From_Project_Name"].Width = 180; dgvHisExport.Columns["From_Project_Name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("To_Project_Name")) { dgvHisExport.Columns["To_Project_Name"].Width = 180; dgvHisExport.Columns["To_Project_Name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Export_Totals")) { dgvHisExport.Columns["Export_Totals"].Width = 120; dgvHisExport.Columns["Export_Totals"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Status")) { dgvHisExport.Columns["Status"].Width = 100; dgvHisExport.Columns["Status"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Notes")) { dgvHisExport.Columns["Notes"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; }
+            if (dgvHisExport.Columns.Contains("Create_By")) { dgvHisExport.Columns["Create_By"].Width = 120; dgvHisExport.Columns["Create_By"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Create_Date")) { dgvHisExport.Columns["Create_Date"].Width = 150; dgvHisExport.Columns["Create_Date"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Update_By")) { dgvHisExport.Columns["Update_By"].Width = 120; dgvHisExport.Columns["Update_By"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Update_Date")) { dgvHisExport.Columns["Update_Date"].Width = 150; dgvHisExport.Columns["Update_Date"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Print")) { dgvHisExport.Columns["Print"].Width = 60; dgvHisExport.Columns["Print"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
 
             dgvHisExport.CellContentClick -= DgvHisExport_CellContentClick;
             dgvHisExport.CellContentClick += DgvHisExport_CellContentClick;
@@ -131,7 +150,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.SelectedItem}'";
             
             // Date filter (assuming Create_Date is the column)
-            filter += $" AND CONVERT(DATE, Create_Date) = '{dtpDate.Value:yyyy-MM-dd}'";
+            filter += $" AND Create_Date  >= '{dtpFromDate.Value:yyyy-MM-dd}' AND Create_Date  <= '{dtpToDate.Value:yyyy-MM-dd}'";
 
             DataView dv = _dtHisExport.DefaultView;
             dv.RowFilter = filter;
@@ -143,7 +162,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             cboProject.SelectedIndex = -1;
             txtSearch.Clear();
             cboStatus.SelectedIndex = -1;
-            dtpDate.Value = DateTime.Now;
+            dtpFromDate.Value = DateTime.Now;
             _dtHisExport.DefaultView.RowFilter = "";
             dgvHisExport.DataSource = _dtHisExport;
         }
