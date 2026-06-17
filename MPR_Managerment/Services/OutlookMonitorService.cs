@@ -190,7 +190,7 @@ namespace MPR_Managerment.Services
             string fwdArg = string.IsNullOrWhiteSpace(ForwardTo) ? "" : $" --forward-to \"{ForwardTo}\"";
             var psi = new ProcessStartInfo
             {
-                FileName = "python",
+                FileName = FindPythonExe(),
                 Arguments = $"\"{ScriptPath}\" --save-dir \"{dir}\" --log-file \"{LogFile}\" --success-log-file \"{SuccessLogFile}\" --pid-file \"{PidFile}\"{fwdArg}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -369,6 +369,7 @@ namespace MPR_Managerment.Services
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Hidden>true</Hidden>
     <Priority>7</Priority>
   </Settings>
   <Actions Context=""Author"">

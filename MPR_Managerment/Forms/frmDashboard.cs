@@ -2197,6 +2197,15 @@ finally
                         INNER JOIN PO_head   pox  ON pox.PO_ID = podx.PO_ID
                         INNER JOIN RIR_head  r    ON r.PONo = pox.PONo
                         WHERE ISNULL(pox.Status,'') <> 'Cancelled'
+                    ),
+                    WI_Flat AS (
+                        SELECT sd.CurrID, SUM(wi.Qty_Import) AS TotalImport
+                        FROM Sib_Details sd
+                        INNER JOIN PO_Detail podx ON podx.MPR_Detail_ID = sd.SibID
+                        INNER JOIN PO_head   pox  ON pox.PO_ID = podx.PO_ID
+                        INNER JOIN Warehouse_Import wi ON wi.PO_Detail_ID = podx.PO_Detail_ID
+                        WHERE ISNULL(pox.Status,'') <> 'Cancelled'
+                        GROUP BY sd.CurrID
                     )
                     SELECT
                         h.MPR_No,
@@ -2216,6 +2225,7 @@ finally
                         ISNULL(CAST(NULLIF(TRY_CAST(d.F_Length_mm  AS DECIMAL(18,4)),0) AS NVARCHAR),'') AS F_Dai,
                         ISNULL(d.UNIT,          '')  AS UNIT,
                         ISNULL(d.Qty_Per_Sheet, 0)   AS SL,
+                        ISNULL(wi.TotalImport,  0)   AS SL_Nhap,
                         ISNULL(d.Weight_kg,     0)   AS KG,
                         ISNULL(d.MPS_Info,     '')   AS MPS_Info,
                         ISNULL(d.Usage_Location,'')  AS Usage_Location,
@@ -2233,6 +2243,7 @@ finally
                         ).value('.','NVARCHAR(MAX)'), 1, 2, ''), '') AS RIR_List
                     FROM MPR_Header  h
                     INNER JOIN MPR_Details d ON d.MPR_ID = h.MPR_ID
+                    LEFT JOIN WI_Flat wi ON wi.CurrID = d.Detail_ID
                     WHERE h.MPR_No IN (" + inClause + @")
                       AND ISNULL(d.Is_Deleted, 0) = 0
                       AND ISNULL(TRY_CAST(TRY_CAST(h.Rev AS DECIMAL(10,2)) AS INT),0) = (
@@ -2258,7 +2269,7 @@ finally
                 using var pkg = new ExcelPackage();
                 var ws = pkg.Workbook.Worksheets.Add("Chi tiết MPR");
 
-                int TOTAL_COLS = 16;
+                int TOTAL_COLS = 25;
                 ws.Cells[1, 1].Value = "BÁO CÁO CHI TIẾT ĐẶT HÀNG MPR";
                 ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
                 ws.Cells[1, 1].Style.Font.Size = 14;
@@ -2271,18 +2282,18 @@ finally
                 // Cột 1-5  : thông tin MPR header
                 // Cột 6-22 : chi tiết hạng mục MPR_Details đầy đủ
                 // Cột 23-24: PO và RIR
-                string[] hdrs = {
-                    // MPR header (5 cột)
-                    "MPR No", "Dự án", "TT MPR", "Ngày cần", "Ghi chú MPR",
-                    // Chi tiết hạng mục MPR_Details (17 cột)
-                    "STT", "Tên vật tư", "Mô tả", "Vật liệu",
-                    "A-Dày(mm)", "B-Sâu(mm)", "C-Rộng(mm)", "D-Bụng(mm)", "E-Cánh(mm)", "F-Dài(mm)",
-                    "ĐVT", "Số lượng", "KG",
-                    "MPS Info", "Nơi dùng", "REV", "Ghi chú",
-                    // PO và RIR (2 cột)
-                    "Số PO", "Số RIR"
-                };
-                TOTAL_COLS = hdrs.Length; // = 24
+string[] hdrs = {
+    // MPR header (5 cột)
+    "MPR No", "Dự án", "TT MPR", "Ngày cần", "Ghi chú MPR",
+    // Chi tiết hạng mục MPR_Details (18 cột)
+    "STT", "Tên vật tư", "Mô tả", "Vật liệu",
+    "A-Dày(mm)", "B-Sâu(mm)", "C-Rộng(mm)", "D-Bụng(mm)", "E-Cánh(mm)", "F-Dài(mm)",
+    "ĐVT", "Số lượng", "Số lượng nhập kho", "KG",
+    "MPS Info", "Nơi dùng", "REV", "Ghi chú",
+    // PO và RIR (2 cột)
+    "Số PO", "Số RIR"
+};
+                TOTAL_COLS = hdrs.Length; // = 25
 
                 // Cập nhật merge tiêu đề
                 ws.Cells[1, 1, 1, TOTAL_COLS].Merge = true;
@@ -2300,9 +2311,9 @@ finally
                     hCell.Style.WrapText = true;
                     hCell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
 
-                    // Màu header: MPR=xanh đậm (1-5), chi tiết=xanh dương (6-22), PO/RIR=tím (23-24)
+                    // Màu header: MPR=xanh đậm (1-5), chi tiết=xanh dương (6-23), PO/RIR=tím (24-25)
                     Color hColor = c < 5 ? Color.FromArgb(0, 70, 127) :
-                                   c < 22 ? Color.FromArgb(0, 120, 212) :
+                                   c < 23 ? Color.FromArgb(0, 120, 212) :
                                             Color.FromArgb(102, 51, 153);
                     hCell.Style.Fill.BackgroundColor.SetColor(hColor);
                     hCell.Style.Font.Color.SetColor(Color.White);
@@ -2371,38 +2382,39 @@ finally
                     ws.Cells[rowIdx, 15].Value = dimVal(dr["F_Dai"]);
                     ws.Cells[rowIdx, 16].Value = dr["UNIT"]?.ToString();           // ĐVT
                     ws.Cells[rowIdx, 17].Value = dr["SL"] != DBNull.Value ? Convert.ToDecimal(dr["SL"]) : (object)"";  // SL
-                    ws.Cells[rowIdx, 18].Value = dr["KG"] != DBNull.Value ? Convert.ToDecimal(dr["KG"]) : (object)"";  // KG
-                    ws.Cells[rowIdx, 19].Value = dr["MPS_Info"]?.ToString();       // MPS Info
-                    ws.Cells[rowIdx, 20].Value = dr["Usage_Location"]?.ToString(); // Nơi dùng
-                    ws.Cells[rowIdx, 21].Value = dr["REV"]?.ToString();            // REV
-                    ws.Cells[rowIdx, 22].Value = dr["Detail_Remarks"]?.ToString(); // Ghi chú
+                    ws.Cells[rowIdx, 18].Value = dr["SL_Nhap"] != DBNull.Value ? Convert.ToDecimal(dr["SL_Nhap"]) : (object)""; // SL Nhập
+                    ws.Cells[rowIdx, 19].Value = dr["KG"] != DBNull.Value ? Convert.ToDecimal(dr["KG"]) : (object)"";  // KG
+                    ws.Cells[rowIdx, 20].Value = dr["MPS_Info"]?.ToString();       // MPS Info
+                    ws.Cells[rowIdx, 21].Value = dr["Usage_Location"]?.ToString(); // Nơi dùng
+                    ws.Cells[rowIdx, 22].Value = dr["REV"]?.ToString();            // REV
+                    ws.Cells[rowIdx, 23].Value = dr["Detail_Remarks"]?.ToString(); // Ghi chú
 
-                    // ── Cột 23: Số PO ──
+                    // ── Cột 24: Số PO ──
                     string poList = dr["PO_List"]?.ToString() ?? "";
                     if (!string.IsNullOrEmpty(poList))
                     {
-                        ws.Cells[rowIdx, 23].Value = poList;
-                        ws.Cells[rowIdx, 23].Style.Font.Color.SetColor(Color.FromArgb(0, 120, 212));
-                        ws.Cells[rowIdx, 23].Style.Font.Bold = poList.Contains(",");
+                        ws.Cells[rowIdx, 24].Value = poList;
+                        ws.Cells[rowIdx, 24].Style.Font.Color.SetColor(Color.FromArgb(0, 120, 212));
+                        ws.Cells[rowIdx, 24].Style.Font.Bold = poList.Contains(",");
                     }
                     else
                     {
-                        ws.Cells[rowIdx, 23].Value = "Chưa có PO";
-                        ws.Cells[rowIdx, 23].Style.Font.Color.SetColor(Color.FromArgb(220, 53, 69));
-                        ws.Cells[rowIdx, 23].Style.Font.Italic = true;
+                        ws.Cells[rowIdx, 24].Value = "Chưa có PO";
+                        ws.Cells[rowIdx, 24].Style.Font.Color.SetColor(Color.FromArgb(220, 53, 69));
+                        ws.Cells[rowIdx, 24].Style.Font.Italic = true;
                     }
 
-                    // ── Cột 24: Số RIR ──
+                    // ── Cột 25: Số RIR ──
                     string rirList = dr["RIR_List"]?.ToString() ?? "";
                     if (!string.IsNullOrEmpty(rirList))
                     {
-                        ws.Cells[rowIdx, 24].Value = rirList;
-                        ws.Cells[rowIdx, 24].Style.Font.Color.SetColor(Color.FromArgb(40, 167, 69));
-                        ws.Cells[rowIdx, 24].Style.Font.Bold = rirList.Contains(",");
+                        ws.Cells[rowIdx, 25].Value = rirList;
+                        ws.Cells[rowIdx, 25].Style.Font.Color.SetColor(Color.FromArgb(40, 167, 69));
+                        ws.Cells[rowIdx, 25].Style.Font.Bold = rirList.Contains(",");
                     }
                     else
                     {
-                        ws.Cells[rowIdx, 24].Value = "";
+                        ws.Cells[rowIdx, 25].Value = "";
                     }
 
                     // Tô màu toàn dòng
@@ -2412,8 +2424,8 @@ finally
                     // Tô nền đỏ nhạt vùng PO/RIR nếu chưa có PO
                     if (string.IsNullOrEmpty(poList))
                     {
-                        ws.Cells[rowIdx, 23, rowIdx, 24].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        ws.Cells[rowIdx, 23, rowIdx, 24].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 235, 235));
+                        ws.Cells[rowIdx, 24, rowIdx, 25].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                        ws.Cells[rowIdx, 24, rowIdx, 25].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 235, 235));
                     }
 
                     // Border từng dòng
@@ -2439,10 +2451,18 @@ finally
                         if (c <= TOTAL_COLS)
                             ws.Cells[5, c, rowIdx - 1, c].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
 
-                // Căn chỉnh cột số (STT, kích thước, SL, KG)
-                foreach (int c in new[] { 6, 10, 11, 12, 13, 14, 15, 17, 18 })
+                // Căn chỉnh cột số (STT, kích thước, SL, SL Nhập, KG)
+                foreach (int c in new[] { 6, 10, 11, 12, 13, 14, 15, 17, 18, 19 })
                     if (c <= TOTAL_COLS)
                         ws.Column(c).Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+
+                // Highlight cột "Số lượng nhập kho" (cột 18) màu xanh nhạt
+                if (dt.Rows.Count > 0 && TOTAL_COLS >= 18)
+                {
+                    var importQtyRange = ws.Cells[5, 18, rowIdx - 1, 18];
+                    importQtyRange.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    importQtyRange.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(210, 235, 255));
+                }
 
                 // Độ rộng cột cố định — thay AutoFitColumns() để tránh chậm với dữ liệu lớn
                 double[] colWidths = {
@@ -2463,13 +2483,14 @@ finally
                     12,  // 15 F-Dài
                     8,   // 16 ĐVT
                     10,  // 17 Số lượng
-                    10,  // 18 KG
-                    16,  // 19 MPS Info
-                    16,  // 20 Nơi dùng
-                    6,   // 21 REV
-                    22,  // 22 Ghi chú
-                    35,  // 23 Số PO
-                    22,  // 24 Số RIR
+                    10,  // 18 Số lượng nhập kho
+                    10,  // 19 KG
+                    16,  // 20 MPS Info
+                    16,  // 21 Nơi dùng
+                    6,   // 22 REV
+                    22,  // 23 Ghi chú
+                    35,  // 24 Số PO
+                    22,  // 25 Số RIR
                 };
                 for (int ci = 0; ci < colWidths.Length && ci < TOTAL_COLS; ci++)
                     ws.Column(ci + 1).Width = colWidths[ci];

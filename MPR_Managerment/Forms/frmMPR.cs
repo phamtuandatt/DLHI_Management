@@ -1387,6 +1387,15 @@ namespace MPR_Managerment.Forms
                 Resizable = DataGridViewTriState.True,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Imported_Qty",
+                HeaderText = "Nhập kho",
+                Width = 70,
+                ReadOnly = true,
+                Resizable = DataGridViewTriState.True,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
         }
 
         private void DgvDetails_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
@@ -1414,6 +1423,19 @@ namespace MPR_Managerment.Forms
                 if (!string.IsNullOrEmpty(val))
                 {
                     e.CellStyle.ForeColor = Color.FromArgb(40, 167, 69);
+                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                }
+            }
+
+            // Cột Imported_Qty (Nhập kho) — màu xanh dương bold, format số
+            if (colName == "Imported_Qty")
+            {
+                string val = e.Value?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(val) && decimal.TryParse(val, out decimal qtyImp) && qtyImp > 0)
+                {
+                    e.Value = qtyImp == Math.Floor(qtyImp) ? ((long)qtyImp).ToString() : qtyImp.ToString("0.##");
+                    e.FormattingApplied = true;
+                    e.CellStyle.ForeColor = Color.FromArgb(0, 120, 212);
                     e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
                 }
             }
@@ -1856,6 +1878,91 @@ namespace MPR_Managerment.Forms
             return dict;
         }
 
+        // =====================================================================
+        // LẤY SỐ LƯỢNG NHẬP KHO CHO TỪNG MPR DETAIL
+        // Tính qua: MPR_Details → PO_Detail → Warehouse_Import
+        // Hỗ trợ cả MPR Revise (tương tự GetPoMappingForMpr)
+        // =====================================================================
+        private Dictionary<int, decimal> GetImportedQtyForMpr(int mprId)
+        {
+            var dict = new Dictionary<int, decimal>();
+            if (mprId <= 0) return dict;
+            try
+            {
+                using (var conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    // Lấy MPR_No để tính baseMprNo
+                    string curMprNo = "";
+                    using (var cmdNo = new SqlCommand(
+                        "SELECT MPR_No FROM MPR_Header WHERE MPR_ID = @mprId", conn))
+                    {
+                        cmdNo.Parameters.AddWithValue("@mprId", mprId);
+                        curMprNo = cmdNo.ExecuteScalar()?.ToString() ?? "";
+                    }
+                    string baseMprNo = curMprNo.Contains("_Rev.")
+                        ? curMprNo.Substring(0, curMprNo.IndexOf("_Rev."))
+                        : curMprNo;
+
+                    string sql = @"
+                        -- Bước 1: Nhập kho liên kết trực tiếp với Detail_ID hiện tại
+                        SELECT cur.Detail_ID AS CurDetailId,
+                               ISNULL(SUM(wi.Qty_Import), 0) AS TotalImport
+                        FROM   MPR_Details cur
+                        INNER JOIN PO_Detail pod ON pod.MPR_Detail_ID = cur.Detail_ID
+                        INNER JOIN PO_head   poh ON poh.PO_ID = pod.PO_ID
+                        LEFT  JOIN Warehouse_Import wi ON wi.PO_Detail_ID = pod.PO_Detail_ID
+                        WHERE  cur.MPR_ID = @mprId
+                          AND  ISNULL(poh.Status, '') <> 'Cancelled'
+                        GROUP BY cur.Detail_ID
+
+                        UNION ALL
+
+                        -- Bước 2: Nhập kho từ Rev khác — match theo Item_No
+                        SELECT cur.Detail_ID AS CurDetailId,
+                               ISNULL(SUM(wi.Qty_Import), 0) AS TotalImport
+                        FROM   MPR_Details cur
+                        INNER JOIN MPR_Details old
+                               ON TRY_CAST(TRY_CAST(old.Item_No AS DECIMAL(10,2)) AS INT)
+                                = TRY_CAST(TRY_CAST(cur.Item_No AS DECIMAL(10,2)) AS INT)
+                              AND TRY_CAST(TRY_CAST(cur.Item_No AS DECIMAL(10,2)) AS INT) > 0
+                              AND old.MPR_ID  != cur.MPR_ID
+                              AND ISNULL(old.Is_Deleted, 0) = 0
+                        INNER JOIN MPR_Header oldH ON oldH.MPR_ID = old.MPR_ID
+                        INNER JOIN PO_Detail pod   ON pod.MPR_Detail_ID = old.Detail_ID
+                        INNER JOIN PO_head   poh   ON poh.PO_ID = pod.PO_ID
+                        LEFT  JOIN Warehouse_Import wi ON wi.PO_Detail_ID = pod.PO_Detail_ID
+                        WHERE  cur.MPR_ID = @mprId
+                          AND  ISNULL(cur.Is_Deleted, 0) = 0
+                          AND  (oldH.MPR_No = @baseNo OR oldH.MPR_No LIKE @baseNo + N'_Rev.%')
+                          AND  ISNULL(poh.Status, '') <> 'Cancelled'
+                        GROUP BY cur.Detail_ID";
+
+                    using (var cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@mprId", mprId);
+                        cmd.Parameters.AddWithValue("@baseNo", baseMprNo);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                if (reader["CurDetailId"] == DBNull.Value) continue;
+                                int detailId = Convert.ToInt32(reader["CurDetailId"]);
+                                decimal qty = Convert.ToDecimal(reader["TotalImport"]);
+                                if (dict.ContainsKey(detailId))
+                                    dict[detailId] += qty;
+                                else
+                                    dict[detailId] = qty;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return dict;
+        }
+
         private void LoadDetails(int mprId)
         {
             try
@@ -1864,6 +1971,7 @@ namespace MPR_Managerment.Forms
                 dgvDetails.Rows.Clear();
 
                 var poMapping = GetPoMappingForMpr(mprId);
+                var importMapping = GetImportedQtyForMpr(mprId);
 
                 // Load Is_Deleted từ DB
                 var deletedIds = new System.Collections.Generic.HashSet<int>();
@@ -1916,6 +2024,8 @@ namespace MPR_Managerment.Forms
                     row.Cells["REV"].Value = d.REV;
                     row.Cells["Remarks"].Value = d.Remarks;
                     row.Cells["PO_No"].Value = poMapping.ContainsKey(d.Detail_ID) ? poMapping[d.Detail_ID] : "";
+                    row.Cells["Imported_Qty"].Value = importMapping.ContainsKey(d.Detail_ID) && importMapping[d.Detail_ID] > 0
+                        ? importMapping[d.Detail_ID] : (object)"";
                 }
                 // Populate combobox filter voi cac gia tri thuc te tu cot PO_No
                 RefreshPOFilterCombo();

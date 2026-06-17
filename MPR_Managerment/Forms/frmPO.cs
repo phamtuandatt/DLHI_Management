@@ -33,7 +33,7 @@ namespace MPR_Managerment.Forms
         private DataGridView dgvDocPO; // Document: INV + Delivery theo PO đang chọn
         private TextBox txtSearch;
         private Button btnSearch, btnNewPO, btnDeletePO, btnClearHeader, btnExport, btnSavePO, btnUnlockSupplier;
-        private Button btnSearchBySupp, btnPOStatus;
+        private Button btnSearchBySupp, btnPOStatus, btnPrintBudget;
         private bool _supplierLocked = false;
         private Label lblStatus;
 
@@ -83,6 +83,7 @@ namespace MPR_Managerment.Forms
         private bool _isDomestic = true; // true = Mua trong nước (làm tròn số nguyên), false = Mua nước ngoài (2 chữ số thập phân)
         private bool _printDialogOpen = false; // giữ preview mở trong khi hộp thoại in đang hiển thị
         private bool _isLoadingPO = false; // suppress SelectionChanged trong lúc bind lần đầu
+        private bool _isPreparingBudget = false; // prevent re-entrant calls to BtnPrintBudget_ClickAsync
 
         private string _projectCodeImport = string.Empty;
         private Form TopOwner => (this.TopLevelControl as Form) ?? this;
@@ -308,7 +309,7 @@ private IWin32Window GetActiveOwner() => this;
             btnSearchBySupp = CreateButton("🔍 Tìm theo NCC", Color.FromArgb(102, 51, 153), Point.Empty, 130, 30); btnSearchBySupp.Tag = "130,30";
             btnPOStatus = CreateButton("📊 PO status", Color.FromArgb(255, 140, 0), Point.Empty, 110, 30); btnPOStatus.Tag = "110,30";
             var btnPaymentTop = CreateButton("💳 Payment", Color.FromArgb(0, 150, 100), Point.Empty, 110, 30); btnPaymentTop.Tag = "110,30";
-            var btnPrintBudget = CreateButton("📑 Budget", Color.FromArgb(70, 130, 180), Point.Empty, 90, 30); btnPrintBudget.Tag = "90,30";
+            btnPrintBudget = CreateButton("📑 Budget", Color.FromArgb(70, 130, 180), Point.Empty, 90, 30); btnPrintBudget.Tag = "90,30";
 
             foreach (var b in new[] { btnSearch, btnNewPO, btnDeletePO, btnSearchBySupp, btnPOStatus, btnPaymentTop, btnPrintBudget })
                 b.Margin = new Padding(0, 0, 4, 0);
@@ -3513,368 +3514,379 @@ private IWin32Window GetActiveOwner() => this;
         // =========================================================================
         private async Task BtnPrintBudget_ClickAsync()
         {
-            if (_selectedPO_ID == 0) { SafeWarn("Vui lòng chọn một PO trước!"); return; }
-
-            var selPO = _poList.Find(p => p.PO_ID == _selectedPO_ID);
-            if (selPO == null) return;
-
-            string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "PaymentStatus_template.xlsx");
-            if (!File.Exists(templatePath)) { SafeErr($"Không tìm thấy template:\n{templatePath}"); return; }
-
-    // Hỏi trước: mở trực tiếp hay lưu file
-    var choice = MessageBox.Show(
-        this,
-        "Bạn muốn làm gì với file Budget?\n\n" +
-        "  [Yes]    → Mở trực tiếp (không lưu)\n" +
-        "  [No]     → Lưu file rồi mở\n" +
-        "  [Cancel] → Huỷ",
-        "Xuất Budget",
-        MessageBoxButtons.YesNoCancel,
-        MessageBoxIcon.Question);
-
-            if (choice == DialogResult.Cancel) return;
-
-            bool openOnly = (choice == DialogResult.Yes);
-            string defaultName = $"PaymentStatus_{selPO.WorkorderNo}_{DateTime.Now:yyyyMMdd}.xlsx";
-
-            string savePath;
-            if (openOnly)
-            {
-                savePath = Path.Combine(Path.GetTempPath(), defaultName);
-            }
-            else
-            {
-                using var sfd = new SaveFileDialog
-                {
-                    Title = "Lưu Payment Status",
-                    Filter = "Excel Files|*.xlsx",
-                    FileName = Path.GetFileNameWithoutExtension(defaultName),
-                    InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
-                };
-                if (sfd.ShowDialog() != DialogResult.OK) return;
-                savePath = sfd.FileName;
-            }
-            string errMsg = null;
+            if (_isPreparingBudget) return;
+            _isPreparingBudget = true;
+            btnPrintBudget.Enabled = false;
             this.Cursor = Cursors.WaitCursor;
+
             try
             {
-                // Snapshot dữ liệu cần trước Task.Run
-                string projName = selPO.Project_Name ?? "";
-                string workorderNo = selPO.WorkorderNo ?? "";
-                bool isDom = _isDomestic;
+                if (_selectedPO_ID == 0) { SafeWarn("Vui lòng chọn một PO trước!"); return; }
 
-                await Task.Run(() =>
+                var selPO = _poList.Find(p => p.PO_ID == _selectedPO_ID);
+                if (selPO == null) return;
+
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "PaymentStatus_template.xlsx");
+                if (!File.Exists(templatePath)) { SafeErr($"Không tìm thấy template:\n{templatePath}"); return; }
+
+                // Hỏi trước: mở trực tiếp hay lưu file
+                var choice = MessageBox.Show(
+                    this,
+                    "Bạn muốn làm gì với file Budget?\n\n" +
+                    "  [Yes]    → Mở trực tiếp (không lưu)\n" +
+                    "  [No]     → Lưu file rồi mở\n" +
+                    "  [Cancel] → Huỷ",
+                    "Xuất Budget",
+                    MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Question);
+
+                if (choice == DialogResult.Cancel) return;
+
+                bool openOnly = (choice == DialogResult.Yes);
+                string defaultName = $"PaymentStatus_{selPO.WorkorderNo}_{DateTime.Now:yyyyMMdd}.xlsx";
+
+                string savePath;
+                if (openOnly)
                 {
-                    try
-                    {
-                        // ── 1. Load project info ──
-                        var allProjects = new ProjectService().GetAll();
-                        var proj = allProjects.Find(p =>
-                            (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(projName, StringComparison.OrdinalIgnoreCase)));
-
-                        decimal budget = proj?.PJBudget ?? 0;
-                        string projectCode = proj?.ProjectCode ?? workorderNo;
-
-                        // ── 2. Tất cả PO cùng project (loại bỏ các PO đã huỷ - Cancelled/Cancel) ──
-var sameProjPOs = _poList.Where(p =>
-    ((!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
-         (!string.IsNullOrEmpty(p.Project_Name) && p.Project_Name.Equals(projName, StringComparison.OrdinalIgnoreCase)))
-    && !string.Equals(p.Status?.Trim(), "Cancelled", StringComparison.OrdinalIgnoreCase)
-    && !string.Equals(p.Status?.Trim(), "Cancel", StringComparison.OrdinalIgnoreCase))
-    .OrderBy(p => p.PONo).ToList();
-                        if (!sameProjPOs.Any() 
-                            && !string.Equals(selPO.Status?.Trim(), "Cancelled", StringComparison.OrdinalIgnoreCase)
-                            && !string.Equals(selPO.Status?.Trim(), "Cancel", StringComparison.OrdinalIgnoreCase)) 
-                            sameProjPOs = new List<POHead> { selPO };
-
-                        // ── 3. Load MPR Notes cho từng PO (PO Description = Notes của MPR tương ứng) ──
-                        var mprNotes = new Dictionary<string, string>(); // MPR_No → Notes
-                        var mprNosToLoad = sameProjPOs.Select(p => p.MPR_No).Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
-                        if (mprNosToLoad.Any())
-                        {
-                            using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
-                            conn.Open();
-                            string inClause = string.Join(",", mprNosToLoad.Select((_, idx) => $"@p{idx}"));
-                            var cmd = new Microsoft.Data.SqlClient.SqlCommand(
-                                $"SELECT MPR_No, ISNULL(Notes,'') AS Notes FROM MPR_Header WHERE MPR_No IN ({inClause})", conn);
-                            for (int idx = 0; idx < mprNosToLoad.Count; idx++)
-                                cmd.Parameters.AddWithValue($"@p{idx}", mprNosToLoad[idx]);
-                            using var rdr = cmd.ExecuteReader();
-                            while (rdr.Read())
-                                mprNotes[rdr["MPR_No"].ToString()] = rdr["Notes"].ToString();
-                        }
-
-                        // ── 4. Tính năm export ──
-                        int exportYear = selPO.PO_Date?.Year ?? DateTime.Today.Year;
-
-                        // ── 5. Tạo file Excel từ template ──
-                        File.Copy(templatePath, savePath, true);
-                        OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
-                        using var pkg = new OfficeOpenXml.ExcelPackage(new FileInfo(savePath));
-                        var ws = pkg.Workbook.Worksheets[0];
-
-                        // Row 4 — năm, Row 5 — tháng 1-12
-                        ws.Cells[4, 7].Value = exportYear;
-                        for (int m = 1; m <= 12; m++)
-                            ws.Cells[5, 6 + m].Value = new DateTime(exportYear, m, 1);
-
-                        // ── 6. Điều chỉnh số dòng data (template có sẵn 3 dòng 6-8) ──
-                        int poCount = sameProjPOs.Count;
-                        if (poCount > 3) ws.InsertRow(9, poCount - 3);
-                        else if (poCount < 3) ws.DeleteRow(6 + poCount, 3 - poCount);
-                        int sumRow = 6 + poCount;
-                        int lastPoRow = sumRow - 1; // dòng PO cuối
-
-                        // ── 7. Điền từng PO ──
-                        decimal[] monthColSum = new decimal[13]; // index 1-12
-                        decimal totalPoAmount = 0;
-
-                        for (int i = 0; i < poCount; i++)
-                        {
-                            var po = sameProjPOs[i];
-                            int r = 6 + i;
-
-                            ws.Cells[r, 1].Value = i + 1;    // No.
-                            ws.Cells[r, 4].Value = po.PONo;  // PO No.
-
-                            // PO Description = MPR Notes
-                            string mprNo = po.MPR_No ?? "";
-                            ws.Cells[r, 5].Value = mprNotes.TryGetValue(mprNo, out var note) ? note : mprNo;
-
-                            ws.Cells[r, 6].Value = po.Total_Amount; // PO Amount
-                            totalPoAmount += po.Total_Amount;
-
-                            // ── Monthly TT: PO_Date + 7 ngày → tháng thanh toán dự kiến ──
-                            int payMonth = 0;
-                            if (po.PO_Date.HasValue)
-                            {
-                                var payDate = po.PO_Date.Value.AddDays(7);
-                                if (payDate.Year == exportYear) payMonth = payDate.Month;
-                            }
-                            for (int m = 1; m <= 12; m++)
-                            {
-                                decimal amt = (m == payMonth) ? po.Total_Amount : 0;
-                                ws.Cells[r, 6 + m].Value = amt > 0 ? (object)amt : null;
-                                monthColSum[m] += amt;
-                            }
-
-                            decimal rowAcc = payMonth > 0 ? po.Total_Amount : 0;
-                            ws.Cells[r, 19].Value = rowAcc;  // Accumulate
-                            ws.Cells[r, 20].Value = po.Total_Amount - rowAcc; // Balance
-                        }
-
-                        // ── 8. Project No + Budget: merge từ row 6 đến lastPoRow ──
-                        if (poCount > 0)
-                        {
-                            // Xóa merge cũ nếu có
-                            ws.Cells[6, 2, lastPoRow, 2].Merge = true;
-                            ws.Cells[6, 2].Value = $"{projName}\n{projectCode}";
-                            ws.Cells[6, 2].Style.WrapText = true;
-                            ws.Cells[6, 2].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-
-                            ws.Cells[6, 3, lastPoRow, 3].Merge = true;
-                            ws.Cells[6, 3].Value = budget;
-                            ws.Cells[6, 3].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                        }
-
-                        // ── 9. Sum row ──
-                        ws.Cells[sumRow, 2].Value = "S  u  m";
-                        ws.Cells[sumRow, 3].Value = budget;
-                        ws.Cells[sumRow, 6].Value = totalPoAmount;
-                        for (int m = 1; m <= 12; m++)
-                            ws.Cells[sumRow, 6 + m].Value = monthColSum[m] > 0 ? (object)monthColSum[m] : null;
-                        decimal grandAcc = monthColSum.Skip(1).Sum();
-                        ws.Cells[sumRow, 19].Value = grandAcc;
-                        ws.Cells[sumRow, 20].Value = budget - grandAcc;
-
-                        // ══════════════════════════════════════════
-                        // ── 10. FORMAT toàn bộ sheet ──
-                        // ══════════════════════════════════════════
-                        const int COLS = 21; // A–U
-                        var clrTitleBg   = System.Drawing.Color.FromArgb(68, 84, 106);
-                        var clrHeaderBg  = System.Drawing.Color.FromArgb(31, 78, 121);
-                        var clrMonthBg   = System.Drawing.Color.FromArgb(23, 54, 93);
-                        var clrSumBg     = System.Drawing.Color.FromArgb(255, 230, 153);
-                        var clrAltRow    = System.Drawing.Color.FromArgb(242, 242, 242);
-                        var clrWhite     = System.Drawing.Color.White;
-                        var clrBlack     = System.Drawing.Color.Black;
-                        string numFmt    = "#,##0;[Red]-#,##0;-";
-
-                        // Thin border helper
-                        void SetBorder(OfficeOpenXml.ExcelRange rng)
-                        {
-                            rng.Style.Border.Top.Style    = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                            rng.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                            rng.Style.Border.Left.Style   = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                            rng.Style.Border.Right.Style  = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
-                        }
-                        void SetFill(OfficeOpenXml.ExcelRange rng, System.Drawing.Color c)
-                        {
-                            rng.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                            rng.Style.Fill.BackgroundColor.SetColor(c);
-                        }
-
-                        // ── Row 1: Title ──
-                        var title = ws.Cells[1, 1, 1, COLS];
-                        SetFill(title, clrTitleBg);
-                        title.Style.Font.Color.SetColor(clrWhite);
-                        title.Style.Font.Bold = true;
-                        title.Style.Font.Size = 14;
-                        title.Style.Font.Name = "Times New Roman";
-                        title.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                        title.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                        ws.Row(1).Height = 28;
-
-                        // ── Row 2: trống ──
-                        ws.Row(2).Height = 6;
-
-                        // ── Row 3: Unit VND ──
-                        ws.Cells[3, COLS].Value = "Unit : VND";
-                        ws.Cells[3, COLS].Style.Font.Italic = true;
-                        ws.Cells[3, COLS].Style.Font.Size = 9;
-                        ws.Cells[3, COLS].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                        ws.Row(3).Height = 14;
-
-                        // ── Row 4: Column headers ──
-                        var hdr4 = ws.Cells[4, 1, 4, COLS];
-                        SetFill(hdr4, clrHeaderBg);
-                        hdr4.Style.Font.Color.SetColor(clrWhite);
-                        hdr4.Style.Font.Bold = true;
-                        hdr4.Style.Font.Name = "Arial";
-                        hdr4.Style.Font.Size = 10;
-                        hdr4.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                        hdr4.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                        hdr4.Style.WrapText = true;
-                        SetBorder(hdr4);
-                        ws.Row(4).Height = 36;
-
-                        // ── Row 5: Month sub-headers ──
-                        var hdr5 = ws.Cells[5, 1, 5, COLS];
-                        SetFill(hdr5, clrMonthBg);
-                        hdr5.Style.Font.Color.SetColor(clrWhite);
-                        hdr5.Style.Font.Bold = true;
-                        hdr5.Style.Font.Name = "Arial";
-                        hdr5.Style.Font.Size = 9;
-                        hdr5.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                        hdr5.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                        SetBorder(hdr5);
-                        ws.Row(5).Height = 18;
-                        // Format tháng: "Jan-26"
-                        for (int m = 1; m <= 12; m++)
-                            ws.Cells[5, 6 + m].Style.Numberformat.Format = "mmm-yy";
-
-                        // ── Data rows (6 → sumRow-1) ──
-                        for (int r = 6; r < sumRow; r++)
-                        {
-                            var rowRange = ws.Cells[r, 1, r, COLS];
-                            if ((r - 6) % 2 == 1) SetFill(rowRange, clrAltRow);
-                            rowRange.Style.Font.Name = "Arial";
-                            rowRange.Style.Font.Size = 9;
-                            rowRange.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                            SetBorder(rowRange);
-                            ws.Row(r).Height = 16;
-                            // Cột số: right-align + number format
-                            foreach (int nc in new[] { 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 })
-                            {
-                                ws.Cells[r, nc].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                                ws.Cells[r, nc].Style.Numberformat.Format = numFmt;
-                            }
-                            // Cột text: center/left
-                            ws.Cells[r, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; // No.
-                            ws.Cells[r, 4].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; // PO No.
-                            ws.Cells[r, 5].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;   // Description
-                            ws.Cells[r, 5].Style.WrapText = true;
-                        }
-                        // Project No + Budget: center + wrap
-                        ws.Cells[6, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                        ws.Cells[6, 2].Style.WrapText = true;
-                        ws.Cells[6, 3].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                        ws.Cells[6, 3].Style.Numberformat.Format = numFmt;
-
-                        // ── Sum row ──
-                        var sumRng = ws.Cells[sumRow, 1, sumRow, COLS];
-                        SetFill(sumRng, clrSumBg);
-                        sumRng.Style.Font.Bold = true;
-                        sumRng.Style.Font.Name = "Arial";
-                        sumRng.Style.Font.Size = 10;
-                        sumRng.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
-                        // Thick outer border cho sum row
-                        sumRng.Style.Border.Top.Style    = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
-                        sumRng.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
-                        sumRng.Style.Border.Left.Style   = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
-                        sumRng.Style.Border.Right.Style  = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
-                        ws.Row(sumRow).Height = 20;
-                        ws.Cells[sumRow, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                        foreach (int nc in new[] { 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 })
-                        {
-                            ws.Cells[sumRow, nc].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                            ws.Cells[sumRow, nc].Style.Numberformat.Format = numFmt;
-                        }
-
-                        // ── Column widths ──
-                        ws.Column(1).Width  = 4.5;   // No.
-                        ws.Column(2).Width  = 22;    // Project No.
-                        ws.Column(3).Width  = 16;    // Budget
-                        ws.Column(4).Width  = 18;    // PO No.
-                        ws.Column(5).Width  = 26;    // PO Description
-                        ws.Column(6).Width  = 14;    // PO Amount
-                        for (int m = 1; m <= 12; m++)
-                            ws.Column(6 + m).Width = 12; // Tháng 1–12
-                        ws.Column(19).Width = 14;    // Accumulate
-                        ws.Column(20).Width = 14;    // Balance
-                        ws.Column(21).Width = 16;    // Remarks
-
-                        // ── Freeze panes: đóng băng tại row 6, col 7 (sau Project/Budget/PO cols) ──
-                        ws.View.FreezePanes(6, 7);
-
-                        // ── Print setup ──
-                        var ps = ws.PrinterSettings;
-                        ps.PrintArea        = ws.Cells[1, 1, sumRow, COLS];   // vùng in: A1 → U{sumRow}
-                        ps.RepeatRows       = ws.Cells["1:5"];                 // lặp header khi in nhiều trang
-                        ps.Orientation      = OfficeOpenXml.eOrientation.Landscape;
-                        ps.PaperSize        = OfficeOpenXml.ePaperSize.A4;
-                        ps.FitToPage        = true;
-                        ps.FitToWidth       = 1;   // vừa khít 1 trang ngang
-                        ps.FitToHeight      = 0;   // tự động số trang dọc
-                        ps.TopMargin        = 0.5m;
-                        ps.BottomMargin     = 0.5m;
-                        ps.LeftMargin       = 0.4m;
-                        ps.RightMargin      = 0.4m;
-                        ps.HeaderMargin     = 0.2m;
-                        ps.FooterMargin     = 0.2m;
-                        ps.ShowGridLines    = false;
-                        ps.ShowHeaders      = false;
-                        // Footer: tên file bên trái, số trang bên phải
-                        ws.HeaderFooter.OddFooter.LeftAlignedText  = $"PaymentStatus_{workorderNo}";
-                        ws.HeaderFooter.OddFooter.RightAlignedText = "Page &P of &N";
-
-                        pkg.Save();
-                    }
-                    catch (Exception ex) { errMsg = ex.Message; }
-                });
-
-                if (errMsg != null)
-                    SafeErr("Lỗi xuất Budget: " + errMsg);
+                    savePath = Path.Combine(Path.GetTempPath(), defaultName);
+                }
                 else
                 {
-                    if (lblStatus != null)
-                        lblStatus.Text = openOnly
-                            ? $"✅ Đã mở Budget (tạm thời)"
-                            : $"✅ Đã lưu Payment Status: {Path.GetFileName(savePath)}";
-
-                    try
+                    using var sfd = new SaveFileDialog
                     {
-                        Process.Start(new ProcessStartInfo { FileName = savePath, UseShellExecute = true });
-                    }
-                    catch (Exception openEx)
-                    {
-                        SafeErr($"Không thể mở file:\n{openEx.Message}");
-                    }
+                        Title = "Lưu Payment Status",
+                        Filter = "Excel Files|*.xlsx",
+                        FileName = Path.GetFileNameWithoutExtension(defaultName),
+                        InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                    };
+                    if (sfd.ShowDialog() != DialogResult.OK) return;
+                    savePath = sfd.FileName;
                 }
+                string errMsg = null;
+                this.Cursor = Cursors.WaitCursor;
+
+                // Snapshot dữ liệu cần trước Task.Run
+                    string projName = selPO.Project_Name ?? "";
+                    string workorderNo = selPO.WorkorderNo ?? "";
+                    bool isDom = _isDomestic;
+
+                    await Task.Run(() =>
+                    {
+                        try
+                        {
+                            // ── 1. Load project info ──
+                            var allProjects = new ProjectService().GetAll();
+                            var proj = allProjects.Find(p =>
+                                (!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                                (!string.IsNullOrEmpty(p.ProjectName) && p.ProjectName.Equals(projName, StringComparison.OrdinalIgnoreCase)));
+
+                            decimal budget = proj?.PJBudget ?? 0;
+                            string projectCode = proj?.ProjectCode ?? workorderNo;
+
+                            // ── 2. Tất cả PO cùng project (loại bỏ các PO đã huỷ - Cancelled/Cancel) ──
+                            var sameProjPOs = _poList.Where(p =>
+                                ((!string.IsNullOrEmpty(p.WorkorderNo) && p.WorkorderNo.Equals(workorderNo, StringComparison.OrdinalIgnoreCase)) ||
+                                     (!string.IsNullOrEmpty(p.Project_Name) && p.Project_Name.Equals(projName, StringComparison.OrdinalIgnoreCase)))
+                                && !string.Equals(p.Status?.Trim(), "Cancelled", StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(p.Status?.Trim(), "Cancel", StringComparison.OrdinalIgnoreCase))
+                                .OrderBy(p => p.PONo).ToList();
+                            if (!sameProjPOs.Any() 
+                                && !string.Equals(selPO.Status?.Trim(), "Cancelled", StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(selPO.Status?.Trim(), "Cancel", StringComparison.OrdinalIgnoreCase)) 
+                                sameProjPOs = new List<POHead> { selPO };
+
+                            // ── 3. Load MPR Notes cho từng PO (PO Description = Notes của MPR tương ứng) ──
+                            var mprNotes = new Dictionary<string, string>(); // MPR_No → Notes
+                            var mprNosToLoad = sameProjPOs.Select(p => p.MPR_No).Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+                            if (mprNosToLoad.Any())
+                            {
+                                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                                conn.Open();
+                                string inClause = string.Join(",", mprNosToLoad.Select((_, idx) => $"@p{idx}"));
+                                var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                                    $"SELECT MPR_No, ISNULL(Notes,'') AS Notes FROM MPR_Header WHERE MPR_No IN ({inClause})", conn);
+                                for (int idx = 0; idx < mprNosToLoad.Count; idx++)
+                                    cmd.Parameters.AddWithValue($"@p{idx}", mprNosToLoad[idx]);
+                                using var rdr = cmd.ExecuteReader();
+                                while (rdr.Read())
+                                    mprNotes[rdr["MPR_No"].ToString()] = rdr["Notes"].ToString();
+                            }
+
+                            // ── 4. Tính năm export ──
+                            int exportYear = selPO.PO_Date?.Year ?? DateTime.Today.Year;
+
+                            // ── 5. Tạo file Excel từ template ──
+                            File.Copy(templatePath, savePath, true);
+                            OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                            using var pkg = new OfficeOpenXml.ExcelPackage(new FileInfo(savePath));
+                            var ws = pkg.Workbook.Worksheets[0];
+
+                            // Row 4 — năm, Row 5 — tháng 1-12
+                            ws.Cells[4, 7].Value = exportYear;
+                            for (int m = 1; m <= 12; m++)
+                                ws.Cells[5, 6 + m].Value = new DateTime(exportYear, m, 1);
+
+                            // ── 6. Điều chỉnh số dòng data (template có sẵn 3 dòng 6-8) ──
+                            int poCount = sameProjPOs.Count;
+                            if (poCount > 3) ws.InsertRow(9, poCount - 3);
+                            else if (poCount < 3) ws.DeleteRow(6 + poCount, 3 - poCount);
+                            int sumRow = 6 + poCount;
+                            int lastPoRow = sumRow - 1; // dòng PO cuối
+
+                            // ── 7. Điền từng PO ──
+                            decimal[] monthColSum = new decimal[13]; // index 1-12
+                            decimal totalPoAmount = 0;
+
+                            for (int i = 0; i < poCount; i++)
+                            {
+                                var po = sameProjPOs[i];
+                                int r = 6 + i;
+
+                                ws.Cells[r, 1].Value = i + 1;    // No.
+                                ws.Cells[r, 4].Value = po.PONo;  // PO No.
+
+                                // PO Description = MPR Notes
+                                string mprNo = po.MPR_No ?? "";
+                                ws.Cells[r, 5].Value = mprNotes.TryGetValue(mprNo, out var note) ? note : mprNo;
+
+                                ws.Cells[r, 6].Value = po.Total_Amount; // PO Amount
+                                totalPoAmount += po.Total_Amount;
+
+                                // ── Monthly TT: PO_Date + 7 ngày → tháng thanh toán dự kiến ──
+                                int payMonth = 0;
+                                if (po.PO_Date.HasValue)
+                                {
+                                    var payDate = po.PO_Date.Value.AddDays(7);
+                                    if (payDate.Year == exportYear) payMonth = payDate.Month;
+                                }
+                                for (int m = 1; m <= 12; m++)
+                                {
+                                    decimal amt = (m == payMonth) ? po.Total_Amount : 0;
+                                    ws.Cells[r, 6 + m].Value = amt > 0 ? (object)amt : null;
+                                    monthColSum[m] += amt;
+                                }
+
+                                decimal rowAcc = payMonth > 0 ? po.Total_Amount : 0;
+                                ws.Cells[r, 19].Value = rowAcc;  // Accumulate
+                                ws.Cells[r, 20].Value = po.Total_Amount - rowAcc; // Balance
+                            }
+
+                            // ── 8. Project No + Budget: merge từ row 6 đến lastPoRow ──
+                            if (poCount > 0)
+                            {
+                                // Xóa merge cũ nếu có
+                                ws.Cells[6, 2, lastPoRow, 2].Merge = true;
+                                ws.Cells[6, 2].Value = $"{projName}\n{projectCode}";
+                                ws.Cells[6, 2].Style.WrapText = true;
+                                ws.Cells[6, 2].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+
+                                ws.Cells[6, 3, lastPoRow, 3].Merge = true;
+                                ws.Cells[6, 3].Value = budget;
+                                ws.Cells[6, 3].Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            }
+
+                            // ── 9. Sum row ──
+                            ws.Cells[sumRow, 2].Value = "S  u  m";
+                            ws.Cells[sumRow, 3].Value = budget;
+                            ws.Cells[sumRow, 6].Value = totalPoAmount;
+                            for (int m = 1; m <= 12; m++)
+                                ws.Cells[sumRow, 6 + m].Value = monthColSum[m] > 0 ? (object)monthColSum[m] : null;
+                            decimal grandAcc = monthColSum.Skip(1).Sum();
+                            ws.Cells[sumRow, 19].Value = grandAcc;
+                            ws.Cells[sumRow, 20].Value = budget - grandAcc;
+
+                            // ══════════════════════════════════════════
+                            // ── 10. FORMAT toàn bộ sheet ──
+                            // ══════════════════════════════════════════
+                            const int COLS = 21; // A–U
+                            var clrTitleBg   = System.Drawing.Color.FromArgb(68, 84, 106);
+                            var clrHeaderBg  = System.Drawing.Color.FromArgb(31, 78, 121);
+                            var clrMonthBg   = System.Drawing.Color.FromArgb(23, 54, 93);
+                            var clrSumBg     = System.Drawing.Color.FromArgb(255, 230, 153);
+                            var clrAltRow    = System.Drawing.Color.FromArgb(242, 242, 242);
+                            var clrWhite     = System.Drawing.Color.White;
+                            var clrBlack     = System.Drawing.Color.Black;
+                            string numFmt    = "#,##0;[Red]-#,##0;-";
+
+                            // Thin border helper
+                            void SetBorder(OfficeOpenXml.ExcelRange rng)
+                            {
+                                rng.Style.Border.Top.Style    = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                rng.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                rng.Style.Border.Left.Style   = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                                rng.Style.Border.Right.Style  = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+                            }
+                            void SetFill(OfficeOpenXml.ExcelRange rng, System.Drawing.Color c)
+                            {
+                                rng.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                rng.Style.Fill.BackgroundColor.SetColor(c);
+                            }
+
+                            // ── Row 1: Title ──
+                            var title = ws.Cells[1, 1, 1, COLS];
+                            SetFill(title, clrTitleBg);
+                            title.Style.Font.Color.SetColor(clrWhite);
+                            title.Style.Font.Bold = true;
+                            title.Style.Font.Size = 14;
+                            title.Style.Font.Name = "Times New Roman";
+                            title.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            title.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            ws.Row(1).Height = 28;
+
+                            // ── Row 2: trống ──
+                            ws.Row(2).Height = 6;
+
+                            // ── Row 3: Unit VND ──
+                            ws.Cells[3, COLS].Value = "Unit : VND";
+                            ws.Cells[3, COLS].Style.Font.Italic = true;
+                            ws.Cells[3, COLS].Style.Font.Size = 9;
+                            ws.Cells[3, COLS].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                            ws.Row(3).Height = 14;
+
+                            // ── Row 4: Column headers ──
+                            var hdr4 = ws.Cells[4, 1, 4, COLS];
+                            SetFill(hdr4, clrHeaderBg);
+                            hdr4.Style.Font.Color.SetColor(clrWhite);
+                            hdr4.Style.Font.Bold = true;
+                            hdr4.Style.Font.Name = "Arial";
+                            hdr4.Style.Font.Size = 10;
+                            hdr4.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            hdr4.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            hdr4.Style.WrapText = true;
+                            SetBorder(hdr4);
+                            ws.Row(4).Height = 36;
+
+                            // ── Row 5: Month sub-headers ──
+                            var hdr5 = ws.Cells[5, 1, 5, COLS];
+                            SetFill(hdr5, clrMonthBg);
+                            hdr5.Style.Font.Color.SetColor(clrWhite);
+                            hdr5.Style.Font.Bold = true;
+                            hdr5.Style.Font.Name = "Arial";
+                            hdr5.Style.Font.Size = 9;
+                            hdr5.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            hdr5.Style.VerticalAlignment   = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            SetBorder(hdr5);
+                            ws.Row(5).Height = 18;
+                            // Format tháng: "Jan-26"
+                            for (int m = 1; m <= 12; m++)
+                                ws.Cells[5, 6 + m].Style.Numberformat.Format = "mmm-yy";
+
+                            // ── Data rows (6 → sumRow-1) ──
+                            for (int r = 6; r < sumRow; r++)
+                            {
+                                var rowRange = ws.Cells[r, 1, r, COLS];
+                                if ((r - 6) % 2 == 1) SetFill(rowRange, clrAltRow);
+                                rowRange.Style.Font.Name = "Arial";
+                                rowRange.Style.Font.Size = 9;
+                                rowRange.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                                SetBorder(rowRange);
+                                ws.Row(r).Height = 16;
+                                // Cột số: right-align + number format
+                                foreach (int nc in new[] { 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 })
+                                {
+                                    ws.Cells[r, nc].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                    ws.Cells[r, nc].Style.Numberformat.Format = numFmt;
+                                }
+                                // Cột text: center/left
+                                ws.Cells[r, 1].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; // No.
+                                ws.Cells[r, 4].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center; // PO No.
+                                ws.Cells[r, 5].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;   // Description
+                                ws.Cells[r, 5].Style.WrapText = true;
+                            }
+                            // Project No + Budget: center + wrap
+                            ws.Cells[6, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            ws.Cells[6, 2].Style.WrapText = true;
+                            ws.Cells[6, 3].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                            ws.Cells[6, 3].Style.Numberformat.Format = numFmt;
+
+                            // ── Sum row ──
+                            var sumRng = ws.Cells[sumRow, 1, sumRow, COLS];
+                            SetFill(sumRng, clrSumBg);
+                            sumRng.Style.Font.Bold = true;
+                            sumRng.Style.Font.Name = "Arial";
+                            sumRng.Style.Font.Size = 10;
+                            sumRng.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
+                            // Thick outer border cho sum row
+                            sumRng.Style.Border.Top.Style    = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                            sumRng.Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                            sumRng.Style.Border.Left.Style   = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                            sumRng.Style.Border.Right.Style  = OfficeOpenXml.Style.ExcelBorderStyle.Medium;
+                            ws.Row(sumRow).Height = 20;
+                            ws.Cells[sumRow, 2].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                            foreach (int nc in new[] { 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 })
+                            {
+                                ws.Cells[sumRow, nc].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+                                ws.Cells[sumRow, nc].Style.Numberformat.Format = numFmt;
+                            }
+
+                            // ── Column widths ──
+                            ws.Column(1).Width  = 4.5;   // No.
+                            ws.Column(2).Width  = 22;    // Project No.
+                            ws.Column(3).Width  = 16;    // Budget
+                            ws.Column(4).Width  = 18;    // PO No.
+                            ws.Column(5).Width  = 26;    // PO Description
+                            ws.Column(6).Width  = 14;    // PO Amount
+                            for (int m = 1; m <= 12; m++)
+                                ws.Column(6 + m).Width = 12; // Tháng 1–12
+                            ws.Column(19).Width = 14;    // Accumulate
+                            ws.Column(20).Width = 14;    // Balance
+                            ws.Column(21).Width = 16;    // Remarks
+
+                            // ── Freeze panes: đóng băng tại row 6, col 7 (sau Project/Budget/PO cols) ──
+                            ws.View.FreezePanes(6, 7);
+
+                            // ── Print setup ──
+                            var ps = ws.PrinterSettings;
+                            ps.PrintArea        = ws.Cells[1, 1, sumRow, COLS];   // vùng in: A1 → U{sumRow}
+                            ps.RepeatRows       = ws.Cells["1:5"];                 // lặp header khi in nhiều trang
+                            ps.Orientation      = OfficeOpenXml.eOrientation.Landscape;
+                            ps.PaperSize        = OfficeOpenXml.ePaperSize.A4;
+                            ps.FitToPage        = true;
+                            ps.FitToWidth       = 1;   // vừa khít 1 trang ngang
+                            ps.FitToHeight      = 0;   // tự động số trang dọc
+                            ps.TopMargin        = 0.5m;
+                            ps.BottomMargin     = 0.5m;
+                            ps.LeftMargin       = 0.4m;
+                            ps.RightMargin      = 0.4m;
+                            ps.HeaderMargin     = 0.2m;
+                            ps.FooterMargin     = 0.2m;
+                            ps.ShowGridLines    = false;
+                            ps.ShowHeaders      = false;
+                            // Footer: tên file bên trái, số trang bên phải
+                            ws.HeaderFooter.OddFooter.LeftAlignedText  = $"PaymentStatus_{workorderNo}";
+                            ws.HeaderFooter.OddFooter.RightAlignedText = "Page &P of &N";
+
+                    pkg.Save();
+                    }
+                    catch (Exception ex) { errMsg = ex.Message; }
+                    });
+
+                    if (errMsg != null)
+                        SafeErr("Lỗi xuất Budget: " + errMsg);
+                    else
+                    {
+                        if (lblStatus != null)
+                            lblStatus.Text = openOnly
+                                ? $"✅ Đã mở Budget (tạm thời)"
+                                : $"✅ Đã lưu Payment Status: {Path.GetFileName(savePath)}";
+
+                        try
+                        {
+                            Process.Start(new ProcessStartInfo { FileName = savePath, UseShellExecute = true });
+                        }
+                        catch (Exception openEx)
+                        {
+                            SafeErr($"Không thể mở file:\n{openEx.Message}");
+                        }
+                    }
             }
             catch (Exception ex) { SafeErr("Lỗi: " + ex.Message); }
-            finally { this.Cursor = Cursors.Default; }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+                _isPreparingBudget = false;
+                btnPrintBudget.Enabled = true;
+            }
         }
 
         private void BtnPOStatus_Click(object sender, EventArgs e)
@@ -5691,47 +5703,57 @@ var sameProjPOs = _poList.Where(p =>
             dgvDetails.CurrentCell = r.Cells["Item_Name"];
         }
 
-        private void BtnDeleteDetail_Click(object sender, EventArgs e)
-        {
-            if (!PermissionHelper.Check("PO", "Xóa dòng", "Xóa dòng chi tiết")) return;
-            if (dgvDetails.SelectedRows.Count == 0)
-            {
-                SafeWarn("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!");
-                return;
-            }
+private void BtnDeleteDetail_Click(object sender, EventArgs e)
+{
+    if (!PermissionHelper.Check("PO", "Xóa dòng", "Xóa dòng chi tiết")) return;
+    if (dgvDetails.SelectedRows.Count == 0)
+    {
+        SafeWarn("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!");
+        return;
+    }
 
-            try
-            {
-                // Ngắt toàn bộ các sự kiện có thể gây loop hoặc block khi thay đổi cấu trúc/dữ liệu bảng
-                dgvDetails.CellValueChanged -= DgvDetails_CellValueChanged;
-                dgvDetails.CellEndEdit -= DgvDetails_CellEndEdit;
-                dgvDetails.CellParsing -= DgvDetails_CellParsing;
-                dgvDetails.CurrentCellDirtyStateChanged -= DgvDetails_CurrentCellDirtyStateChanged;
-                dgvDetails.CellFormatting -= DgvDetails_CellFormatting;
+    try
+    {
+        // Ensure any in‑progress edit is committed before we modify the grid
+        dgvDetails.EndEdit();
 
-                var rowsToDelete = new List<DataGridViewRow>();
-                foreach (DataGridViewRow row in dgvDetails.SelectedRows)
-                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") rowsToDelete.Add(row);
-                foreach (var row in rowsToDelete) dgvDetails.Rows.Remove(row);
-                
-                int itemNo = 1;
-                foreach (DataGridViewRow row in dgvDetails.Rows)
-                    if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
-                
-                UpdateTotal();
+        // Clear current cell to avoid WinForms deadlock/focus errors when deleting the focused row
+        dgvDetails.CurrentCell = null;
 
-                // Kết nối lại các sự kiện
-                dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
-                dgvDetails.CellEndEdit += DgvDetails_CellEndEdit;
-                dgvDetails.CellParsing += DgvDetails_CellParsing;
-                dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
-                dgvDetails.CellFormatting += DgvDetails_CellFormatting;
-            }
-            catch (Exception ex)
-            {
-                SafeErr("Lỗi khi xóa: " + ex.Message);
-            }
-        }
+        // Temporarily detach event handlers that may cause re‑entrancy or UI blocking
+        dgvDetails.CellValueChanged -= DgvDetails_CellValueChanged;
+        dgvDetails.CellEndEdit -= DgvDetails_CellEndEdit;
+        dgvDetails.CellParsing -= DgvDetails_CellParsing;
+        dgvDetails.CurrentCellDirtyStateChanged -= DgvDetails_CurrentCellDirtyStateChanged;
+        dgvDetails.CellFormatting -= DgvDetails_CellFormatting;
+
+        var rowsToDelete = new List<DataGridViewRow>();
+        foreach (DataGridViewRow row in dgvDetails.SelectedRows)
+            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") rowsToDelete.Add(row);
+
+        foreach (var row in rowsToDelete) dgvDetails.Rows.Remove(row);
+
+        // Re‑index Item_No after deletions
+        int itemNo = 1;
+        foreach (DataGridViewRow row in dgvDetails.Rows)
+            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
+
+        UpdateTotal();
+
+        // Re‑attach event handlers
+        dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
+        dgvDetails.CellEndEdit += DgvDetails_CellEndEdit;
+        dgvDetails.CellParsing += DgvDetails_CellParsing;
+        dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
+        dgvDetails.CellFormatting += DgvDetails_CellFormatting;
+
+        dgvDetails.Refresh();
+    }
+    catch (Exception ex)
+    {
+        SafeErr("Lỗi khi xóa: " + ex.Message);
+    }
+}
 
         private Dictionary<int, string> GetPoMappingForMpr(int mprId)
         {
@@ -6784,18 +6806,18 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
                 // Xây nội dung tin nhắn
                 var sb = new System.Text.StringBuilder();
-                sb.AppendLine($"📦 LỊCH GIAO HÀNG DỰ KIẾN");
-                sb.AppendLine($"━━━━━━━━━━━━━━━━━━━━━━━━");
-                sb.AppendLine($"🔖 Số PO      : {poNo}");
-                if (!string.IsNullOrWhiteSpace(projectName))
-                    sb.AppendLine($"🏗️  Dự án     : {projectName}");
+                sb.AppendLine("📦 LỊCH GIAO HÀNG DỰ KIẾN");
+                sb.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━");
+                sb.AppendLine($"📅 Exp.Deliv : {expDate:dd/MM/yyyy}");
                 if (!string.IsNullOrWhiteSpace(ncc))
-                    sb.AppendLine($"🏭 Nhà CC     : {ncc}");
-                sb.AppendLine($"📅 Exp.Deliv  : {expDate:dd/MM/yyyy}");
+                    sb.AppendLine($"🏭 Nhà CC    : {ncc}");
+                if (!string.IsNullOrWhiteSpace(projectName))
+                    sb.AppendLine($"🏢 Dự án    : {projectName}");
+                sb.AppendLine($"🔖 Số PO    : {poNo}");
 
                 if (dtDetails.Rows.Count > 0)
                 {
-                    sb.AppendLine($"━━━━━━━━━━━━━━━━━━━━━━━━");
+                    sb.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━");
                     sb.AppendLine("📋 Chi tiết vật tư:");
                     foreach (System.Data.DataRow row in dtDetails.Rows)
                     {
@@ -6810,11 +6832,12 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
 
                         string size = string.Join(" x ", new[] { a, b, c }.Where(v => !string.IsNullOrWhiteSpace(v)));
 
-                        sb.Append($"  {itemNo}. {name}");
-                        if (!string.IsNullOrWhiteSpace(material)) sb.Append($" ({material})");
-                        if (!string.IsNullOrWhiteSpace(size))     sb.Append($" — {size}");
-                        if (!string.IsNullOrWhiteSpace(qty))      sb.Append($" — SL: {qty} {unit}");
-                        sb.AppendLine();
+                        string itemLine = $"  {itemNo}. {name}";
+                        if (!string.IsNullOrWhiteSpace(material)) itemLine += $" ({material})";
+                        if (!string.IsNullOrWhiteSpace(size))     itemLine += $" — {size}";
+                        sb.AppendLine(itemLine);
+                        if (!string.IsNullOrWhiteSpace(qty))
+                            sb.AppendLine($"     SL: {qty} {unit}");
                     }
                 }
 
