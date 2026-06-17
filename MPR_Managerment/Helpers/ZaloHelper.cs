@@ -466,12 +466,21 @@ namespace MPR_Managerment.Helpers
             const string shiftEnterChar = @"{""type"":""char"",""key"":""\r"",""code"":""Enter"",""windowsVirtualKeyCode"":13,""nativeVirtualKeyCode"":13,""modifiers"":8}";
             const string shiftEnterUp   = @"{""type"":""keyUp"",""key"":""Enter"",""code"":""Enter"",""windowsVirtualKeyCode"":13,""nativeVirtualKeyCode"":13,""modifiers"":8}";
 
+            // Dùng UnsafeRelaxedJsonEscaping để emoji được giữ nguyên dạng literal UTF-8.
+            // JsonSerializer mặc định escape emoji thành surrogate pairs (📅) —
+            // CDP Input.insertText xử lý sai surrogate pairs, khiến emoji bị tách khỏi text.
+            var cdpJsonOpts = new System.Text.Json.JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            };
+
             var lines = message.Split('\n');
             for (int li = 0; li < lines.Length; li++)
             {
-                if (!string.IsNullOrEmpty(lines[li]))
+                string lineText = lines[li].TrimEnd('\r');
+                if (!string.IsNullOrEmpty(lineText))
                 {
-                    string cdpLineJson = System.Text.Json.JsonSerializer.Serialize(lines[li]);
+                    string cdpLineJson = System.Text.Json.JsonSerializer.Serialize(lineText, cdpJsonOpts);
                     await wv2.CoreWebView2.CallDevToolsProtocolMethodAsync(
                         "Input.insertText", $@"{{""text"":{cdpLineJson}}}");
                     await Task.Delay(50);

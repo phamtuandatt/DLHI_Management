@@ -195,8 +195,8 @@ namespace MPR_Managerment.Forms
             tabMPR = new TabPage("📋  Tiến độ đặt hàng MPR");
             tabRIR = new TabPage("📦  Tiến độ kiểm tra RIR theo PO");
 
-            tabMain.TabPages.Add(tabPO);
             tabMain.TabPages.Add(tabMPR);
+            tabMain.TabPages.Add(tabPO);
             tabMain.TabPages.Add(tabRIR);
             this.Controls.Add(tabMain);
 
