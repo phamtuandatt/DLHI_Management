@@ -3529,20 +3529,8 @@ private IWin32Window GetActiveOwner() => this;
                 string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "PaymentStatus_template.xlsx");
                 if (!File.Exists(templatePath)) { SafeErr($"Không tìm thấy template:\n{templatePath}"); return; }
 
-                // Hỏi trước: mở trực tiếp hay lưu file
-                var choice = MessageBox.Show(
-                    this,
-                    "Bạn muốn làm gì với file Budget?\n\n" +
-                    "  [Yes]    → Mở trực tiếp (không lưu)\n" +
-                    "  [No]     → Lưu file rồi mở\n" +
-                    "  [Cancel] → Huỷ",
-                    "Xuất Budget",
-                    MessageBoxButtons.YesNoCancel,
-                    MessageBoxIcon.Question);
-
-                if (choice == DialogResult.Cancel) return;
-
-                bool openOnly = (choice == DialogResult.Yes);
+                // Automatically open the generated Excel file without prompting
+                bool openOnly = true;
                 string defaultName = $"PaymentStatus_{selPO.WorkorderNo}_{DateTime.Now:yyyyMMdd}.xlsx";
 
                 string savePath;
@@ -5706,7 +5694,26 @@ private IWin32Window GetActiveOwner() => this;
 private void BtnDeleteDetail_Click(object sender, EventArgs e)
 {
     if (!PermissionHelper.Check("PO", "Xóa dòng", "Xóa dòng chi tiết")) return;
-    if (dgvDetails.SelectedRows.Count == 0)
+
+    // Collect rows to delete BEFORE clearing CurrentCell or detaching events
+    // as clearing CurrentCell often clears the selection in DataGridView.
+    var rowsToDelete = new List<DataGridViewRow>();
+    if (dgvDetails.SelectedRows.Count > 0)
+    {
+        foreach (DataGridViewRow row in dgvDetails.SelectedRows)
+        {
+            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
+                rowsToDelete.Add(row);
+        }
+    }
+    else if (dgvDetails.CurrentRow != null)
+    {
+        var row = dgvDetails.CurrentRow;
+        if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
+            rowsToDelete.Add(row);
+    }
+
+    if (rowsToDelete.Count == 0)
     {
         SafeWarn("Vui lòng chọn ít nhất một dòng trong danh sách vật tư để xóa!");
         return;
@@ -5714,44 +5721,46 @@ private void BtnDeleteDetail_Click(object sender, EventArgs e)
 
     try
     {
-        // Ensure any in‑progress edit is committed before we modify the grid
+        // Ensure any in‑progress edit is committed
         dgvDetails.EndEdit();
-
-        // Clear current cell to avoid WinForms deadlock/focus errors when deleting the focused row
         dgvDetails.CurrentCell = null;
 
-        // Temporarily detach event handlers that may cause re‑entrancy or UI blocking
+        // Temporarily detach event handlers to prevent UI flickering or recursive updates during bulk removal
         dgvDetails.CellValueChanged -= DgvDetails_CellValueChanged;
         dgvDetails.CellEndEdit -= DgvDetails_CellEndEdit;
-        dgvDetails.CellParsing -= DgvDetails_CellParsing;
-        dgvDetails.CurrentCellDirtyStateChanged -= DgvDetails_CurrentCellDirtyStateChanged;
         dgvDetails.CellFormatting -= DgvDetails_CellFormatting;
 
-        var rowsToDelete = new List<DataGridViewRow>();
-        foreach (DataGridViewRow row in dgvDetails.SelectedRows)
-            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") rowsToDelete.Add(row);
-
-        foreach (var row in rowsToDelete) dgvDetails.Rows.Remove(row);
+        foreach (var row in rowsToDelete)
+        {
+            try
+            {
+                dgvDetails.Rows.Remove(row);
+            }
+            catch { /* Ignore if already removed */ }
+        }
 
         // Re‑index Item_No after deletions
         int itemNo = 1;
         foreach (DataGridViewRow row in dgvDetails.Rows)
-            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL") row.Cells["Item_No"].Value = itemNo++;
+        {
+            if (!row.IsNewRow && row.Tag?.ToString() != "TOTAL")
+            {
+                row.Cells["Item_No"].Value = itemNo++;
+            }
+        }
 
         UpdateTotal();
 
         // Re‑attach event handlers
         dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
         dgvDetails.CellEndEdit += DgvDetails_CellEndEdit;
-        dgvDetails.CellParsing += DgvDetails_CellParsing;
-        dgvDetails.CurrentCellDirtyStateChanged += DgvDetails_CurrentCellDirtyStateChanged;
         dgvDetails.CellFormatting += DgvDetails_CellFormatting;
 
         dgvDetails.Refresh();
     }
     catch (Exception ex)
     {
-        SafeErr("Lỗi khi xóa: " + ex.Message);
+        SafeErr("Lỗi khi xóa dòng: " + ex.Message);
     }
 }
 
