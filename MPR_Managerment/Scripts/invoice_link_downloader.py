@@ -46,6 +46,15 @@ OUTLOOK_FOLDER_NAME = "Invoice"
 # ── Pattern nhận dạng loại hóa đơn và mã tra cứu ─────────────────────────────
 
 PROVIDERS = {
+    "einvoice_vnpt": {
+        # Email từ hoadondientu@vnpt-invoice.vn — link mở trang EmailInvoiceView → tự động download PDF
+        "sender_patterns": [r"vnpt-invoice\.(com\.)?vn", r"hoadondientu@vnpt", r"einvoice\.vn"],
+        "url_patterns": [r"vnpt-invoice\.(com\.)?vn", r"einvoice\.vn", r"EmailInvoiceView", r"meinvoice\.vn.*[?&]sc="],
+        "direct_download": True,   # điều hướng Selenium đến link → chờ PDF download
+        "link_text_hints": ["nhấp chuột tại đây", "tải hóa đơn", "download", "tải về", "tại đây", "click here"],
+        "code_patterns": [],       # không dùng mã tra cứu
+        "name": "VNPT EInvoice"
+    },
     "ehoadon": {
         "url_patterns": [r"tracuu\.ehoadon\.vn", r"tchd\.ehoadon\.vn", r"ehoadon\.vn"],
         "code_patterns": [
@@ -90,14 +99,66 @@ PROVIDERS = {
 }
 
 
-def detect_provider(text: str, html: str) -> dict | None:
-    """Nhận dạng nhà cung cấp từ nội dung email."""
+def detect_provider(text: str, html: str, sender: str = "") -> dict | None:
+    """Nhận dạng nhà cung cấp từ sender và nội dung email."""
     combined = (text + " " + html).lower()
     for key, info in PROVIDERS.items():
+        # Ưu tiên match theo sender email trước
+        for pat in info.get("sender_patterns", []):
+            if re.search(pat, sender, re.IGNORECASE):
+                return {**info, "provider_key": key}
+        # Fallback: match theo URL trong nội dung
         for pat in info["url_patterns"]:
             if re.search(pat, combined, re.IGNORECASE):
                 return {**info, "provider_key": key}
     return None
+
+
+def extract_direct_pdf_links(html: str, provider: dict) -> list[str]:
+    """Trích xuất URL tải PDF trực tiếp từ HTML email (dùng cho VNPT EInvoice)."""
+    from html.parser import HTMLParser
+
+    hints = [h.lower() for h in provider.get("link_text_hints", [])]
+
+    class LinkParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.links: list[str] = []
+            self._current_href: str | None = None
+            self._collect = False
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "a":
+                from html import unescape as _ue
+                attrs_dict = dict(attrs)
+                self._current_href = _ue(attrs_dict.get("href", ""))
+                self._collect = True
+
+        def handle_endtag(self, tag):
+            if tag == "a":
+                self._current_href = None
+                self._collect = False
+
+        def handle_data(self, data):
+            if self._collect and self._current_href:
+                text_lower = data.strip().lower()
+                if any(h in text_lower for h in hints):
+                    href = self._current_href
+                    if href and href.startswith("http"):
+                        self.links.append(href)
+
+    parser = LinkParser()
+    parser.feed(html)
+
+    # Nếu không tìm được qua text hint, thử tìm tất cả <a href> có chứa url_patterns
+    if not parser.links:
+        url_pattern_combined = "|".join(provider["url_patterns"])
+        for m in re.finditer(r'href=["\']([^"\']+)["\']', html, re.IGNORECASE):
+            href = m.group(1)
+            if re.search(url_pattern_combined, href, re.IGNORECASE) and href.startswith("http"):
+                parser.links.append(href)
+
+    return list(dict.fromkeys(parser.links))  # deduplicate, preserve order
 
 
 def extract_lookup_code(text: str, html: str, provider: dict) -> str | None:
@@ -389,7 +450,76 @@ def download_minvoice(lookup_code: str, download_dir: str, seller_tax: str = "")
             pass
 
 
+def download_einvoice_vnpt(direct_url: str, download_dir: str, subject: str = "") -> str | None:
+    """Tải PDF từ VNPT EInvoice — mở link bằng Chrome headless, chờ file PDF download về."""
+    os.makedirs(download_dir, exist_ok=True)
+
+    # Chụp danh sách PDF hiện có trước khi tải để xác định file mới
+    existing_pdfs = set(
+        f for f in os.listdir(download_dir) if f.lower().endswith(".pdf")
+    )
+
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1280,900")
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_dir,
+        "download.prompt_for_download": False,
+        "plugins.always_open_pdf_externally": True,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True,
+    })
+
+    driver = None
+    try:
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
+        # Cho phép download trong headless mode (Chrome 109+)
+        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+            "behavior": "allow",
+            "downloadPath": download_dir
+        })
+
+        driver.get(direct_url)
+
+        # Chờ tối đa 30 giây cho file PDF mới xuất hiện
+        end = time.time() + 30
+        new_file = None
+        while time.time() < end:
+            current_pdfs = set(
+                f for f in os.listdir(download_dir)
+                if f.lower().endswith(".pdf") and not f.endswith(".crdownload")
+            )
+            new_pdfs = current_pdfs - existing_pdfs
+            if new_pdfs:
+                # Lấy file mới nhất trong số các file mới
+                new_file = max(
+                    new_pdfs,
+                    key=lambda f: os.path.getmtime(os.path.join(download_dir, f))
+                )
+                break
+            time.sleep(1)
+
+        if not new_file:
+            return None
+
+        return os.path.join(download_dir, new_file)
+
+    except Exception:
+        return None
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+
+
 DOWNLOADERS = {
+    "einvoice_vnpt": None,   # xử lý đặc biệt trong process_email (cần direct_url)
     "ehoadon": download_ehoadon,
     "meinvoice": download_meinvoice,
     "minvoice": download_minvoice,
@@ -407,7 +537,9 @@ def has_pdf_attachment(msg) -> bool:
 
 def process_email(msg, save_dir: str) -> dict:
     subject = msg.Subject or ""
-    sender = msg.SenderName or msg.SenderEmailAddress or "Unknown"
+    sender_name = msg.SenderName or ""
+    sender_email = msg.SenderEmailAddress or ""
+    sender = sender_email or sender_name or "Unknown"
 
     try:
         body_text = msg.Body or ""
@@ -416,7 +548,7 @@ def process_email(msg, save_dir: str) -> dict:
         body_text = ""
         body_html = ""
 
-    provider = detect_provider(body_text, body_html)
+    provider = detect_provider(body_text, body_html, sender)
     if not provider:
         return {
             "status": "no_link",
@@ -425,6 +557,64 @@ def process_email(msg, save_dir: str) -> dict:
             "reason": "Không tìm thấy link hóa đơn điện tử trong email"
         }
 
+    # ── Luồng tải trực tiếp (VNPT EInvoice và tương tự) ─────────────────────
+    if provider.get("direct_download"):
+        direct_links = extract_direct_pdf_links(body_html, provider)
+        if not direct_links:
+            return {
+                "status": "pending_manual",
+                "subject": subject,
+                "sender": sender,
+                "provider": provider["name"],
+                "reason": "Không tìm thấy link tải PDF trong email — cần xử lý thủ công"
+            }
+
+        os.makedirs(save_dir, exist_ok=True)
+        downloaded_files = []
+        for url in direct_links:
+            # Unescape HTML entities trong URL (do lấy từ href trong HTML email)
+            from html import unescape as html_unescape
+            url = html_unescape(url)
+
+            # Link VNPT thường dùng meinvoice.vn làm portal → trích sc= và dùng downloader meinvoice
+            meinvoice_sc = re.search(r'meinvoice\.vn.*?[?&]sc=([A-Z0-9]{6,40})', url, re.IGNORECASE)
+            if meinvoice_sc:
+                lookup_code = meinvoice_sc.group(1)
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    dl = download_meinvoice(lookup_code, tmp_dir)
+                    if dl:
+                        safe_code = re.sub(r'[\\/:*?"<>|]', "_", lookup_code)
+                        dest = os.path.join(save_dir, f"INV_{safe_code}.pdf")
+                        if os.path.exists(dest):
+                            dest = os.path.join(save_dir, f"INV_{safe_code}_{int(time.time())}.pdf")
+                        shutil.move(dl, dest)
+                        downloaded_files.append(dest)
+            else:
+                dest = download_einvoice_vnpt(url, save_dir, subject)
+                if dest:
+                    downloaded_files.append(dest)
+
+        if not downloaded_files:
+            return {
+                "status": "pending_manual",
+                "subject": subject,
+                "sender": sender,
+                "provider": provider["name"],
+                "lookup_code": direct_links[0] if direct_links else "",
+                "reason": "Tải thất bại (link hết hạn hoặc lỗi mạng) — cần xử lý thủ công"
+            }
+
+        # Trả về file đầu tiên (thường chỉ có 1 PDF/email)
+        return {
+            "status": "downloaded",
+            "subject": subject,
+            "sender": sender,
+            "provider": provider["name"],
+            "lookup_code": "",
+            "file": downloaded_files[0]
+        }
+
+    # ── Luồng tra cứu bằng mã (ehoadon, meinvoice, minvoice) ─────────────────
     lookup_code = extract_lookup_code(body_text, body_html, provider)
     if not lookup_code:
         seller_tax_dbg = extract_seller_tax(body_text, body_html, provider) or ""
@@ -477,7 +667,34 @@ def process_email(msg, save_dir: str) -> dict:
     }
 
 
-def scan_emails(save_dir: str, days_back: int) -> list[dict]:
+def forward_email(msg, forward_to: list[str]) -> tuple[bool, str]:
+    """Chuyển tiếp email gốc đến danh sách địa chỉ."""
+    if not forward_to:
+        return True, ""
+    try:
+        fwd = msg.Forward()
+        for addr in forward_to:
+            addr = addr.strip()
+            if addr:
+                r = fwd.Recipients.Add(addr)
+                r.Type = 1  # olTo
+        if not fwd.Recipients.ResolveAll():
+            unresolved = []
+            for i in range(1, fwd.Recipients.Count + 1):
+                try:
+                    rec = fwd.Recipients[i]
+                    if not rec.Resolved:
+                        unresolved.append(rec.Address)
+                except Exception:
+                    pass
+            return False, f"Không resolve: {', '.join(unresolved)}"
+        fwd.Send()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def scan_emails(save_dir: str, days_back: int, forward_to: list[str] | None = None) -> list[dict]:
     pythoncom.CoInitialize()
     try:
         outlook = win32com.client.Dispatch("Outlook.Application")
@@ -523,6 +740,18 @@ def scan_emails(save_dir: str, days_back: int) -> list[dict]:
                 continue  # Đã có PDF đính kèm, bỏ qua
             result = process_email(msg, save_dir)
             if result["status"] != "no_link":
+                # Forward và đánh dấu đã đọc nếu tải thành công
+                if result["status"] == "downloaded":
+                    fwd_ok, fwd_err = forward_email(msg, forward_to) if forward_to else (True, "")
+                    result["forwarded"] = fwd_ok
+                    result["forward_error"] = fwd_err if not fwd_ok else None
+                    # Đánh dấu đã đọc khi tải và forward thành công
+                    if fwd_ok or not forward_to:
+                        try:
+                            msg.UnRead = False
+                            result["marked_read"] = True
+                        except Exception:
+                            result["marked_read"] = False
                 results.append(result)
         except Exception as e:
             results.append({"status": "error", "reason": str(e)})
@@ -534,9 +763,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--save-dir", required=True)
     parser.add_argument("--days-back", type=int, default=30)
+    parser.add_argument("--forward-to", default="",
+                        help="Danh sách email cách nhau dấu phẩy hoặc chấm phẩy")
     args = parser.parse_args()
 
-    results = scan_emails(args.save_dir, args.days_back)
+    forward_to = [e.strip() for e in re.split(r"[;,]", args.forward_to) if e.strip()] if args.forward_to else []
+
+    results = scan_emails(args.save_dir, args.days_back, forward_to)
 
     downloaded = sum(1 for r in results if r["status"] == "downloaded")
     pending = sum(1 for r in results if r["status"] == "pending_manual")

@@ -175,10 +175,20 @@ namespace MPR_Managerment.Forms
                 Location = new Point(608, 78), Width = 100, Height = 26,
                 BackColor = Color.FromArgb(39, 174, 96), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
-            btnSaveFwd.Click += (s, e) =>
+            btnSaveFwd.Click += async (s, e) =>
             {
                 OutlookMonitorService.ForwardTo = txtForwardTo.Text.Trim();
-                lblStatus.Text = "Đã lưu email kế toán. Khởi động lại Automatic để áp dụng.";
+                // Nếu Automatic đang bật, cập nhật Task Scheduler và khởi động lại để áp dụng ngay
+                if (OutlookMonitorService.IsPersistentEnabled)
+                {
+                    OutlookMonitorService.Stop();
+                    string msg2 = await OutlookMonitorService.EnablePersistentAsync(txtSaveDir.Text);
+                    lblStatus.Text = $"Đã lưu và áp dụng email kế toán mới. {msg2}";
+                }
+                else
+                {
+                    lblStatus.Text = "Đã lưu email kế toán.";
+                }
             };
 
             var separator = new Label

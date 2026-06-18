@@ -140,7 +140,11 @@ def forward_email(msg, forward_to: list[str]) -> tuple[bool, str]:
             if addr:
                 recipient = fwd.Recipients.Add(addr)
                 recipient.Type = 1  # olTo
-        fwd.Recipients.ResolveAll()
+        if not fwd.Recipients.ResolveAll():
+            unresolved = [fwd.Recipients[i].Address
+                          for i in range(1, fwd.Recipients.Count + 1)
+                          if not fwd.Recipients[i].Resolved]
+            return False, f"Không resolve được địa chỉ: {', '.join(unresolved)}"
         fwd.Send()
         return True, ""
     except Exception as e:
@@ -238,8 +242,8 @@ def process_msg(msg, base_dir: str, log_file: str,
         # Chuyen tiep email
         fwd_ok, fwd_err = forward_email(msg, forward_to)
 
-        # Danh dau da doc
-        read_ok = mark_as_read(msg)
+        # Danh dau da doc — chi khi forward thanh cong (hoac khong co forward_to)
+        read_ok = mark_as_read(msg) if (fwd_ok or not forward_to) else False
 
         # Phan loai hoa don sau khi tai
         classify_result = classify_downloaded_files(downloaded, base_dir)
@@ -343,7 +347,8 @@ def main():
     success_log_file = args.success_log_file or os.path.join(
         os.path.dirname(args.log_file), "invoice_success_log.json")
 
-    forward_to = [e.strip() for e in args.forward_to.split(",") if e.strip()] if args.forward_to else []
+    # Hỗ trợ cả dấu phẩy và chấm phẩy (registry lưu bằng "; ")
+    forward_to = [e.strip() for e in re.split(r"[;,]", args.forward_to) if e.strip()] if args.forward_to else []
 
     if args.pid_file:
         try:

@@ -42,17 +42,22 @@ namespace MPR_Managerment.Services
         public static async Task<LinkDownloadResponse> DownloadFromLinksAsync(
             string saveDir,
             int daysBack = 30,
-            IProgress<string>? progress = null)
+            IProgress<string>? progress = null,
+            string? forwardTo = null)
         {
             if (!File.Exists(ScriptPath))
                 return new LinkDownloadResponse { Success = false, Error = $"Không tìm thấy script: {ScriptPath}" };
 
             progress?.Report("Đang quét email chứa link hóa đơn...");
 
+            string fwdArg = string.IsNullOrWhiteSpace(forwardTo ?? OutlookMonitorService.ForwardTo)
+                ? ""
+                : $" --forward-to \"{(forwardTo ?? OutlookMonitorService.ForwardTo)}\"";
+
             var psi = new ProcessStartInfo
             {
                 FileName = "python",
-                Arguments = $"\"{ScriptPath}\" --save-dir \"{saveDir}\" --days-back {daysBack}",
+                Arguments = $"\"{ScriptPath}\" --save-dir \"{saveDir}\" --days-back {daysBack}{fwdArg}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
