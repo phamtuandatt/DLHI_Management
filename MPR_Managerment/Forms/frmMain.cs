@@ -52,6 +52,8 @@ namespace MPR_Managerment.Forms
             = new System.Collections.Generic.List<string>(); // quan trong
         private Button _btnTabStar;  // de cap nhat so luong Q Trong
         private Button _btnZalo;
+        // Thông báo nội bộ (Admin → User)
+        private readonly InternalNotificationService _internalNotifSvc = new();
         private ToolTip _zaloTip = new ToolTip();
         // ── Menu cố định 190px ──
         private const int MENU_FULL = 190;
@@ -319,6 +321,12 @@ namespace MPR_Managerment.Forms
                 AddMenuBtn("📜  Lịch sử thông báo", Color.FromArgb(30, 30, 45), y); y += 42;
             }
 
+            // Gửi thông báo nội bộ — chỉ Admin
+            if (AppSession.IsAdmin)
+            {
+                AddMenuBtn("📢  Gửi thông báo", Color.FromArgb(198, 40, 40), y); y += 42;
+            }
+
             // Đổi mật khẩu — luôn hiện
             AddMenuBtn("🔑  Đổi mật khẩu", Color.FromArgb(30, 30, 45), y); y += 42;
             AddMenuBtn("❌  Thoát", Color.FromArgb(30, 30, 45), y);
@@ -380,6 +388,11 @@ namespace MPR_Managerment.Forms
             else if (tag.Contains("Hóa đơn Outlook")) OpenForm(new frmOutlookInvoice());
             else if (tag.Contains("Quản lý User")) OpenForm(new frmUserManagement());
             else if (tag.Contains("Lịch sử thông báo")) OpenForm(new frmNotificationLog());
+            else if (tag.Contains("Gửi thông báo"))
+            {
+                var frm = new frmSendNotification();
+                frm.ShowDialog(this);
+            }
             else if (tag.Contains("Đổi mật khẩu"))
             {
                 if (AppSession.CurrentUser != null)
@@ -1387,6 +1400,33 @@ namespace MPR_Managerment.Forms
             };
             pToolbar.Controls.Add(btnClr);
 
+            // Nút "Gửi TB" — chỉ hiển thị cho Admin
+            if (AppSession.IsAdmin)
+            {
+                var btnSendNotif = new Button
+                {
+                    Text = "📢 Gửi TB",
+                    Size = new Size(85, 26),
+                    Location = new Point(200, 6),
+                    BackColor = Color.FromArgb(198, 40, 40),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                    Cursor = Cursors.Hand,
+                    TabStop = false
+                };
+                btnSendNotif.FlatAppearance.BorderSize = 0;
+                btnSendNotif.FlatAppearance.MouseOverBackColor = Color.FromArgb(160, 20, 20);
+                new ToolTip().SetToolTip(btnSendNotif, "Gửi thông báo nội bộ đến người dùng khác");
+                btnSendNotif.Click += (s, e) =>
+                {
+                    _panelNotify.Visible = false;
+                    var frm = new frmSendNotification();
+                    frm.ShowDialog(this);
+                };
+                pToolbar.Controls.Add(btnSendNotif);
+            }
+
             // ── Danh sach thong bao ─────────────────────────────────────
             _lstNotify = new ListBox
             {
@@ -1431,8 +1471,18 @@ namespace MPR_Managerment.Forms
                     if (!_readMsgs.Contains(msg))
                     {
                         _readMsgs.Add(msg);
+                        // Nếu là thông báo nội bộ → đánh dấu đã đọc trên DB
+                        if (msg.StartsWith("[NOTIFY]"))
+                        {
+                            int notifId = ExtractNotifId(msg);
+                            if (notifId > 0)
+                                Task.Run(() => { try { _internalNotifSvc.MarkRead(notifId); } catch { } });
+                        }
                         UpdateBadge();
                     }
+                    // Double-click sẽ show detail — đây single click chỉ đánh dấu đọc
+                    if (msg.StartsWith("[NOTIFY]"))
+                        ShowInternalNotifyDetail(msg);
                 }
                 _lstNotify.Invalidate(_lstNotify.GetItemRectangle(idx));
             };
@@ -1562,6 +1612,7 @@ namespace MPR_Managerment.Forms
             bool isPO = msg.StartsWith("[PO]");
             bool isMPR = msg.StartsWith("[MPR]");
             bool isRIR = msg.StartsWith("[RIR]");
+            bool isNotify = msg.StartsWith("[NOTIFY]");
 
             bool isRead = _readMsgs.Contains(msg);
             Color bg = isRead
@@ -1572,6 +1623,7 @@ namespace MPR_Managerment.Forms
             Color bar = isPO ? Color.FromArgb(25, 118, 210) :
                         isMPR ? Color.FromArgb(46, 125, 50) :
                         isRIR ? Color.FromArgb(102, 51, 153) :
+                        isNotify ? Color.FromArgb(198, 40, 40) :
                                 Color.FromArgb(180, 180, 200);
             // Thanh mau: nhat hon neu da doc
             Color barDraw = isRead ? Color.FromArgb(180, bar.R, bar.G, bar.B) : bar;
@@ -1792,27 +1844,48 @@ namespace MPR_Managerment.Forms
                     rRIR.Close();
                 }
 
+                // ── Thông báo nội bộ (Admin → User) ─────────────────────────
+                if (AppSession.CurrentUser != null)
+                {
+                    try
+                    {
+                        var internalNotifs = _internalNotifSvc.GetUnread(AppSession.CurrentUser.Username);
+                        foreach (var n in internalNotifs)
+                        {
+                            string isoTs = n.Sent_At.ToString("o");
+                            string dt = n.Sent_At.ToString("dd/MM HH:mm");
+                            string preview = n.Content.Length > 60
+                                ? n.Content.Substring(0, 60) + "..."
+                                : n.Content;
+                            msgs.Add($"[NOTIFY] {n.Title} | Từ: {n.Sender_FullName} | {dt}@@{isoTs}@@notif_id={n.Notif_ID}");
+                        }
+                    }
+                    catch { }
+                }
+
                 // Cap nhat moc thoi gian SAU khi da lay het data
                 DateTime checkTime = DateTime.Now;
 
                 int newPO = msgs.FindAll(m => m.StartsWith("[PO]")).Count;
                 int newMPR = msgs.FindAll(m => m.StartsWith("[MPR]")).Count;
                 int newRIR = msgs.FindAll(m => m.StartsWith("[RIR]")).Count;
+                int newNotif = msgs.FindAll(m => m.StartsWith("[NOTIFY]")).Count;
 
-                if (newPO == 0 && newMPR == 0 && newRIR == 0 && !force) return;
+                if (newPO == 0 && newMPR == 0 && newRIR == 0 && newNotif == 0 && !force) return;
 
                 _lastCheckTime = checkTime; // cập nhật SAU khi query xong
                 SaveLastCheckTime();        // persist để lần sau mở app check tiếp
                 if (this.InvokeRequired)
-                    this.Invoke(new Action(() => ApplyNotify(newPO, newMPR, newRIR, msgs, force)));
+                    this.Invoke(new Action(() => ApplyNotify(newPO, newMPR, newRIR, msgs, force, newNotif)));
                 else
-                    ApplyNotify(newPO, newMPR, newRIR, msgs, force);
+                    ApplyNotify(newPO, newMPR, newRIR, msgs, force, newNotif);
             }
             catch { }
         }
 
         private void ApplyNotify(int newPO, int newMPR, int newRIR,
-            System.Collections.Generic.List<string> msgs, bool force)
+            System.Collections.Generic.List<string> msgs, bool force,
+            int newNotif = 0)
         {
             // Lấy thời gian hệ thống hiện tại
             string t = DateTime.Now.ToString("HH:mm:ss");
@@ -1845,6 +1918,7 @@ namespace MPR_Managerment.Forms
                 if (newPO > 0) parts.Add(newPO + " PO moi");
                 if (newMPR > 0) parts.Add(newMPR + " MPR cap nhat");
                 if (newRIR > 0) parts.Add(newRIR + " RIR moi");
+                if (newNotif > 0) parts.Add(newNotif + " TB noi bo");
                 _lblNotifyCount.Text = string.Join(" | ", parts) + "  (" + t + ")";
                 _lblNotifyCount.ForeColor = Color.FromArgb(255, 200, 200); // Do nhat
 
@@ -2258,6 +2332,127 @@ namespace MPR_Managerment.Forms
                 _ = _WarmUpZaloSessionAsync();
             else if (!saved.Enabled)
                 _UpdateZaloButton(ZaloStatus.Disabled);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  HELPERS — Thông báo nội bộ
+        // ─────────────────────────────────────────────────────────────────────
+        private static int ExtractNotifId(string msg)
+        {
+            // Định dạng: "...@@notif_id=123"
+            int idx = msg.LastIndexOf("@@notif_id=", StringComparison.Ordinal);
+            if (idx < 0) return 0;
+            string tail = msg.Substring(idx + "@@notif_id=".Length);
+            return int.TryParse(tail, out int id) ? id : 0;
+        }
+
+        private void ShowInternalNotifyDetail(string msg)
+        {
+            // Parse: [NOTIFY] {title} | Từ: {sender} | {dt}@@{iso}@@notif_id={id}
+            string clean = msg.Contains("@@") ? msg.Substring(0, msg.IndexOf("@@")) : msg;
+            string[] parts = clean.Split('|');
+            string titleLine = parts.Length > 0 ? parts[0].Replace("[NOTIFY]", "").Trim() : "";
+            string senderLine = parts.Length > 1 ? parts[1].Trim() : "";
+            string timeLine = parts.Length > 2 ? parts[2].Trim() : "";
+
+            // Tìm nội dung đầy đủ từ DB (nếu cần)
+            int notifId = ExtractNotifId(msg);
+
+            var popup = new Form
+            {
+                Text = "📢 Thông báo nội bộ",
+                Size = new Size(500, 380),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(250, 250, 252)
+            };
+
+            var pTop = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(500, 56),
+                BackColor = Color.FromArgb(198, 40, 40)
+            };
+            pTop.Controls.Add(new Label
+            {
+                Text = "📢  Thông báo nội bộ",
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                ForeColor = Color.White,
+                Location = new Point(16, 16),
+                Size = new Size(460, 26)
+            });
+            popup.Controls.Add(pTop);
+
+            int y = 72;
+            void AddRow(string label, string value, bool multiline = false)
+            {
+                popup.Controls.Add(new Label
+                {
+                    Text = label,
+                    Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                    ForeColor = Color.Gray,
+                    Location = new Point(16, y),
+                    Size = new Size(70, 18)
+                });
+                var txt = new TextBox
+                {
+                    Text = value,
+                    Font = new Font("Segoe UI", 9),
+                    ReadOnly = true,
+                    BorderStyle = BorderStyle.None,
+                    BackColor = Color.FromArgb(250, 250, 252),
+                    Location = new Point(90, y),
+                    Size = new Size(390, multiline ? 100 : 20),
+                    Multiline = multiline,
+                    WordWrap = multiline,
+                    ScrollBars = multiline ? ScrollBars.Vertical : ScrollBars.None
+                };
+                popup.Controls.Add(txt);
+                y += multiline ? 116 : 28;
+            }
+
+            AddRow("Tiêu đề:", titleLine);
+            AddRow("Người gửi:", senderLine);
+            AddRow("Thời gian:", timeLine);
+
+            // Tải nội dung đầy đủ từ DB
+            if (notifId > 0)
+            {
+                try
+                {
+                    using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                    conn.Open();
+                    using var cmd = new SqlCommand(
+                        "SELECT Content FROM Internal_Notifications WHERE Notif_ID=@id", conn);
+                    cmd.Parameters.AddWithValue("@id", notifId);
+                    string fullContent = cmd.ExecuteScalar()?.ToString() ?? "";
+                    AddRow("Nội dung:", fullContent, multiline: true);
+                }
+                catch
+                {
+                    AddRow("Nội dung:", "(Không thể tải nội dung)");
+                }
+            }
+
+            var btnClose = new Button
+            {
+                Text = "✔ Đóng",
+                Location = new Point(390, popup.ClientSize.Height - 46),
+                Size = new Size(90, 32),
+                BackColor = Color.FromArgb(0, 120, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                DialogResult = DialogResult.OK
+            };
+            btnClose.FlatAppearance.BorderSize = 0;
+            popup.Controls.Add(btnClose);
+            popup.AcceptButton = btnClose;
+
+            popup.ShowDialog(this);
         }
 
     }

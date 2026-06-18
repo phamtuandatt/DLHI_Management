@@ -105,6 +105,9 @@ namespace MPR_Managerment.Forms
 
             new ModuleDef("AI_TOOLS", "Công cụ AI",
                 new[]{ "Xem", "Sử dụng" }),
+
+            new ModuleDef("SEND_NOTIFY", "Gửi thông báo nội bộ",
+                new[]{ "Gửi thông báo" }),
         };
         private Form TopOwner { get { var f = (this.TopLevelControl as Form) ?? this; if (!f.IsDisposed) { f.BringToFront(); f.Activate(); } return f; } }
 
