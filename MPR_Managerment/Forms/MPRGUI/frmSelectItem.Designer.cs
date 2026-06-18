@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.MPRGUI
+namespace MPR_Managerment.Forms.MPRGUI
 {
     partial class frmSelectItem
     {
@@ -29,7 +29,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmSelectItem));
             tableLayoutPanel1 = new TableLayoutPanel();
             tableLayoutPanel2 = new TableLayoutPanel();
             label2 = new Label();
@@ -57,9 +56,9 @@
             ((System.ComponentModel.ISupportInitialize)dgvItems).BeginInit();
             tableLayoutPanel4.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.ColumnCount = 1;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Controls.Add(tableLayoutPanel2, 0, 0);
@@ -77,9 +76,9 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
             tableLayoutPanel1.Size = new Size(1207, 634);
             tableLayoutPanel1.TabIndex = 0;
-            // 
+            //
             // tableLayoutPanel2
-            // 
+            //
             tableLayoutPanel2.ColumnCount = 9;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 156F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 294F));
@@ -105,9 +104,9 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel2.Size = new Size(1201, 32);
             tableLayoutPanel2.TabIndex = 0;
-            // 
+            //
             // label2
-            // 
+            //
             label2.AutoSize = true;
             label2.Dock = DockStyle.Fill;
             label2.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -118,9 +117,9 @@
             label2.Text = "Loại:";
             label2.TextAlign = ContentAlignment.MiddleRight;
             label2.Visible = false;
-            // 
+            //
             // label1
-            // 
+            //
             label1.AutoSize = true;
             label1.Dock = DockStyle.Fill;
             label1.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -130,9 +129,9 @@
             label1.TabIndex = 0;
             label1.Text = "Tìm kiếm mặt hàng:";
             label1.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // txtSearch
-            // 
+            //
             txtSearch.Dock = DockStyle.Fill;
             txtSearch.Location = new Point(159, 5);
             txtSearch.Margin = new Padding(3, 5, 3, 3);
@@ -140,9 +139,9 @@
             txtSearch.Size = new Size(288, 23);
             txtSearch.TabIndex = 1;
             txtSearch.KeyDown += txtSearch_KeyDown;
-            // 
+            //
             // btnSearch
-            // 
+            //
             btnSearch.Dock = DockStyle.Fill;
             btnSearch.Location = new Point(574, 3);
             btnSearch.Name = "btnSearch";
@@ -152,9 +151,9 @@
             btnSearch.UseVisualStyleBackColor = true;
             btnSearch.Visible = false;
             btnSearch.Click += btnSearch_Click;
-            // 
+            //
             // btnRefresh
-            // 
+            //
             btnRefresh.Dock = DockStyle.Fill;
             btnRefresh.Location = new Point(709, 3);
             btnRefresh.Name = "btnRefresh";
@@ -163,9 +162,9 @@
             btnRefresh.Text = "Xem hình";
             btnRefresh.UseVisualStyleBackColor = true;
             btnRefresh.Click += btnRefresh_Click;
-            // 
+            //
             // cboMaterial
-            // 
+            //
             cboMaterial.Dock = DockStyle.Fill;
             cboMaterial.FormattingEnabled = true;
             cboMaterial.Location = new Point(504, 5);
@@ -174,9 +173,9 @@
             cboMaterial.Size = new Size(64, 23);
             cboMaterial.TabIndex = 4;
             cboMaterial.Visible = false;
-            // 
+            //
             // btnAddProduct
-            // 
+            //
             btnAddProduct.Dock = DockStyle.Fill;
             btnAddProduct.Location = new Point(844, 3);
             btnAddProduct.Name = "btnAddProduct";
@@ -185,9 +184,9 @@
             btnAddProduct.Text = "Thêm vật tư";
             btnAddProduct.UseVisualStyleBackColor = true;
             btnAddProduct.Click += btnAddProduct_Click;
-            // 
+            //
             // btnReload
-            // 
+            //
             btnReload.Dock = DockStyle.Fill;
             btnReload.Location = new Point(994, 3);
             btnReload.Name = "btnReload";
@@ -196,9 +195,9 @@
             btnReload.Text = "Làm mới";
             btnReload.UseVisualStyleBackColor = true;
             btnReload.Click += btnReload_Click;
-            // 
+            //
             // tableLayoutPanel3
-            // 
+            //
             tableLayoutPanel3.ColumnCount = 11;
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48F));
@@ -219,9 +218,9 @@
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel3.Size = new Size(1201, 20);
             tableLayoutPanel3.TabIndex = 1;
-            // 
+            //
             // lblStatus
-            // 
+            //
             lblStatus.AutoSize = true;
             lblStatus.BackColor = Color.White;
             lblStatus.Dock = DockStyle.Fill;
@@ -233,9 +232,9 @@
             lblStatus.TabIndex = 1;
             lblStatus.Text = "Đã chọn: 0 vật tư";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // groupBox1
-            // 
+            //
             groupBox1.Controls.Add(dgvItems);
             groupBox1.Dock = DockStyle.Fill;
             groupBox1.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -245,9 +244,9 @@
             groupBox1.TabIndex = 2;
             groupBox1.TabStop = false;
             groupBox1.Text = "Danh sách vật tư";
-            // 
+            //
             // dgvItems
-            // 
+            //
             dgvItems.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvItems.Dock = DockStyle.Fill;
             dgvItems.Location = new Point(3, 23);
@@ -256,9 +255,9 @@
             dgvItems.RowTemplate.Height = 30;
             dgvItems.Size = new Size(1195, 468);
             dgvItems.TabIndex = 0;
-            // 
+            //
             // tableLayoutPanel4
-            // 
+            //
             tableLayoutPanel4.ColumnCount = 7;
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
@@ -279,9 +278,9 @@
             tableLayoutPanel4.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel4.Size = new Size(1201, 44);
             tableLayoutPanel4.TabIndex = 3;
-            // 
+            //
             // btnSelect
-            // 
+            //
             btnSelect.Dock = DockStyle.Fill;
             btnSelect.Location = new Point(3, 3);
             btnSelect.Name = "btnSelect";
@@ -290,9 +289,9 @@
             btnSelect.Text = "Xác nhận";
             btnSelect.UseVisualStyleBackColor = true;
             btnSelect.Click += btnSelect_Click;
-            // 
+            //
             // btnDelete
-            // 
+            //
             btnDelete.Dock = DockStyle.Fill;
             btnDelete.Location = new Point(103, 3);
             btnDelete.Name = "btnDelete";
@@ -301,9 +300,9 @@
             btnDelete.Text = "Bỏ chọn";
             btnDelete.UseVisualStyleBackColor = true;
             btnDelete.Click += btnDelete_Click;
-            // 
+            //
             // btnCancels
-            // 
+            //
             btnCancels.Dock = DockStyle.Fill;
             btnCancels.Location = new Point(203, 3);
             btnCancels.Name = "btnCancels";
@@ -312,9 +311,9 @@
             btnCancels.Text = "Đóng";
             btnCancels.UseVisualStyleBackColor = true;
             btnCancels.Click += btnCancels_Click;
-            // 
+            //
             // button6
-            // 
+            //
             button6.Dock = DockStyle.Fill;
             button6.Location = new Point(303, 3);
             button6.Name = "button6";
@@ -323,9 +322,9 @@
             button6.Text = "button3";
             button6.UseVisualStyleBackColor = true;
             button6.Visible = false;
-            // 
+            //
             // button7
-            // 
+            //
             button7.Dock = DockStyle.Fill;
             button7.Location = new Point(403, 3);
             button7.Name = "button7";
@@ -334,17 +333,24 @@
             button7.Text = "button3";
             button7.UseVisualStyleBackColor = true;
             button7.Visible = false;
-            // 
+            //
             // frmSelectItem
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             ClientSize = new Size(1207, 634);
             Controls.Add(tableLayoutPanel1);
-            Icon = (Icon)resources.GetObject("$this.Icon");
             MinimumSize = new Size(900, 620);
-            Name = "frmSelectItem";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Tìm kiếm mặt hàng";
             Load += frmSelectItem_Load_1;

@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.ImportWarehouseGUI
+namespace MPR_Managerment.Forms.ImportWarehouseGUI
 {
     partial class frmUpdateIDCode
     {
@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmUpdateIDCode));
             tableLayoutPanel1 = new TableLayoutPanel();
             panel1 = new Panel();
             textBox1 = new TextBox();
@@ -40,9 +39,9 @@
             panel1.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.ColumnCount = 1;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Controls.Add(panel1, 0, 0);
@@ -55,9 +54,9 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Size = new Size(471, 78);
             tableLayoutPanel1.TabIndex = 0;
-            // 
+            //
             // panel1
-            // 
+            //
             panel1.BackColor = Color.White;
             panel1.Controls.Add(textBox1);
             panel1.Controls.Add(txtIDCode);
@@ -66,17 +65,17 @@
             panel1.Name = "panel1";
             panel1.Size = new Size(465, 24);
             panel1.TabIndex = 0;
-            // 
+            //
             // textBox1
-            // 
+            //
             textBox1.Dock = DockStyle.Fill;
             textBox1.Location = new Point(84, 0);
             textBox1.Name = "textBox1";
             textBox1.Size = new Size(381, 23);
             textBox1.TabIndex = 1;
-            // 
+            //
             // txtIDCode
-            // 
+            //
             txtIDCode.Dock = DockStyle.Left;
             txtIDCode.Location = new Point(0, 0);
             txtIDCode.Name = "txtIDCode";
@@ -84,9 +83,9 @@
             txtIDCode.TabIndex = 0;
             txtIDCode.Text = "ID Code:";
             txtIDCode.TextAlign = ContentAlignment.MiddleCenter;
-            // 
+            //
             // tableLayoutPanel2
-            // 
+            //
             tableLayoutPanel2.ColumnCount = 2;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
@@ -99,9 +98,9 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.Size = new Size(465, 42);
             tableLayoutPanel2.TabIndex = 1;
-            // 
+            //
             // btnCancel
-            // 
+            //
             btnCancel.Dock = DockStyle.Fill;
             btnCancel.Location = new Point(3, 3);
             btnCancel.Name = "btnCancel";
@@ -110,9 +109,9 @@
             btnCancel.Text = "CANCEL";
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
-            // 
+            //
             // btnSave
-            // 
+            //
             btnSave.Dock = DockStyle.Fill;
             btnSave.Location = new Point(235, 3);
             btnSave.Name = "btnSave";
@@ -121,15 +120,22 @@
             btnSave.Text = "SAVE";
             btnSave.UseVisualStyleBackColor = true;
             btnSave.Click += btnSave_Click;
-            // 
+            //
             // frmUpdateIDCode
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(471, 78);
             Controls.Add(tableLayoutPanel1);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmUpdateIDCode";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Update ID Code";
             tableLayoutPanel1.ResumeLayout(false);

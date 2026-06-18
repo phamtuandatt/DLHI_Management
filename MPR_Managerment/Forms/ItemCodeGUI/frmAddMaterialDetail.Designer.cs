@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.ItemCodeGUI
+namespace MPR_Managerment.Forms.ItemCodeGUI
 {
     partial class frmAddMaterialDetail
     {
@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmAddMaterialDetail));
             lblName = new Label();
             tableLayoutPanel5 = new TableLayoutPanel();
             btnGenerate = new Button();
@@ -40,9 +39,9 @@
             tableLayoutPanel5.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // lblName
-            // 
+            //
             lblName.BackColor = Color.Blue;
             lblName.Dock = DockStyle.Top;
             lblName.Font = new Font("Segoe UI", 20F, FontStyle.Bold);
@@ -53,9 +52,9 @@
             lblName.TabIndex = 1;
             lblName.Text = "Thêm vật tư";
             lblName.TextAlign = ContentAlignment.MiddleCenter;
-            // 
+            //
             // tableLayoutPanel5
-            // 
+            //
             tableLayoutPanel5.ColumnCount = 3;
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18.1347141F));
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 81.86529F));
@@ -70,9 +69,9 @@
             tableLayoutPanel5.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel5.Size = new Size(507, 29);
             tableLayoutPanel5.TabIndex = 25;
-            // 
+            //
             // btnGenerate
-            // 
+            //
             btnGenerate.BackColor = Color.Navy;
             btnGenerate.Dock = DockStyle.Fill;
             btnGenerate.FlatStyle = FlatStyle.Flat;
@@ -86,9 +85,9 @@
             btnGenerate.Text = "➕ THÊM";
             btnGenerate.UseVisualStyleBackColor = false;
             btnGenerate.Click += btnGenerate_Click;
-            // 
+            //
             // label6
-            // 
+            //
             label6.Dock = DockStyle.Fill;
             label6.Location = new Point(3, 0);
             label6.Name = "label6";
@@ -96,18 +95,18 @@
             label6.TabIndex = 2;
             label6.Text = "Tên vật tư:";
             label6.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // txtCode
-            // 
+            //
             txtCode.Dock = DockStyle.Fill;
             txtCode.Location = new Point(74, 4);
             txtCode.Margin = new Padding(3, 4, 3, 2);
             txtCode.Name = "txtCode";
             txtCode.Size = new Size(316, 23);
             txtCode.TabIndex = 30;
-            // 
+            //
             // tableLayoutPanel3
-            // 
+            //
             tableLayoutPanel3.ColumnCount = 2;
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 13.81323F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 86.18677F));
@@ -120,9 +119,9 @@
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel3.Size = new Size(507, 29);
             tableLayoutPanel3.TabIndex = 26;
-            // 
+            //
             // label4
-            // 
+            //
             label4.Dock = DockStyle.Fill;
             label4.Location = new Point(3, 0);
             label4.Name = "label4";
@@ -130,9 +129,9 @@
             label4.TabIndex = 2;
             label4.Text = "Original:";
             label4.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // cboOriginal
-            // 
+            //
             cboOriginal.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
             cboOriginal.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboOriginal.Dock = DockStyle.Fill;
@@ -142,17 +141,24 @@
             cboOriginal.Name = "cboOriginal";
             cboOriginal.Size = new Size(431, 23);
             cboOriginal.TabIndex = 28;
-            // 
+            //
             // frmAddMaterialDetail
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(514, 105);
             Controls.Add(tableLayoutPanel3);
             Controls.Add(tableLayoutPanel5);
             Controls.Add(lblName);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmAddMaterialDetail";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             StartPosition = FormStartPosition.CenterParent;
             Text = "Thêm vật tư";
             tableLayoutPanel5.ResumeLayout(false);

@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms
+namespace MPR_Managerment.Forms
 {
     partial class frmChangePassword
     {
@@ -28,16 +28,22 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmChangePassword));
             SuspendLayout();
-            // 
+            //
             // frmChangePassword
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmChangePassword";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             Text = "frmChangePassword";
             ResumeLayout(false);
         }

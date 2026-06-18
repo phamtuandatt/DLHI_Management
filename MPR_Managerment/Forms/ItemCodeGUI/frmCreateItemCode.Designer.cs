@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.ItemCodeGUI
+namespace MPR_Managerment.Forms.ItemCodeGUI
 {
     partial class frmCreateItemCode
     {
@@ -29,7 +29,6 @@
         private void InitializeComponent()
         {
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmCreateItemCode));
             panel1 = new Panel();
             groupBox1 = new GroupBox();
             tableLayoutPanel6 = new TableLayoutPanel();
@@ -75,9 +74,9 @@
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel1.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // panel1
-            // 
+            //
             panel1.Controls.Add(groupBox1);
             panel1.Controls.Add(tableLayoutPanel9);
             panel1.Controls.Add(tableLayoutPanel5);
@@ -93,9 +92,9 @@
             panel1.Size = new Size(1240, 290);
             panel1.TabIndex = 0;
             panel1.Paint += panel1_Paint;
-            // 
+            //
             // groupBox1
-            // 
+            //
             groupBox1.Controls.Add(tableLayoutPanel6);
             groupBox1.Controls.Add(btnAddMAterial);
             groupBox1.Controls.Add(dgvItemExist);
@@ -107,9 +106,9 @@
             groupBox1.TabIndex = 25;
             groupBox1.TabStop = false;
             groupBox1.Text = "Items";
-            // 
+            //
             // tableLayoutPanel6
-            // 
+            //
             tableLayoutPanel6.ColumnCount = 3;
             tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 13.2743359F));
             tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 86.72566F));
@@ -124,9 +123,9 @@
             tableLayoutPanel6.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel6.Size = new Size(687, 29);
             tableLayoutPanel6.TabIndex = 30;
-            // 
+            //
             // button1
-            // 
+            //
             button1.BackColor = Color.FromArgb(255, 128, 0);
             button1.Dock = DockStyle.Fill;
             button1.FlatStyle = FlatStyle.Flat;
@@ -140,9 +139,9 @@
             button1.Text = "➕ Generate";
             button1.UseVisualStyleBackColor = false;
             button1.Visible = false;
-            // 
+            //
             // label7
-            // 
+            //
             label7.Dock = DockStyle.Fill;
             label7.Location = new Point(3, 0);
             label7.Name = "label7";
@@ -150,9 +149,9 @@
             label7.TabIndex = 2;
             label7.Text = "Tên vật tư:";
             label7.TextAlign = ContentAlignment.MiddleCenter;
-            // 
+            //
             // txtSearch
-            // 
+            //
             txtSearch.Dock = DockStyle.Fill;
             txtSearch.Location = new Point(93, 4);
             txtSearch.Margin = new Padding(3, 4, 3, 2);
@@ -160,9 +159,9 @@
             txtSearch.Size = new Size(582, 23);
             txtSearch.TabIndex = 30;
             txtSearch.TextChanged += txtSearch_TextChanged;
-            // 
+            //
             // btnAddMAterial
-            // 
+            //
             btnAddMAterial.BackColor = Color.MediumBlue;
             btnAddMAterial.Dock = DockStyle.Top;
             btnAddMAterial.FlatStyle = FlatStyle.Flat;
@@ -176,9 +175,9 @@
             btnAddMAterial.Text = "➕ Thêm vật tư ";
             btnAddMAterial.UseVisualStyleBackColor = false;
             btnAddMAterial.Click += btnAddMAterial_Click;
-            // 
+            //
             // dgvItemExist
-            // 
+            //
             dgvItemExist.AllowUserToAddRows = false;
             dgvItemExist.AllowUserToDeleteRows = false;
             dgvItemExist.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -204,54 +203,54 @@
             dgvItemExist.CellContentDoubleClick += dgvItemExist_CellContentDoubleClick;
             dgvItemExist.RowPostPaint += dgvItemExist_RowPostPaint;
             dgvItemExist.RowPrePaint += dgvItemExist_RowPrePaint;
-            // 
+            //
             // material_detail_id
-            // 
+            //
             material_detail_id.DataPropertyName = "material_detail_id";
             material_detail_id.HeaderText = "ID";
             material_detail_id.MinimumWidth = 6;
             material_detail_id.Name = "material_detail_id";
             material_detail_id.ReadOnly = true;
             material_detail_id.Visible = false;
-            // 
+            //
             // material_detail_number
-            // 
+            //
             material_detail_number.DataPropertyName = "material_detail_number";
             material_detail_number.FillWeight = 20F;
             material_detail_number.HeaderText = "Number";
             material_detail_number.MinimumWidth = 6;
             material_detail_number.Name = "material_detail_number";
             material_detail_number.ReadOnly = true;
-            // 
+            //
             // material_detail_name
-            // 
+            //
             material_detail_name.DataPropertyName = "material_detail_name";
             material_detail_name.FillWeight = 49.5095673F;
             material_detail_name.HeaderText = "Name";
             material_detail_name.MinimumWidth = 6;
             material_detail_name.Name = "material_detail_name";
             material_detail_name.ReadOnly = true;
-            // 
+            //
             // material_detail_code
-            // 
+            //
             material_detail_code.DataPropertyName = "material_detail_code";
             material_detail_code.HeaderText = "Material ID";
             material_detail_code.MinimumWidth = 6;
             material_detail_code.Name = "material_detail_code";
             material_detail_code.ReadOnly = true;
             material_detail_code.Visible = false;
-            // 
+            //
             // item_code_existed
-            // 
+            //
             item_code_existed.DataPropertyName = "item_code_existed";
             item_code_existed.HeaderText = "Code";
             item_code_existed.MinimumWidth = 6;
             item_code_existed.Name = "item_code_existed";
             item_code_existed.ReadOnly = true;
             item_code_existed.Visible = false;
-            // 
+            //
             // tableLayoutPanel9
-            // 
+            //
             tableLayoutPanel9.ColumnCount = 2;
             tableLayoutPanel9.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 49.91511F));
             tableLayoutPanel9.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50.08489F));
@@ -264,9 +263,9 @@
             tableLayoutPanel9.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel9.Size = new Size(520, 40);
             tableLayoutPanel9.TabIndex = 1;
-            // 
+            //
             // btnSave
-            // 
+            //
             btnSave.BackColor = Color.FromArgb(0, 229, 0);
             btnSave.Dock = DockStyle.Fill;
             btnSave.FlatStyle = FlatStyle.Flat;
@@ -280,9 +279,9 @@
             btnSave.Text = "💾 SAVE";
             btnSave.UseVisualStyleBackColor = false;
             btnSave.Click += btnSave_Click;
-            // 
+            //
             // btnCancel
-            // 
+            //
             btnCancel.BackColor = SystemColors.ActiveBorder;
             btnCancel.Dock = DockStyle.Fill;
             btnCancel.FlatStyle = FlatStyle.Flat;
@@ -296,9 +295,9 @@
             btnCancel.Text = "🆕 Cancel";
             btnCancel.UseVisualStyleBackColor = false;
             btnCancel.Click += btnCancel_Click;
-            // 
+            //
             // tableLayoutPanel5
-            // 
+            //
             tableLayoutPanel5.ColumnCount = 3;
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.8003845F));
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.1996155F));
@@ -313,9 +312,9 @@
             tableLayoutPanel5.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel5.Size = new Size(530, 29);
             tableLayoutPanel5.TabIndex = 24;
-            // 
+            //
             // btnGenerate
-            // 
+            //
             btnGenerate.BackColor = Color.FromArgb(255, 128, 0);
             btnGenerate.Dock = DockStyle.Fill;
             btnGenerate.FlatStyle = FlatStyle.Flat;
@@ -330,9 +329,9 @@
             btnGenerate.UseVisualStyleBackColor = false;
             btnGenerate.Visible = false;
             btnGenerate.Click += btnGenerate_Click;
-            // 
+            //
             // label6
-            // 
+            //
             label6.Dock = DockStyle.Fill;
             label6.Location = new Point(3, 0);
             label6.Name = "label6";
@@ -341,18 +340,18 @@
             label6.Text = "Code:";
             label6.TextAlign = ContentAlignment.MiddleLeft;
             label6.Click += label6_Click;
-            // 
+            //
             // txtCode
-            // 
+            //
             txtCode.Dock = DockStyle.Fill;
             txtCode.Location = new Point(127, 4);
             txtCode.Margin = new Padding(3, 4, 3, 2);
             txtCode.Name = "txtCode";
             txtCode.Size = new Size(391, 23);
             txtCode.TabIndex = 30;
-            // 
+            //
             // tableLayoutPanel4
-            // 
+            //
             tableLayoutPanel4.ColumnCount = 2;
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
@@ -365,9 +364,9 @@
             tableLayoutPanel4.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel4.Size = new Size(520, 29);
             tableLayoutPanel4.TabIndex = 23;
-            // 
+            //
             // label5
-            // 
+            //
             label5.Dock = DockStyle.Fill;
             label5.Location = new Point(3, 0);
             label5.Name = "label5";
@@ -375,9 +374,9 @@
             label5.TabIndex = 2;
             label5.Text = "Standard:";
             label5.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // cboStandard
-            // 
+            //
             cboStandard.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
             cboStandard.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboStandard.Dock = DockStyle.Fill;
@@ -389,9 +388,9 @@
             cboStandard.TabIndex = 29;
             cboStandard.SelectedIndexChanged += cboStandard_SelectedIndexChanged;
             cboStandard.Validating += cboStandard_Validating;
-            // 
+            //
             // tableLayoutPanel3
-            // 
+            //
             tableLayoutPanel3.ColumnCount = 2;
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
@@ -404,9 +403,9 @@
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel3.Size = new Size(520, 29);
             tableLayoutPanel3.TabIndex = 22;
-            // 
+            //
             // label4
-            // 
+            //
             label4.Dock = DockStyle.Fill;
             label4.Location = new Point(3, 0);
             label4.Name = "label4";
@@ -414,9 +413,9 @@
             label4.TabIndex = 2;
             label4.Text = "Original:";
             label4.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // cboOriginal
-            // 
+            //
             cboOriginal.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
             cboOriginal.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboOriginal.Dock = DockStyle.Fill;
@@ -427,9 +426,9 @@
             cboOriginal.Size = new Size(391, 23);
             cboOriginal.TabIndex = 28;
             cboOriginal.Validating += cboOriginal_Validating;
-            // 
+            //
             // tableLayoutPanel2
-            // 
+            //
             tableLayoutPanel2.ColumnCount = 3;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 26.7973862F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 73.2026138F));
@@ -444,9 +443,9 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.Size = new Size(520, 29);
             tableLayoutPanel2.TabIndex = 21;
-            // 
+            //
             // btnShowExisted
-            // 
+            //
             btnShowExisted.BackColor = Color.FromArgb(255, 128, 0);
             btnShowExisted.Dock = DockStyle.Fill;
             btnShowExisted.FlatStyle = FlatStyle.Flat;
@@ -460,9 +459,9 @@
             btnShowExisted.Text = "➕ Generate";
             btnShowExisted.UseVisualStyleBackColor = false;
             btnShowExisted.Click += btnShowExisted_Click;
-            // 
+            //
             // label3
-            // 
+            //
             label3.Dock = DockStyle.Fill;
             label3.Location = new Point(3, 0);
             label3.Name = "label3";
@@ -470,9 +469,9 @@
             label3.TabIndex = 2;
             label3.Text = "Material:";
             label3.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // cboMaterial
-            // 
+            //
             cboMaterial.Dock = DockStyle.Fill;
             cboMaterial.FormattingEnabled = true;
             cboMaterial.Location = new Point(126, 6);
@@ -482,9 +481,9 @@
             cboMaterial.TabIndex = 27;
             cboMaterial.SelectedIndexChanged += cboMaterial_SelectedIndexChanged;
             cboMaterial.Validating += cboMaterial_Validating;
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.ColumnCount = 2;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23.7691F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 76.2309F));
@@ -497,9 +496,9 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.Size = new Size(520, 29);
             tableLayoutPanel1.TabIndex = 20;
-            // 
+            //
             // label2
-            // 
+            //
             label2.Dock = DockStyle.Fill;
             label2.Location = new Point(3, 0);
             label2.Name = "label2";
@@ -507,9 +506,9 @@
             label2.TabIndex = 2;
             label2.Text = "Material Category:";
             label2.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // cboMaterialCate
-            // 
+            //
             cboMaterialCate.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
             cboMaterialCate.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboMaterialCate.Dock = DockStyle.Fill;
@@ -521,9 +520,9 @@
             cboMaterialCate.TabIndex = 26;
             cboMaterialCate.SelectedIndexChanged += cboMaterialCate_SelectedIndexChanged;
             cboMaterialCate.Validating += cboMaterialCate_Validating;
-            // 
+            //
             // label1
-            // 
+            //
             label1.BackColor = Color.Blue;
             label1.Dock = DockStyle.Top;
             label1.Font = new Font("Segoe UI", 20F, FontStyle.Bold);
@@ -534,19 +533,26 @@
             label1.TabIndex = 0;
             label1.Text = "TẠO CODE";
             label1.TextAlign = ContentAlignment.MiddleCenter;
-            // 
+            //
             // frmCreateItemCode
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             AutoSize = true;
             ClientSize = new Size(1240, 290);
             Controls.Add(panel1);
-            Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(3, 2, 3, 2);
             MaximumSize = new Size(1256, 500);
             MinimumSize = new Size(1256, 303);
-            Name = "frmCreateItemCode";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             Text = "Thêm code cho vật thư";
             Load += frmCreateItemCode_Load;
             panel1.ResumeLayout(false);

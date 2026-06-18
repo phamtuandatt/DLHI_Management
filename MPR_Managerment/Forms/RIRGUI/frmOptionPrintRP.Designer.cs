@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.RIRGUI
+namespace MPR_Managerment.Forms.RIRGUI
 {
     partial class frmOptionPrintRP
     {
@@ -28,15 +28,14 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmOptionPrintRP));
             btnProject = new Button();
             btnRIRNo = new Button();
             tableLayoutPanel1 = new TableLayoutPanel();
             tableLayoutPanel1.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // btnProject
-            // 
+            //
             btnProject.BackColor = Color.FromArgb(0, 120, 212);
             btnProject.Dock = DockStyle.Fill;
             btnProject.FlatStyle = FlatStyle.Flat;
@@ -50,9 +49,9 @@
             btnProject.Text = "🎨 Project";
             btnProject.UseVisualStyleBackColor = false;
             btnProject.Click += btnProject_Click;
-            // 
+            //
             // btnRIRNo
-            // 
+            //
             btnRIRNo.BackColor = Color.ForestGreen;
             btnRIRNo.Dock = DockStyle.Fill;
             btnRIRNo.FlatStyle = FlatStyle.Flat;
@@ -66,9 +65,9 @@
             btnRIRNo.Text = "RIR No";
             btnRIRNo.UseVisualStyleBackColor = false;
             btnRIRNo.Click += btnRIRNo_Click;
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.ColumnCount = 2;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
@@ -81,15 +80,22 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.Size = new Size(402, 49);
             tableLayoutPanel1.TabIndex = 1;
-            // 
+            //
             // frmOptionPrintRP
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(402, 49);
             Controls.Add(tableLayoutPanel1);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmOptionPrintRP";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             Text = "Option";
             tableLayoutPanel1.ResumeLayout(false);
             ResumeLayout(false);

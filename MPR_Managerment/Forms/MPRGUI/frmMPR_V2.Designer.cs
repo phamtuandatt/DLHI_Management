@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.MPRGUI
+namespace MPR_Managerment.Forms.MPRGUI
 {
     partial class frmMPR_V2
     {
@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmMPR_V2));
             panel1 = new Panel();
             groupBox2 = new GroupBox();
             dgvItems = new DataGridView();
@@ -62,9 +61,9 @@
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel1.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // panel1
-            // 
+            //
             panel1.BackColor = Color.White;
             panel1.Controls.Add(groupBox2);
             panel1.Controls.Add(groupBox1);
@@ -75,9 +74,9 @@
             panel1.Padding = new Padding(10);
             panel1.Size = new Size(1271, 726);
             panel1.TabIndex = 0;
-            // 
+            //
             // groupBox2
-            // 
+            //
             groupBox2.Controls.Add(dgvItems);
             groupBox2.Dock = DockStyle.Fill;
             groupBox2.Location = new Point(10, 162);
@@ -86,18 +85,18 @@
             groupBox2.TabIndex = 1;
             groupBox2.TabStop = false;
             groupBox2.Text = "Danh sách vật tư";
-            // 
+            //
             // dgvItems
-            // 
+            //
             dgvItems.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvItems.Dock = DockStyle.Fill;
             dgvItems.Location = new Point(3, 19);
             dgvItems.Name = "dgvItems";
             dgvItems.Size = new Size(1245, 532);
             dgvItems.TabIndex = 0;
-            // 
+            //
             // groupBox1
-            // 
+            //
             groupBox1.Controls.Add(panel2);
             groupBox1.Controls.Add(tableLayoutPanel1);
             groupBox1.Dock = DockStyle.Top;
@@ -107,18 +106,18 @@
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             groupBox1.Text = "★ Yêu cầu mua hàng mới";
-            // 
+            //
             // panel2
-            // 
+            //
             panel2.Controls.Add(tableLayoutPanel2);
             panel2.Dock = DockStyle.Fill;
             panel2.Location = new Point(3, 112);
             panel2.Name = "panel2";
             panel2.Size = new Size(1245, 37);
             panel2.TabIndex = 1;
-            // 
+            //
             // tableLayoutPanel2
-            // 
+            //
             tableLayoutPanel2.ColumnCount = 7;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
@@ -140,9 +139,9 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel2.Size = new Size(1245, 37);
             tableLayoutPanel2.TabIndex = 5;
-            // 
+            //
             // btnPrint
-            // 
+            //
             btnPrint.Dock = DockStyle.Fill;
             btnPrint.Location = new Point(3, 3);
             btnPrint.Name = "btnPrint";
@@ -150,9 +149,9 @@
             btnPrint.TabIndex = 2;
             btnPrint.Text = "Xuất File";
             btnPrint.UseVisualStyleBackColor = true;
-            // 
+            //
             // btnSave
-            // 
+            //
             btnSave.Dock = DockStyle.Fill;
             btnSave.Location = new Point(153, 3);
             btnSave.Name = "btnSave";
@@ -161,9 +160,9 @@
             btnSave.Text = "Lưu";
             btnSave.UseVisualStyleBackColor = true;
             btnSave.Click += btnSave_Click;
-            // 
+            //
             // btnCancel
-            // 
+            //
             btnCancel.Dock = DockStyle.Fill;
             btnCancel.Location = new Point(303, 3);
             btnCancel.Name = "btnCancel";
@@ -172,9 +171,9 @@
             btnCancel.Text = "Hủy";
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
-            // 
+            //
             // btnDeleteRow
-            // 
+            //
             btnDeleteRow.Dock = DockStyle.Fill;
             btnDeleteRow.Location = new Point(603, 3);
             btnDeleteRow.Name = "btnDeleteRow";
@@ -183,9 +182,9 @@
             btnDeleteRow.Text = "Xóa dòng";
             btnDeleteRow.UseVisualStyleBackColor = true;
             btnDeleteRow.Click += btnDeleteRow_Click;
-            // 
+            //
             // btnAddRow
-            // 
+            //
             btnAddRow.Dock = DockStyle.Fill;
             btnAddRow.Location = new Point(453, 3);
             btnAddRow.Name = "btnAddRow";
@@ -194,9 +193,9 @@
             btnAddRow.Text = "Thêm dòng";
             btnAddRow.UseVisualStyleBackColor = true;
             btnAddRow.Click += btnAddRow_Click;
-            // 
+            //
             // lblTotal
-            // 
+            //
             lblTotal.AutoSize = true;
             lblTotal.Dock = DockStyle.Fill;
             lblTotal.Location = new Point(753, 3);
@@ -206,9 +205,9 @@
             lblTotal.TabIndex = 1;
             lblTotal.Text = "TỔNG";
             lblTotal.TextAlign = ContentAlignment.MiddleCenter;
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.ColumnCount = 5;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250F));
@@ -237,9 +236,9 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Size = new Size(1245, 93);
             tableLayoutPanel1.TabIndex = 0;
-            // 
+            //
             // dateTimePicker2
-            // 
+            //
             dateTimePicker2.Dock = DockStyle.Fill;
             dateTimePicker2.Format = DateTimePickerFormat.Short;
             dateTimePicker2.Location = new Point(492, 5);
@@ -247,9 +246,9 @@
             dateTimePicker2.Name = "dateTimePicker2";
             dateTimePicker2.Size = new Size(243, 23);
             dateTimePicker2.TabIndex = 2;
-            // 
+            //
             // label1
-            // 
+            //
             label1.AutoSize = true;
             label1.Dock = DockStyle.Fill;
             label1.Location = new Point(373, 5);
@@ -259,9 +258,9 @@
             label1.TabIndex = 0;
             label1.Text = "Ngày giao:";
             label1.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label2
-            // 
+            //
             label2.AutoSize = true;
             label2.Dock = DockStyle.Fill;
             label2.Location = new Point(3, 5);
@@ -271,9 +270,9 @@
             label2.TabIndex = 0;
             label2.Text = "Ngày tạo:";
             label2.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label3
-            // 
+            //
             label3.AutoSize = true;
             label3.Dock = DockStyle.Fill;
             label3.Location = new Point(3, 35);
@@ -283,9 +282,9 @@
             label3.TabIndex = 0;
             label3.Text = "Bộ phận:";
             label3.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label4
-            // 
+            //
             label4.AutoSize = true;
             label4.Dock = DockStyle.Fill;
             label4.Location = new Point(3, 65);
@@ -295,9 +294,9 @@
             label4.TabIndex = 0;
             label4.Text = "label1";
             label4.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label5
-            // 
+            //
             label5.AutoSize = true;
             label5.Dock = DockStyle.Fill;
             label5.Location = new Point(3, 95);
@@ -307,9 +306,9 @@
             label5.TabIndex = 0;
             label5.Text = "label1";
             label5.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label6
-            // 
+            //
             label6.AutoSize = true;
             label6.Dock = DockStyle.Fill;
             label6.Location = new Point(373, 35);
@@ -319,9 +318,9 @@
             label6.TabIndex = 0;
             label6.Text = "Dự án:";
             label6.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label7
-            // 
+            //
             label7.AutoSize = true;
             label7.Dock = DockStyle.Fill;
             label7.Location = new Point(373, 65);
@@ -331,9 +330,9 @@
             label7.TabIndex = 0;
             label7.Text = "MPR No:";
             label7.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label8
-            // 
+            //
             label8.AutoSize = true;
             label8.Dock = DockStyle.Fill;
             label8.Location = new Point(373, 95);
@@ -343,9 +342,9 @@
             label8.TabIndex = 0;
             label8.Text = "label1";
             label8.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // dateTimePicker1
-            // 
+            //
             dateTimePicker1.Dock = DockStyle.Fill;
             dateTimePicker1.Format = DateTimePickerFormat.Short;
             dateTimePicker1.Location = new Point(122, 5);
@@ -353,9 +352,9 @@
             dateTimePicker1.Name = "dateTimePicker1";
             dateTimePicker1.Size = new Size(243, 23);
             dateTimePicker1.TabIndex = 1;
-            // 
+            //
             // comboBox1
-            // 
+            //
             comboBox1.Dock = DockStyle.Fill;
             comboBox1.FormattingEnabled = true;
             comboBox1.Location = new Point(122, 35);
@@ -363,9 +362,9 @@
             comboBox1.Name = "comboBox1";
             comboBox1.Size = new Size(243, 23);
             comboBox1.TabIndex = 3;
-            // 
+            //
             // comboBox2
-            // 
+            //
             comboBox2.Dock = DockStyle.Fill;
             comboBox2.FormattingEnabled = true;
             comboBox2.Location = new Point(492, 35);
@@ -373,15 +372,22 @@
             comboBox2.Name = "comboBox2";
             comboBox2.Size = new Size(243, 23);
             comboBox2.TabIndex = 4;
-            // 
+            //
             // frmMPR_V2
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1271, 726);
             Controls.Add(panel1);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmMPR_V2";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             Text = "frmMPR_V2";
             panel1.ResumeLayout(false);
             groupBox2.ResumeLayout(false);

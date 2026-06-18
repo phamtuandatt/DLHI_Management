@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.RIRGUI
+namespace MPR_Managerment.Forms.RIRGUI
 {
     partial class frmAddHeatForItem
     {
@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmAddHeatForItem));
             tableLayoutPanel1 = new TableLayoutPanel();
             tableLayoutPanel2 = new TableLayoutPanel();
             label1 = new Label();
@@ -52,9 +51,9 @@
             tableLayoutPanel5.SuspendLayout();
             tableLayoutPanel6.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.ColumnCount = 1;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Controls.Add(tableLayoutPanel2, 0, 0);
@@ -74,9 +73,9 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Size = new Size(312, 186);
             tableLayoutPanel1.TabIndex = 0;
-            // 
+            //
             // tableLayoutPanel2
-            // 
+            //
             tableLayoutPanel2.ColumnCount = 2;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -89,9 +88,9 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel2.Size = new Size(306, 29);
             tableLayoutPanel2.TabIndex = 1;
-            // 
+            //
             // label1
-            // 
+            //
             label1.AutoSize = true;
             label1.Dock = DockStyle.Left;
             label1.Location = new Point(3, 0);
@@ -100,18 +99,18 @@
             label1.TabIndex = 0;
             label1.Text = "Số lượng:";
             label1.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // txtQty
-            // 
+            //
             txtQty.Dock = DockStyle.Fill;
             txtQty.Location = new Point(73, 3);
             txtQty.Name = "txtQty";
             txtQty.Size = new Size(230, 23);
             txtQty.TabIndex = 1;
             txtQty.KeyPress += txtQty_KeyPress;
-            // 
+            //
             // tableLayoutPanel3
-            // 
+            //
             tableLayoutPanel3.ColumnCount = 2;
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -124,17 +123,17 @@
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel3.Size = new Size(306, 29);
             tableLayoutPanel3.TabIndex = 2;
-            // 
+            //
             // txtMTR
-            // 
+            //
             txtMTR.Dock = DockStyle.Fill;
             txtMTR.Location = new Point(73, 3);
             txtMTR.Name = "txtMTR";
             txtMTR.Size = new Size(230, 23);
             txtMTR.TabIndex = 2;
-            // 
+            //
             // label2
-            // 
+            //
             label2.AutoSize = true;
             label2.Dock = DockStyle.Left;
             label2.Location = new Point(3, 0);
@@ -143,9 +142,9 @@
             label2.TabIndex = 0;
             label2.Text = "MTR No:";
             label2.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // tableLayoutPanel4
-            // 
+            //
             tableLayoutPanel4.ColumnCount = 2;
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -158,17 +157,17 @@
             tableLayoutPanel4.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel4.Size = new Size(306, 29);
             tableLayoutPanel4.TabIndex = 3;
-            // 
+            //
             // txtHeat
-            // 
+            //
             txtHeat.Dock = DockStyle.Fill;
             txtHeat.Location = new Point(73, 3);
             txtHeat.Name = "txtHeat";
             txtHeat.Size = new Size(230, 23);
             txtHeat.TabIndex = 2;
-            // 
+            //
             // label3
-            // 
+            //
             label3.AutoSize = true;
             label3.Dock = DockStyle.Left;
             label3.Location = new Point(3, 0);
@@ -177,9 +176,9 @@
             label3.TabIndex = 0;
             label3.Text = "Heat No:";
             label3.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // tableLayoutPanel5
-            // 
+            //
             tableLayoutPanel5.ColumnCount = 2;
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
             tableLayoutPanel5.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -192,17 +191,17 @@
             tableLayoutPanel5.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel5.Size = new Size(306, 29);
             tableLayoutPanel5.TabIndex = 4;
-            // 
+            //
             // txtIDCode
-            // 
+            //
             txtIDCode.Dock = DockStyle.Fill;
             txtIDCode.Location = new Point(73, 3);
             txtIDCode.Name = "txtIDCode";
             txtIDCode.Size = new Size(230, 23);
             txtIDCode.TabIndex = 2;
-            // 
+            //
             // label4
-            // 
+            //
             label4.AutoSize = true;
             label4.Dock = DockStyle.Left;
             label4.Location = new Point(3, 0);
@@ -211,9 +210,9 @@
             label4.TabIndex = 0;
             label4.Text = "ID Code:";
             label4.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // tableLayoutPanel6
-            // 
+            //
             tableLayoutPanel6.ColumnCount = 2;
             tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
@@ -226,9 +225,9 @@
             tableLayoutPanel6.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel6.Size = new Size(306, 41);
             tableLayoutPanel6.TabIndex = 5;
-            // 
+            //
             // btnCancel
-            // 
+            //
             btnCancel.Dock = DockStyle.Fill;
             btnCancel.Location = new Point(3, 3);
             btnCancel.Name = "btnCancel";
@@ -237,9 +236,9 @@
             btnCancel.Text = "THOÁT";
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
-            // 
+            //
             // btnSave
-            // 
+            //
             btnSave.Dock = DockStyle.Fill;
             btnSave.Location = new Point(156, 3);
             btnSave.Name = "btnSave";
@@ -248,15 +247,22 @@
             btnSave.Text = "XÁC NHẬN";
             btnSave.UseVisualStyleBackColor = true;
             btnSave.Click += btnSave_Click;
-            // 
+            //
             // frmAddHeatForItem
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(312, 186);
             Controls.Add(tableLayoutPanel1);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmAddHeatForItem";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             Text = "Thêm dòng cho vật tư";
             tableLayoutPanel1.ResumeLayout(false);
             tableLayoutPanel2.ResumeLayout(false);

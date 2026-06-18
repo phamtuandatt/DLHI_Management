@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.ImportWarehouseGUI
+namespace MPR_Managerment.Forms.ImportWarehouseGUI
 {
     partial class frmProjectMaterialTransform
     {
@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmProjectMaterialTransform));
             panel1 = new Panel();
             tableLayoutPanel1 = new TableLayoutPanel();
             label1 = new Label();
@@ -45,9 +44,9 @@
             ((System.ComponentModel.ISupportInitialize)txtQty).BeginInit();
             tableLayoutPanel2.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // panel1
-            // 
+            //
             panel1.BackColor = Color.White;
             panel1.Controls.Add(tableLayoutPanel1);
             panel1.Dock = DockStyle.Fill;
@@ -55,9 +54,9 @@
             panel1.Name = "panel1";
             panel1.Size = new Size(454, 135);
             panel1.TabIndex = 0;
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.ColumnCount = 3;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 105F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 345F));
@@ -81,9 +80,9 @@
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Size = new Size(454, 135);
             tableLayoutPanel1.TabIndex = 0;
-            // 
+            //
             // label1
-            // 
+            //
             label1.AutoSize = true;
             label1.Dock = DockStyle.Fill;
             label1.Location = new Point(3, 0);
@@ -92,18 +91,18 @@
             label1.TabIndex = 0;
             label1.Text = "     Dự án mới:";
             label1.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // cboProject
-            // 
+            //
             cboProject.Dock = DockStyle.Fill;
             cboProject.FormattingEnabled = true;
             cboProject.Location = new Point(108, 3);
             cboProject.Name = "cboProject";
             cboProject.Size = new Size(339, 23);
             cboProject.TabIndex = 1;
-            // 
+            //
             // label2
-            // 
+            //
             label2.AutoSize = true;
             label2.Dock = DockStyle.Fill;
             label2.Location = new Point(3, 30);
@@ -112,9 +111,9 @@
             label2.TabIndex = 2;
             label2.Text = "     SL Chuyển:";
             label2.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // label3
-            // 
+            //
             label3.AutoSize = true;
             label3.Dock = DockStyle.Fill;
             label3.Location = new Point(3, 60);
@@ -123,25 +122,25 @@
             label3.TabIndex = 3;
             label3.Text = "     Ghi chú:";
             label3.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
             // txtQty
-            // 
+            //
             txtQty.Dock = DockStyle.Fill;
             txtQty.Location = new Point(108, 33);
             txtQty.Name = "txtQty";
             txtQty.Size = new Size(339, 23);
             txtQty.TabIndex = 4;
-            // 
+            //
             // txtNotes
-            // 
+            //
             txtNotes.Dock = DockStyle.Fill;
             txtNotes.Location = new Point(108, 63);
             txtNotes.Name = "txtNotes";
             txtNotes.Size = new Size(339, 23);
             txtNotes.TabIndex = 5;
-            // 
+            //
             // tableLayoutPanel2
-            // 
+            //
             tableLayoutPanel2.ColumnCount = 2;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
@@ -154,9 +153,9 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.Size = new Size(339, 34);
             tableLayoutPanel2.TabIndex = 6;
-            // 
+            //
             // btnCancel
-            // 
+            //
             btnCancel.Dock = DockStyle.Fill;
             btnCancel.Location = new Point(3, 3);
             btnCancel.Name = "btnCancel";
@@ -165,9 +164,9 @@
             btnCancel.Text = "button1";
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
-            // 
+            //
             // btnSave
-            // 
+            //
             btnSave.Dock = DockStyle.Fill;
             btnSave.Location = new Point(172, 3);
             btnSave.Name = "btnSave";
@@ -176,15 +175,22 @@
             btnSave.Text = "button1";
             btnSave.UseVisualStyleBackColor = true;
             btnSave.Click += btnSave_Click;
-            // 
+            //
             // frmProjectMaterialTransform
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(454, 135);
             Controls.Add(panel1);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmProjectMaterialTransform";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             Text = "frmProjectMaterialTransform";
             panel1.ResumeLayout(false);
             tableLayoutPanel1.ResumeLayout(false);

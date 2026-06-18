@@ -54,6 +54,8 @@ namespace MPR_Managerment.Forms
         private Button _btnZalo;
         // Thông báo nội bộ (Admin → User)
         private readonly InternalNotificationService _internalNotifSvc = new();
+        private readonly System.Collections.Generic.HashSet<int> _shownNotifIds = new();
+        private System.Windows.Forms.Timer _internalNotifTimer;
         private ToolTip _zaloTip = new ToolTip();
         // ── Menu cố định 190px ──
         private const int MENU_FULL = 190;
@@ -408,6 +410,8 @@ namespace MPR_Managerment.Forms
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
                     ZaloNotificationService.Instance.Dispose();
+                    _notifyTimer?.Stop(); _notifyTimer?.Dispose();
+                    _internalNotifTimer?.Stop(); _internalNotifTimer?.Dispose();
                     AppSession.Clear();
                     Application.Exit();
                 }
@@ -1722,28 +1726,91 @@ namespace MPR_Managerment.Forms
             {
                 try
                 {
-                    // Chạy ngay trên UI thread - check force để lấy data mới nhất
                     if (!this.IsDisposed)
                         this.BeginInvoke(new Action(() => CheckAndNotify(true)));
                 }
                 catch { }
             };
 
-            _notifyTimer = new System.Windows.Forms.Timer { Interval = 30 * 1000 }; // 30 giay
+            _notifyTimer = new System.Windows.Forms.Timer { Interval = 30 * 1000 }; // 30 giây
             _notifyTimer.Tick += (s, e) =>
             {
-                // WinForms Timer luon chay tren UI thread — an toan
                 try { CheckAndNotify(false); }
                 catch { }
             };
             _notifyTimer.Start();
 
-            // Kiểm tra ngay khi app vừa mở (hiển thị các thông báo 7 ngày qua)
+            // Timer riêng cho thông báo nội bộ — check mỗi 10 giây, độc lập với PO/MPR
+            _internalNotifTimer = new System.Windows.Forms.Timer { Interval = 10 * 1000 };
+            _internalNotifTimer.Tick += (s, e) =>
+            {
+                try { CheckInternalNotifications(); }
+                catch { }
+            };
+            _internalNotifTimer.Start();
+
+            // Check ngay khi app vừa mở
             this.BeginInvoke(new Action(() =>
             {
-                try { CheckAndNotify(true); }
+                try
+                {
+                    CheckAndNotify(true);
+                    CheckInternalNotifications();
+                }
                 catch { }
             }));
+        }
+
+        private void CheckInternalNotifications()
+        {
+            if (AppSession.CurrentUser == null) return;
+            try
+            {
+                var unread = _internalNotifSvc.GetUnread(AppSession.CurrentUser.Username);
+                // Lọc những thông báo chưa từng hiển thị trong session này
+                var fresh = unread.FindAll(n => !_shownNotifIds.Contains(n.Notif_ID));
+                if (fresh.Count == 0) return;
+
+                foreach (var n in fresh)
+                    _shownNotifIds.Add(n.Notif_ID);
+
+                // Chuyển sang UI thread
+                if (this.InvokeRequired)
+                    this.Invoke(new Action(() => ApplyInternalNotifications(fresh)));
+                else
+                    ApplyInternalNotifications(fresh);
+            }
+            catch { }
+        }
+
+        private void ApplyInternalNotifications(System.Collections.Generic.List<InternalNotification> items)
+        {
+            if (items == null || items.Count == 0) return;
+
+            // Thêm vào listbox notification panel
+            foreach (var n in items)
+            {
+                string isoTs = n.Sent_At.ToString("o");
+                string dt = n.Sent_At.ToString("dd/MM HH:mm");
+                string msg = $"[NOTIFY] {n.Title} | Từ: {n.Sender_FullName} | {dt}@@{isoTs}|notif_id={n.Notif_ID}";
+                _seenMsgs.Add(msg);
+            }
+
+            // Rebuild listbox
+            _lstNotify.BeginUpdate();
+            _lstNotify.Items.Clear();
+            var allMsgs = new System.Collections.Generic.List<string>(_seenMsgs);
+            allMsgs.Sort((a, b) => ParseMsgTime(b).CompareTo(ParseMsgTime(a)));
+            foreach (var m in allMsgs) _lstNotify.Items.Add(m);
+            _lstNotify.EndUpdate();
+
+            _unreadCount += items.Count;
+            UpdateBadge();
+
+            try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+
+            // Hiển thị toast cảnh báo nổi cho từng thông báo
+            frmNotificationToast.ShowToasts(items, this);
         }
 
         private void CheckAndNotify(bool force)
@@ -1844,48 +1911,27 @@ namespace MPR_Managerment.Forms
                     rRIR.Close();
                 }
 
-                // ── Thông báo nội bộ (Admin → User) ─────────────────────────
-                if (AppSession.CurrentUser != null)
-                {
-                    try
-                    {
-                        var internalNotifs = _internalNotifSvc.GetUnread(AppSession.CurrentUser.Username);
-                        foreach (var n in internalNotifs)
-                        {
-                            string isoTs = n.Sent_At.ToString("o");
-                            string dt = n.Sent_At.ToString("dd/MM HH:mm");
-                            string preview = n.Content.Length > 60
-                                ? n.Content.Substring(0, 60) + "..."
-                                : n.Content;
-                            msgs.Add($"[NOTIFY] {n.Title} | Từ: {n.Sender_FullName} | {dt}@@{isoTs}@@notif_id={n.Notif_ID}");
-                        }
-                    }
-                    catch { }
-                }
-
                 // Cap nhat moc thoi gian SAU khi da lay het data
                 DateTime checkTime = DateTime.Now;
 
                 int newPO = msgs.FindAll(m => m.StartsWith("[PO]")).Count;
                 int newMPR = msgs.FindAll(m => m.StartsWith("[MPR]")).Count;
                 int newRIR = msgs.FindAll(m => m.StartsWith("[RIR]")).Count;
-                int newNotif = msgs.FindAll(m => m.StartsWith("[NOTIFY]")).Count;
 
-                if (newPO == 0 && newMPR == 0 && newRIR == 0 && newNotif == 0 && !force) return;
+                if (newPO == 0 && newMPR == 0 && newRIR == 0 && !force) return;
 
                 _lastCheckTime = checkTime; // cập nhật SAU khi query xong
                 SaveLastCheckTime();        // persist để lần sau mở app check tiếp
                 if (this.InvokeRequired)
-                    this.Invoke(new Action(() => ApplyNotify(newPO, newMPR, newRIR, msgs, force, newNotif)));
+                    this.Invoke(new Action(() => ApplyNotify(newPO, newMPR, newRIR, msgs, force)));
                 else
-                    ApplyNotify(newPO, newMPR, newRIR, msgs, force, newNotif);
+                    ApplyNotify(newPO, newMPR, newRIR, msgs, force);
             }
             catch { }
         }
 
         private void ApplyNotify(int newPO, int newMPR, int newRIR,
-            System.Collections.Generic.List<string> msgs, bool force,
-            int newNotif = 0)
+            System.Collections.Generic.List<string> msgs, bool force)
         {
             // Lấy thời gian hệ thống hiện tại
             string t = DateTime.Now.ToString("HH:mm:ss");
@@ -1918,7 +1964,6 @@ namespace MPR_Managerment.Forms
                 if (newPO > 0) parts.Add(newPO + " PO moi");
                 if (newMPR > 0) parts.Add(newMPR + " MPR cap nhat");
                 if (newRIR > 0) parts.Add(newRIR + " RIR moi");
-                if (newNotif > 0) parts.Add(newNotif + " TB noi bo");
                 _lblNotifyCount.Text = string.Join(" | ", parts) + "  (" + t + ")";
                 _lblNotifyCount.ForeColor = Color.FromArgb(255, 200, 200); // Do nhat
 
@@ -2339,16 +2384,16 @@ namespace MPR_Managerment.Forms
         // ─────────────────────────────────────────────────────────────────────
         private static int ExtractNotifId(string msg)
         {
-            // Định dạng: "...@@notif_id=123"
-            int idx = msg.LastIndexOf("@@notif_id=", StringComparison.Ordinal);
+            // Định dạng: "...@@{isoTs}|notif_id=123"
+            int idx = msg.IndexOf("|notif_id=", StringComparison.Ordinal);
             if (idx < 0) return 0;
-            string tail = msg.Substring(idx + "@@notif_id=".Length);
+            string tail = msg.Substring(idx + "|notif_id=".Length);
             return int.TryParse(tail, out int id) ? id : 0;
         }
 
         private void ShowInternalNotifyDetail(string msg)
         {
-            // Parse: [NOTIFY] {title} | Từ: {sender} | {dt}@@{iso}@@notif_id={id}
+            // Parse: [NOTIFY] {title} | Từ: {sender} | {dt}@@{iso}|notif_id={id}
             string clean = msg.Contains("@@") ? msg.Substring(0, msg.IndexOf("@@")) : msg;
             string[] parts = clean.Split('|');
             string titleLine = parts.Length > 0 ? parts[0].Replace("[NOTIFY]", "").Trim() : "";

@@ -1,4 +1,4 @@
-﻿namespace MPR_Managerment.Forms.MPRGUI
+namespace MPR_Managerment.Forms.MPRGUI
 {
     partial class frmExcelPreview
     {
@@ -28,16 +28,22 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmExcelPreview));
             SuspendLayout();
-            // 
+            //
             // frmExcelPreview
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "frmExcelPreview";
+            try
+            {
+                string iconPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                    "Resources", "icon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch { }
             Text = "frmExcelPreview";
             Load += frmExcelPreview_Load;
             ResumeLayout(false);
