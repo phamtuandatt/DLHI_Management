@@ -277,6 +277,7 @@
             btnAddXK.TabIndex = 0;
             btnAddXK.Text = "Thêm mới";
             btnAddXK.UseVisualStyleBackColor = true;
+            btnAddXK.Click += btnAddXK_Click;
             // 
             // btnInXK
             // 

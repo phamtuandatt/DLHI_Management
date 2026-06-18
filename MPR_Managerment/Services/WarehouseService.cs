@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Data;
 using System.Reflection.Emit;
 using Microsoft.Data.SqlClient;
+using Microsoft.Office.Interop.Excel;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using DataTable = System.Data.DataTable;
 
 namespace MPR_Managerment.Services
 {
@@ -16,7 +19,7 @@ namespace MPR_Managerment.Services
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                string sql = $"SELECT Import_ID, ID_Code , Item_Name, Size, UNIT FROM Warehouse_Import WHERE Project_Code = '{projectCode}'";
+                string sql = $"SELECT Import_ID, ID_Code , Item_Name, Material, Size, UNIT FROM Warehouse_Import WHERE Project_Code = '{projectCode}'";
                 var cmd = new SqlCommand(sql, conn);
                 DataTable dt = new DataTable();
                 using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
@@ -479,6 +482,96 @@ namespace MPR_Managerment.Services
                 var r = cmd.ExecuteReader();
                 if (r.Read()) return Convert.ToInt32(r["NewExport_ID"]);
                 return 0;
+            }
+        }
+
+        public int InsertExportWarehouseHeader(ExportWarehouseHeaderModel exp)
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand("sp_InsertExportWarehouse_AllInOne", conn);
+
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@Export_No", SqlDbType.NVarChar, 50).Value = exp.ExportNo;
+                cmd.Parameters.Add("@Export_Number", SqlDbType.NVarChar, 20).Value = exp.ExportNumber;
+                cmd.Parameters.Add("@From_Project_ID", SqlDbType.Int).Value = exp.FromProjectID;
+                cmd.Parameters.Add("@From_Project_Code", SqlDbType.NVarChar, 50).Value = exp.FromProjectCode;
+                cmd.Parameters.Add("@From_Project_Name", SqlDbType.NVarChar, 250).Value = exp.FromProjectName;
+                cmd.Parameters.Add("@To_Project_ID", SqlDbType.Int).Value = exp.ToProjectID;
+                cmd.Parameters.Add("@To_Project_Code", SqlDbType.NVarChar, 50).Value = exp.ToProjectCode;
+                cmd.Parameters.Add("@To_Project_Name", SqlDbType.NVarChar, 250).Value = exp.ToProjectName;
+                cmd.Parameters.Add("@Export_Totals", SqlDbType.Decimal).Value = exp.ExportTotals;
+                cmd.Parameters.Add("@Status", SqlDbType.Int).Value = exp.Status;
+
+                // Kiểm tra nếu notes rỗng thì truyền DBNull vào database thay vì chuỗi rỗng
+                cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = string.IsNullOrEmpty(exp.Notes) ? DBNull.Value : (object)exp.Notes;
+                cmd.Parameters.Add("@Create_By", SqlDbType.NVarChar, 100).Value = exp.CreateBy;
+
+                var r = cmd.ExecuteReader();
+                if (r.Read()) return Convert.ToInt32(r["NewExport_ID"]);
+                return 0;
+            }
+        }
+
+        public bool SaveFullInvoice(ExportWarehouseHeaderModel header, DataTable dtDetails)
+        {
+            // 1. Chuẩn bị DataTable đúng định dạng cấu trúc của dbo.ExportDetailType
+            DataTable dtForSql = new DataTable();
+            dtForSql.Columns.Add("Export_ID", typeof(int)); // Cột này có thể để trống/0 vì SQL sẽ tự ghi đè bằng ID mới
+            dtForSql.Columns.Add("Import_ID", typeof(int));
+            dtForSql.Columns.Add("Qty_Export", typeof(decimal));
+            dtForSql.Columns.Add("Notes", typeof(string));
+
+            foreach (DataRow row in dtDetails.Rows)
+            {
+                dtForSql.Rows.Add(
+                    0, // Tạm thời truyền số 0, SQL Proc sẽ tự xử lý lấy ID thực tế
+                    row["Import_ID"],
+                    row["Qty_Export"],
+                    row["Notes"]
+                );
+            }
+
+            // 2. Gọi Proc thực thi
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand("sp_InsertExportWarehouse_AllInOne", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    // Nạp các tham số của Header
+                    cmd.Parameters.Add("@Export_No", SqlDbType.NVarChar, 50).Value = header.ExportNo;
+                    cmd.Parameters.Add("@Export_Number", SqlDbType.NVarChar, 20).Value = header.ExportNumber;
+                    cmd.Parameters.Add("@From_Project_ID", SqlDbType.Int).Value = header.FromProjectID;
+                    cmd.Parameters.Add("@From_Project_Code", SqlDbType.NVarChar, 50).Value = header.FromProjectCode;
+                    cmd.Parameters.Add("@From_Project_Name", SqlDbType.NVarChar, 250).Value = header.FromProjectName;
+                    cmd.Parameters.Add("@To_Project_ID", SqlDbType.Int).Value = header.ToProjectID;
+                    cmd.Parameters.Add("@To_Project_Code", SqlDbType.NVarChar, 50).Value = header.ToProjectCode;
+                    cmd.Parameters.Add("@To_Project_Name", SqlDbType.NVarChar, 250).Value = header.ToProjectName;
+                    cmd.Parameters.Add("@Export_Totals", SqlDbType.Decimal).Value = header.ExportTotals;
+                    cmd.Parameters.Add("@Status", SqlDbType.NVarChar, 50).Value = header.Status;
+                    cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = string.IsNullOrEmpty(header.Notes) ? DBNull.Value : (object)header.Notes;
+                    cmd.Parameters.Add("@Create_By", SqlDbType.NVarChar, 100).Value = header.CreateBy;
+
+                    // Nạp tham số dạng Bảng (Detail)
+                    SqlParameter tvpParam = cmd.Parameters.AddWithValue("@DetailTable", dtForSql);
+                    tvpParam.SqlDbType = SqlDbType.Structured;
+                    tvpParam.TypeName = "dbo.ExportDetailType";
+
+                    try
+                    {
+                        conn.Open();
+                        cmd.ExecuteNonQuery();
+                        return true; // Thực thi trơn tru không lỗi
+                    }
+                    catch (Exception ex)
+                    {
+                        // Nếu lỗi (ví dụ: mất mạng giữa chừng, sai dữ liệu chi tiết...), Transaction sẽ Rollback và nhảy vào đây
+                        MessageBox.Show("Lỗi hệ thống khi lưu hóa đơn: " + ex.Message, "Lỗi Transaction", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return false;
+                    }
+                }
             }
         }
 

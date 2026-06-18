@@ -12,8 +12,7 @@
 
         private void InitializeComponent()
         {
-            txtToProject = new TextBox();
-            txtCreateBy = new TextBox();
+            txtFromProject = new TextBox();
             dgvDetails = new DataGridView();
             btnSave = new Button();
             tableLayoutPanel2 = new TableLayoutPanel();
@@ -25,15 +24,22 @@
             panel1 = new Panel();
             txtExportNo = new TextBox();
             label1 = new Label();
-            panel2 = new Panel();
-            txtFromProject = new TextBox();
-            label2 = new Label();
             panel3 = new Panel();
+            btnFromWarehouse = new Button();
             label3 = new Label();
-            panel4 = new Panel();
-            label4 = new Label();
             panel5 = new Panel();
+            txtCreatedBy = new TextBox();
+            label5 = new Label();
+            panel4 = new Panel();
+            cboStatus = new ComboBox();
+            label4 = new Label();
+            panel2 = new Panel();
+            btnToWarehosue = new Button();
+            txtToProject = new TextBox();
+            label2 = new Label();
             panel6 = new Panel();
+            dtCreate = new DateTimePicker();
+            label6 = new Label();
             flowLayoutPanel2 = new FlowLayoutPanel();
             btnDelete = new Button();
             btnAddRow = new Button();
@@ -44,34 +50,28 @@
             flowLayoutPanel1.SuspendLayout();
             tableLayoutPanel1.SuspendLayout();
             panel1.SuspendLayout();
-            panel2.SuspendLayout();
             panel3.SuspendLayout();
+            panel5.SuspendLayout();
             panel4.SuspendLayout();
+            panel2.SuspendLayout();
+            panel6.SuspendLayout();
             flowLayoutPanel2.SuspendLayout();
             SuspendLayout();
             // 
-            // txtToProject
+            // txtFromProject
             // 
-            txtToProject.Dock = DockStyle.Right;
-            txtToProject.Location = new Point(117, 0);
-            txtToProject.Name = "txtToProject";
-            txtToProject.Size = new Size(236, 23);
-            txtToProject.TabIndex = 5;
-            // 
-            // txtCreateBy
-            // 
-            txtCreateBy.Dock = DockStyle.Right;
-            txtCreateBy.Location = new Point(119, 0);
-            txtCreateBy.Name = "txtCreateBy";
-            txtCreateBy.Size = new Size(219, 23);
-            txtCreateBy.TabIndex = 7;
+            txtFromProject.Location = new Point(117, 0);
+            txtFromProject.Name = "txtFromProject";
+            txtFromProject.Size = new Size(197, 23);
+            txtFromProject.TabIndex = 5;
+            txtFromProject.TextChanged += txtFromProject_TextChanged;
             // 
             // dgvDetails
             // 
             dgvDetails.Dock = DockStyle.Fill;
-            dgvDetails.Location = new Point(3, 126);
+            dgvDetails.Location = new Point(3, 152);
             dgvDetails.Name = "dgvDetails";
-            dgvDetails.Size = new Size(947, 442);
+            dgvDetails.Size = new Size(947, 416);
             dgvDetails.TabIndex = 0;
             dgvDetails.CellContentDoubleClick += dgvDetails_CellContentDoubleClick;
             // 
@@ -95,8 +95,8 @@
             tableLayoutPanel2.Location = new Point(0, 0);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
             tableLayoutPanel2.RowCount = 3;
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 21.5411568F));
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 78.45885F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 26.09457F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 73.905426F));
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
             tableLayoutPanel2.Size = new Size(953, 622);
             tableLayoutPanel2.TabIndex = 4;
@@ -114,6 +114,7 @@
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel3.Size = new Size(947, 45);
             tableLayoutPanel3.TabIndex = 0;
+            tableLayoutPanel3.Paint += tableLayoutPanel3_Paint;
             // 
             // flowLayoutPanel3
             // 
@@ -132,7 +133,7 @@
             btnCancel.Size = new Size(89, 36);
             btnCancel.TabIndex = 2;
             btnCancel.Text = "Thoát";
-            btnCancel.Click += btnSave_Click;
+            btnCancel.Click += btnCancel_Click;
             // 
             // flowLayoutPanel1
             // 
@@ -141,28 +142,29 @@
             flowLayoutPanel1.Dock = DockStyle.Left;
             flowLayoutPanel1.Location = new Point(3, 3);
             flowLayoutPanel1.Name = "flowLayoutPanel1";
-            flowLayoutPanel1.Size = new Size(706, 117);
+            flowLayoutPanel1.Size = new Size(706, 143);
             flowLayoutPanel1.TabIndex = 1;
             // 
             // tableLayoutPanel1
             // 
             tableLayoutPanel1.ColumnCount = 2;
-            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 51.0668564F));
+            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 51.06686F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48.9331436F));
             tableLayoutPanel1.Controls.Add(panel1, 0, 0);
-            tableLayoutPanel1.Controls.Add(panel2, 1, 0);
             tableLayoutPanel1.Controls.Add(panel3, 0, 1);
-            tableLayoutPanel1.Controls.Add(panel4, 1, 1);
             tableLayoutPanel1.Controls.Add(panel5, 0, 2);
-            tableLayoutPanel1.Controls.Add(panel6, 1, 2);
+            tableLayoutPanel1.Controls.Add(panel4, 1, 2);
+            tableLayoutPanel1.Controls.Add(panel2, 1, 1);
+            tableLayoutPanel1.Controls.Add(panel6, 1, 0);
             tableLayoutPanel1.Location = new Point(3, 3);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
             tableLayoutPanel1.RowCount = 3;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            tableLayoutPanel1.Size = new Size(703, 72);
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
+            tableLayoutPanel1.Size = new Size(703, 100);
             tableLayoutPanel1.TabIndex = 12;
+            tableLayoutPanel1.Paint += tableLayoutPanel1_Paint;
             // 
             // panel1
             // 
@@ -189,46 +191,28 @@
             label1.Name = "label1";
             label1.Size = new Size(109, 29);
             label1.TabIndex = 8;
-            label1.Text = "Kho xuất HH/NVL:";
+            label1.Text = "Số phiếu xuất kho";
             label1.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // panel2
-            // 
-            panel2.Controls.Add(txtFromProject);
-            panel2.Controls.Add(label2);
-            panel2.Dock = DockStyle.Fill;
-            panel2.Location = new Point(362, 3);
-            panel2.Name = "panel2";
-            panel2.Size = new Size(338, 29);
-            panel2.TabIndex = 0;
-            // 
-            // txtFromProject
-            // 
-            txtFromProject.Dock = DockStyle.Right;
-            txtFromProject.Location = new Point(119, 0);
-            txtFromProject.Name = "txtFromProject";
-            txtFromProject.Size = new Size(219, 23);
-            txtFromProject.TabIndex = 3;
-            // 
-            // label2
-            // 
-            label2.Dock = DockStyle.Left;
-            label2.Location = new Point(0, 0);
-            label2.Name = "label2";
-            label2.Size = new Size(109, 29);
-            label2.TabIndex = 9;
-            label2.Text = "Kho nhập HH/NVL:";
-            label2.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // panel3
             // 
-            panel3.Controls.Add(txtToProject);
+            panel3.Controls.Add(btnFromWarehouse);
+            panel3.Controls.Add(txtFromProject);
             panel3.Controls.Add(label3);
-            panel3.Dock = DockStyle.Fill;
             panel3.Location = new Point(3, 38);
             panel3.Name = "panel3";
             panel3.Size = new Size(353, 29);
             panel3.TabIndex = 0;
+            // 
+            // btnFromWarehouse
+            // 
+            btnFromWarehouse.Location = new Point(313, 0);
+            btnFromWarehouse.Name = "btnFromWarehouse";
+            btnFromWarehouse.Size = new Size(40, 23);
+            btnFromWarehouse.TabIndex = 1;
+            btnFromWarehouse.Text = "🔎";
+            btnFromWarehouse.UseVisualStyleBackColor = true;
+            btnFromWarehouse.Click += btnFromWarehouse_Click;
             // 
             // label3
             // 
@@ -237,18 +221,56 @@
             label3.Name = "label3";
             label3.Size = new Size(109, 29);
             label3.TabIndex = 10;
-            label3.Text = "Người phụ trách:";
+            label3.Text = "Kho xuất HH/NVL:";
             label3.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // panel5
+            // 
+            panel5.Controls.Add(txtCreatedBy);
+            panel5.Controls.Add(label5);
+            panel5.Location = new Point(3, 73);
+            panel5.Name = "panel5";
+            panel5.Size = new Size(353, 29);
+            panel5.TabIndex = 0;
+            // 
+            // txtCreatedBy
+            // 
+            txtCreatedBy.Dock = DockStyle.Right;
+            txtCreatedBy.Location = new Point(117, 0);
+            txtCreatedBy.Name = "txtCreatedBy";
+            txtCreatedBy.Size = new Size(236, 23);
+            txtCreatedBy.TabIndex = 5;
+            // 
+            // label5
+            // 
+            label5.Dock = DockStyle.Left;
+            label5.Location = new Point(0, 0);
+            label5.Name = "label5";
+            label5.Size = new Size(109, 29);
+            label5.TabIndex = 10;
+            label5.Text = "Người phụ trách:";
+            label5.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // panel4
             // 
-            panel4.Controls.Add(txtCreateBy);
+            panel4.Controls.Add(cboStatus);
             panel4.Controls.Add(label4);
             panel4.Dock = DockStyle.Fill;
-            panel4.Location = new Point(362, 38);
+            panel4.Location = new Point(362, 73);
             panel4.Name = "panel4";
             panel4.Size = new Size(338, 29);
             panel4.TabIndex = 0;
+            // 
+            // cboStatus
+            // 
+            cboStatus.Dock = DockStyle.Right;
+            cboStatus.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboStatus.FormattingEnabled = true;
+            cboStatus.Items.AddRange(new object[] { "Chưa xác nhận", "Xác nhận", "Hủy bỏ" });
+            cboStatus.Location = new Point(119, 0);
+            cboStatus.Name = "cboStatus";
+            cboStatus.Size = new Size(219, 23);
+            cboStatus.TabIndex = 12;
             // 
             // label4
             // 
@@ -260,29 +282,78 @@
             label4.Text = "Tình trạng:";
             label4.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // panel5
+            // panel2
             // 
-            panel5.Dock = DockStyle.Fill;
-            panel5.Location = new Point(3, 73);
-            panel5.Name = "panel5";
-            panel5.Size = new Size(353, 1);
-            panel5.TabIndex = 0;
+            panel2.Controls.Add(btnToWarehosue);
+            panel2.Controls.Add(txtToProject);
+            panel2.Controls.Add(label2);
+            panel2.Location = new Point(362, 38);
+            panel2.Name = "panel2";
+            panel2.Size = new Size(338, 29);
+            panel2.TabIndex = 0;
+            // 
+            // btnToWarehosue
+            // 
+            btnToWarehosue.Location = new Point(296, 0);
+            btnToWarehosue.Name = "btnToWarehosue";
+            btnToWarehosue.Size = new Size(40, 23);
+            btnToWarehosue.TabIndex = 1;
+            btnToWarehosue.Text = "🔎";
+            btnToWarehosue.UseVisualStyleBackColor = true;
+            btnToWarehosue.Click += btnToWarehosue_Click;
+            // 
+            // txtToProject
+            // 
+            txtToProject.Location = new Point(119, 0);
+            txtToProject.Name = "txtToProject";
+            txtToProject.Size = new Size(178, 23);
+            txtToProject.TabIndex = 3;
+            // 
+            // label2
+            // 
+            label2.Dock = DockStyle.Left;
+            label2.Location = new Point(0, 0);
+            label2.Name = "label2";
+            label2.Size = new Size(109, 29);
+            label2.TabIndex = 9;
+            label2.Text = "Kho nhập HH/NVL:";
+            label2.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // panel6
             // 
-            panel6.Dock = DockStyle.Fill;
-            panel6.Location = new Point(362, 73);
+            panel6.Controls.Add(dtCreate);
+            panel6.Controls.Add(label6);
+            panel6.Location = new Point(362, 3);
             panel6.Name = "panel6";
-            panel6.Size = new Size(338, 1);
+            panel6.Size = new Size(338, 29);
             panel6.TabIndex = 0;
+            // 
+            // dtCreate
+            // 
+            dtCreate.Dock = DockStyle.Right;
+            dtCreate.Format = DateTimePickerFormat.Short;
+            dtCreate.Location = new Point(119, 0);
+            dtCreate.Name = "dtCreate";
+            dtCreate.Size = new Size(219, 23);
+            dtCreate.TabIndex = 12;
+            // 
+            // label6
+            // 
+            label6.Dock = DockStyle.Left;
+            label6.Location = new Point(0, 0);
+            label6.Name = "label6";
+            label6.Size = new Size(100, 29);
+            label6.TabIndex = 11;
+            label6.Text = "Tình trạng:";
+            label6.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // flowLayoutPanel2
             // 
             flowLayoutPanel2.Controls.Add(btnDelete);
             flowLayoutPanel2.Controls.Add(btnAddRow);
-            flowLayoutPanel2.Location = new Point(3, 81);
+            flowLayoutPanel2.Location = new Point(3, 109);
             flowLayoutPanel2.Name = "flowLayoutPanel2";
-            flowLayoutPanel2.Size = new Size(703, 36);
+            flowLayoutPanel2.Size = new Size(703, 34);
             flowLayoutPanel2.TabIndex = 13;
             // 
             // btnDelete
@@ -302,7 +373,7 @@
             btnAddRow.Size = new Size(150, 30);
             btnAddRow.TabIndex = 4;
             btnAddRow.Text = "Thêm dòng";
-            btnAddRow.Click += btnDelete_Click;
+            btnAddRow.Click += btnAddRow_Click;
             // 
             // frmPreviewExportWarehouse
             // 
@@ -319,18 +390,19 @@
             tableLayoutPanel1.ResumeLayout(false);
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
-            panel2.ResumeLayout(false);
-            panel2.PerformLayout();
             panel3.ResumeLayout(false);
             panel3.PerformLayout();
+            panel5.ResumeLayout(false);
+            panel5.PerformLayout();
             panel4.ResumeLayout(false);
-            panel4.PerformLayout();
+            panel2.ResumeLayout(false);
+            panel2.PerformLayout();
+            panel6.ResumeLayout(false);
             flowLayoutPanel2.ResumeLayout(false);
             ResumeLayout(false);
         }
 
-        private System.Windows.Forms.TextBox txtToProject;
-        private System.Windows.Forms.TextBox txtCreateBy;
+        private System.Windows.Forms.TextBox txtFromProject;
         private System.Windows.Forms.DataGridView dgvDetails;
         private System.Windows.Forms.Button btnSave;
         private TableLayoutPanel tableLayoutPanel2;
@@ -345,14 +417,21 @@
         private Panel panel3;
         private Label label3;
         private Panel panel4;
-        private Panel panel5;
-        private Panel panel6;
         private FlowLayoutPanel flowLayoutPanel2;
         private TextBox txtExportNo;
-        private TextBox txtFromProject;
+        private TextBox txtToProject;
         private Button btnDelete;
         private FlowLayoutPanel flowLayoutPanel3;
         private Button btnCancel;
         private Button btnAddRow;
+        private Button btnFromWarehouse;
+        private Button btnToWarehosue;
+        private Panel panel5;
+        private TextBox txtCreatedBy;
+        private Label label5;
+        private Panel panel6;
+        private DateTimePicker dtCreate;
+        private Label label6;
+        private ComboBox cboStatus;
     }
 }

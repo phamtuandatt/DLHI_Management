@@ -17,6 +17,7 @@ namespace MPR_Managerment.Forms.ExportGUI
     {
         private DataTable _dtItems = new DataTable();
         private WarehouseService _warehouseService = new WarehouseService();
+        private bool _isAdd = false;
 
         public List<WarehouseImport> selectedList { get; set; } = new List<WarehouseImport>();
         public int CheckedQuanty = 0;
@@ -34,6 +35,18 @@ namespace MPR_Managerment.Forms.ExportGUI
             Common.Common.CreateButtonDelete(btnDelete, "🗑 Bỏ chọn");
             txtSearch.PlaceholderText = "Mã/tên vật tư...";
 
+        }
+
+        public frmSelectItemExport(bool isAdd)
+        {
+            InitializeComponent();
+            _isAdd = isAdd;
+            Common.Common.CreateButtonAdd(btnPreImage, "📸 Hình ảnh");
+            Common.Common.CreateButtonSave(btnSelect, null);
+            Common.Common.CreateButtonCancel(btnCancels, "");
+            Common.Common.CreateButtonSearch(btnSearch, "🔍 Tìm");
+            Common.Common.CreateButtonDelete(btnDelete, "🗑 Bỏ chọn");
+            txtSearch.PlaceholderText = "Mã/tên vật tư...";
         }
 
         private async void frmSelectItemExport_Load(object sender, EventArgs e)
@@ -159,6 +172,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                             Import_ID = Id,
                             ID_Code = dgvItems.Rows[e.RowIndex].Cells["ID_Code"].Value?.ToString() ?? "",
                             Item_Name = dgvItems.Rows[e.RowIndex].Cells["Item_Name"].Value?.ToString() ?? "",
+                            Material = dgvItems.Rows[e.RowIndex].Cells["Material"].Value?.ToString() ?? "",
                             Size = dgvItems.Rows[e.RowIndex].Cells["Size"].Value?.ToString() ?? "",
                             UNIT = dgvItems.Rows[e.RowIndex].Cells["UNIT"].Value?.ToString() ?? "",
 
@@ -206,8 +220,16 @@ namespace MPR_Managerment.Forms.ExportGUI
         private void btnSelect_Click(object sender, EventArgs e)
         {
             dgvItems.EndEdit();
-            isCancel = true;
-            this.Close();
+
+            if (!_isAdd && selectedList.Count > 1)
+            {
+                MessageBox.Show("Hãy chọn vật tư muốn cập nhật", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else
+            {
+                isCancel = true;
+                this.Close();
+            }
         }
 
         private void btnDelete_Click(object sender, EventArgs e)

@@ -37,7 +37,8 @@ namespace MPR_Managerment.Forms.ExportGUI
             Common.Common.CreateButtonSave(btnUpdateStatus, "Cập nhật trạng thái        ⏷");
 
             // Initialize status dropdown menu
-            btnUpdateStatus.Click += (s, e) => {
+            btnUpdateStatus.Click += (s, e) =>
+            {
                 _statusMenu.Show(btnUpdateStatus, new System.Drawing.Point(0, btnUpdateStatus.Height));
             };
 
@@ -156,7 +157,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             if (cboProject.SelectedValue != null) filter += $" AND From_Project_Name = '{cboProject.Text}'";
             if (!string.IsNullOrEmpty(txtSearch.Text)) filter += $" AND (Create_By LIKE '%{txtSearch.Text}%' OR From_Project_Name LIKE '%{txtSearch.Text}%')";
             if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.SelectedItem}'";
-            
+
             // Date filter (assuming Create_Date is the column)
             filter += $" AND Create_Date  >= '{dtpFromDate.Value:yyyy-MM-dd}' AND Create_Date  <= '{dtpToDate.Value:yyyy-MM-dd}'";
 
@@ -232,6 +233,12 @@ namespace MPR_Managerment.Forms.ExportGUI
             {
                 MessageBox.Show($"Lỗi khi cập nhật trạng thái: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void btnAddXK_Click(object sender, EventArgs e)
+        {
+            frmPreviewExportWarehouse frm = new frmPreviewExportWarehouse(true);
+            frm.ShowDialog();
         }
     }
 }

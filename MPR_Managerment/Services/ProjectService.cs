@@ -10,6 +10,22 @@ namespace MPR_Managerment.Services
 {
     public class ProjectService
     {
+
+        public async Task<DataTable> GetProjectForCreateExport()
+        {
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                string sql = $"SELECT Id, ProjectCode, ProjectName FROM ProjectInfo";
+                var cmd = new SqlCommand(sql, conn);
+                DataTable dt = new DataTable();
+                using (SqlDataReader reader = await cmd.ExecuteReaderAsync()) // Đọc dữ liệu ngầm
+                {
+                    dt.Load(reader);
+                }
+                return dt;
+            }
+        }
         public async Task<DataTable> GetProjects()
         {
             using (var conn = DatabaseHelper.GetConnection())
