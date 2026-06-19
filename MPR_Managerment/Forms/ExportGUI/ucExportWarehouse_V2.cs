@@ -12,6 +12,8 @@ using MPR_Managerment.Helpers;
 using MPR_Managerment.Services;
 using System.IO;
 using OfficeOpenXml;
+using MPR_Managerment.Models;
+using MPR_Managerment.Common;
 
 namespace MPR_Managerment.Forms.ExportGUI
 {
@@ -69,7 +71,8 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             try
             {
-                string sql = @"SELECT TOP (1000) [Export_ID],[Export_No],[From_Project_Name],[To_Project_Name],[Export_Totals],[Status],[Notes],[Create_By],[Create_Date],[Update_By],[Update_Date] FROM [dbo].[ExportWarehouseHeader]";
+                string sql = @"SELECT TOP (1000) [Export_ID],[Export_No],[From_Project_Name],[To_Project_Name],[Export_Totals],[Status],
+                                [Notes],[Create_By],[Create_Date],[Update_By],[Update_Date], CASE WHEN [IS_UPDATE] = 1 THEN N'Đã cập nhật' ELSE N'Chưa cập nhật' END AS [IS_UPDATE] FROM [dbo].[ExportWarehouseHeader]";
 
                 using (SqlConnection conn = DatabaseHelper.GetConnection())
                 {
@@ -126,22 +129,39 @@ namespace MPR_Managerment.Forms.ExportGUI
 
             // Set specific column widths
             if (dgvHisExport.Columns.Contains("Select")) { dgvHisExport.Columns["Select"].Width = 30; dgvHisExport.Columns["Select"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
-            if (dgvHisExport.Columns.Contains("Export_No")) { dgvHisExport.Columns["Export_No"].Width = 150; dgvHisExport.Columns["Export_No"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Export_No")) { dgvHisExport.Columns["Export_No"].Width = 190; dgvHisExport.Columns["Export_No"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("From_Project_Name")) { dgvHisExport.Columns["From_Project_Name"].Width = 180; dgvHisExport.Columns["From_Project_Name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("To_Project_Name")) { dgvHisExport.Columns["To_Project_Name"].Width = 180; dgvHisExport.Columns["To_Project_Name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("Export_Totals")) { dgvHisExport.Columns["Export_Totals"].Width = 120; dgvHisExport.Columns["Export_Totals"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
-            if (dgvHisExport.Columns.Contains("Status")) { dgvHisExport.Columns["Status"].Width = 100; dgvHisExport.Columns["Status"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("Status")) { dgvHisExport.Columns["Status"].Width = 120; dgvHisExport.Columns["Status"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("Notes")) { dgvHisExport.Columns["Notes"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; }
             if (dgvHisExport.Columns.Contains("Create_By")) { dgvHisExport.Columns["Create_By"].Width = 120; dgvHisExport.Columns["Create_By"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("Create_Date")) { dgvHisExport.Columns["Create_Date"].Width = 150; dgvHisExport.Columns["Create_Date"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("Update_By")) { dgvHisExport.Columns["Update_By"].Width = 120; dgvHisExport.Columns["Update_By"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("Update_Date")) { dgvHisExport.Columns["Update_Date"].Width = 150; dgvHisExport.Columns["Update_Date"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+            if (dgvHisExport.Columns.Contains("IS_UPDATE")) { dgvHisExport.Columns["IS_UPDATE"].Width = 130; dgvHisExport.Columns["IS_UPDATE"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvHisExport.Columns.Contains("Print")) { dgvHisExport.Columns["Print"].Width = 60; dgvHisExport.Columns["Print"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
 
             dgvHisExport.CellContentClick -= DgvHisExport_CellContentClick;
             dgvHisExport.CellContentClick += DgvHisExport_CellContentClick;
             dgvHisExport.CellDoubleClick -= dgvHisExport_CellDoubleClick;
             dgvHisExport.CellDoubleClick += dgvHisExport_CellDoubleClick;
+            dgvHisExport.CellFormatting += (s, e) =>
+            {
+                var statusRules = new List<StringRule>
+                {
+                    new StringRule { Value = "Đã cập nhật", CellColor = Color.SeaGreen },
+                    new StringRule { Value = "Chưa cập nhật", CellColor = Color.Red },
+                };
+                Common.Common.ApplyCustomFormatting(e, dgvHisExport, "IS_UPDATE", statusRules, null);
+
+                var statusExRules = new List<StringRule>
+                {
+                    new StringRule { Value = "Xác nhận", CellColor = Color.SeaGreen },
+                    new StringRule { Value = "Chưa xác nhận", CellColor = Color.Red },
+                };
+                Common.Common.ApplyCustomFormatting(e, dgvHisExport, "Status", statusExRules, null);
+            };
         }
 
         private void dgvHisExport_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
@@ -326,11 +346,11 @@ namespace MPR_Managerment.Forms.ExportGUI
         }
 
         private void ReplaceCell(ExcelWorksheet ws, string placeholder, string value)
-        { 
-            for (int r = 1; r <= ws.Dimension.End.Row; r++) 
-                for (int c = 1; c <= ws.Dimension.End.Column; c++) 
-                    if (ws.Cells[r, c].Value?.ToString() == placeholder) 
-                        ws.Cells[r, c].Value = value; 
+        {
+            for (int r = 1; r <= ws.Dimension.End.Row; r++)
+                for (int c = 1; c <= ws.Dimension.End.Column; c++)
+                    if (ws.Cells[r, c].Value?.ToString() == placeholder)
+                        ws.Cells[r, c].Value = value;
         }
 
         // Handle status menu item click
@@ -368,7 +388,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                     using (SqlCommand cmd = new SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@status", newStatus);
-                        cmd.Parameters.AddWithValue("@user", Environment.UserName);
+                        cmd.Parameters.AddWithValue("@user", AppSession.CurrentUser?.Full_Name ?? Environment.UserName);
                         await conn.OpenAsync();
                         await cmd.ExecuteNonQueryAsync();
                     }
@@ -460,37 +480,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                         // Create new sheet with safe name
                         string sheetName = exportNo.Length > 31 ? exportNo.Substring(0, 31) : exportNo;
                         sheetName = System.Text.RegularExpressions.Regex.Replace(sheetName, @"[\\\/\?\*\[\]]", "_");
-                        var ws = package.Workbook.Worksheets.Add(sheetName);
-
-                        // Copy template structure to new sheet
-                        for (int r = 1; r <= templateWs.Dimension?.Rows; r++)
-                        {
-                            for (int c = 1; c <= templateWs.Dimension?.Columns; c++)
-                            {
-                                var sourceCell = templateWs.Cells[r, c];
-                                var targetCell = ws.Cells[r, c];
-                                targetCell.Value = sourceCell.Value;
-                                
-                                // Copy style properties
-                                try
-                                {
-                                    targetCell.Style.Font.Name = sourceCell.Style.Font.Name;
-                                    targetCell.Style.Font.Size = sourceCell.Style.Font.Size;
-                                    targetCell.Style.Font.Bold = sourceCell.Style.Font.Bold;
-                                    targetCell.Style.Font.Italic = sourceCell.Style.Font.Italic;
-                                    targetCell.Style.Fill.PatternType = sourceCell.Style.Fill.PatternType;
-                                    targetCell.Style.Border.Left.Style = sourceCell.Style.Border.Left.Style;
-                                    targetCell.Style.Border.Right.Style = sourceCell.Style.Border.Right.Style;
-                                    targetCell.Style.Border.Top.Style = sourceCell.Style.Border.Top.Style;
-                                    targetCell.Style.Border.Bottom.Style = sourceCell.Style.Border.Bottom.Style;
-                                    targetCell.Style.HorizontalAlignment = sourceCell.Style.HorizontalAlignment;
-                                    targetCell.Style.VerticalAlignment = sourceCell.Style.VerticalAlignment;
-                                    targetCell.Style.WrapText = sourceCell.Style.WrapText;
-                                    targetCell.Style.Numberformat.Format = sourceCell.Style.Numberformat.Format;
-                                }
-                                catch { /* Skip style copying on error */ }
-                            }
-                        }
+                        var ws = package.Workbook.Worksheets.Add(sheetName, templateWs);
                         templatePackage.Dispose();
 
                         // Get export data
@@ -603,6 +593,11 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             frmPreviewExportWarehouse frm = new frmPreviewExportWarehouse(true);
             frm.ShowDialog();
+        }
+
+        private void btnUpdateStatus_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }

@@ -194,6 +194,7 @@
             ClientSize = new Size(656, 347);
             Controls.Add(tableLayoutPanel1);
             Name = "frmSelectWarehouse";
+            StartPosition = FormStartPosition.CenterScreen;
             Text = "frmSelectWarehouse";
             Load += frmSelectWarehouse_Load;
             tableLayoutPanel1.ResumeLayout(false);

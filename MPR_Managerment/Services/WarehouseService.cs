@@ -485,32 +485,53 @@ namespace MPR_Managerment.Services
             }
         }
 
-        public int InsertExportWarehouseHeader(ExportWarehouseHeaderModel exp)
+        public void UpdateStatusExportWarehouseHeader(string status, int export_id)
+        {
+            string sql = $"UPDATE [dbo].[ExportWarehouseHeader] SET Status = @status, Update_By = @user, Update_Date = GETDATE() WHERE Export_ID = @export_id";
+
+            try
+            {
+                using (SqlConnection conn = DatabaseHelper.GetConnection())
+                {
+                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@status", status);
+                        cmd.Parameters.AddWithValue("@user", AppSession.CurrentUser?.Full_Name ?? Environment.UserName);
+                        cmd.Parameters.AddWithValue("@export_id", export_id);
+                        conn.Open();
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Lỗi khi cập nhật trạng thái: {ex.Message}");
+            }
+        }
+
+        public int InsertExportWarehouseHeader(ExportWarehouseDetailModel exp, string export_no)
         {
             using (var conn = DatabaseHelper.GetConnection())
             {
-                conn.Open();
-                var cmd = new SqlCommand("sp_InsertExportWarehouse_AllInOne", conn);
+                try
+                {
+                    conn.Open();
+                    var cmd = new SqlCommand("sp_InsertWarehouseExportFromExportWarehouseHeader", conn);
 
-                cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.Add("@Export_No", SqlDbType.NVarChar, 50).Value = exp.ExportNo;
-                cmd.Parameters.Add("@Export_Number", SqlDbType.NVarChar, 20).Value = exp.ExportNumber;
-                cmd.Parameters.Add("@From_Project_ID", SqlDbType.Int).Value = exp.FromProjectID;
-                cmd.Parameters.Add("@From_Project_Code", SqlDbType.NVarChar, 50).Value = exp.FromProjectCode;
-                cmd.Parameters.Add("@From_Project_Name", SqlDbType.NVarChar, 250).Value = exp.FromProjectName;
-                cmd.Parameters.Add("@To_Project_ID", SqlDbType.Int).Value = exp.ToProjectID;
-                cmd.Parameters.Add("@To_Project_Code", SqlDbType.NVarChar, 50).Value = exp.ToProjectCode;
-                cmd.Parameters.Add("@To_Project_Name", SqlDbType.NVarChar, 250).Value = exp.ToProjectName;
-                cmd.Parameters.Add("@Export_Totals", SqlDbType.Decimal).Value = exp.ExportTotals;
-                cmd.Parameters.Add("@Status", SqlDbType.Int).Value = exp.Status;
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.Add("@Import_ID", SqlDbType.Int).Value = exp.Import_Id;
+                    cmd.Parameters.Add("@Qty_Export", SqlDbType.Decimal).Value = exp.Qty_Export;
+                    cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, 550).Value = exp.Notes;
+                    cmd.Parameters.Add("@Export_No", SqlDbType.VarChar, 50).Value = export_no;
 
-                // Kiểm tra nếu notes rỗng thì truyền DBNull vào database thay vì chuỗi rỗng
-                cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = string.IsNullOrEmpty(exp.Notes) ? DBNull.Value : (object)exp.Notes;
-                cmd.Parameters.Add("@Create_By", SqlDbType.NVarChar, 100).Value = exp.CreateBy;
-
-                var r = cmd.ExecuteReader();
-                if (r.Read()) return Convert.ToInt32(r["NewExport_ID"]);
-                return 0;
+                    var r = cmd.ExecuteReader();
+                    if (r.Read()) return Convert.ToInt32(r["NewExport_ID"]);
+                    return 0;
+                }
+                catch (SqlException ex)
+                {
+                    throw new Exception(ex.Message);
+                }
             }
         }
 
@@ -553,6 +574,68 @@ namespace MPR_Managerment.Services
                     cmd.Parameters.Add("@Status", SqlDbType.NVarChar, 50).Value = header.Status;
                     cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = string.IsNullOrEmpty(header.Notes) ? DBNull.Value : (object)header.Notes;
                     cmd.Parameters.Add("@Create_By", SqlDbType.NVarChar, 100).Value = header.CreateBy;
+
+                    // Nạp tham số dạng Bảng (Detail)
+                    SqlParameter tvpParam = cmd.Parameters.AddWithValue("@DetailTable", dtForSql);
+                    tvpParam.SqlDbType = SqlDbType.Structured;
+                    tvpParam.TypeName = "dbo.ExportDetailType";
+
+                    try
+                    {
+                        conn.Open();
+                        cmd.ExecuteNonQuery();
+                        return true; // Thực thi trơn tru không lỗi
+                    }
+                    catch (Exception ex)
+                    {
+                        // Nếu lỗi (ví dụ: mất mạng giữa chừng, sai dữ liệu chi tiết...), Transaction sẽ Rollback và nhảy vào đây
+                        MessageBox.Show("Lỗi hệ thống khi lưu hóa đơn: " + ex.Message, "Lỗi Transaction", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return false;
+                    }
+                }
+            }
+        }
+
+        public bool UpdateFullInvoice(int exportId, ExportWarehouseHeaderModel header, DataTable dtDetails)
+        {
+            // 1. Chuẩn bị DataTable đúng định dạng cấu trúc của dbo.ExportDetailType
+            DataTable dtForSql = new DataTable();
+            dtForSql.Columns.Add("Export_ID", typeof(int)); // Cột này có thể để trống/0 vì SQL sẽ tự ghi đè bằng ID mới
+            dtForSql.Columns.Add("Import_ID", typeof(int));
+            dtForSql.Columns.Add("Qty_Export", typeof(decimal));
+            dtForSql.Columns.Add("Notes", typeof(string));
+
+            foreach (DataRow row in dtDetails.Rows)
+            {
+                dtForSql.Rows.Add(
+                    exportId, // Tạm thời truyền số 0, SQL Proc sẽ tự xử lý lấy ID thực tế
+                    row["Import_ID"],
+                    row["Qty_Export"],
+                    row["Notes"]
+                );
+            }
+
+            // 2. Gọi Proc thực thi
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand("sp_UpdateExportWarehouse_AllInOne", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    // Nạp các tham số của Header
+                    cmd.Parameters.Add("@Export_ID", SqlDbType.Int).Value = exportId;
+                    cmd.Parameters.Add("@Export_No", SqlDbType.NVarChar, 50).Value = !string.IsNullOrEmpty(header.ExportNo) ? header.ExportNo : DBNull.Value;
+                    cmd.Parameters.Add("@Export_Number", SqlDbType.NVarChar, 20).Value = !string.IsNullOrEmpty(header.ExportNumber) ? header.ExportNumber : DBNull.Value;
+                    cmd.Parameters.Add("@From_Project_ID", SqlDbType.Int).Value = header.FromProjectID;
+                    cmd.Parameters.Add("@From_Project_Code", SqlDbType.NVarChar, 50).Value = !string.IsNullOrEmpty(header.FromProjectCode) ? header.FromProjectCode : DBNull.Value;
+                    cmd.Parameters.Add("@From_Project_Name", SqlDbType.NVarChar, 250).Value = !string.IsNullOrEmpty(header.FromProjectName) ? header.FromProjectName : DBNull.Value;
+                    cmd.Parameters.Add("@To_Project_ID", SqlDbType.Int).Value = header.ToProjectID;
+                    cmd.Parameters.Add("@To_Project_Code", SqlDbType.NVarChar, 50).Value = !string.IsNullOrEmpty(header.ToProjectCode) ? header.ToProjectCode: DBNull.Value;
+                    cmd.Parameters.Add("@To_Project_Name", SqlDbType.NVarChar, 250).Value = !string.IsNullOrEmpty(header.ToProjectName) ? header.ToProjectName : DBNull.Value;
+                    cmd.Parameters.Add("@Export_Totals", SqlDbType.Decimal).Value = header.ExportTotals;
+                    cmd.Parameters.Add("@Status", SqlDbType.NVarChar, 50).Value = !string.IsNullOrEmpty(header.Status) ? header.Status : DBNull.Value;
+                    cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = string.IsNullOrEmpty(header.Notes) ? DBNull.Value : (object)header.Notes;
+                    cmd.Parameters.Add("@Modified_By", SqlDbType.NVarChar, 100).Value = !string.IsNullOrEmpty(header.UpdateBy) ? header.UpdateBy : DBNull.Value;
 
                     // Nạp tham số dạng Bảng (Detail)
                     SqlParameter tvpParam = cmd.Parameters.AddWithValue("@DetailTable", dtForSql);

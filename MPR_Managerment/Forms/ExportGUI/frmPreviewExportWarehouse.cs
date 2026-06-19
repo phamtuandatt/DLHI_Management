@@ -3,9 +3,11 @@ using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
+using MPR_Managerment.Common;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
+using Syncfusion.XlsIO.Parser.Biff_Records;
 
 namespace MPR_Managerment.Forms.ExportGUI
 {
@@ -18,6 +20,8 @@ namespace MPR_Managerment.Forms.ExportGUI
         private ProjectInfo _projectFrom = new ProjectInfo();
         private ProjectInfo _projectTo = new ProjectInfo();
         private WarehouseService _warehouseServices = new WarehouseService();
+        private int _exportId = 0;
+        private bool _isChanged = false;
 
         public bool IsAction { get; set; } = false;
 
@@ -40,6 +44,7 @@ namespace MPR_Managerment.Forms.ExportGUI
 
         private void LoadData()
         {
+            _exportId = Convert.ToInt32(_headerRow["Export_ID"].ToString());
             txtExportNo.Text = _headerRow["Export_No"].ToString();
             txtToProject.Text = _headerRow["From_Project_Name"].ToString();
             txtFromProject.Text = _headerRow["To_Project_Name"].ToString();
@@ -79,10 +84,24 @@ namespace MPR_Managerment.Forms.ExportGUI
 
         private void LoadDetails()
         {
-            string sql = @"SELECT we.[Export_Detail_Id],we.[Export_ID],we.[Import_ID],wi.ID_Code,wi.Item_Name,wi.Material,wi.Size,we.[Qty_Export],wi.UNIT,we.[Notes]
-                           FROM [dbo].[ExportWarehouseDetail] we 
-                           INNER JOIN Warehouse_Import wi ON we.Import_ID = wi.Import_ID 
-                           WHERE we.Export_ID = @ExportID";
+            string sql = @"SELECT 
+                            we.[Export_Detail_Id],
+                            we.[Export_ID],
+                            we.[Import_ID],
+                            wi.ID_Code,
+                            wi.Item_Name,
+                            wi.Material,
+                            wi.Size,
+                            we.[Qty_Export],
+                            wi.UNIT,
+                            we.[Notes],
+                            -- Lấy cột số lượng tồn kho hiện tại, dùng ISNULL để tránh trả về NULL nếu chưa có dữ liệu tồn
+                            ISNULL(stk.Qty_Stock, 0) AS [Qty_Stock]
+                        FROM [dbo].[ExportWarehouseDetail] we 
+                        INNER JOIN dbo.Warehouse_Import wi ON we.Import_ID = wi.Import_ID 
+                        -- Join với View tính toán tồn kho động của hệ thống
+                        LEFT OUTER JOIN dbo.vw_Warehouse_Stock stk ON we.Import_ID = stk.Import_ID
+                        WHERE we.Export_ID = @ExportID;";
 
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
@@ -137,8 +156,21 @@ namespace MPR_Managerment.Forms.ExportGUI
             if (dgvDetails.Columns.Contains("Qty_Export")) { dgvDetails.Columns["Qty_Export"].Width = 100; dgvDetails.Columns["Qty_Export"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvDetails.Columns.Contains("UNIT")) { dgvDetails.Columns["UNIT"].Width = 80; dgvDetails.Columns["UNIT"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             if (dgvDetails.Columns.Contains("Notes")) { dgvDetails.Columns["Notes"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; }
+            if (dgvDetails.Columns.Contains("Qty_Stock")) { dgvDetails.Columns["Qty_Stock"].Width = 100; dgvDetails.Columns["Qty_Stock"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
             dgvDetails.CellContentClick += DgvDetails_CellContentClick;
             dgvDetails.EditingControlShowing += DgvDetails_EditingControlShowing;
+
+            dgvDetails.CellFormatting += (s, e) =>
+            {
+                if (e.RowIndex < 0) return;
+                var qtyRules = new List<NumericRule>
+                {
+                    new NumericRule { MinValue = 0.01m, MaxValue = decimal.MaxValue, CellColor = Color.ForestGreen }, // > 0
+                    new NumericRule { MinValue = decimal.MinValue, MaxValue = -0.01m, CellColor = Color.Red },       // < 0
+                    new NumericRule { MinValue = 0, MaxValue = 0, CellColor = Color.Red }                          // = 0
+                };
+                Common.Common.ApplyCustomFormatting(e, dgvDetails, "Qty_Stock", null, qtyRules);
+            };
         }
 
         private void DgvDetails_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
@@ -183,6 +215,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                 }
             }
             btnDelete.Enabled = false;
+            _isChanged = false;
         }
 
         private void btnSave_Click(object sender, EventArgs e)
@@ -205,7 +238,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             };
 
             // Gọi tầng xử lý dữ liệu
-            bool isSaved = _warehouseServices.SaveFullInvoice(model, _dtDetails); // _dtDetails là DataTable chi tiết hàng hóa
+            bool isSaved = _isCreate ? _warehouseServices.SaveFullInvoice(model, _dtDetails) : _warehouseServices.UpdateFullInvoice(_exportId, model, _dtDetails); // _dtDetails là DataTable chi tiết hàng hóa
 
             if (isSaved)
             {
@@ -233,6 +266,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             _dtDetails.Columns.Add("Qty_Export", typeof(decimal));
             _dtDetails.Columns.Add("UNIT", typeof(string));
             _dtDetails.Columns.Add("Notes", typeof(string));
+            _dtDetails.Columns.Add("Qty_Stock", typeof(decimal));
 
             dgvDetails.DataSource = _dtDetails;
             ConfigureHisExportGrid();
@@ -307,6 +341,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                     _dtDetails.Rows.Add(row);
                 }
             }
+            _isChanged = true;
         }
 
         private void tableLayoutPanel3_Paint(object sender, PaintEventArgs e)
@@ -356,6 +391,54 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             IsAction = false;
             this.Close();
+        }
+
+        private async void btnUpdateServer_Click(object sender, EventArgs e)
+        {
+            if (!_isChanged)
+            {
+                MessageBox.Show("Hãy lưu phiếu xuất trước khi cập nhật Server !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                IsAction = false;
+                return;
+            }
+
+            if (_dtDetails.Rows.Count <= 0) return;
+
+            foreach (DataRow row in _dtDetails.Rows)
+            {
+                if (Convert.ToDecimal(row["Qty_Stock"].ToString()) <= 0)
+                {
+                    MessageBox.Show("Hãy xóa hoặc thay thế vật tư đã hết hàng trước khi update Server !", "Thất bại", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    IsAction = false;
+                    return;
+                }
+            }
+
+            var rs = 0;
+            foreach (DataRow item in _dtDetails.Rows)
+            {
+                var model = new ExportWarehouseDetailModel()
+                {
+                    Import_Id = Convert.ToInt32(item["Import_ID"].ToString() ?? "0"),
+                    Qty_Export = Convert.ToInt32(item["Qty_Export"].ToString() ?? "0"),
+                    Notes = item["Notes"]?.ToString()?.Trim() ?? "",
+                };
+
+                var isSave = _warehouseServices.InsertExportWarehouseHeader(model, txtExportNo.Text.Trim());
+                rs++;
+            }
+            if (rs > 0)
+            {
+                _warehouseServices.UpdateStatusExportWarehouseHeader("Xác nhận", _exportId);
+                MessageBox.Show("Đã cập nhật toàn bộ Phiếu Xuất và Chi Tiết lên Server thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                IsAction = true;
+                this.Close();
+            }
+            else
+            {
+                MessageBox.Show(" Cập nhật toàn bộ Phiếu Xuất và Chi Tiết lên Server không thành công!", "Thất bại", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                IsAction = false;
+            }
         }
     }
 }

@@ -41,5 +41,16 @@ namespace MPR_Managerment.Models
         // Thông tin cập nhật (Cho phép Null vì khi mới tạo chưa có dữ liệu này)
         public string? UpdateBy { get; set; }
         public DateTime? UpdateDate { get; set; }
+
+        public bool IsUpdateServer { get; set; } = false;
+    }
+
+    public class ExportWarehouseDetailModel
+    {
+        public int Export_Detail_Id { get; set; }
+        public int Export_Id { get; set; }
+        public int Import_Id { get; set; }
+        public decimal Qty_Export { get; set; }
+        public string? Notes { get; set; }
     }
 }

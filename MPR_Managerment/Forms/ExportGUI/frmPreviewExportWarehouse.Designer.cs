@@ -19,6 +19,7 @@
             tableLayoutPanel3 = new TableLayoutPanel();
             flowLayoutPanel3 = new FlowLayoutPanel();
             btnCancel = new Button();
+            btnUpdateServer = new Button();
             flowLayoutPanel1 = new FlowLayoutPanel();
             tableLayoutPanel1 = new TableLayoutPanel();
             panel1 = new Panel();
@@ -107,6 +108,7 @@
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel3.Controls.Add(flowLayoutPanel3, 0, 0);
+            tableLayoutPanel3.Controls.Add(btnUpdateServer, 1, 0);
             tableLayoutPanel3.Dock = DockStyle.Fill;
             tableLayoutPanel3.Location = new Point(3, 574);
             tableLayoutPanel3.Name = "tableLayoutPanel3";
@@ -134,6 +136,16 @@
             btnCancel.TabIndex = 2;
             btnCancel.Text = "Thoát";
             btnCancel.Click += btnCancel_Click;
+            // 
+            // btnUpdateServer
+            // 
+            btnUpdateServer.Dock = DockStyle.Right;
+            btnUpdateServer.Location = new Point(793, 3);
+            btnUpdateServer.Name = "btnUpdateServer";
+            btnUpdateServer.Size = new Size(151, 39);
+            btnUpdateServer.TabIndex = 2;
+            btnUpdateServer.Text = "Cập nhật server";
+            btnUpdateServer.Click += btnUpdateServer_Click;
             // 
             // flowLayoutPanel1
             // 
@@ -380,6 +392,7 @@
             ClientSize = new Size(953, 622);
             Controls.Add(tableLayoutPanel2);
             Name = "frmPreviewExportWarehouse";
+            StartPosition = FormStartPosition.CenterScreen;
             Text = "Preview Export Warehouse";
             Load += frmPreviewExportWarehouse_Load;
             ((System.ComponentModel.ISupportInitialize)dgvDetails).EndInit();
@@ -433,5 +446,6 @@
         private DateTimePicker dtCreate;
         private Label label6;
         private ComboBox cboStatus;
+        private Button btnUpdateServer;
     }
 }

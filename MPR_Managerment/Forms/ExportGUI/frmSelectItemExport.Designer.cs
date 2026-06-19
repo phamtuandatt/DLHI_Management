@@ -286,6 +286,7 @@
             ClientSize = new Size(668, 464);
             Controls.Add(tableLayoutPanel1);
             Name = "frmSelectItemExport";
+            StartPosition = FormStartPosition.CenterScreen;
             Text = "frmSelectItemExport";
             Load += frmSelectItemExport_Load;
             tableLayoutPanel1.ResumeLayout(false);
