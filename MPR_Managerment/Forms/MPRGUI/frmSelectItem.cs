@@ -497,5 +497,43 @@ namespace MPR_Managerment.Forms.MPRGUI
         {
             await LoadItems();
         }
+
+        private async void dgvItems_CellContentDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0)
+            {
+                using (var dlg = new frmAddProductSimple())
+                {
+                    if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+                    var updateModel = dlg.NewProduct;
+                    var proId = Convert.ToInt32(dgvItems.CurrentRow.Cells["ID"].Value.ToString());
+                    updateModel.Id = proId;
+
+                    try
+                    {
+                        bool saved = await _productServices.SaveProduct_Async(updateModel, true);
+                        if (saved)
+                        {
+                            MessageBox.Show("Cập nhật vật tư mới thành công!", "Thông báo",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                            // Tải lại danh sách và cập nhật DataGridView
+                            await LoadItems();
+                        }
+                        else
+                        {
+                            MessageBox.Show("Cập nhật vật tư không thành công. Vui lòng thử lại.", "Lỗi",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Có lỗi xảy ra: " + ex.Message, "Lỗi",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
     }
 }

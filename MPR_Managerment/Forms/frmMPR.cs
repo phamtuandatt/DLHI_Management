@@ -3266,6 +3266,7 @@ namespace MPR_Managerment.Forms
                         ws.Cells[currentRow, 16].Value = d.UNIT; // UNIT (Cột P)
                         ws.Cells[currentRow, 17].Value = d.Qty_Per_Sheet; // Q'ty / Sh't (Cột Q)
                         ws.Cells[currentRow, 18].Value = d.Weight_kg; // Weight(kg) (Cột R)
+                        ws.Cells[currentRow, 19].Value = d.Remarks; // Weight(kg) (Cột R)
 
                         totalQty += d.Qty_Per_Sheet > 0 ? d.Qty_Per_Sheet : 0;
                         totalWeight += d.Weight_kg > 0 ? d.Weight_kg : 0;

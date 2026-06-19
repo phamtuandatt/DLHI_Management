@@ -255,6 +255,7 @@ namespace MPR_Managerment.Forms.MPRGUI
             dgvItems.RowTemplate.Height = 30;
             dgvItems.Size = new Size(1195, 468);
             dgvItems.TabIndex = 0;
+            dgvItems.CellContentDoubleClick += dgvItems_CellContentDoubleClick;
             // 
             // tableLayoutPanel4
             // 
