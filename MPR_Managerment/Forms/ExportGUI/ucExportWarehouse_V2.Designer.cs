@@ -136,7 +136,7 @@
             label2.Dock = DockStyle.Fill;
             label2.Location = new Point(196, 0);
             label2.Name = "label2";
-            label2.Size = new Size(59, 29);
+            label2.Size = new Size(60, 29);
             label2.TabIndex = 7;
             label2.Text = "Tìm kiếm:";
             label2.TextAlign = ContentAlignment.MiddleLeft;
@@ -144,7 +144,7 @@
             // txtSearch
             // 
             txtSearch.Dock = DockStyle.Fill;
-            txtSearch.Location = new Point(261, 3);
+            txtSearch.Location = new Point(262, 3);
             txtSearch.Name = "txtSearch";
             txtSearch.Size = new Size(200, 23);
             txtSearch.TabIndex = 1;
@@ -153,7 +153,7 @@
             // 
             label3.AutoSize = true;
             label3.Dock = DockStyle.Fill;
-            label3.Location = new Point(467, 0);
+            label3.Location = new Point(468, 0);
             label3.Name = "label3";
             label3.Size = new Size(38, 29);
             label3.TabIndex = 8;
@@ -164,7 +164,7 @@
             // 
             dtpFromDate.Dock = DockStyle.Fill;
             dtpFromDate.Format = DateTimePickerFormat.Short;
-            dtpFromDate.Location = new Point(511, 3);
+            dtpFromDate.Location = new Point(512, 3);
             dtpFromDate.Name = "dtpFromDate";
             dtpFromDate.Size = new Size(150, 23);
             dtpFromDate.TabIndex = 2;
@@ -173,9 +173,9 @@
             // 
             label5.AutoSize = true;
             label5.Dock = DockStyle.Fill;
-            label5.Location = new Point(667, 0);
+            label5.Location = new Point(668, 0);
             label5.Name = "label5";
-            label5.Size = new Size(55, 29);
+            label5.Size = new Size(56, 29);
             label5.TabIndex = 9;
             label5.Text = "Tới ngày:";
             label5.TextAlign = ContentAlignment.MiddleLeft;
@@ -184,7 +184,7 @@
             // 
             dtpToDate.Dock = DockStyle.Fill;
             dtpToDate.Format = DateTimePickerFormat.Short;
-            dtpToDate.Location = new Point(728, 3);
+            dtpToDate.Location = new Point(730, 3);
             dtpToDate.Name = "dtpToDate";
             dtpToDate.Size = new Size(150, 23);
             dtpToDate.TabIndex = 2;
@@ -193,23 +193,23 @@
             // 
             label4.AutoSize = true;
             label4.Dock = DockStyle.Fill;
-            label4.Location = new Point(884, 0);
+            label4.Location = new Point(886, 0);
             label4.Name = "label4";
-            label4.Size = new Size(62, 29);
+            label4.Size = new Size(63, 29);
             label4.TabIndex = 8;
             label4.Text = "Trạng thái:";
             label4.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // cboStatus
             // 
-            cboStatus.Location = new Point(952, 3);
+            cboStatus.Location = new Point(955, 3);
             cboStatus.Name = "cboStatus";
             cboStatus.Size = new Size(120, 23);
             cboStatus.TabIndex = 3;
             // 
             // btnSearch
             // 
-            btnSearch.Location = new Point(1078, 3);
+            btnSearch.Location = new Point(1081, 3);
             btnSearch.Name = "btnSearch";
             btnSearch.Size = new Size(100, 23);
             btnSearch.TabIndex = 4;
@@ -217,7 +217,7 @@
             // 
             // btnRefresh
             // 
-            btnRefresh.Location = new Point(1184, 3);
+            btnRefresh.Location = new Point(1187, 3);
             btnRefresh.Name = "btnRefresh";
             btnRefresh.Size = new Size(100, 23);
             btnRefresh.TabIndex = 5;
@@ -287,6 +287,7 @@
             btnInXK.TabIndex = 0;
             btnInXK.Text = "In";
             btnInXK.UseVisualStyleBackColor = true;
+            btnInXK.Click += btnInXK_Click;
             // 
             // btnUpdateStatus
             // 

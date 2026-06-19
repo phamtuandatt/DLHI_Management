@@ -77,10 +77,11 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             Common.Common.CreateButtonSearch(btnSearchItemPO, "🔍 Tìm kiếm");
             Common.Common.CreateButtonRefresh(btnRefresh);
             Common.Common.CreateButtonDelete(btnDeleteRow);
-            Common.Common.CreateButtonSave(btnSaveImport, "");
+            Common.Common.CreateButtonSave(btnSaveImport, "💾 Lưu phiếu");
             Common.Common.CreateButtonSearch(btnSearchHisImport, "🔍 Tìm kiếm");
             Common.Common.CreateButtonRefresh(btnRefeshHisImport);
             Common.Common.CreateButtonPrint(btnPrintImportHis, "🖨 In phiếu nhập kho");
+            Common.Common.CreateButtonPrint(btnPaste, "🗐 Dán từ excel");
         }
 
         private void BuildGridImportQueue()
@@ -90,7 +91,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             dgvImportQueue.AllowUserToAddRows = false;
             dgvImportQueue.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvImportQueue.BorderStyle = BorderStyle.None;
-            dgvImportQueue.RowHeadersVisible = false; 
+            dgvImportQueue.RowHeadersVisible = false;
             dgvImportQueue.Font = new Font("Segoe UI", 9);
             dgvImportQueue.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             //dgvImportQueue.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -121,7 +122,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "UNIT", HeaderText = "ĐVT", Width = 55, ReadOnly = true }); // 4
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qty_Import", HeaderText = "SL nhập", Width = 80 }); // 5
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Weight_kg", HeaderText = "KG", Width = 75 }); // 6
-            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100, ReadOnly = true }); // 7
+            dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID_Code", HeaderText = "ID Code", Width = 100, ReadOnly = false }); // 7
             //dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Recevied_Qty", HeaderText = "Số lượng đã nhận", Width = 160, ReadOnly = true }); /// New
             dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ma_Phieu", HeaderText = "Mã phiếu", MinimumWidth = 160, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true }); // 8
             //dgvImportQueue.Columns.Add(new DataGridViewTextBoxColumn { Name = "Material_Detail_Id", HeaderText = "Material Detail Id", Width = 160, ReadOnly = true, Visible = false }); 
@@ -755,7 +756,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             try
             {
                 if (dgvHisImport == null) return;
-                
+
                 if (_lstImport.Count <= 0 || isRefresh)
                 {
                     _lstImport = _warehouseServices.GetAllImports();
@@ -772,24 +773,24 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                 }
 
 
-                    dgvHisImport.DataSource = dtImport.ConvertAll(i => new
-                    {
-                        ID = i.Import_ID,
-                        Ma_Phieu = i.Import_No,
-                        Ngay_Nhap = i.Import_Date.HasValue ? i.Import_Date.Value.ToString("dd/MM/yyyy") : "",
-                        Ten_Vat_Tu = i.Item_Name,
-                        Vat_Lieu = i.Material,
-                        Kich_Thuoc = i.Size,
-                        DVT = i.UNIT,
-                        SL_Nhap = i.Qty_Import,
-                        KG_Nhap = i.Weight_kg,
-                        ID_Code = i.ID_Code,
-                        MTR_No = i.MTRno,
-                        Ma_DA = i.Project_Code,
-                        Vi_Tri = i.Location,
-                        PO_ID = i.PO_ID,
-                        Printed = i.IsPrint.ToString()
-                    });
+                dgvHisImport.DataSource = dtImport.ConvertAll(i => new
+                {
+                    ID = i.Import_ID,
+                    Ma_Phieu = i.Import_No,
+                    Ngay_Nhap = i.Import_Date.HasValue ? i.Import_Date.Value.ToString("dd/MM/yyyy") : "",
+                    Ten_Vat_Tu = i.Item_Name,
+                    Vat_Lieu = i.Material,
+                    Kich_Thuoc = i.Size,
+                    DVT = i.UNIT,
+                    SL_Nhap = i.Qty_Import,
+                    KG_Nhap = i.Weight_kg,
+                    ID_Code = i.ID_Code,
+                    MTR_No = i.MTRno,
+                    Ma_DA = i.Project_Code,
+                    Vi_Tri = i.Location,
+                    PO_ID = i.PO_ID,
+                    Printed = i.IsPrint.ToString()
+                });
                 if (dgvHisImport.Columns.Contains("ID")) dgvHisImport.Columns["ID"].Visible = false;
 
                 dgvHisImport.CellFormatting += (s, e) =>
@@ -814,5 +815,56 @@ namespace MPR_Managerment.Forms.WarehouseGUI
             }
         }
 
+        private void btnPaste_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // 1. Lấy dữ liệu từ Clipboard
+                string copiedData = Clipboard.GetText();
+                if (string.IsNullOrEmpty(copiedData))
+                {
+                    MessageBox.Show("Bộ nhớ tạm (Clipboard) đang trống!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // 2. Tách dữ liệu thành các dòng và các ô (tab-separated)
+                string[] lines = copiedData.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+                // 3. Xác định tọa độ bắt đầu
+                int startRow = dgvImportQueue.CurrentCell?.RowIndex ?? 0;
+                int startCol = dgvImportQueue.CurrentCell?.ColumnIndex ?? 0;
+
+                DataTable dt = (DataTable)dgvImportQueue.DataSource;
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    int currentRow = startRow + i;
+
+                    // Nếu dòng hiện tại vượt quá số dòng trong Grid, thêm dòng mới vào DataTable
+                    if (currentRow >= dgvImportQueue.Rows.Count)
+                    {
+                        if (dt != null) dt.Rows.Add(dt.NewRow());
+                        else dgvImportQueue.Rows.Add();
+                    }
+
+                    string[] cells = lines[i].Split('\t');
+                    int currentGridCol = startCol;
+
+                    for (int j = 0; j < cells.Length; j++)
+                    {
+                        var colIn = 7; // Cột ID_Code trong Grid
+                        dgvImportQueue.Rows[currentRow].Cells[colIn].Value = cells[j].Trim();
+
+                        _importQueue[currentRow].ID_Code = cells[j].Trim();
+                    }
+                }
+
+                MessageBox.Show(" ✅ Đã dán dữ liệu vào các ô cho phép!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(" ❌ Lỗi dán dữ liệu: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
     }
 }

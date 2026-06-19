@@ -39,6 +39,7 @@
             btnRefresh = new Button();
             btnDeleteRow = new Button();
             btnSaveImport = new Button();
+            btnPaste = new Button();
             groupBox2 = new GroupBox();
             dgvImportQueue = new DataGridView();
             gbPrintImportNotes = new GroupBox();
@@ -96,7 +97,7 @@
             // 
             // tableLayoutPanel2
             // 
-            tableLayoutPanel2.ColumnCount = 11;
+            tableLayoutPanel2.ColumnCount = 12;
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
@@ -104,8 +105,9 @@
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
-            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 142F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 113F));
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 119F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 20F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 20F));
             tableLayoutPanel2.Controls.Add(label1, 0, 0);
@@ -114,8 +116,9 @@
             tableLayoutPanel2.Controls.Add(cboPONoForImport, 3, 0);
             tableLayoutPanel2.Controls.Add(btnSearchItemPO, 4, 0);
             tableLayoutPanel2.Controls.Add(btnRefresh, 5, 0);
-            tableLayoutPanel2.Controls.Add(btnDeleteRow, 7, 0);
-            tableLayoutPanel2.Controls.Add(btnSaveImport, 8, 0);
+            tableLayoutPanel2.Controls.Add(btnDeleteRow, 8, 0);
+            tableLayoutPanel2.Controls.Add(btnSaveImport, 9, 0);
+            tableLayoutPanel2.Controls.Add(btnPaste, 7, 0);
             tableLayoutPanel2.Dock = DockStyle.Fill;
             tableLayoutPanel2.Location = new Point(3, 19);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
@@ -196,9 +199,9 @@
             // 
             btnDeleteRow.Dock = DockStyle.Fill;
             btnDeleteRow.FlatStyle = FlatStyle.Flat;
-            btnDeleteRow.Location = new Point(1018, 3);
+            btnDeleteRow.Location = new Point(986, 3);
             btnDeleteRow.Name = "btnDeleteRow";
-            btnDeleteRow.Size = new Size(94, 31);
+            btnDeleteRow.Size = new Size(107, 31);
             btnDeleteRow.TabIndex = 4;
             btnDeleteRow.Text = "Delete";
             btnDeleteRow.UseVisualStyleBackColor = true;
@@ -208,13 +211,25 @@
             // 
             btnSaveImport.Dock = DockStyle.Fill;
             btnSaveImport.FlatStyle = FlatStyle.Flat;
-            btnSaveImport.Location = new Point(1118, 3);
+            btnSaveImport.Location = new Point(1099, 3);
             btnSaveImport.Name = "btnSaveImport";
-            btnSaveImport.Size = new Size(94, 31);
+            btnSaveImport.Size = new Size(113, 31);
             btnSaveImport.TabIndex = 4;
             btnSaveImport.Text = "Save";
             btnSaveImport.UseVisualStyleBackColor = true;
             btnSaveImport.Click += btnSaveImport_Click;
+            // 
+            // btnPaste
+            // 
+            btnPaste.Dock = DockStyle.Fill;
+            btnPaste.FlatStyle = FlatStyle.Flat;
+            btnPaste.Location = new Point(844, 3);
+            btnPaste.Name = "btnPaste";
+            btnPaste.Size = new Size(136, 31);
+            btnPaste.TabIndex = 4;
+            btnPaste.Text = "Dán Excel";
+            btnPaste.UseVisualStyleBackColor = true;
+            btnPaste.Click += btnPaste_Click;
             // 
             // groupBox2
             // 
@@ -454,5 +469,6 @@
         private DateTimePicker dtpTo;
         private Button btnPrintImportHis;
         private DataGridView dgvHisImport;
+        private Button btnPaste;
     }
 }
