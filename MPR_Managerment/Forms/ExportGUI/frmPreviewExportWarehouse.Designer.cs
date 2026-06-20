@@ -370,12 +370,15 @@
             // 
             // btnDelete
             // 
+            btnDelete.BackColor = SystemColors.Control;
             btnDelete.Enabled = false;
+            btnDelete.ForeColor = Color.White;
             btnDelete.Location = new Point(3, 3);
             btnDelete.Name = "btnDelete";
             btnDelete.Size = new Size(150, 30);
             btnDelete.TabIndex = 4;
             btnDelete.Text = "Delete";
+            btnDelete.UseVisualStyleBackColor = false;
             btnDelete.Click += btnDelete_Click;
             // 
             // btnAddRow

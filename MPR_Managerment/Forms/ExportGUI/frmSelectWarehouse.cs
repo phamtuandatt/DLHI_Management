@@ -23,6 +23,9 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             InitializeComponent();
             Common.Common.CreateDataGridView_Hide_RowHeader(dgvItems);
+            Common.Common.CreateButtonSearch(btnSearch);
+            Common.Common.CreateButtonSave(btnSelect);
+            Common.Common.CreateButtonCancel(btnCancel, "➜] Thoát");
         }
 
 

@@ -30,6 +30,11 @@ namespace MPR_Managerment.Forms.ExportGUI
             InitializeComponent();
             _headerRow = headerRow;
             LoadData();
+            Common.Common.CreateButtonDelete(btnDelete);
+            Common.Common.CreateButtonAdd(btnAddRow);
+            Common.Common.CreateButtonSave(btnSave);
+            Common.Common.CreateButtonCancel(btnCancel);
+            Common.Common.CreateButtonSave_V2(btnUpdateServer, "🛢 Cập nhật Server");
         }
 
         public frmPreviewExportWarehouse(bool isCreate)
@@ -40,6 +45,11 @@ namespace MPR_Managerment.Forms.ExportGUI
             txtCreatedBy.Text = AppSession.CurrentUser.Full_Name.ToUpper();
             cboStatus.SelectedIndex = 0;
             cboStatus.SelectedItem = "Chưa xác nhận";
+            Common.Common.CreateButtonDelete(btnDelete);
+            Common.Common.CreateButtonAdd(btnAddRow);
+            Common.Common.CreateButtonSave(btnSave);
+            Common.Common.CreateButtonCancel(btnCancel);
+            Common.Common.CreateButtonSave_V2(btnUpdateServer, "🛢 Cập nhật Server");
         }
 
         private void LoadData()
@@ -145,6 +155,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                 if (col.Name == "chkSelect") col.ReadOnly = false;
                 if (col.Name == "Qty_Export") col.ReadOnly = false;
                 if (col.Name == "Notes") col.ReadOnly = false;
+                if (col.Name == "ID_Code") col.Visible = true;
             }
 
             // Set specific column widths
@@ -315,31 +326,43 @@ namespace MPR_Managerment.Forms.ExportGUI
 
             foreach (var item in list)
             {
-                bool exists = false;
-                foreach (DataRow r in _dtDetails.Rows)
-                {
-                    if (r["Import_ID"] != DBNull.Value && Convert.ToInt32(r["Import_ID"]) == item.Import_ID)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
+                DataRow row = _dtDetails.NewRow();
+                row["Export_Detail_Id"] = 0;
+                row["Export_ID"] = 0;
+                row["Import_ID"] = item.Import_ID;
+                row["ID_Code"] = item.ID_Code;
+                row["Item_Name"] = item.Item_Name;
+                row["Material"] = item.Material;
+                row["Size"] = item.Size;
+                row["Qty_Export"] = 1;
+                row["UNIT"] = item.UNIT;
+                row["Notes"] = item.Notes;
+                _dtDetails.Rows.Add(row);
+                //bool exists = false;
+                //foreach (DataRow r in _dtDetails.Rows)
+                //{
+                //    if (r["Import_ID"] != DBNull.Value && Convert.ToInt32(r["Import_ID"]) == item.Import_ID)
+                //    {
+                //        exists = true;
+                //        break;
+                //    }
+                //}
 
-                if (!exists)
-                {
-                    DataRow row = _dtDetails.NewRow();
-                    row["Export_Detail_Id"] = 0;
-                    row["Export_ID"] = 0;
-                    row["Import_ID"] = item.Import_ID;
-                    row["ID_Code"] = item.ID_Code;
-                    row["Item_Name"] = item.Item_Name;
-                    row["Material"] = item.Material;
-                    row["Size"] = item.Size;
-                    row["Qty_Export"] = 1;
-                    row["UNIT"] = item.UNIT;
-                    row["Notes"] = item.Notes;
-                    _dtDetails.Rows.Add(row);
-                }
+                //if (!exists)
+                //{
+                //    DataRow row = _dtDetails.NewRow();
+                //    row["Export_Detail_Id"] = 0;
+                //    row["Export_ID"] = 0;
+                //    row["Import_ID"] = item.Import_ID;
+                //    row["ID_Code"] = item.ID_Code;
+                //    row["Item_Name"] = item.Item_Name;
+                //    row["Material"] = item.Material;
+                //    row["Size"] = item.Size;
+                //    row["Qty_Export"] = 1;
+                //    row["UNIT"] = item.UNIT;
+                //    row["Notes"] = item.Notes;
+                //    _dtDetails.Rows.Add(row);
+                //}
             }
             _isChanged = true;
         }

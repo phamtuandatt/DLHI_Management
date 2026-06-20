@@ -260,9 +260,19 @@ namespace MPR_Managerment.Common
             dgv.DefaultCellStyle.SelectionForeColor = Color.Black;
         }
 
-        public static void CreateButtonSave(Button btn, string text)
+        public static void CreateButtonSave_V2(Button btn, string text = "🛢 Cập nhật CSDL")
         {
-            btn.Text = text ?? "💾 Lưu phiếu";
+            btn.Text = text;
+            btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btn.Cursor = Cursors.Hand;
+            btn.BackColor = Color.FromArgb(102, 51, 153);
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
+        }
+
+        public static void CreateButtonSave(Button btn, string text = "💾 Lưu phiếu")
+        {
+            btn.Text = text;
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btn.Cursor = Cursors.Hand;
             btn.BackColor = Color.FromArgb(0, 120, 212);
@@ -270,9 +280,9 @@ namespace MPR_Managerment.Common
             btn.FlatStyle = FlatStyle.Flat;
         }
 
-        public static void CreateButtonAdd(Button btn, string text)
+        public static void CreateButtonAdd(Button btn, string text = "✔ Thêm vào phiếu")
         {
-            btn.Text = text ?? "✔ Thêm vào phiếu";
+            btn.Text = text;
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btn.Cursor = Cursors.Hand;
             btn.BackColor = Color.FromArgb(40, 167, 69);
@@ -280,9 +290,9 @@ namespace MPR_Managerment.Common
             btn.FlatStyle = FlatStyle.Flat;
         }
 
-        public static void CreateButtonCancel(Button btn, string text)
+        public static void CreateButtonCancel(Button btn, string text = "🆕 Phiếu mới")
         {
-            btn.Text = "🆕 Phiếu mới";
+            btn.Text = text;
             btn.BackColor = Color.FromArgb(108, 117, 125);
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;
@@ -290,9 +300,9 @@ namespace MPR_Managerment.Common
             btn.Cursor = Cursors.Hand;
         }
 
-        public static void CreateButtonSearch(Button btn, string text)
+        public static void CreateButtonSearch(Button btn, string text = "🔍 Tìm")
         {
-            btn.Text = text ?? "🔍 Tìm";
+            btn.Text = text;
             btn.Cursor = Cursors.Hand;
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btn.BackColor = Color.FromArgb(0, 120, 212);
@@ -310,18 +320,18 @@ namespace MPR_Managerment.Common
             btn.Cursor = Cursors.Hand;
         }
 
-        public static void CreateButtonPrint(Button btn, string text = "")
+        public static void CreateButtonPrint(Button btn, string text = "🖨 In")
         {
-            btn.Text = text ?? "🖨 In";
+            btn.Text = text;
             btn.BackColor = Color.FromArgb(33, 115, 70);
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;
             btn.Font = new Font("Segoe UI", 9, FontStyle.Bold);
         }
 
-        public static void CreateButtonRefresh(Button btn)
+        public static void CreateButtonRefresh(Button btn, string text = "🔄 Làm mới")
         {
-            btn.Text = "🔄 Làm mới";
+            btn.Text = text;
             btn.BackColor = Color.FromArgb(108, 117, 125);
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;

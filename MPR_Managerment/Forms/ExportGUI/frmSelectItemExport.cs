@@ -29,8 +29,8 @@ namespace MPR_Managerment.Forms.ExportGUI
             InitializeComponent();
 
             Common.Common.CreateButtonAdd(btnPreImage, "📸 Hình ảnh");
-            Common.Common.CreateButtonSave(btnSelect, null);
-            Common.Common.CreateButtonCancel(btnCancels, "");
+            Common.Common.CreateButtonSave(btnSelect);
+            Common.Common.CreateButtonCancel(btnCancels);
             Common.Common.CreateButtonSearch(btnSearch, "🔍 Tìm");
             Common.Common.CreateButtonDelete(btnDelete, "🗑 Bỏ chọn");
             txtSearch.PlaceholderText = "Mã/tên vật tư...";
@@ -42,8 +42,8 @@ namespace MPR_Managerment.Forms.ExportGUI
             InitializeComponent();
             _isAdd = isAdd;
             Common.Common.CreateButtonAdd(btnPreImage, "📸 Hình ảnh");
-            Common.Common.CreateButtonSave(btnSelect, null);
-            Common.Common.CreateButtonCancel(btnCancels, "");
+            Common.Common.CreateButtonSave(btnSelect);
+            Common.Common.CreateButtonCancel(btnCancels);
             Common.Common.CreateButtonSearch(btnSearch, "🔍 Tìm");
             Common.Common.CreateButtonDelete(btnDelete, "🗑 Bỏ chọn");
             txtSearch.PlaceholderText = "Mã/tên vật tư...";
@@ -98,7 +98,7 @@ namespace MPR_Managerment.Forms.ExportGUI
                 // Cấu hình các cột hiển thị đẹp hơn (tùy chọn)
                 if (column.Name == "Chon") column.DisplayIndex = 0;
             }
-
+            dgvItems.Columns["ID_Code"].Visible = true;
             dgvItems.EditMode = DataGridViewEditMode.EditOnEnter;
             lblStatus.Text = $"Đã chọn: {selectedList.Count} vật tư";
         }
@@ -223,7 +223,7 @@ namespace MPR_Managerment.Forms.ExportGUI
 
             if (!_isAdd && selectedList.Count > 1)
             {
-                MessageBox.Show("Hãy chọn vật tư muốn cập nhật", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Hãy chọn 1 vật tư muốn cập nhật", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             else
             {

@@ -14,6 +14,8 @@ using System.IO;
 using OfficeOpenXml;
 using MPR_Managerment.Models;
 using MPR_Managerment.Common;
+using System.DirectoryServices.ActiveDirectory;
+using OfficeOpenXml.Style;
 
 namespace MPR_Managerment.Forms.ExportGUI
 {
@@ -21,6 +23,8 @@ namespace MPR_Managerment.Forms.ExportGUI
     {
         private DataTable _dtHisExport = new DataTable();
         private ProjectService _projectService = new ProjectService();
+        private string[] _statusList = new string[] { "Xác nhận", "Chưa xác nhận", "Hủy" };
+        private WarehouseService _warehouseServices = new WarehouseService();
 
         public ucExportWarehouse_V2()
         {
@@ -64,15 +68,18 @@ namespace MPR_Managerment.Forms.ExportGUI
 
         private void LoadStatuses()
         {
-            cboStatus.Items.AddRange(new string[] { "Pending", "Completed", "Cancelled" });
+            cboStatus.Items.AddRange(_statusList);
+            //_statusMenu.Items.AddRange(_statusList.Select(text => new ToolStripMenuItem(text)).ToArray());
+            cboStatus.SelectedIndex = -1;
         }
 
-        private async Task LoadHisExportAsync()
+        private async Task LoadHisExportAsync(string project_code = "")
         {
             try
             {
-                string sql = @"SELECT TOP (1000) [Export_ID],[Export_No],[From_Project_Name],[To_Project_Name],[Export_Totals],[Status],
-                                [Notes],[Create_By],[Create_Date],[Update_By],[Update_Date], CASE WHEN [IS_UPDATE] = 1 THEN N'Đã cập nhật' ELSE N'Chưa cập nhật' END AS [IS_UPDATE] FROM [dbo].[ExportWarehouseHeader]";
+                string sql = @"EXEC [dbo].[sp_GetHisExportV2]";
+                if (!string.IsNullOrEmpty(project_code))
+                    sql += $" @From_Project_Code = N'{project_code}'";
 
                 using (SqlConnection conn = DatabaseHelper.GetConnection())
                 {
@@ -177,9 +184,9 @@ namespace MPR_Managerment.Forms.ExportGUI
         private void BtnSearch_Click(object? sender, EventArgs e)
         {
             string filter = "1=1";
-            if (cboProject.SelectedValue != null) filter += $" AND From_Project_Name = '{cboProject.Text}'";
+if (cboProject.SelectedValue != null) filter += $" AND From_Project_Name = '{cboProject.Text}'";
             if (!string.IsNullOrEmpty(txtSearch.Text)) filter += $" AND (Create_By LIKE '%{txtSearch.Text}%' OR From_Project_Name LIKE '%{txtSearch.Text}%')";
-            if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.SelectedItem}'";
+if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.SelectedItem}'";
 
             // Date filter (assuming Create_Date is the column)
             filter += $" AND Create_Date  >= '{dtpFromDate.Value:yyyy-MM-dd}' AND Create_Date  <= '{dtpToDate.Value:yyyy-MM-dd}'";
@@ -189,14 +196,15 @@ namespace MPR_Managerment.Forms.ExportGUI
             dgvHisExport.DataSource = dv;
         }
 
-        private void BtnRefresh_Click(object? sender, EventArgs e)
+        private async void BtnRefresh_Click(object? sender, EventArgs e)
         {
             cboProject.SelectedIndex = -1;
             txtSearch.Clear();
             cboStatus.SelectedIndex = -1;
             dtpFromDate.Value = DateTime.Now;
-            _dtHisExport.DefaultView.RowFilter = "";
-            dgvHisExport.DataSource = _dtHisExport;
+            await LoadHisExportAsync();
+            //_dtHisExport.DefaultView.RowFilter = "";
+            //dgvHisExport.DataSource = _dtHisExport;
         }
 
         private async void DgvHisExport_CellContentClick(object? sender, DataGridViewCellEventArgs e)
@@ -598,6 +606,161 @@ namespace MPR_Managerment.Forms.ExportGUI
         private void btnUpdateStatus_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void btnExportExcel_Click(object sender, EventArgs e)
+        {
+            DataTable dt = _warehouseServices.GetExportWarehouseForExportExcel(fromProjectCode: string.Empty, fromDate: dtpFromDate.Value, toDate: dtpToDate.Value);
+            List<ExportDetailModel> exportDetailsList = _warehouseServices.ConvertDataTableToList(dt);
+
+            ExportExportDetailsToExcel(exportDetailsList);
+        }
+
+        public static void ExportExportDetailsToExcel(List<ExportDetailModel> dataList)
+        {
+            if (dataList == null || dataList.Count == 0)
+            {
+                MessageBox.Show("Không có dữ liệu để xuất Excel!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Thiết lập License cho EPPlus (Bắt buộc từ bản 5.x trở lên)
+            OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
+            using (SaveFileDialog sfd = new SaveFileDialog())
+            {
+                sfd.Filter = "Excel Workbook (*.xlsx)|*.xlsx";
+                sfd.FileName = $"BaoCao_XuatKho_ChuaCapNhat_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                sfd.Title = "Chọn nơi lưu file Excel báo cáo";
+                sfd.InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        FileInfo fileInfo = new FileInfo(sfd.FileName);
+                        using (ExcelPackage package = new ExcelPackage(fileInfo))
+                        {
+                            // Tạo một Worksheet mới
+                            ExcelWorksheet worksheet = package.Workbook.Worksheets.Add("Chi Tiết Xuất Kho");
+
+                            // 1. Tạo Tiêu đề Báo cáo (Header Title)
+                            worksheet.Cells["A1:P1"].Merge = true;
+                            worksheet.Cells["A1"].Value = "DANH SÁCH CHI TIẾT XUẤT KHO CHƯA CẬP NHẬT";
+                            worksheet.Cells["A1"].Style.Font.Size = 16;
+                            worksheet.Cells["A1"].Style.Font.Bold = true;
+                            worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                            worksheet.Row(1).Height = 35;
+
+                            // 2. Định nghĩa các Tiêu đề cột (Grid Headers)
+                            string[] headers = new string[] {
+                                "STT", "Mã Chi Tiết", "ID Xuất", "Số Phiếu Xuất", "Mã Chứng Từ",
+                                "Mã Dự Án Nguồn", "Tên Dự Án Nguồn", "Tên Dự Án Đích", "ID Nhập",
+                                "Mã Vật Tư", "Tên Vật Tư", "Chất Liệu", "Kích Thước",
+                                "Số Lượng Xuất", "Đơn Vị Tính", "Ghi Chú", "Ngày Tạo"
+                            };
+
+                            for (int i = 0; i < headers.Length; i++)
+                            {
+                                var cell = worksheet.Cells[3, i + 1];
+                                cell.Value = headers[i];
+                                cell.Style.Font.Bold = true;
+                                cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                                cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(23, 162, 184)); // Màu Teal/Xanh dịu mắt
+                                cell.Style.Font.Color.SetColor(Color.White);
+                                cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                                cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                            }
+                            worksheet.Row(3).Height = 26;
+
+                            // 3. Đổ dữ liệu từ List<Model> vào các dòng
+                            int startRow = 4;
+                            int stt = 1;
+
+                            foreach (var item in dataList)
+                            {
+                                worksheet.Cells[startRow, 1].Value = stt++;
+                                worksheet.Cells[startRow, 2].Value = item.Export_Detail_Id;
+                                worksheet.Cells[startRow, 3].Value = item.Export_ID;
+                                worksheet.Cells[startRow, 4].Value = item.Export_No;
+                                worksheet.Cells[startRow, 5].Value = item.Export_Number;
+                                worksheet.Cells[startRow, 6].Value = item.From_Project_Code;
+                                worksheet.Cells[startRow, 7].Value = item.From_Project_Name;
+                                worksheet.Cells[startRow, 8].Value = item.To_Project_Name;
+                                worksheet.Cells[startRow, 9].Value = item.Import_ID;
+                                worksheet.Cells[startRow, 10].Value = item.ID_Code;
+                                worksheet.Cells[startRow, 11].Value = item.Item_Name;
+                                worksheet.Cells[startRow, 12].Value = item.Material;
+                                worksheet.Cells[startRow, 13].Value = item.Size;
+
+                                // Định dạng hiển thị số lượng
+                                var qtyCell = worksheet.Cells[startRow, 14];
+                                qtyCell.Value = item.Qty_Export;
+                                qtyCell.Style.Numberformat.Format = "#,##0.00";
+
+                                worksheet.Cells[startRow, 15].Value = item.UNIT;
+                                worksheet.Cells[startRow, 16].Value = item.Notes;
+
+                                // Định dạng hiển thị ngày tháng năm
+                                var dateCell = worksheet.Cells[startRow, 17];
+                                if (item.Create_Date.HasValue)
+                                {
+                                    dateCell.Value = item.Create_Date.Value;
+                                    dateCell.Style.Numberformat.Format = "dd/MM/yyyy HH:mm";
+                                }
+
+                                // Căn chỉnh lề cho các trường số/ID/Mã code
+                                worksheet.Cells[startRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                                worksheet.Cells[startRow, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                                worksheet.Cells[startRow, 3].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                                worksheet.Cells[startRow, 6].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                                worksheet.Cells[startRow, 10].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                                worksheet.Cells[startRow, 14].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                                worksheet.Cells[startRow, 15].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                                worksheet.Cells[startRow, 17].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+
+                                startRow++;
+                            }
+
+                            // 4. Định dạng đường viền (Borders) cho toàn bộ vùng dữ liệu
+                            int endRow = startRow - 1;
+                            using (var range = worksheet.Cells[3, 1, endRow, headers.Length])
+                            {
+                                range.Style.Border.Top.Style = ExcelBorderStyle.Thin;
+                                range.Style.Border.Bottom.Style = ExcelBorderStyle.Thin;
+                                range.Style.Border.Left.Style = ExcelBorderStyle.Thin;
+                                range.Style.Border.Right.Style = ExcelBorderStyle.Thin;
+                                range.Style.Border.Top.Color.SetColor(Color.LightGray);
+                                range.Style.Border.Bottom.Color.SetColor(Color.LightGray);
+                                range.Style.Border.Left.Color.SetColor(Color.LightGray);
+                                range.Style.Border.Right.Color.SetColor(Color.LightGray);
+                            }
+
+                            // 5. Tự động căn chỉnh độ rộng cột theo nội dung (Auto-fit columns)
+                            worksheet.Cells[3, 1, endRow, headers.Length].AutoFitColumns();
+
+                            // Lưu file lại
+                            package.Save();
+                        }
+
+                        var result = MessageBox.Show(
+                                $"✅ Xuất phiếu nhập kho thành công!\nFile: {sfd.FileName}\n\nBạn có muốn mở file ngay không?",
+                                "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                        if (result == DialogResult.Yes)
+                        {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = sfd.FileName,
+                                UseShellExecute = true
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Lỗi khi xuất file Excel: {ex.Message}", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
         }
     }
 }

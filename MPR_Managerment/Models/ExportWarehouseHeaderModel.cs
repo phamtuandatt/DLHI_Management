@@ -53,4 +53,24 @@ namespace MPR_Managerment.Models
         public decimal Qty_Export { get; set; }
         public string? Notes { get; set; }
     }
+
+    public class ExportDetailModel
+    {
+        public int Export_Detail_Id { get; set; }
+        public int Export_ID { get; set; }
+        public string Export_No { get; set; }
+        public string Export_Number { get; set; }
+        public string From_Project_Code { get; set; }
+        public string From_Project_Name { get; set; }
+        public string To_Project_Name { get; set; }
+        public int Import_ID { get; set; }
+        public string ID_Code { get; set; }
+        public string Item_Name { get; set; }
+        public string Material { get; set; }
+        public string Size { get; set; }
+        public decimal? Qty_Export { get; set; } // Dùng kiểu Nullable đề phòng trống dữ liệu
+        public string UNIT { get; set; }
+        public string Notes { get; set; }
+        public DateTime? Create_Date { get; set; } // Nullable DateTime cho ngày tạo
+    }
 }

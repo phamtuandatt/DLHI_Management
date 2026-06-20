@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Office.Interop.Excel;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using DataTable = System.Data.DataTable;
 
@@ -289,6 +290,95 @@ namespace MPR_Managerment.Services
                 var r = cmd.ExecuteReader();
                 while (r.Read()) list.Add(MapImport(r));
             }
+            return list;
+        }
+
+        public DataTable GetExportWarehouseForExportExcel(string fromProjectCode = null, DateTime? fromDate = null, DateTime? toDate = null)
+        {
+            DataTable dataTable = new DataTable();
+
+            // Sử dụng khối using để đảm bảo kết nối và lệnh được giải phóng ngay sau khi dùng
+            using (SqlConnection connection = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand command = new SqlCommand("[dbo].[sp_GetUnupdatedExportDetails]", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    // 1. Xử lý tham số @From_Project_Code
+                    command.Parameters.Add(new SqlParameter("@From_Project_Code", SqlDbType.NVarChar, 50)
+                    {
+                        Value = string.IsNullOrEmpty(fromProjectCode) ? (object)DBNull.Value : fromProjectCode
+                    });
+
+                    // 2. Xử lý tham số @From_Date
+                    command.Parameters.Add(new SqlParameter("@From_Date", SqlDbType.Date)
+                    {
+                        Value = fromDate.HasValue ? (object)fromDate.Value.Date : DBNull.Value
+                    });
+
+                    // 3. Xử lý tham số @To_Date
+                    command.Parameters.Add(new SqlParameter("@To_Date", SqlDbType.Date)
+                    {
+                        Value = toDate.HasValue ? (object)toDate.Value.Date : DBNull.Value
+                    });
+
+                    try
+                    {
+                        // Mở kết nối và đổ dữ liệu vào DataTable thông qua SqlDataAdapter
+                        connection.Open();
+                        using (SqlDataAdapter adapter = new SqlDataAdapter(command))
+                        {
+                            adapter.Fill(dataTable);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Bạn có thể log lỗi ở đây hoặc throw ra ngoài tùy kiến trúc ứng dụng
+                        throw new Exception("Lỗi khi thực thi Stored Procedure: " + ex.Message, ex);
+                    }
+                }
+            }
+
+            return dataTable;
+        }
+
+        public List<ExportDetailModel> ConvertDataTableToList(DataTable dataTable)
+        {
+            List<ExportDetailModel> list = new List<ExportDetailModel>();
+
+            if (dataTable == null || dataTable.Rows.Count == 0)
+                return list;
+
+            foreach (DataRow row in dataTable.Rows)
+            {
+                ExportDetailModel item = new ExportDetailModel
+                {
+                    // Ép kiểu an toàn, kiểm tra DBNull trước khi gán dữ liệu
+                    Export_Detail_Id = Convert.ToInt32(row["Export_Detail_Id"]),
+                    Export_ID = Convert.ToInt32(row["Export_ID"]),
+
+                    Export_No = row["Export_No"] == DBNull.Value ? string.Empty : row["Export_No"].ToString(),
+                    Export_Number = row["Export_Number"] == DBNull.Value ? string.Empty : row["Export_Number"].ToString(),
+                    From_Project_Code = row["From_Project_Code"] == DBNull.Value ? string.Empty : row["From_Project_Code"].ToString(),
+                    From_Project_Name = row["From_Project_Name"] == DBNull.Value ? string.Empty : row["From_Project_Name"].ToString(),
+                    To_Project_Name = row["To_Project_Name"] == DBNull.Value ? string.Empty : row["To_Project_Name"].ToString(),
+
+                    Import_ID = Convert.ToInt32(row["Import_ID"]),
+                    ID_Code = row["ID_Code"] == DBNull.Value ? string.Empty : row["ID_Code"].ToString(),
+                    Item_Name = row["Item_Name"] == DBNull.Value ? string.Empty : row["Item_Name"].ToString(),
+                    Material = row["Material"] == DBNull.Value ? string.Empty : row["Material"].ToString(),
+                    Size = row["Size"] == DBNull.Value ? string.Empty : row["Size"].ToString(),
+
+                    Qty_Export = row["Qty_Export"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(row["Qty_Export"]),
+                    UNIT = row["UNIT"] == DBNull.Value ? string.Empty : row["UNIT"].ToString(),
+                    Notes = row["Notes"] == DBNull.Value ? string.Empty : row["Notes"].ToString(),
+
+                    Create_Date = row["Create_Date"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(row["Create_Date"])
+                };
+
+                list.Add(item);
+            }
+
             return list;
         }
 

@@ -51,6 +51,7 @@
             btnAddXK = new Button();
             btnInXK = new Button();
             btnUpdateStatus = new Button();
+            btnExportExcel = new Button();
             _statusMenu = new ContextMenuStrip(components);
             tsAccept = new ToolStripMenuItem();
             tsCancel = new ToolStripMenuItem();
@@ -117,18 +118,21 @@
             label1.Dock = DockStyle.Fill;
             label1.Location = new Point(3, 0);
             label1.Name = "label1";
-            label1.Size = new Size(31, 29);
+            label1.Size = new Size(31, 33);
             label1.TabIndex = 6;
             label1.Text = "Kho:";
             label1.TextAlign = ContentAlignment.MiddleLeft;
+            label1.Visible = false;
             // 
             // cboProject
             // 
             cboProject.Dock = DockStyle.Fill;
+            cboProject.DropDownStyle = ComboBoxStyle.DropDownList;
             cboProject.Location = new Point(40, 3);
             cboProject.Name = "cboProject";
             cboProject.Size = new Size(150, 23);
             cboProject.TabIndex = 0;
+            cboProject.Visible = false;
             // 
             // label2
             // 
@@ -136,7 +140,7 @@
             label2.Dock = DockStyle.Fill;
             label2.Location = new Point(196, 0);
             label2.Name = "label2";
-            label2.Size = new Size(59, 29);
+            label2.Size = new Size(59, 33);
             label2.TabIndex = 7;
             label2.Text = "Tìm kiếm:";
             label2.TextAlign = ContentAlignment.MiddleLeft;
@@ -155,7 +159,7 @@
             label3.Dock = DockStyle.Fill;
             label3.Location = new Point(467, 0);
             label3.Name = "label3";
-            label3.Size = new Size(38, 29);
+            label3.Size = new Size(38, 33);
             label3.TabIndex = 8;
             label3.Text = "Ngày:";
             label3.TextAlign = ContentAlignment.MiddleLeft;
@@ -175,7 +179,7 @@
             label5.Dock = DockStyle.Fill;
             label5.Location = new Point(667, 0);
             label5.Name = "label5";
-            label5.Size = new Size(55, 29);
+            label5.Size = new Size(55, 33);
             label5.TabIndex = 9;
             label5.Text = "Tới ngày:";
             label5.TextAlign = ContentAlignment.MiddleLeft;
@@ -195,13 +199,14 @@
             label4.Dock = DockStyle.Fill;
             label4.Location = new Point(884, 0);
             label4.Name = "label4";
-            label4.Size = new Size(62, 29);
+            label4.Size = new Size(62, 33);
             label4.TabIndex = 8;
             label4.Text = "Trạng thái:";
             label4.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // cboStatus
             // 
+            cboStatus.DropDownStyle = ComboBoxStyle.DropDownList;
             cboStatus.Location = new Point(952, 3);
             cboStatus.Name = "cboStatus";
             cboStatus.Size = new Size(120, 23);
@@ -211,17 +216,19 @@
             // 
             btnSearch.Location = new Point(1078, 3);
             btnSearch.Name = "btnSearch";
-            btnSearch.Size = new Size(100, 23);
+            btnSearch.Size = new Size(100, 27);
             btnSearch.TabIndex = 4;
             btnSearch.Text = "Search";
+            btnSearch.Click += BtnSearch_Click;
             // 
             // btnRefresh
             // 
             btnRefresh.Location = new Point(1184, 3);
             btnRefresh.Name = "btnRefresh";
-            btnRefresh.Size = new Size(100, 23);
+            btnRefresh.Size = new Size(100, 27);
             btnRefresh.TabIndex = 5;
             btnRefresh.Text = "Refresh";
+            btnRefresh.Click += BtnRefresh_Click;
             // 
             // tableLayoutPanel2
             // 
@@ -263,6 +270,7 @@
             flowLayoutPanel1.Controls.Add(btnAddXK);
             flowLayoutPanel1.Controls.Add(btnInXK);
             flowLayoutPanel1.Controls.Add(btnUpdateStatus);
+            flowLayoutPanel1.Controls.Add(btnExportExcel);
             flowLayoutPanel1.Dock = DockStyle.Fill;
             flowLayoutPanel1.Location = new Point(3, 42);
             flowLayoutPanel1.Name = "flowLayoutPanel1";
@@ -298,6 +306,16 @@
             btnUpdateStatus.Text = "Cập nhật trạng thái           ⏷";
             btnUpdateStatus.UseVisualStyleBackColor = true;
             btnUpdateStatus.Click += btnUpdateStatus_Click;
+            // 
+            // btnExportExcel
+            // 
+            btnExportExcel.Location = new Point(553, 3);
+            btnExportExcel.Name = "btnExportExcel";
+            btnExportExcel.Size = new Size(184, 33);
+            btnExportExcel.TabIndex = 0;
+            btnExportExcel.Text = "Xuất lịch sử XK";
+            btnExportExcel.UseVisualStyleBackColor = true;
+            btnExportExcel.Click += btnExportExcel_Click;
             // 
             // _statusMenu
             // 
@@ -383,5 +401,6 @@
         private ToolStripMenuItem tsAccept;
         private ToolStripMenuItem tsCancel;
         private ToolStripMenuItem tsKeep;
+        private Button btnExportExcel;
     }
 }
