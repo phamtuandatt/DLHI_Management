@@ -175,10 +175,52 @@ namespace MPR_Managerment.Services
 
         private static Process? _monitorProcess;
         private static CancellationTokenSource? _cts;
+        private static int _logPollIndex = 0;
+
+        /// <summary>True nếu process do session này khởi động (có pipe stdout).</summary>
+        public static bool IsOwnedByCurrentSession => _monitorProcess != null && !_monitorProcess.HasExited;
+
+        /// <summary>
+        /// Đặt poll index về cuối log hiện tại — gọi sau khi form đã load lịch sử,
+        /// để PollNewLogEvents() chỉ trả về các sự kiện MỚI từ đây trở đi.
+        /// </summary>
+        public static void InitLogPollIndex()
+        {
+            try
+            {
+                if (!File.Exists(LogFile)) { _logPollIndex = 0; return; }
+                var all = JsonSerializer.Deserialize<List<MonitorEvent>>(File.ReadAllText(LogFile)) ?? new();
+                _logPollIndex = all.Count;
+            }
+            catch { _logPollIndex = 0; }
+        }
+
+        /// <summary>
+        /// Trả về các sự kiện mới trong log file kể từ lần poll trước.
+        /// Dùng khi process không do session này khởi động (không có pipe stdout).
+        /// </summary>
+        public static List<MonitorEvent> PollNewLogEvents()
+        {
+            try
+            {
+                if (!File.Exists(LogFile)) return new();
+                var all = JsonSerializer.Deserialize<List<MonitorEvent>>(File.ReadAllText(LogFile)) ?? new();
+                if (_logPollIndex >= all.Count) return new();
+                var newEvents = all.GetRange(_logPollIndex, all.Count - _logPollIndex);
+                _logPollIndex = all.Count;
+                return newEvents;
+            }
+            catch { return new(); }
+        }
 
         public static async Task<string> StartAsync(string? saveDir = null)
         {
-            if (IsRunning) return "Monitor đang chạy.";
+            if (IsRunning)
+            {
+                // Process đang chạy nhưng không do session này mở — không có pipe.
+                // Chỉ cần log polling để nhận events, không cần làm gì thêm.
+                return "Monitor đang chạy.";
+            }
 
             string dir = saveDir ?? SaveDir;
             Directory.CreateDirectory(dir);

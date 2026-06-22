@@ -466,6 +466,38 @@ namespace MPR_Managerment.Services
             return result;
         }
         // =====================================================
+        //  DEPARTMENT HELPERS
+        // =====================================================
+        /// <summary>
+        /// Trả về danh sách Full_Name của tất cả user trong cùng phòng ban.
+        /// Department được lưu dạng "PhongBan" hoặc "PhongBan||ChucVu".
+        /// </summary>
+        public List<string> GetFullNamesByDepartment(string department)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(department)) return result;
+            using var conn = DatabaseHelper.GetConnection();
+            conn.Open();
+            // Khớp cả "PhongBan" lẫn "PhongBan||ChucVu"
+            var cmd = new SqlCommand(
+                @"SELECT Full_Name FROM Users
+                  WHERE Is_Active = 1
+                    AND (Department = @dept
+                      OR Department LIKE @deptPrefix)",
+                conn);
+            cmd.Parameters.AddWithValue("@dept", department);
+            cmd.Parameters.AddWithValue("@deptPrefix", department + "||%");
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                string name = r["Full_Name"]?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(name))
+                    result.Add(name);
+            }
+            return result;
+        }
+
+        // =====================================================
         //  MAP
         // =====================================================
         private AppUser MapUser(SqlDataReader r) => new AppUser

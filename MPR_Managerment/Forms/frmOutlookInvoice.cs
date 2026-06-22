@@ -64,6 +64,8 @@ namespace MPR_Managerment.Forms
             _ = UpdateOutlookStatusAsync();
         }
 
+        private System.Windows.Forms.Timer timerLogPoll = null!;
+
         private void InitializeComponent()
         {
             Text = "Tải Hóa Đơn từ Outlook";
@@ -587,7 +589,12 @@ namespace MPR_Managerment.Forms
             timerOutlookCheck = new System.Windows.Forms.Timer { Interval = 5000, Enabled = true };
             timerOutlookCheck.Tick += (s, e) => _ = UpdateOutlookStatusAsync();
 
+            // Poll log file mỗi 15 giây để nhận events từ process không do session này khởi động
+            timerLogPoll = new System.Windows.Forms.Timer { Interval = 15000, Enabled = true };
+            timerLogPoll.Tick += (s, e) => PollLogEvents();
+
             LoadExistingLog();
+            OutlookMonitorService.InitLogPollIndex();
         }
 
         // ── Load dữ liệu ────────────────────────────────────────────────────────
@@ -1080,11 +1087,26 @@ namespace MPR_Managerment.Forms
             }
         }
 
+        /// <summary>
+        /// Đọc các events mới từ log file — dùng khi process chạy ngoài session này (không có pipe stdout).
+        /// Không gọi khi session này đang giữ pipe (IsOwnedByCurrentSession = true) vì đã có OnNewEvent.
+        /// </summary>
+        private void PollLogEvents()
+        {
+            if (OutlookMonitorService.IsOwnedByCurrentSession) return;
+            if (!OutlookMonitorService.IsRunning) return;
+
+            var newEvents = OutlookMonitorService.PollNewLogEvents();
+            foreach (var evt in newEvents)
+                OnMonitorEvent(evt);
+        }
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             OutlookMonitorService.OnNewEvent -= OnMonitorEvent;
             timerMonitorCheck.Dispose();
             timerOutlookCheck.Dispose();
+            timerLogPoll.Dispose();
             base.OnFormClosed(e);
         }
 

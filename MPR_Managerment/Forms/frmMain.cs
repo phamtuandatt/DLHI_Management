@@ -4,6 +4,7 @@ using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
@@ -553,7 +554,10 @@ namespace MPR_Managerment.Forms
             {
                 int supplierCount = new SupplierService().GetAll().Count;
                 int mprCount = new MPRService().GetAll().Count;
-                int poCount = new POService().GetAll().Count;
+                var allPO = new POService().GetAll();
+                int poCount = AppSession.CanViewAllPO()
+                    ? allPO.Count
+                    : GetPOCountForDepartment(allPO);
                 int rirCount = new RIRService().GetAll().Count;
                 int projectCount = new ProjectService().GetAll().Count;
 
@@ -953,6 +957,21 @@ namespace MPR_Managerment.Forms
             // Filter events
             txtSearch.TextChanged += (s, ev) => RenderCards(0);
             cboFilter.SelectedIndexChanged += (s, ev) => RenderCards(0);
+        }
+
+        // Đếm PO thuộc phòng ban của user hiện tại
+        private int GetPOCountForDepartment(List<POHead> all)
+        {
+            string dept = AppSession.CurrentDepartment;
+            if (string.IsNullOrEmpty(dept)) return all.Count;
+            List<string> names;
+            try { names = new UserService().GetFullNamesByDepartment(dept); }
+            catch { names = new List<string>(); }
+            string me = AppSession.CurrentUser?.Full_Name ?? "";
+            if (!string.IsNullOrEmpty(me) && !names.Contains(me))
+                names.Add(me);
+            return all.FindAll(p => names.Exists(n =>
+                string.Equals(p.Created_By, n, StringComparison.OrdinalIgnoreCase))).Count;
         }
 
         private void AddCard(string title, string value, Color color, int x, int y)
@@ -1909,6 +1928,25 @@ namespace MPR_Managerment.Forms
                         msgs.Add("[RIR] RIR moi: " + rRIR["RIR_No"] + " | PO: " + rRIR["PONo"] + " | " + dt + " - " + usr + "@@" + isoTs);
                     }
                     rRIR.Close();
+                }
+
+                // ── Lọc thông báo PO theo phòng ban (MPR/RIR hiển thị cho tất cả) ──
+                if (!AppSession.CanViewAllPO())
+                {
+                    string dept = AppSession.CurrentDepartment;
+                    if (!string.IsNullOrEmpty(dept))
+                    {
+                        List<string> deptNames;
+                        try { deptNames = new UserService().GetFullNamesByDepartment(dept); }
+                        catch { deptNames = new List<string>(); }
+                        string me = AppSession.CurrentUser?.Full_Name ?? "";
+                        if (!string.IsNullOrEmpty(me) && !deptNames.Contains(me))
+                            deptNames.Add(me);
+                        msgs.RemoveAll(m =>
+                            m.StartsWith("[PO]") &&
+                            !deptNames.Exists(n => m.IndexOf(" - " + n + "@@",
+                                StringComparison.OrdinalIgnoreCase) >= 0));
+                    }
                 }
 
                 // Cap nhat moc thoi gian SAU khi da lay het data

@@ -3979,11 +3979,29 @@ private IWin32Window GetActiveOwner() => this;
             }
         }
 
+        // Lọc danh sách PO theo phòng ban của user (trừ Admin / user có quyền "Xem tất cả PO")
+        private List<POHead> FilterPOByDepartment(List<POHead> all)
+        {
+            if (AppSession.CanViewAllPO()) return all;
+            string dept = AppSession.CurrentDepartment;
+            if (string.IsNullOrEmpty(dept)) return all;
+            // Lấy tên đầy đủ của tất cả user cùng phòng ban
+            List<string> sameNames;
+            try { sameNames = new UserService().GetFullNamesByDepartment(dept); }
+            catch { sameNames = new List<string>(); }
+            // Luôn bao gồm PO của chính user hiện tại
+            string me = AppSession.CurrentUser?.Full_Name ?? "";
+            if (!string.IsNullOrEmpty(me) && !sameNames.Contains(me))
+                sameNames.Add(me);
+            return all.FindAll(p =>
+                sameNames.Any(n => string.Equals(p.Created_By, n, StringComparison.OrdinalIgnoreCase)));
+        }
+
         private void LoadPO()
         {
             try
             {
-                _poList = _service.GetAll();
+                _poList = FilterPOByDepartment(_service.GetAll());
                 _isLoadingPO = true;
                 BindPOGrid(_poList);
                 _isLoadingPO = false;
@@ -4011,7 +4029,7 @@ private IWin32Window GetActiveOwner() => this;
                     try { projects = new ProjectService().GetAll(); } catch { projects = new List<MPR_Managerment.Models.ProjectInfo>(); }
                 });
 
-                _poList = poList;
+                _poList = FilterPOByDepartment(poList);
                 _isLoadingPO = true;
                 BindPOGrid(_poList, suppliers, projects);
                 _isLoadingPO = false;
@@ -4555,7 +4573,8 @@ private IWin32Window GetActiveOwner() => this;
                 if (string.IsNullOrWhiteSpace(txtSearch.Text)) LoadPO();
                 else
                 {
-                    var result = _service.Search(txtSearch.Text.Trim()); BindPOGrid(result);
+                    var result = FilterPOByDepartment(_service.Search(txtSearch.Text.Trim()));
+                    BindPOGrid(result);
                     if (result.Count == 0) { lblStatus.Text = "Không tìm thấy kết quả"; SafeInfo("Không tìm thấy kết quả phù hợp!", "Tìm kiếm"); }
                     else lblStatus.Text = $"Tìm thấy: {result.Count} đơn PO";
                 }

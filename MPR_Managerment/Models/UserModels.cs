@@ -219,6 +219,30 @@ namespace MPR_Managerment.Models
         }
 
         // =====================================================================
+        //  DEPARTMENT — phòng ban của user hiện tại (lấy phần trước "||")
+        // =====================================================================
+        public static string CurrentDepartment
+        {
+            get
+            {
+                if (CurrentUser == null) return "";
+                string dept = CurrentUser.Department ?? "";
+                int sep = dept.IndexOf("||", StringComparison.Ordinal);
+                return sep >= 0 ? dept.Substring(0, sep) : dept;
+            }
+        }
+
+        /// <summary>
+        /// Kiểm tra xem user có quyền xem tất cả PO (không giới hạn phòng ban).
+        /// Admin và user có quyền "PO:Xem tất cả PO" luôn được phép.
+        /// </summary>
+        public static bool CanViewAllPO()
+        {
+            if (IsAdmin) return true;
+            return HasPermission("PO", "Xem tất cả PO");
+        }
+
+        // =====================================================================
         //  CLEAR — gọi khi logout
         // =====================================================================
         public static void Clear()

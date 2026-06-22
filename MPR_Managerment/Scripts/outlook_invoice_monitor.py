@@ -13,8 +13,15 @@ import argparse
 import subprocess
 from datetime import datetime
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+try:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+except AttributeError:
+    pass
+try:
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+except AttributeError:
+    # pythonw.exe khong co stderr stream
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 try:
     import win32com.client
@@ -198,10 +205,106 @@ def classify_downloaded_files(downloaded: list[str], base_dir: str) -> dict:
         return {"classified": 0, "unclassified": 0, "error": str(e)}
 
 
+_link_downloader_module = None
+
+def _get_link_downloader():
+    """Import invoice_link_downloader module lan dau, cache lai."""
+    global _link_downloader_module
+    if _link_downloader_module is not None:
+        return _link_downloader_module
+    link_script = os.path.join(os.path.dirname(__file__), "invoice_link_downloader.py")
+    if not os.path.exists(link_script):
+        return None
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("invoice_link_downloader", link_script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    _link_downloader_module = mod
+    return mod
+
+
+def _process_link_email(msg, subject: str, sender: str,
+                        base_dir: str, log_file: str,
+                        success_log_file: str, forward_to: list[str]) -> bool:
+    """
+    Xu ly email khong co PDF dinh kem: phat hien link hoa don dien tu va tai PDF.
+    Tra ve True neu tai duoc PDF tu link.
+    """
+    try:
+        mod = _get_link_downloader()
+        if mod is None:
+            return False
+
+        result = mod.process_email(msg, base_dir)
+
+        if result.get("status") != "downloaded":
+            # Ghi log no_link hoac pending_manual
+            if result.get("status") in ("pending_manual", "no_link"):
+                info = {
+                    "event": result["status"],
+                    "time": datetime.now().isoformat(),
+                    "subject": subject,
+                    "sender": sender,
+                    "provider": result.get("provider", ""),
+                    "reason": result.get("reason", "")
+                }
+                _safe_print(info)
+                _append_log(log_file, info)
+            return False
+
+        file_path = result.get("file", "")
+
+        # Forward email
+        fwd_ok, fwd_err = forward_email(msg, forward_to)
+
+        # Danh dau da doc
+        read_ok = mark_as_read(msg) if (fwd_ok or not forward_to) else False
+
+        # Phan loai
+        classify_result = classify_downloaded_files([file_path], base_dir) if file_path else {"classified": 0, "unclassified": 0, "error": None}
+
+        evt = {
+            "event": "downloaded",
+            "time": datetime.now().isoformat(),
+            "subject": subject,
+            "sender": sender,
+            "files": [file_path] if file_path else [],
+            "forwarded": fwd_ok,
+            "forward_error": fwd_err if not fwd_ok else None,
+            "marked_read": read_ok,
+            "classify_classified": classify_result["classified"],
+            "classify_unclassified": classify_result["unclassified"],
+            "classify_error": classify_result["error"]
+        }
+        _safe_print(evt)
+        _append_log(log_file, evt)
+        _append_success_log(success_log_file, {
+            "time": evt["time"],
+            "subject": subject,
+            "sender": sender,
+            "files": [os.path.basename(file_path)] if file_path else [],
+            "file_paths": [file_path] if file_path else [],
+            "forwarded_to": forward_to if fwd_ok else [],
+            "forwarded": fwd_ok,
+            "forward_error": fwd_err if not fwd_ok else None,
+            "marked_read": read_ok,
+            "classify_classified": classify_result["classified"],
+            "classify_unclassified": classify_result["unclassified"],
+            "classify_error": classify_result["error"]
+        })
+        return True
+    except Exception as e:
+        err = {"event": "error", "time": datetime.now().isoformat(), "message": f"link_downloader: {e}"}
+        _safe_print(err)
+        _append_log(log_file, err)
+        return False
+
+
 def process_msg(msg, base_dir: str, log_file: str,
                 success_log_file: str, forward_to: list[str]) -> bool:
     """
     Tai PDF dinh kem, chuyen tiep email, danh dau da doc.
+    Neu khong co PDF dinh kem, thu goi link downloader.
     Tra ve True neu co file duoc tai.
     """
     try:
@@ -212,22 +315,30 @@ def process_msg(msg, base_dir: str, log_file: str,
         os.makedirs(save_path, exist_ok=True)
 
         downloaded = []
-        att_count = 0
-        for att in msg.Attachments:
-            att_count += 1
-            att_name = att.FileName
-            ext = os.path.splitext(att_name)[1].lower()
-            if ext not in ALLOWED_EXTENSIONS:
+        att_count = msg.Attachments.Count
+        # Dung Item(index) thay vi for-loop -- for loop co the tra ve rong
+        # du Count > 0 (bug COM/pythonw voi mot so loai attachment)
+        for a in range(1, att_count + 1):
+            try:
+                att = msg.Attachments.Item(a)
+                att_name = att.FileName
+                ext = os.path.splitext(att_name)[1].lower()
+                if ext not in ALLOWED_EXTENSIONS:
+                    continue
+                dest = os.path.join(save_path, att_name)
+                if os.path.exists(dest):
+                    base_n, ex = os.path.splitext(att_name)
+                    ts_str = datetime.now().strftime("%Y%m%d%H%M%S")
+                    dest = os.path.join(save_path, f"{base_n}_{ts_str}{ex}")
+                att.SaveAsFile(dest)
+                downloaded.append(dest)
+            except Exception:
                 continue
-            dest = os.path.join(save_path, att_name)
-            if os.path.exists(dest):
-                base_n, ex = os.path.splitext(att_name)
-                ts_str = datetime.now().strftime("%Y%m%d%H%M%S")
-                dest = os.path.join(save_path, f"{base_n}_{ts_str}{ex}")
-            att.SaveAsFile(dest)
-            downloaded.append(dest)
 
         if not downloaded:
+            # Thu xu ly link hoa don (meinvoice, ehoadon, v.v.)
+            if _process_link_email(msg, subject, sender, base_dir, log_file, success_log_file, forward_to):
+                return True
             info = {
                 "event": "no_pdf",
                 "time": datetime.now().isoformat(),
@@ -291,33 +402,45 @@ def process_msg(msg, base_dir: str, log_file: str,
         return False
 
 
+def _iter_items(collection):
+    """
+    Duyet Items/Restrict collection bang GetFirst/GetNext de tranh
+    IndexError khi dung index tren folder lon hoac vi tri cuoi cung.
+    """
+    try:
+        msg = collection.GetFirst()
+        while msg is not None:
+            yield msg
+            msg = collection.GetNext()
+    except Exception:
+        pass
+
+
 def poll_inbox(namespace, base_dir: str, log_file: str,
                success_log_file: str, forward_to: list[str],
                processed_ids: set):
-    """Scan tat ca Inbox/Invoice folder, xu ly email chua xu ly."""
+    """
+    Scan tat ca Inbox/Invoice folder, xu ly email chua xu ly.
+    Dung Restrict('[UnRead]=True') + GetFirst/GetNext de tranh IndexError
+    khi duyet folder lon (bug Outlook COM voi index-based access).
+    """
     new_count = 0
     folders = get_all_inbox_folders(namespace)
     for folder in folders:
         try:
-            items = folder.Items
-            items.Sort("[ReceivedTime]", True)
-            # Invoice folder: quet tat ca; Inbox: gioi han INBOX_SCAN_LIMIT
-            is_invoice = folder.Name.lower() == "invoice"
-            scan_limit = items.Count if is_invoice else INBOX_SCAN_LIMIT
-            for i in range(1, min(items.Count + 1, scan_limit + 1)):
+            unread = folder.Items.Restrict("[UnRead]=True")
+            for msg in _iter_items(unread):
                 try:
-                    msg = items[i]
                     if msg.Class != 43:
                         continue
                     entry_id = msg.EntryID
                     if entry_id in processed_ids:
                         continue
-                    processed_ids.add(entry_id)
-                    if process_msg(msg, base_dir, log_file, success_log_file, forward_to):
+                    result = process_msg(msg, base_dir, log_file, success_log_file, forward_to)
+                    if result:
+                        processed_ids.add(entry_id)
                         new_count += 1
-                except (IndexError, KeyError):
-                    # Email bi xoa/di chuyen trong luc duyet — binh thuong
-                    break
+                    # That bai: KHONG add vao processed_ids de retry lan sau
                 except Exception as e:
                     err = {"event": "error", "time": datetime.now().isoformat(), "message": f"poll item: {e}"}
                     _safe_print(err)
@@ -384,20 +507,17 @@ def main():
 
     processed_ids: set = set()
 
-    # Init scan: chi danh dau email DA DOC la da xu ly de tranh tai lai.
+    # Init scan: danh dau email DA DOC la da xu ly de tranh tai lai.
+    # Dung Restrict + GetFirst/GetNext de tranh IndexError.
     # Email CHUA DOC (UnRead=True) se duoc xu ly o poll dau tien.
     try:
         for folder in get_all_inbox_folders(namespace):
             try:
-                items = folder.Items
-                items.Sort("[ReceivedTime]", True)
-                for i in range(1, items.Count + 1):
+                read_items = folder.Items.Restrict("[UnRead]=False")
+                for msg in _iter_items(read_items):
                     try:
-                        msg = items[i]
-                        if msg.Class == 43 and not msg.UnRead:
+                        if msg.Class == 43:
                             processed_ids.add(msg.EntryID)
-                    except (IndexError, KeyError):
-                        break
                     except Exception:
                         pass
             except Exception:

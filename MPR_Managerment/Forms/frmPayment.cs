@@ -3867,12 +3867,19 @@ btnPrintDoc.Click += (s, e) =>
                                       Size = new Size(72, 20), Font = new Font("Segoe UI", 9) };
             var txtProj = new TextBox
             {
-                Location = new Point(398, 49), Size = new Size(210, 26),
-                Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm theo mã / tên dự án..."
+                Location = new Point(398, 49), Size = new Size(160, 26),
+                Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm mã / tên dự án..."
+            };
+            var lblNCC = new Label { Text = "NCC:", Location = new Point(568, 53),
+                                     Size = new Size(36, 20), Font = new Font("Segoe UI", 9) };
+            var txtNCC = new TextBox
+            {
+                Location = new Point(604, 49), Size = new Size(160, 26),
+                Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm tên viết tắt NCC..."
             };
             var btnSearch = new Button
             {
-                Text = "🔍 Lọc", Location = new Point(618, 48), Size = new Size(82, 28),
+                Text = "🔍 Lọc", Location = new Point(774, 48), Size = new Size(82, 28),
                 BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 Cursor = Cursors.Hand
@@ -3880,7 +3887,7 @@ btnPrintDoc.Click += (s, e) =>
             btnSearch.FlatAppearance.BorderSize = 0;
             var btnReset = new Button
             {
-                Text = "✖ Reset", Location = new Point(708, 48), Size = new Size(72, 28),
+                Text = "✖ Reset", Location = new Point(864, 48), Size = new Size(72, 28),
                 BackColor = Color.FromArgb(108, 117, 125), ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 Cursor = Cursors.Hand
@@ -4016,7 +4023,7 @@ btnPrintDoc.Click += (s, e) =>
             pTop.Controls.AddRange(new Control[] {
                 lblFT, cboFT, lblCount,
                 lblFrom, dtpFrom, lblTo, dtpTo,
-                lblProj, txtProj, btnSearch, btnReset,
+                lblProj, txtProj, lblNCC, txtNCC, btnSearch, btnReset,
                 lblPrintFilter, cboPrintFilter,
                 lblInvFilter, cboInvFilter,
                 lblDelFilter, cboDelFilter,
@@ -4090,6 +4097,7 @@ btnPrintDoc.Click += (s, e) =>
             dgv.Columns.Add(new DataGridViewCheckBoxColumn { Name = "FT_Sel",      HeaderText = "✓",            Width = 40,  ReadOnly = false });
             dgv.Columns.Add(new DataGridViewTextBoxColumn  { Name = "FT_FileDate", HeaderText = "Ngày file",    Width = 85,  ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn  { Name = "FT_PONo",     HeaderText = "PO No",        Width = 160, ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn  { Name = "FT_Supplier", HeaderText = "NCC",          Width = 110, ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn  { Name = "FT_Project",  HeaderText = "Mã dự án",     Width = 130, ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn  { Name = "FT_Ecount",   HeaderText = "Ecount No",    Width = 110, ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn  { Name = "FT_Final",    HeaderText = "Final Amount", Width = 110, ReadOnly = true });
@@ -4238,16 +4246,20 @@ btnPrintDoc.Click += (s, e) =>
                     ? "AND LOWER(ISNULL(z.FT_Cash,'')) LIKE '%dat%'"
                     : "AND (LOWER(ISNULL(z.FT_Cash,'')) LIKE '%hoang%' OR LOWER(ISNULL(z.FT_Cash,'')) LIKE '%dat%')";
 
+                string nccKw = txtNCC.Text.Trim();
                 string projWhere = string.IsNullOrEmpty(projKw)
                     ? ""
-                    : "AND (LOWER(ISNULL(ph.Project_Name,'')) LIKE @proj OR LOWER(ISNULL(ph.PONo,'')) LIKE @proj)";
+                    : "AND (LOWER(ISNULL(ph.ProjectCode,'')) LIKE @proj OR LOWER(ISNULL(ph.Project_Name,'')) LIKE @proj OR LOWER(ISNULL(ph.PONo,'')) LIKE @proj)";
+                string nccWhere = string.IsNullOrEmpty(nccKw)
+                    ? ""
+                    : "AND LOWER(ISNULL(s.Short_Name,'')) LIKE @ncc";
 
                 try
                 {
                     // Chạy query trên background thread
                     var rows = await System.Threading.Tasks.Task.Run(() =>
                     {
-                        var list = new List<(string fileDate, string poNo, string project, string ecount,
+                        var list = new List<(string fileDate, string poNo, string supplier, string project, string ecount,
                                              decimal final, bool hasPaid, string ftCash,
                                              string payDate, string status, string note, int printCnt)>();
                         using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
@@ -4263,13 +4275,15 @@ btnPrintDoc.Click += (s, e) =>
                                 WHERE FT_Cash IS NOT NULL AND FT_Cash <> ''
                             ),
                             UniqueProject AS (
-                                SELECT PONo, MIN(Project_Name) AS Project_Name
+                                SELECT PONo, MIN(Project_Name) AS Project_Name, MIN(ProjectCode) AS ProjectCode,
+                                       MIN(Supplier_ID) AS Supplier_ID
                                 FROM PO_head
                                 GROUP BY PONo
                             )
                             SELECT z.File_Date, z.PO_No, z.Ecount_No, z.Final_Amount, z.Paid_Date,
                                    z.FT_Cash, z.Progress_Status, z.Note,
-                                   ISNULL(ph.Project_Name, '') AS Project_Name,
+                                   ISNULL(ph.ProjectCode, '') AS ProjectCode,
+                                   ISNULL(s.Short_Name, '') AS Short_Name,
                                    (SELECT COUNT(*)
                                     FROM PO_PrintRequestHistory prh
                                     WHERE UPPER(LTRIM(RTRIM(ISNULL(prh.PONo,'')))) =
@@ -4278,15 +4292,19 @@ btnPrintDoc.Click += (s, e) =>
                             LEFT JOIN UniqueProject ph
                                    ON UPPER(LTRIM(RTRIM(ISNULL(ph.PONo,'')))) =
                                       UPPER(LTRIM(RTRIM(ISNULL(z.PO_No,''))))
+                            LEFT JOIN Suppliers s ON s.Supplier_ID = ph.Supplier_ID
                             WHERE z.rn = 1
                               {ftWhere}
                               AND z.File_Date >= @from AND z.File_Date <= @to
                               {projWhere}
+                              {nccWhere}
                             ORDER BY z.File_Date DESC, z.PO_No ASC", conn);
                         cmd.Parameters.AddWithValue("@from", from);
                         cmd.Parameters.AddWithValue("@to",   to);
                         if (!string.IsNullOrEmpty(projKw))
                             cmd.Parameters.AddWithValue("@proj", $"%{projKw.ToLowerInvariant()}%");
+                        if (!string.IsNullOrEmpty(nccKw))
+                            cmd.Parameters.AddWithValue("@ncc", $"%{nccKw.ToLowerInvariant()}%");
 
                         using var rdr = cmd.ExecuteReader();
                         while (rdr.Read())
@@ -4294,7 +4312,8 @@ btnPrintDoc.Click += (s, e) =>
                             list.Add((
                                 rdr["File_Date"] != DBNull.Value ? ((DateTime)rdr["File_Date"]).ToString("dd/MM/yyyy") : "",
                                 rdr["PO_No"]?.ToString() ?? "",
-                                rdr["Project_Name"]?.ToString() ?? "",
+                                rdr["Short_Name"]?.ToString() ?? "",
+                                rdr["ProjectCode"]?.ToString() ?? "",
                                 rdr["Ecount_No"]?.ToString() ?? "",
                                 rdr["Final_Amount"] != DBNull.Value ? Convert.ToDecimal(rdr["Final_Amount"]) : 0,
                                 rdr["Paid_Date"] != DBNull.Value,
@@ -4317,6 +4336,7 @@ btnPrintDoc.Click += (s, e) =>
                         dgv.Rows[i].Cells["FT_Sel"].Value       = false;
                         dgv.Rows[i].Cells["FT_FileDate"].Value  = r.fileDate;
                         dgv.Rows[i].Cells["FT_PONo"].Value      = r.poNo;
+                        dgv.Rows[i].Cells["FT_Supplier"].Value  = r.supplier;
                         dgv.Rows[i].Cells["FT_Project"].Value   = r.project;
                         dgv.Rows[i].Cells["FT_Ecount"].Value    = r.ecount;
                         dgv.Rows[i].Cells["FT_Final"].Value     = r.final > 0 ? FormatAmt(r.final) : "";
@@ -4466,6 +4486,7 @@ btnPrintDoc.Click += (s, e) =>
                 dtpFrom.Value = DateTime.Today.AddYears(-2);
                 dtpTo.Value   = DateTime.Today;
                 txtProj.Text  = "";
+                txtNCC.Text   = "";
                 cboFT.SelectedIndex = 0;
                 cboPrintFilter.SelectedIndex = 0;
                 cboInvFilter.SelectedIndex   = 0;
