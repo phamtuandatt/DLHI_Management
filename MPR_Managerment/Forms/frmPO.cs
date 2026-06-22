@@ -788,6 +788,7 @@ private IWin32Window GetActiveOwner() => this;
             cboStatus.Items.AddRange(new[] { "Draft", "Pending", "Approved", "In Progress", "Completed", "Cancelled" });
             cboStatus.SelectedIndex = 0; // Draft
             nudRevise = new NumericUpDown { Width = 52, Font = new Font("Segoe UI", 9), Minimum = 0, Maximum = 99 };
+            nudRevise.ValueChanged += NudRevise_ValueChanged;
             flowRow2.Controls.Add(MakeField("Ngày PO:", dtpPODate, 60));
 
             // ── Trạng thái + nút 🔓 unlock bằng mật khẩu Admin ──
@@ -4656,6 +4657,12 @@ private IWin32Window GetActiveOwner() => this;
 
             // Kiểm tra tự động khi mở PO — không thông báo, chỉ cập nhật UI/DB lặng lẽ
             CheckAndAutoCompleteStatus(_selectedPO_ID, silent: true);
+
+            // PO Cancelled (bị thay thế bởi Rev mới hơn) → chỉ đọc
+            bool isCancelled = string.Equals(currentStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
+            SetFormReadOnly(isCancelled);
+            if (isCancelled)
+                lblStatus.Text = $"⚠️ PO '{h.PONo}' đã bị thay thế bởi phiên bản mới hơn — chỉ đọc.";
         }
 
         private void BtnUnlockSupplier_Click(object sender, EventArgs e)
@@ -4735,9 +4742,21 @@ private IWin32Window GetActiveOwner() => this;
             }
         }
 
+        private void NudRevise_ValueChanged(object sender, EventArgs e)
+        {
+            string current = txtPONo.Text.Trim();
+            int revIdx = current.LastIndexOf("_Rev");
+            string baseNo = revIdx > 0 ? current.Substring(0, revIdx) : current;
+            if (nudRevise.Value > 0)
+                txtPONo.Text = $"{baseNo}_Rev{nudRevise.Value}";
+            else
+                txtPONo.Text = baseNo;
+        }
+
         private void BtnNewPO_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("PO", "Tạo PO", "Tạo PO")) return;
+            SetFormReadOnly(false);
             ClearHeader(); _selectedPO_ID = 0; dgvDetails.Rows.Clear(); dgvFiles.Rows.Clear();
             dgvDelivery.Rows.Clear();
             UpdateTotal(); txtPONo.Focus(); lblStatus.Text = "Đang tạo đơn PO mới...";
@@ -4901,6 +4920,10 @@ private IWin32Window GetActiveOwner() => this;
                             SafeWarn("So PO nay da ton tai!\nVui long tang so Revise de tao ban sua doi.");
                             nudRevise.Focus(); return;
                         }
+
+                        // Đánh dấu tất cả Rev cũ hơn thành Cancelled
+                        MarkOlderRevisionsSuperseded(basePONo, (int)nudRevise.Value);
+
                         finalPONo = $"{basePONo}_Rev{nudRevise.Value}";
                         if (_poList.Exists(p => p.PONo == finalPONo && p.PO_ID != _selectedPO_ID))
                         {
@@ -4912,8 +4935,34 @@ private IWin32Window GetActiveOwner() => this;
                 }
                 else
                 {
-                    finalPONo = _poList.Find(p => p.PO_ID == _selectedPO_ID)?.PONo ?? basePONo;
-                    txtPONo.Text = finalPONo;
+                    // PO đang chỉnh sửa: nếu user tăng Revise → tạo bản sao mới, huỷ bản hiện tại
+                    var existingPO = _poList.Find(p => p.PO_ID == _selectedPO_ID);
+                    int currentRevise = existingPO?.Revise ?? 0;
+                    int newRevise = (int)nudRevise.Value;
+
+                    if (newRevise > currentRevise)
+                    {
+                        // Kiểm tra PO Rev mới chưa tồn tại
+                        string newRevNo = newRevise > 0 ? $"{basePONo}_Rev{newRevise}" : basePONo;
+                        if (_poList.Exists(p => p.PONo == newRevNo))
+                        {
+                            MessageBox.Show(GetActiveOwner(), $"Bản '{newRevNo}' đã tồn tại!\nVui lòng tăng Revise lên cao hơn.",
+                                "Trùng lặp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            nudRevise.Focus(); return;
+                        }
+
+                        // Huỷ toàn bộ Rev cũ hơn (bao gồm bản đang mở)
+                        MarkOlderRevisionsSuperseded(basePONo, newRevise);
+
+                        // Tạo PO mới (không update bản cũ)
+                        finalPONo = newRevNo;
+                        _selectedPO_ID = 0; // force INSERT
+                    }
+                    else
+                    {
+                        finalPONo = existingPO?.PONo ?? basePONo;
+                        txtPONo.Text = finalPONo;
+                    }
                 }
 
                 var h = new POHead
@@ -7258,6 +7307,72 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
             BindSupplierCombo(_supplierTable); _isSearching = false;
             cboSupplier.BackColor = Color.White;
             cboSupplier.Enabled = true; _supplierLocked = false; btnUnlockSupplier.Visible = false;
+        }
+
+        // Đánh dấu tất cả PO cùng basePONo có Revise < newRevise thành Cancelled
+        private void MarkOlderRevisionsSuperseded(string basePONo, int newRevise)
+        {
+            var toSupersede = _poList
+                .Where(p =>
+                {
+                    // Match basePONo chính xác (Rev0) hoặc dạng basePONo_RevN
+                    string pBase = p.PONo;
+                    int idx = pBase.LastIndexOf("_Rev", StringComparison.OrdinalIgnoreCase);
+                    if (idx > 0) pBase = pBase.Substring(0, idx);
+                    return string.Equals(pBase, basePONo, StringComparison.OrdinalIgnoreCase)
+                        && p.Revise < newRevise
+                        && !string.Equals(p.Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+                })
+                .ToList();
+
+            if (toSupersede.Count == 0) return;
+            try
+            {
+                using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                conn.Open();
+                foreach (var old in toSupersede)
+                {
+                    var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        "UPDATE PO_head SET Status = 'Cancelled' WHERE PO_ID = @id", conn);
+                    cmd.Parameters.AddWithValue("@id", old.PO_ID);
+                    cmd.ExecuteNonQuery();
+                    old.Status = "Cancelled";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("MarkOlderRevisions: " + ex.Message);
+            }
+        }
+
+        // Bật/tắt chế độ chỉ đọc toàn bộ form nhập liệu PO
+        private void SetFormReadOnly(bool readOnly)
+        {
+            txtPONo.ReadOnly = readOnly;
+            txtProjectName.ReadOnly = readOnly;
+            txtWorkorderNo.ReadOnly = readOnly;
+            txtMPRNo.ReadOnly = readOnly;
+            txtNotes.ReadOnly = readOnly;
+            txtReviewed.ReadOnly = readOnly;
+            txtAgreement.ReadOnly = readOnly;
+            txtApproved.ReadOnly = readOnly;
+            nudRevise.Enabled = !readOnly;
+            dtpPODate.Enabled = !readOnly;
+            dtpPOExpectDelivery.Enabled = !readOnly;
+            cboPaymentTerm.Enabled = !readOnly;
+            // cboStatus giữ nguyên logic unlock riêng — không can thiệp
+            btnAddDetail.Enabled = !readOnly;
+            btnDeleteDetail.Enabled = !readOnly;
+            dgvDetails.ReadOnly = readOnly;
+            dgvDetails.AllowUserToAddRows = !readOnly;
+            dgvDetails.AllowUserToDeleteRows = !readOnly;
+            btnSavePO.Enabled = !readOnly;
+            // NCC: khi readonly luôn lock
+            if (readOnly)
+            {
+                cboSupplier.Enabled = false;
+                btnUnlockSupplier.Visible = false;
+            }
         }
 
         // =========================================================================

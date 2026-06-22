@@ -126,7 +126,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
-                var cmd = new SqlCommand("SELECT *FROM PO_head WHERE IS_Imported = 0 OR IS_Imported IS NULL ORDER BY Created_Date DESC", conn);
+                var cmd = new SqlCommand(
+                    "SELECT * FROM PO_head WHERE (IS_Imported = 0 OR IS_Imported IS NULL) AND ISNULL(Status,'') <> 'Cancelled' ORDER BY Created_Date DESC", conn);
                 var r = cmd.ExecuteReader();
                 while (r.Read()) list.Add(MapHead(r));
             }
