@@ -43,6 +43,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             Common.Common.CreateButtonAdd(btnAddXK, "✅ Thêm phiếu mới");
             Common.Common.CreateButtonPrint(btnInXK, "🖨 In");
             Common.Common.CreateButtonSave(btnUpdateStatus, "Cập nhật trạng thái        ⏷");
+            Common.Common.CreateButtonPrint(btnExportExcel, "⌛Lịch sử xuất kho");
 
             // Initialize status dropdown menu
             btnUpdateStatus.Click += (s, e) =>
@@ -51,7 +52,6 @@ namespace MPR_Managerment.Forms.ExportGUI
             };
 
             btnSearch.Click += BtnSearch_Click;
-            btnRefresh.Click += BtnRefresh_Click;
             btnInXK.Click += btnInXK_Click;
 
             dtpFromDate.Value = DateTime.Today.AddDays(-30);
@@ -184,9 +184,9 @@ namespace MPR_Managerment.Forms.ExportGUI
         private void BtnSearch_Click(object? sender, EventArgs e)
         {
             string filter = "1=1";
-if (cboProject.SelectedValue != null) filter += $" AND From_Project_Name = '{cboProject.Text}'";
+            if (cboProject.SelectedValue != null) filter += $" AND From_Project_Name = '{cboProject.Text}'";
             if (!string.IsNullOrEmpty(txtSearch.Text)) filter += $" AND (Create_By LIKE '%{txtSearch.Text}%' OR From_Project_Name LIKE '%{txtSearch.Text}%')";
-if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.SelectedItem}'";
+            if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.SelectedItem}'";
 
             // Date filter (assuming Create_Date is the column)
             filter += $" AND Create_Date  >= '{dtpFromDate.Value:yyyy-MM-dd}' AND Create_Date  <= '{dtpToDate.Value:yyyy-MM-dd}'";
@@ -198,13 +198,26 @@ if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.Select
 
         private async void BtnRefresh_Click(object? sender, EventArgs e)
         {
-            cboProject.SelectedIndex = -1;
-            txtSearch.Clear();
-            cboStatus.SelectedIndex = -1;
-            dtpFromDate.Value = DateTime.Now;
-            await LoadHisExportAsync();
-            //_dtHisExport.DefaultView.RowFilter = "";
-            //dgvHisExport.DataSource = _dtHisExport;
+            try
+            {
+                // Clear current selections and filters
+                cboProject.SelectedIndex = -1;
+                txtSearch.Text = string.Empty;
+                cboStatus.SelectedIndex = -1;
+                dtpFromDate.Value = DateTime.Today.AddDays(-30);
+                dtpToDate.Value = DateTime.Today;
+
+                // Clear the DataTable and reload all data
+                _dtHisExport.Clear();
+                await LoadHisExportAsync();
+
+                // Reset the data grid to show all data
+                dgvHisExport.DataSource = _dtHisExport;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi khi làm mới dữ liệu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private async void DgvHisExport_CellContentClick(object? sender, DataGridViewCellEventArgs e)
@@ -614,6 +627,106 @@ if (cboStatus.SelectedItem != null) filter += $" AND Status = '{cboStatus.Select
             List<ExportDetailModel> exportDetailsList = _warehouseServices.ConvertDataTableToList(dt);
 
             ExportExportDetailsToExcel(exportDetailsList);
+        }
+
+        private async Task ExportToOvppTemplateAsync()
+        {
+            try
+            {
+                // Get the template file path
+                string templatePath = @"D:\ERP_Final_Management\MPR_Managerment\Templates\ovpp-template.xlsx";
+                if (!File.Exists(templatePath))
+                {
+                    MessageBox.Show("Không tìm thấy file template (ovpp-template.xlsx)!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Get data from service
+                DataTable dt = _warehouseServices.GetExportWarehouseForExportExcel(
+                    fromProjectCode: string.Empty,
+                    fromDate: dtpFromDate.Value,
+                    toDate: dtpToDate.Value);
+
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Show Save File Dialog
+                var saveDialog = new SaveFileDialog
+                {
+                    Title = "Lưu Phiếu Xuất Kho Theo Template",
+                    Filter = "Excel Files|*.xlsx",
+                    FileName = $"XuatKho_OVPP_{DateTime.Now:yyyyMMdd_HHmmss}",
+                    InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+
+                if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+                // Set EPPlus license
+                ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
+                // Copy template to destination
+                File.Copy(templatePath, saveDialog.FileName, true);
+
+                // Open and modify the Excel file
+                using (var package = new ExcelPackage(new FileInfo(saveDialog.FileName)))
+                {
+                    var ws = package.Workbook.Worksheets["Sheet1"];
+
+                    int startRow = 8;
+                    int rowIndex = 0;
+
+                    // Populate data starting from row 8
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        int currentRow = startRow + rowIndex;
+
+                        // Get values from DataTable
+                        string idCode = row["ID_Code"]?.ToString() ?? "";
+                        string itemName = row["Item_Name"]?.ToString() ?? "";
+                        string description = row["Notes"]?.ToString() ?? "";
+                        decimal qtyExport = Convert.ToDecimal(row["Qty_Export"] ?? 0);
+                        string unit = row["UNIT"]?.ToString() ?? "";
+                        string remark = row["Notes"]?.ToString() ?? "";
+
+                        // Write to cells in Sheet1
+                        // Assuming columns: A=ID_Code, B=Item_Name, C=Description, D=Qty_Export, E=UNIT, F=Notes/Remark
+                        ws.Cells[currentRow, 1].Value = idCode;        // Column A
+                        ws.Cells[currentRow, 2].Value = itemName;      // Column B
+                        ws.Cells[currentRow, 3].Value = description;   // Column C
+                        ws.Cells[currentRow, 4].Value = qtyExport;     // Column D
+                        ws.Cells[currentRow, 5].Value = unit;          // Column E
+                        ws.Cells[currentRow, 6].Value = remark;        // Column F
+
+                        // Format quantity column
+                        ws.Cells[currentRow, 4].Style.Numberformat.Format = "#,##0.00";
+
+                        rowIndex++;
+                    }
+
+                    // Save the package
+                    package.Save();
+                }
+
+                var result = MessageBox.Show(
+                    $"✅ Xuất dữ liệu thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file ngay không?",
+                    "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+                if (result == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = saveDialog.FileName,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi khi xuất file Excel: {ex.Message}\n\n{ex.StackTrace}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         public static void ExportExportDetailsToExcel(List<ExportDetailModel> dataList)

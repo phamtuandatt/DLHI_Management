@@ -1,13 +1,15 @@
-﻿using System;
-using System.Data;
-using System.Diagnostics.CodeAnalysis;
-using System.Windows.Forms;
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using MPR_Managerment.Common;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
 using MPR_Managerment.Services;
 using Syncfusion.XlsIO.Parser.Biff_Records;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace MPR_Managerment.Forms.ExportGUI
 {
@@ -226,12 +228,18 @@ namespace MPR_Managerment.Forms.ExportGUI
                 }
             }
             btnDelete.Enabled = false;
-            _isChanged = false;
+            _isChanged = true;
         }
 
         private void btnSave_Click(object sender, EventArgs e)
         {
             var total = 0;
+            foreach (DataRow item in _dtDetails.Rows)
+            {
+                int qty = Convert.ToInt32(item["Qty_Export"].ToString() ?? "0");
+                total += qty;
+            }
+
             var model = new ExportWarehouseHeaderModel()
             {
                 ExportNo = txtExportNo.Text.Trim(),
@@ -304,9 +312,24 @@ namespace MPR_Managerment.Forms.ExportGUI
 
             var model = frmSelectItemExport.selectedList[0];
 
+            // Update the underlying DataTable row
+            if (_dtDetails != null && e.RowIndex < _dtDetails.Rows.Count)
+            {
+                DataRow row = _dtDetails.Rows[e.RowIndex];
+                row["Import_ID"] = model.Import_ID;
+                row["ID_Code"] = model.ID_Code;
+                row["Item_Name"] = model.Item_Name;
+                row["Material"] = model.Material;
+                row["Size"] = model.Size;
+                row["UNIT"] = model.UNIT;
+            }
+
+            // Update the DataGridView cells (optional, but ensures immediate UI update)
+            dgvDetails.Rows[e.RowIndex].Cells[3].Value = model.Import_ID;
             dgvDetails.Rows[e.RowIndex].Cells[4].Value = model.ID_Code;
             dgvDetails.Rows[e.RowIndex].Cells[5].Value = model.Item_Name;
-            dgvDetails.Rows[e.RowIndex].Cells[6].Value = model.Size;
+            dgvDetails.Rows[e.RowIndex].Cells[6].Value = model.Material;
+            dgvDetails.Rows[e.RowIndex].Cells[7].Value = model.Size;
             dgvDetails.Rows[e.RowIndex].Cells[9].Value = model.UNIT;
         }
 
@@ -418,7 +441,7 @@ namespace MPR_Managerment.Forms.ExportGUI
 
         private async void btnUpdateServer_Click(object sender, EventArgs e)
         {
-            if (!_isChanged)
+            if (_isChanged)
             {
                 MessageBox.Show("Hãy lưu phiếu xuất trước khi cập nhật Server !", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 IsAction = false;
@@ -461,6 +484,66 @@ namespace MPR_Managerment.Forms.ExportGUI
             {
                 MessageBox.Show(" Cập nhật toàn bộ Phiếu Xuất và Chi Tiết lên Server không thành công!", "Thất bại", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 IsAction = false;
+            }
+        }
+
+        private void btnGetStock_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Collect all Import_IDs from the details
+                var lst = new List<int>();
+                foreach (DataRow item in _dtDetails.Rows)
+                {
+                    int importId = Convert.ToInt32(item["Import_ID"].ToString() ?? "0");
+                    if (importId > 0)
+                    {
+                        lst.Add(importId);
+                    }
+                }
+
+                if (lst.Count == 0)
+                {
+                    MessageBox.Show("Không có vật tư nào để xem tồn kho!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // Get stock data from service
+                var dtStock = _warehouseServices.GetStockOfList(lst);
+
+                if (dtStock.Rows.Count > 0)
+                {
+                    // Update Qty_Stock for each item in the details table
+                    foreach (DataRow detailRow in _dtDetails.Rows)
+                    {
+                        int importId = Convert.ToInt32(detailRow["Import_ID"].ToString() ?? "0");
+                        if (importId <= 0) continue;
+
+                        // Find corresponding stock row
+                        DataRow[] stockRows = dtStock.Select($"Import_ID = {importId}");
+                        if (stockRows.Length > 0)
+                        {
+                            decimal qtyStock = Convert.ToDecimal(stockRows[0]["Qty_Stock"].ToString() ?? "0");
+                            detailRow["Qty_Stock"] = qtyStock;
+                        }
+                        else
+                        {
+                            detailRow["Qty_Stock"] = 0;
+                        }
+                    }
+
+                    // Refresh the grid to show updated stock quantities
+                    dgvDetails.Refresh();
+                    MessageBox.Show("Đã cập nhật tồn kho thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Không tìm thấy dữ liệu tồn kho!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi khi lấy dữ liệu tồn kho: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

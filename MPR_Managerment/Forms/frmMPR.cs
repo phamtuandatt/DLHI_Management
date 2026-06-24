@@ -2884,6 +2884,19 @@ namespace MPR_Managerment.Forms
             };
             btnDeleteDetail.FlatAppearance.BorderSize = 0;
 
+            var btnImportMPR = new Button
+            {
+                Text = "📥 Import MPR",
+                Location = new Point(dlg.ClientSize.Width - 578, dlg.ClientSize.Height - 50),
+                Size = new Size(110, 34),
+                BackColor = Color.FromArgb(23, 162, 184),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            btnImportMPR.FlatAppearance.BorderSize = 0;
+
             var btnCreate = new Button
             {
                 Text = "✅ Tạo MPR",
@@ -2937,7 +2950,7 @@ namespace MPR_Managerment.Forms
                 DialogResult = DialogResult.Cancel
             };
             btnClose2.FlatAppearance.BorderSize = 0;
-            dlg.Controls.AddRange(new Control[] { btnAddRow, btnDeleteRow, btnCreate, btnRevise, btnAdmin, btnClose2 });
+            dlg.Controls.AddRange(new Control[] { btnAddRow, btnDeleteRow, btnImportMPR, btnCreate, btnRevise, btnAdmin, btnClose2 });
             dlg.CancelButton = btnClose2;
 
             // Resize handler
@@ -2998,6 +3011,370 @@ namespace MPR_Managerment.Forms
                     {
                         dlg.BringToFront(); dlg.Activate();
                         MessageBox.Show("Lỗi khi xóa: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            };
+
+            // -- IMPORT MPR (Import từ Excel)
+            btnImportMPR.Click += (s, e) =>
+            {
+                using (var ofd = new OpenFileDialog())
+                {
+                    ofd.Filter = "Excel files (*.xlsx;*.xls)|*.xlsx;*.xls";
+                    ofd.Title = "Chọn file Excel để import vào MPR";
+                    if (ofd.ShowDialog() != DialogResult.OK) return;
+
+                    string filePath = ofd.FileName;
+                    if (!File.Exists(filePath))
+                    {
+                        SafeMsg($"File không tồn tại: {filePath}", "Lỗi", MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    try
+                    {
+                        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                        using (var excel = new OfficeOpenXml.ExcelPackage(new FileInfo(filePath)))
+                        {
+                            var ws = excel.Workbook.Worksheets.FirstOrDefault();
+                            if (ws == null)
+                            {
+                                SafeMsg("File Excel không có sheet nào!", "Lỗi", MessageBoxIcon.Error);
+                                return;
+                            }
+
+                            int totalRows = ws.Dimension?.Rows ?? 0;
+                            int totalCols = ws.Dimension?.Columns ?? 0;
+                            if (totalRows == 0 || totalCols == 0)
+                            {
+                                SafeMsg("File Excel không có dữ liệu.", "Thông báo", MessageBoxIcon.Warning);
+                                return;
+                            }
+
+                            // ═══════════════════════════════════════════════════════════
+                            // AUTO-DETECT: Tìm dòng header bằng cách quét từ khóa nhận diện
+                            // Hỗ trợ cả file MPR Template và file Excel bất kỳ
+                            // ═══════════════════════════════════════════════════════════
+                            string[] knownHeaders = {
+                                "tên hàng", "ten hang", "tên vật tư", "ten vat tu", "item name", "item_name",
+                                "description", "mô tả", "mo ta", "material", "vật liệu", "vat lieu",
+                                "đvt", "dvt", "unit", "đơn vị", "don vi",
+                                "qty", "sl", "số lượng", "so luong", "q'ty",
+                                "weight", "kg", "trọng lượng", "trong luong",
+                                "thickness", "dày", "depth", "sâu", "width", "rộng",
+                                "web", "bụng", "flange", "cánh", "length", "dài",
+                                "ghi chú", "ghi chu", "remarks", "note",
+                                "ncc", "nhà cung cấp", "supplier",
+                                "mps", "rev", "vị trí", "vi tri", "usage"
+                            };
+                            int headerRow = -1;
+
+                            for (int r = 1; r <= Math.Min(totalRows, 15); r++)
+                            {
+                                int matchCount = 0;
+                                for (int c = 1; c <= Math.Min(totalCols, 30); c++)
+                                {
+                                    var cellVal = ws.Cells[r, c].Text?.Trim().ToLower() ?? "";
+                                    if (!string.IsNullOrEmpty(cellVal) && knownHeaders.Any(h => cellVal.Contains(h)))
+                                        matchCount++;
+                                }
+                                // Yêu cầu ít nhất 3 cột khớp để coi là header
+                                if (matchCount >= 3)
+                                {
+                                    headerRow = r;
+                                    break;
+                                }
+                            }
+
+                            // ═══════════════════════════════════════════════════════════
+                            // Mapping cột Excel → cột dgvDet
+                            // ═══════════════════════════════════════════════════════════
+                            int colItemName = -1, colDesc = -1, colMaterial = -1;
+                            int colThick = -1, colDepth = -1, colWidth = -1, colWeb = -1, colFlange = -1, colLength = -1;
+                            int colUsageLoc = -1, colMPS = -1, colREV = -1;
+                            int colDWGDate = -1, colIssueDate = -1;
+                            int colUnit = -1, colQty = -1, colWeight = -1, colRemarks = -1;
+                            int dataStartRow;
+
+                            if (headerRow > 0)
+                            {
+                                // ── Đọc header và auto-map cột ──
+                                for (int c = 1; c <= totalCols; c++)
+                                {
+                                    var hdr = ws.Cells[headerRow, c].Text?.Trim().ToLower() ?? "";
+                                    if (string.IsNullOrEmpty(hdr)) continue;
+
+                                    // Tên hàng / Item Name
+                                    if (colItemName < 0 && (hdr.Contains("tên hàng") || hdr.Contains("ten hang") || hdr.Contains("item name")
+                                        || hdr.Contains("item_name") || hdr.Contains("tên vật tư") || hdr.Contains("ten vat tu")
+                                        || hdr == "description" || hdr.Contains("diễn giải") || hdr.Contains("dien giai")))
+                                        colItemName = c;
+                                    // Mô tả
+                                    else if (colDesc < 0 && (hdr.Contains("mô tả") || hdr.Contains("mo ta") || hdr.Contains("description")
+                                        || hdr.Contains("spec") || hdr.Contains("chi tiết")))
+                                        colDesc = c;
+                                    // Vật liệu
+                                    else if (colMaterial < 0 && (hdr.Contains("vật liệu") || hdr.Contains("vat lieu") || hdr.Contains("material")))
+                                        colMaterial = c;
+                                    // Thickness (A)
+                                    else if (colThick < 0 && (hdr.Contains("thickness") || hdr.Contains("dày") || hdr.Contains("day")
+                                        || hdr == "a" || hdr == "t(mm)" || hdr == "a(mm)"))
+                                        colThick = c;
+                                    // Depth (B)
+                                    else if (colDepth < 0 && (hdr.Contains("depth") || hdr.Contains("sâu") || hdr.Contains("sau")
+                                        || hdr == "b" || hdr == "d(mm)" || hdr == "b(mm)"))
+                                        colDepth = c;
+                                    // Width (C)
+                                    else if (colWidth < 0 && (hdr.Contains("width") || hdr.Contains("rộng") || hdr.Contains("rong")
+                                        || hdr == "c" || hdr == "w(mm)" || hdr == "c(mm)"))
+                                        colWidth = c;
+                                    // Web (D)
+                                    else if (colWeb < 0 && (hdr.Contains("web") || hdr.Contains("bụng") || hdr.Contains("bung")
+                                        || hdr == "d" || hdr == "d(mm)" || hdr.Contains("web(mm)")))
+                                        colWeb = c;
+                                    // Flange (E)
+                                    else if (colFlange < 0 && (hdr.Contains("flange") || hdr.Contains("cánh") || hdr.Contains("canh")
+                                        || hdr == "e" || hdr == "e(mm)" || hdr.Contains("flange(mm)")))
+                                        colFlange = c;
+                                    // Length (F)
+                                    else if (colLength < 0 && (hdr.Contains("length") || (hdr.Contains("dài") && !hdr.Contains("dày"))
+                                        || hdr == "f" || hdr == "f(mm)" || hdr == "l(mm)"))
+                                        colLength = c;
+                                    // Vị trí dùng
+                                    else if (colUsageLoc < 0 && (hdr.Contains("vị trí") || hdr.Contains("vi tri") || hdr.Contains("usage") || hdr.Contains("location")))
+                                        colUsageLoc = c;
+                                    // MPS
+                                    else if (colMPS < 0 && hdr.Contains("mps"))
+                                        colMPS = c;
+                                    // REV
+                                    else if (colREV < 0 && hdr == "rev")
+                                        colREV = c;
+                                    // DWG Date
+                                    else if (colDWGDate < 0 && (hdr.Contains("dwg") || hdr.Contains("boq")))
+                                        colDWGDate = c;
+                                    // Issue Date
+                                    else if (colIssueDate < 0 && hdr.Contains("issue"))
+                                        colIssueDate = c;
+                                    // Đơn vị tính
+                                    else if (colUnit < 0 && (hdr.Contains("đvt") || hdr.Contains("dvt") || hdr.Contains("unit")
+                                        || hdr.Contains("đơn vị") || hdr.Contains("don vi")))
+                                        colUnit = c;
+                                    // Số lượng
+                                    else if (colQty < 0 && (hdr.Contains("qty") || hdr.Contains("q'ty") || hdr == "sl"
+                                        || hdr.Contains("số lượng") || hdr.Contains("so luong") || hdr.Contains("s.lượng")))
+                                        colQty = c;
+                                    // Trọng lượng
+                                    else if (colWeight < 0 && (hdr.Contains("weight") || hdr == "kg" || hdr.Contains("trọng lượng")
+                                        || hdr.Contains("trong luong") || hdr.Contains("weight(kg)")))
+                                        colWeight = c;
+                                    // Ghi chú
+                                    else if (colRemarks < 0 && (hdr.Contains("ghi chú") || hdr.Contains("ghi chu") || hdr.Contains("remark")
+                                        || hdr.Contains("note")))
+                                        colRemarks = c;
+                                }
+
+                                dataStartRow = headerRow + 1;
+                            }
+                            else
+                            {
+                                // ── Không tìm thấy header → dùng mapping mặc định theo MPR Template ──
+                                // Template: NO(1), ItemName(2), Desc(3), Material(4), T(5), D(6), W(7), Web(8), Flange(9), L(10),
+                                //           Usage(11), MPS(12), REV(13), DWG(14), Issue(15), Unit(16), Qty(17), Weight(18), Remarks(19)
+                                colItemName = 2; colDesc = 3; colMaterial = 4;
+                                colThick = 5; colDepth = 6; colWidth = 7; colWeb = 8; colFlange = 9; colLength = 10;
+                                colUsageLoc = 11; colMPS = 12; colREV = 13;
+                                colDWGDate = 14; colIssueDate = 15;
+                                colUnit = 16; colQty = 17; colWeight = 18; colRemarks = 19;
+                                dataStartRow = 4; // MPR Template mặc định bắt đầu từ dòng 4
+                            }
+
+                            // Kiểm tra tối thiểu phải có cột tên hàng
+                            if (colItemName < 0)
+                            {
+                                SafeMsg("Không tìm thấy cột 'Tên hàng' (Item Name) trong file Excel.\n" +
+                                        "Vui lòng kiểm tra lại cấu trúc file hoặc sử dụng file MPR Template.",
+                                        "Lỗi cấu trúc", MessageBoxIcon.Warning);
+                                return;
+                            }
+
+                            // ═══════════════════════════════════════════════════════════
+                            // Xóa dòng cũ & Đọc dữ liệu
+                            // ═══════════════════════════════════════════════════════════
+
+                            isUpdatingTotal = true;
+                            dgvDet.SuspendLayout();
+
+                            // Xóa tất cả dòng hiện tại, bao gồm cả dòng TOTAL để chèn lại sau
+                            for (int i = dgvDet.Rows.Count - 1; i >= 0; i--)
+                            {
+                                if (!dgvDet.Rows[i].IsNewRow)
+                                    dgvDet.Rows.RemoveAt(i);
+                            }
+
+                            // Khởi tạo cột ánh xạ dgvDet
+                            var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                            foreach (DataGridViewColumn col in dgvDet.Columns)
+                            {
+                                if (!string.IsNullOrEmpty(col.Name))
+                                    colMap[col.Name] = col.Index;
+                            }
+
+                            // Helper: set giá trị ô an toàn, hỗ trợ số và chuỗi
+                            Action<DataGridViewRow, string, object, bool> SetCell = (r, colName, val, isNumeric) =>
+                            {
+                                if (!colMap.ContainsKey(colName)) return;
+                                int ci = colMap[colName];
+                                string raw = val?.ToString()?.Trim() ?? "";
+
+                                if (isNumeric)
+                                {
+                                    // Xử lý số: loại bỏ dấu phẩy ngàn, hỗ trợ cả dấu chấm/phẩy thập phân
+                                    string numStr = raw.Replace(" ", "");
+                                    // Nếu có cả dấu phẩy và chấm → xác định separator
+                                    if (numStr.Contains(",") && numStr.Contains("."))
+                                    {
+                                        // Dấu nào đứng sau cùng là thập phân
+                                        if (numStr.LastIndexOf(',') > numStr.LastIndexOf('.'))
+                                            numStr = numStr.Replace(".", "").Replace(",", "."); // 1.234,56 → 1234.56
+                                        else
+                                            numStr = numStr.Replace(",", ""); // 1,234.56 → 1234.56
+                                    }
+                                    else if (numStr.Contains(","))
+                                    {
+                                        // Chỉ có dấu phẩy: kiểm tra có phải thập phân không
+                                        int commaCount = numStr.Count(ch => ch == ',');
+                                        if (commaCount == 1)
+                                            numStr = numStr.Replace(",", "."); // 123,45 → 123.45
+                                        else
+                                            numStr = numStr.Replace(",", ""); // 1,234,567 → 1234567
+                                    }
+
+                                    if (decimal.TryParse(numStr, System.Globalization.NumberStyles.Any,
+                                        System.Globalization.CultureInfo.InvariantCulture, out decimal parsedVal))
+                                        r.Cells[ci].Value = parsedVal;
+                                    else
+                                        r.Cells[ci].Value = string.IsNullOrEmpty(raw) ? (object)0 : raw;
+                                }
+                                else
+                                {
+                                    // Xử lý ngày tháng nếu là object DateTime từ EPPlus
+                                    if (val is DateTime dtVal)
+                                        r.Cells[ci].Value = dtVal.ToString("dd/MM/yyyy");
+                                    else if (val is double dblVal && (colName.Contains("Date") || colName.Contains("date")))
+                                    {
+                                        // Excel serial date
+                                        try { r.Cells[ci].Value = DateTime.FromOADate(dblVal).ToString("dd/MM/yyyy"); }
+                                        catch { r.Cells[ci].Value = raw; }
+                                    }
+                                    else
+                                        r.Cells[ci].Value = raw;
+                                }
+                            };
+
+                            int rowNum = dataStartRow;
+                            int itemNo = 1;
+                            int consecutiveEmpty = 0;
+
+                            // Đọc dữ liệu từ Excel
+                            while (rowNum <= totalRows)
+                            {
+                                var cellItemNameVal = colItemName > 0 ? ws.Cells[rowNum, colItemName].Value : null;
+                                var cellItemNameStr = cellItemNameVal?.ToString()?.Trim() ?? "";
+
+                                // Điều kiện dừng
+                                if (cellItemNameStr.Equals("GRAND-TOTAL", StringComparison.OrdinalIgnoreCase)
+                                    || cellItemNameStr.Equals("TỔNG CỘNG", StringComparison.OrdinalIgnoreCase)
+                                    || cellItemNameStr.StartsWith("🔥"))
+                                    break;
+
+                                // Bỏ qua dòng trống (cho phép tối đa 3 dòng trống liên tiếp)
+                                if (string.IsNullOrEmpty(cellItemNameStr))
+                                {
+                                    consecutiveEmpty++;
+                                    if (consecutiveEmpty >= 3) break; // 3 dòng trống liên tục → dừng
+                                    rowNum++;
+                                    continue;
+                                }
+                                consecutiveEmpty = 0;
+
+                                int idx = dgvDet.Rows.Add();
+                                var row = dgvDet.Rows[idx];
+
+                                // STT
+                                SetCell(row, "Item_No", itemNo++, false);
+
+                                // Tên hàng
+                                SetCell(row, "item_name", cellItemNameStr, false);
+
+                                // Mô tả
+                                if (colDesc > 0) SetCell(row, "Description", ws.Cells[rowNum, colDesc].Value, false);
+
+                                // Vật liệu
+                                if (colMaterial > 0) SetCell(row, "Material", ws.Cells[rowNum, colMaterial].Value, false);
+
+                                // Kích thước (số)
+                                if (colThick > 0) SetCell(row, "Thickness_mm", ws.Cells[rowNum, colThick].Value, true);
+                                if (colDepth > 0) SetCell(row, "Depth_mm", ws.Cells[rowNum, colDepth].Value, true);
+                                if (colWidth > 0) SetCell(row, "C_Width_mm", ws.Cells[rowNum, colWidth].Value, true);
+                                if (colWeb > 0) SetCell(row, "D_Web_mm", ws.Cells[rowNum, colWeb].Value, true);
+                                if (colFlange > 0) SetCell(row, "E_Flange_mm", ws.Cells[rowNum, colFlange].Value, true);
+                                if (colLength > 0) SetCell(row, "F_Length_mm", ws.Cells[rowNum, colLength].Value, true);
+
+                                // Thông tin khác
+                                if (colUsageLoc > 0) SetCell(row, "Usage_Location", ws.Cells[rowNum, colUsageLoc].Value, false);
+                                if (colMPS > 0) SetCell(row, "MPS_Info", ws.Cells[rowNum, colMPS].Value, false);
+                                if (colREV > 0) SetCell(row, "REV", ws.Cells[rowNum, colREV].Value, false);
+
+                                // Ngày tháng
+                                if (colDWGDate > 0) SetCell(row, "DWG_BOQ_Receive_Date", ws.Cells[rowNum, colDWGDate].Value, false);
+                                if (colIssueDate > 0) SetCell(row, "Issue_Date", ws.Cells[rowNum, colIssueDate].Value, false);
+
+                                // Đơn vị
+                                if (colUnit > 0) SetCell(row, "UNIT", ws.Cells[rowNum, colUnit].Value, false);
+
+                                // Số lượng & trọng lượng
+                                if (colQty > 0) SetCell(row, "Qty_Per_Sheet", ws.Cells[rowNum, colQty].Value, true);
+                                if (colWeight > 0) SetCell(row, "Weight_kg", ws.Cells[rowNum, colWeight].Value, true);
+
+                                // Ghi chú
+                                if (colRemarks > 0) SetCell(row, "Remarks", ws.Cells[rowNum, colRemarks].Value, false);
+
+                                // ProductCode trống khi import
+                                SetCell(row, "ProductCode", "", false);
+
+                                rowNum++;
+                            }
+
+                            int importedCount = itemNo - 1;
+
+                            isUpdatingTotal = false;
+
+                            // Refresh grid và rebuild TOTAL row
+                            if (importedCount > 0)
+                            {
+                                RebuildTotalRow();
+                                dgvDet.ResumeLayout();
+                                dgvDet.Refresh();
+
+                                string modeInfo = headerRow > 0
+                                    ? $"(Auto-detect header tại dòng {headerRow})"
+                                    : "(Theo cấu trúc MPR Template mặc định)";
+                                SafeMsg($"✅ Đã import thành công {importedCount} dòng vật tư từ file Excel.\n{modeInfo}", "Thành công", MessageBoxIcon.Information);
+                            }
+                            else
+                            {
+                                RebuildTotalRow();
+                                dgvDet.ResumeLayout();
+                                dgvDet.Refresh();
+                                SafeMsg("File Excel không có dữ liệu vật tư để import!", "Thông báo", MessageBoxIcon.Warning);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        isUpdatingTotal = false;
+                        dgvDet.ResumeLayout();
+                        SafeMsg($"Lỗi trong quá trình đọc file Excel:\n{ex.Message}", "Lỗi", MessageBoxIcon.Error);
                     }
                 }
             };

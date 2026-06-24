@@ -44,6 +44,7 @@
             flowLayoutPanel2 = new FlowLayoutPanel();
             btnDelete = new Button();
             btnAddRow = new Button();
+            btnGetStock = new Button();
             ((System.ComponentModel.ISupportInitialize)dgvDetails).BeginInit();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
@@ -72,7 +73,7 @@
             dgvDetails.Dock = DockStyle.Fill;
             dgvDetails.Location = new Point(3, 152);
             dgvDetails.Name = "dgvDetails";
-            dgvDetails.Size = new Size(947, 416);
+            dgvDetails.Size = new Size(1185, 416);
             dgvDetails.TabIndex = 0;
             dgvDetails.CellContentDoubleClick += dgvDetails_CellContentDoubleClick;
             // 
@@ -99,7 +100,7 @@
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 26.09457F));
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 73.905426F));
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
-            tableLayoutPanel2.Size = new Size(953, 622);
+            tableLayoutPanel2.Size = new Size(1191, 622);
             tableLayoutPanel2.TabIndex = 4;
             // 
             // tableLayoutPanel3
@@ -114,7 +115,7 @@
             tableLayoutPanel3.Name = "tableLayoutPanel3";
             tableLayoutPanel3.RowCount = 1;
             tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel3.Size = new Size(947, 45);
+            tableLayoutPanel3.Size = new Size(1185, 45);
             tableLayoutPanel3.TabIndex = 0;
             tableLayoutPanel3.Paint += tableLayoutPanel3_Paint;
             // 
@@ -125,7 +126,7 @@
             flowLayoutPanel3.Dock = DockStyle.Fill;
             flowLayoutPanel3.Location = new Point(3, 3);
             flowLayoutPanel3.Name = "flowLayoutPanel3";
-            flowLayoutPanel3.Size = new Size(467, 39);
+            flowLayoutPanel3.Size = new Size(586, 39);
             flowLayoutPanel3.TabIndex = 5;
             // 
             // btnCancel
@@ -140,7 +141,7 @@
             // btnUpdateServer
             // 
             btnUpdateServer.Dock = DockStyle.Right;
-            btnUpdateServer.Location = new Point(793, 3);
+            btnUpdateServer.Location = new Point(1031, 3);
             btnUpdateServer.Name = "btnUpdateServer";
             btnUpdateServer.Size = new Size(151, 39);
             btnUpdateServer.TabIndex = 2;
@@ -363,6 +364,7 @@
             // 
             flowLayoutPanel2.Controls.Add(btnDelete);
             flowLayoutPanel2.Controls.Add(btnAddRow);
+            flowLayoutPanel2.Controls.Add(btnGetStock);
             flowLayoutPanel2.Location = new Point(3, 109);
             flowLayoutPanel2.Name = "flowLayoutPanel2";
             flowLayoutPanel2.Size = new Size(703, 34);
@@ -390,9 +392,18 @@
             btnAddRow.Text = "Thêm dòng";
             btnAddRow.Click += btnAddRow_Click;
             // 
+            // btnGetStock
+            // 
+            btnGetStock.Location = new Point(315, 3);
+            btnGetStock.Name = "btnGetStock";
+            btnGetStock.Size = new Size(150, 30);
+            btnGetStock.TabIndex = 4;
+            btnGetStock.Text = "Xem tồn kho";
+            btnGetStock.Click += btnGetStock_Click;
+            // 
             // frmPreviewExportWarehouse
             // 
-            ClientSize = new Size(953, 622);
+            ClientSize = new Size(1191, 622);
             Controls.Add(tableLayoutPanel2);
             Name = "frmPreviewExportWarehouse";
             StartPosition = FormStartPosition.CenterScreen;
@@ -450,5 +461,6 @@
         private Label label6;
         private ComboBox cboStatus;
         private Button btnUpdateServer;
+        private Button btnGetStock;
     }
 }

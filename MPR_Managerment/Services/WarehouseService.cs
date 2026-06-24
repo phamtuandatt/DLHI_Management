@@ -1,11 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Reflection.Emit;
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using Microsoft.Office.Interop.Excel;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Reflection.Emit;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using DataTable = System.Data.DataTable;
@@ -577,7 +578,7 @@ namespace MPR_Managerment.Services
 
         public void UpdateStatusExportWarehouseHeader(string status, int export_id)
         {
-            string sql = $"UPDATE [dbo].[ExportWarehouseHeader] SET Status = @status, Update_By = @user, Update_Date = GETDATE() WHERE Export_ID = @export_id";
+            string sql = $"UPDATE [dbo].[ExportWarehouseHeader] SET Status = @status, Update_By = @user, Update_Date = GETDATE(), IS_UPDATE = 1 WHERE Export_ID = @export_id";
 
             try
             {
@@ -775,6 +776,34 @@ namespace MPR_Managerment.Services
                 while (r.Read()) list.Add(MapStock(r));
             }
             return list;
+        }
+
+        public DataTable GetStockOfList(List<int> lst)
+        {
+            DataTable dtStock = new DataTable();
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                using (SqlCommand cmd = new SqlCommand("sp_GetStockByImportIDList", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    // Tạo DataTable có cấu trúc khớp 100% với User-Defined Table Type ở Bước 1
+                    DataTable idTable = new DataTable();
+                    idTable.Columns.Add("Import_ID", typeof(int));
+                    lst.ForEach(num => idTable.Rows.Add(num));
+
+                    // Truyền DataTable này vào tham số của Procedure
+                    SqlParameter tvpParam = cmd.Parameters.AddWithValue("@IdList", idTable);
+                    tvpParam.SqlDbType = SqlDbType.Structured; // Khai báo đây là kiểu dữ liệu bảng dạng cấu trúc
+
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        dtStock.Load(reader);
+                    }
+                    return dtStock;
+                }
+            }
         }
 
         public async Task<DataTable> GetImportPaint(string projectCode = "", string keyword = "")
