@@ -192,7 +192,7 @@ namespace MPR_Managerment.Services
                            Material, Thickness_mm, Depth_mm, C_Width_mm,
                            D_Web_mm, E_Flange_mm, F_Length_mm,
                            UNIT, Qty_Per_Sheet, Weight_kg,
-                           MPS_Info, Usage_Location, REV, Remarks, Is_Deleted
+                           MPS_Info, Usage_Location, REV, Remarks, Is_Deleted, ProductCode
                     FROM MPR_Details
                     WHERE MPR_ID = @mprId
                     ORDER BY Item_No", conn);
@@ -215,7 +215,7 @@ namespace MPR_Managerment.Services
                            Material, Thickness_mm, Depth_mm, C_Width_mm,
                            D_Web_mm, E_Flange_mm, F_Length_mm,
                            UNIT, Qty_Per_Sheet, Weight_kg,
-                           MPS_Info, Usage_Location, REV, Remarks, Is_Deleted
+                           MPS_Info, Usage_Location, REV, Remarks, Is_Deleted, ProductCode
                     FROM MPR_Details
                     WHERE MPR_ID = @mprId
                       AND Is_Deleted = 0
@@ -392,7 +392,8 @@ namespace MPR_Managerment.Services
                 Usage_Location = r["Usage_Location"]?.ToString() ?? "",
                 REV = r["REV"]?.ToString() ?? "0",
                 Remarks = r["Remarks"]?.ToString() ?? "",
-                Is_Deleted = r["Is_Deleted"] != DBNull.Value && Convert.ToBoolean(r["Is_Deleted"])
+                Is_Deleted = r["Is_Deleted"] != DBNull.Value && Convert.ToBoolean(r["Is_Deleted"]),
+                ProductCode = r["ProductCode"]?.ToString() ?? "",
             };
         }
     }

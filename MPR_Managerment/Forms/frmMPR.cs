@@ -1260,6 +1260,14 @@ namespace MPR_Managerment.Forms
             });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
             {
+                Name = "ProductCode",
+                HeaderText = "Code",
+                Width = 100,
+                Resizable = DataGridViewTriState.True,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            });
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn
+            {
                 Name = "Description",
                 HeaderText = "Mô tả",
                 Width = 110,
@@ -2010,6 +2018,7 @@ namespace MPR_Managerment.Forms
                     row.Cells["Weight"].Value = d.Weight_kg;
                     row.Cells["MPS_Info"].Value = d.MPS_Info;
                     row.Cells["Usage_Location"].Value = d.Usage_Location;
+                    row.Cells["ProductCode"].Value = d.ProductCode;
                     // Dòng Is_Deleted: chỉ đọc, xám gạch ngang
                     if (isDeleted)
                     {
@@ -4734,6 +4743,7 @@ namespace MPR_Managerment.Forms
             newRow.Cells["REV"].Value = "0";
             newRow.Cells["Remarks"].Value = "";
             newRow.Cells["PO_No"].Value = "";
+            newRow.Cells["ProductCode"].Value = "";
 
             dgvDetails.CurrentCell = dgvDetails.Rows[newIdx].Cells["Item_Name"];
             dgvDetails.BeginEdit(true);
@@ -6509,6 +6519,17 @@ ORDER BY DisplayName";
                     cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
                 }
 
+                // Add Image column header
+                int imageColIndex = visCols.Count + 1;
+                var imageCell = ws.Cells[1, imageColIndex];
+                imageCell.Value = "Image";
+                imageCell.Style.Font.Bold = true;
+                imageCell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                imageCell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(0, 120, 212));
+                imageCell.Style.Font.Color.SetColor(System.Drawing.Color.White);
+                imageCell.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                imageCell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+
                 // Lay gia tri truc tiep tu _details (so nguyen/decimal thuc)
                 // de tranh bi format string boi CellFormatting
                 var poMap2 = GetPoMappingForMpr(_selectedMPR_ID);
@@ -6538,6 +6559,7 @@ ORDER BY DisplayName";
                     {
                         ["Item_No"] = d.Item_No,
                         ["Item_Name"] = d.Item_Name ?? "",
+                        ["ProductCode"] = d.ProductCode ?? "",
                         ["Description"] = d.Description ?? "",
                         ["Material"] = d.Material ?? "",
                         ["Thickness_mm"] = d.Thickness_mm,
@@ -6597,6 +6619,49 @@ ORDER BY DisplayName";
 
                         cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Hair);
                     }
+
+                    // Add image if ProductCode exists
+                    if (!string.IsNullOrEmpty(d.ProductCode))
+                    {
+                        string imagePath = null;
+                        string basePath = @"\\Dlhivina\SHARE\Old\Stationery";
+                        
+                        // Try to find image with .jpg extension
+                        string jpgPath = System.IO.Path.Combine(basePath, d.ProductCode + ".jpg");
+                        if (System.IO.File.Exists(jpgPath))
+                            imagePath = jpgPath;
+                        
+                        // Try to find image with .png extension if jpg not found
+                        if (imagePath == null)
+                        {
+                            string pngPath = System.IO.Path.Combine(basePath, d.ProductCode + ".png");
+                            if (System.IO.File.Exists(pngPath))
+                                imagePath = pngPath;
+                        }
+                        
+                        // If image found, add to worksheet
+                        if (!string.IsNullOrEmpty(imagePath))
+                        {
+                            try
+                            {
+                                var picture = ws.Drawings.AddPicture($"img_{d.ProductCode}_{excelRow}", new System.IO.FileInfo(imagePath));
+                                
+                                // Set position: row excelRow, column imageColIndex (visCols.Count + 1)
+                                picture.SetPosition(excelRow - 1, 0, visCols.Count, 0);
+                                
+                                // Set size to 80x80 pixels for better visibility
+                                picture.SetSize(80, 80);
+                                
+                                // Adjust row height to fit image (80 pixels ≈ 60 points)
+                                ws.Row(excelRow).Height = 65;
+                            }
+                            catch
+                            {
+                                // Silently ignore any errors in image loading/embedding
+                            }
+                        }
+                    }
+
                     excelRow++;
                 }
 
@@ -6618,6 +6683,10 @@ ORDER BY DisplayName";
 
                 // Auto fit
                 ws.Cells[ws.Dimension.Address].AutoFitColumns(8, 50);
+
+                // Set image column width to accommodate 80x80 pixel images
+                int imageColIndexW = visCols.Count + 2; // +2 because column index starts at 1, and we need the column after all data columns
+                ws.Column(imageColIndexW).Width = 12;
 
                 pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
 

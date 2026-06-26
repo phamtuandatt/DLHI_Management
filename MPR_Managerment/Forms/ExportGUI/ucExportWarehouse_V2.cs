@@ -614,6 +614,7 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             frmPreviewExportWarehouse frm = new frmPreviewExportWarehouse(true);
             frm.ShowDialog();
+            btnRefresh.PerformClick();
         }
 
         private void btnUpdateStatus_Click(object sender, EventArgs e)

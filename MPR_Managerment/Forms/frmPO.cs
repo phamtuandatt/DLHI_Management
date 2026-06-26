@@ -868,6 +868,7 @@ private IWin32Window GetActiveOwner() => this;
             {
                 "T/T 100% within 7days after delivery",
                 "T/T 30% Advance + 70% before shipment",
+                "T/T 40% Advance + 60% before shipment",
                 "T/T 50% Advance + 50% before shipment",
                 "T/T 100% Advance",
                 "T/T 30 days after shipment",
