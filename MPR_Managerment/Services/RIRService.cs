@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using MPR_Managerment.Helpers;
 using MPR_Managerment.Models;
@@ -61,10 +62,10 @@ namespace MPR_Managerment.Services
                 var cmd = new SqlCommand(@"
                     INSERT INTO RIR_head
                         (RIR_No, Issue_Date, Project_Name, WorkorderNo,
-                         MPR_No, Customer, PONo, Created_By, Created_Date)
+                         MPR_No, Customer, PONo, Created_By, Created_Date, ProjectCode)
                     VALUES
                         (@RIR_No, @Issue_Date, @Project_Name, @WorkorderNo,
-                         @MPR_No, @Customer, @PONo, @Created_By, GETDATE());
+                         @MPR_No, @Customer, @PONo, @Created_By, GETDATE(), @ProjectCode);
                     SELECT SCOPE_IDENTITY();", conn);
 
                 cmd.Parameters.AddWithValue("@RIR_No", h.RIR_No);
@@ -75,6 +76,7 @@ namespace MPR_Managerment.Services
                 cmd.Parameters.AddWithValue("@Customer", h.Customer ?? "");
                 cmd.Parameters.AddWithValue("@PONo", h.PONo ?? "");
                 cmd.Parameters.AddWithValue("@Created_By", createdBy);
+                cmd.Parameters.AddWithValue("@ProjectCode", h.ProjectCode);
 
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
@@ -143,6 +145,41 @@ namespace MPR_Managerment.Services
             }
             return list;
         }
+
+        // ===== GET DETAILS =====
+        public async Task<DataTable> GetRIRMaterialDetail(string projectCode = null,
+            string rirNo = null,
+            string projectName = null,
+            string workorderNo = null,
+            string poNo = null)
+        {
+            DataTable dt = new DataTable();
+
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand("[dbo].[sp_GetRIRDetailsByProjectCode]", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    // Gán các tham số điều kiện (Nếu chuỗi trống hoặc null -> truyền DBNull.Value để SQL xử lý logic mặc định)
+                    cmd.Parameters.AddWithValue("@ProjectCode", string.IsNullOrWhiteSpace(projectCode) ? (object)DBNull.Value : projectCode.Trim());
+                    cmd.Parameters.AddWithValue("@RIR_No", string.IsNullOrWhiteSpace(rirNo) ? (object)DBNull.Value : rirNo.Trim());
+                    cmd.Parameters.AddWithValue("@Project_Name", string.IsNullOrWhiteSpace(projectName) ? (object)DBNull.Value : projectName.Trim());
+                    cmd.Parameters.AddWithValue("@WorkorderNo", string.IsNullOrWhiteSpace(workorderNo) ? (object)DBNull.Value : workorderNo.Trim());
+                    cmd.Parameters.AddWithValue("@PONo", string.IsNullOrWhiteSpace(poNo) ? (object)DBNull.Value : poNo.Trim());
+
+                    // Sử dụng SqlDataAdapter để tự động mở/đóng kết nối và nạp dữ liệu vào DataTable
+                    using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
+                    {
+                        adapter.Fill(dt);
+                    }
+                }
+            }
+
+            return dt;
+        }
+
+
 
         public async Task<DataTable> GetPaintDetails(string projectCode = "")
         {
@@ -554,56 +591,89 @@ namespace MPR_Managerment.Services
             }
         }
 
-        public async Task<bool> UpdateDetailForQC(RIRDetail d)
+        public async Task<int> UpdateDetailForQC(RIRDetail d)
         {
             using (SqlConnection conn = DatabaseHelper.GetConnection())
             {
-                if (string.IsNullOrEmpty(d.IsNewRow))
+                using (SqlCommand cmd = new SqlCommand("[dbo].[sp_SaveRIRDetailForQC]", conn))
                 {
-                    using (SqlCommand cmd = new SqlCommand("sp_UpdateRIRDetail_For_QC", conn))
-                    {
-                        cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.CommandType = CommandType.StoredProcedure;
 
-                        cmd.Parameters.AddWithValue("@PO_Detail_ID", d.PO_Detail_ID);
-                        cmd.Parameters.AddWithValue("@Qty_Per_Sheet", d.Qty_Per_Sheet);
-                        cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? (object)DBNull.Value);
-                        cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? (object)DBNull.Value);
-                        cmd.Parameters.AddWithValue("@Qty_Required", d.Qty_Required);
-                        cmd.Parameters.AddWithValue("@Qty_Received", d.Qty_Received);
-                        cmd.Parameters.AddWithValue("@Inspect_Result", d.Inspect_Result ?? "Accept");
-                        cmd.Parameters.AddWithValue("@ID_Code", d.ID_Code ?? "");
-                        cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
-                        cmd.Parameters.AddWithValue("@Remarks", d.Remarks);
+                    // Hàm bổ trợ xử lý dữ liệu trống thành DBNull.Value
+                    object GetDbValue(object value) => value == null || value == DBNull.Value ? DBNull.Value : value;
 
-                        try
-                        {
-                            await conn.OpenAsync();
-                            int result = await cmd.ExecuteNonQueryAsync();
+                    // Ánh xạ an toàn các trường dữ liệu từ RIRDetail object vào Parameter của SQL
+                    cmd.Parameters.AddWithValue("@RIR_Detail_ID", GetDbValue(d.RIR_Detail_ID));
+                    cmd.Parameters.AddWithValue("@RIR_ID", GetDbValue(d.RIR_ID));
+                    cmd.Parameters.AddWithValue("@PO_Detail_ID", GetDbValue(d.PO_Detail_ID));
+                    cmd.Parameters.AddWithValue("@Item_No", GetDbValue(d.Item_No));
+                    cmd.Parameters.AddWithValue("@Item_Name", GetDbValue(d.Item_Name));
+                    cmd.Parameters.AddWithValue("@Material", GetDbValue(d.Material));
+                    cmd.Parameters.AddWithValue("@Size", GetDbValue(d.Size));
+                    cmd.Parameters.AddWithValue("@UNIT", GetDbValue(d.UNIT));
+                    cmd.Parameters.AddWithValue("@Qty_Per_Sheet", GetDbValue(d.Qty_Per_Sheet));
+                    cmd.Parameters.AddWithValue("@MTRno", GetDbValue(d.MTRno));
+                    cmd.Parameters.AddWithValue("@Heatno", GetDbValue(d.Heatno));
+                    cmd.Parameters.AddWithValue("@Qty_Required", GetDbValue(d.Qty_Required));
+                    cmd.Parameters.AddWithValue("@Qty_Received", GetDbValue(d.Qty_Received));
+                    cmd.Parameters.AddWithValue("@Inspect_Result", GetDbValue(d.Inspect_Result));
+                    cmd.Parameters.AddWithValue("@ID_Code", GetDbValue(d.ID_Code));
+                    cmd.Parameters.AddWithValue("@Remarks", GetDbValue(d.Remarks));
 
-                            // Vì Procedure thực hiện cả Insert và Update nên result thường > 1
-                            return result > 0;
-                        }
-                        catch (Exception ex)
-                        {
-                            // Log lỗi hoặc quăng ngoại lệ ra tầng UI
-                            throw new Exception("Lỗi thực thi RIR & Update Stock: " + ex.Message);
-                        }
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        InsertDetail(d, AppSession.CurrentUser?.Username ?? "Contact_Admin");
-                        return true;
-                    }
-                    catch (SqlException ex)
-                    {
-                        throw new Exception("Lỗi thực thi RIR: " + ex.Message);
-                    }
-                    // Add RIR Detail
+                    await conn.OpenAsync();
+                    // Thực thi và lấy về ID của bản ghi vừa thao tác thành công
+                    object result = await cmd.ExecuteScalarAsync();
+                    return result != null ? Convert.ToInt32(result) : 0;
                 }
             }
+            //using (SqlConnection conn = DatabaseHelper.GetConnection())
+            //{
+            //    if (string.IsNullOrEmpty(d.IsNewRow))
+            //    {
+            //        using (SqlCommand cmd = new SqlCommand("sp_UpdateRIRDetail_For_QC", conn))
+            //        {
+            //            cmd.CommandType = CommandType.StoredProcedure;
+
+            //            cmd.Parameters.AddWithValue("@PO_Detail_ID", d.PO_Detail_ID);
+            //            cmd.Parameters.AddWithValue("@Qty_Per_Sheet", d.Qty_Per_Sheet);
+            //            cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? (object)DBNull.Value);
+            //            cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? (object)DBNull.Value);
+            //            cmd.Parameters.AddWithValue("@Qty_Required", d.Qty_Required);
+            //            cmd.Parameters.AddWithValue("@Qty_Received", d.Qty_Received);
+            //            cmd.Parameters.AddWithValue("@Inspect_Result", d.Inspect_Result ?? "Accept");
+            //            cmd.Parameters.AddWithValue("@ID_Code", d.ID_Code ?? "");
+            //            cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
+            //            cmd.Parameters.AddWithValue("@Remarks", d.Remarks);
+
+            //            try
+            //            {
+            //                await conn.OpenAsync();
+            //                int result = await cmd.ExecuteNonQueryAsync();
+
+            //                // Vì Procedure thực hiện cả Insert và Update nên result thường > 1
+            //                return result > 0;
+            //            }
+            //            catch (Exception ex)
+            //            {
+            //                // Log lỗi hoặc quăng ngoại lệ ra tầng UI
+            //                throw new Exception("Lỗi thực thi RIR & Update Stock: " + ex.Message);
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        try
+            //        {
+            //            InsertDetail(d, AppSession.CurrentUser?.Username ?? "Contact_Admin");
+            //            return true;
+            //        }
+            //        catch (SqlException ex)
+            //        {
+            //            throw new Exception("Lỗi thực thi RIR: " + ex.Message);
+            //        }
+            //        // Add RIR Detail
+            //    }
+            //}
         }
 
         // ===== DELETE DETAIL =====
@@ -653,7 +723,7 @@ namespace MPR_Managerment.Services
                 Inspect_Result = r["Inspect_Result"].ToString() ?? "",
                 ID_Code = r["ID_Code"].ToString() ?? "",
                 Qty_Received = r["Qty_Received"] != DBNull.Value ? Convert.ToInt32(r["Qty_Received"]) : 0,
-                Remarks = r["Remarks"].ToString() ?? ""
+                Remarks = r["Remarks"].ToString() ?? "",
             };
         }
     }

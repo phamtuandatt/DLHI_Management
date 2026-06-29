@@ -964,7 +964,8 @@ namespace MPR_Managerment.Forms
                     MPR_No = txtMPRNo.Text.Trim(),
                     PONo = txtPONo.Text.Trim(),
                     Customer = txtCustomer.Text.Trim(),
-                    Status = cboStatus.SelectedItem?.ToString() ?? "Chờ kiểm tra"
+                    Status = cboStatus.SelectedItem?.ToString() ?? "Chờ kiểm tra",
+                    ProjectCode = cboProjectRIR.Text.Trim()
                 };
 
                 if (_selectedRIR_ID == 0)
