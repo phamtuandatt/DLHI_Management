@@ -856,7 +856,7 @@ namespace MPR_Managerment.Forms
                             ws.Cells[row, 6].Value = p.POCode ?? "";
                             ws.Cells[row, 7].Value = p.MPRCode ?? "";
                             ws.Cells[row, 8].Value = p.PJWeight;
-                            ws.Cells[row, 8].Style.Numberformat.Format = "#,##0.00";
+                            ws.Cells[row, 8].Style.Numberformat.Format = "#,##0";
                             ws.Cells[row, 9].Value = p.PJBudget;
                             ws.Cells[row, 9].Style.Numberformat.Format = "#,##0";
                             ws.Cells[row, 10].Value = p.Status ?? "";

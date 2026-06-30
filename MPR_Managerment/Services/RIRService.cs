@@ -1,10 +1,11 @@
-﻿using System;
+﻿using Microsoft.Data.SqlClient;
+using MPR_Managerment.Helpers;
+using MPR_Managerment.Models;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
-using Microsoft.Data.SqlClient;
-using MPR_Managerment.Helpers;
-using MPR_Managerment.Models;
+using System.Windows.Forms;
 
 namespace MPR_Managerment.Services
 {
@@ -626,55 +627,121 @@ namespace MPR_Managerment.Services
                     return result != null ? Convert.ToInt32(result) : 0;
                 }
             }
-            //using (SqlConnection conn = DatabaseHelper.GetConnection())
-            //{
-            //    if (string.IsNullOrEmpty(d.IsNewRow))
-            //    {
-            //        using (SqlCommand cmd = new SqlCommand("sp_UpdateRIRDetail_For_QC", conn))
-            //        {
-            //            cmd.CommandType = CommandType.StoredProcedure;
-
-            //            cmd.Parameters.AddWithValue("@PO_Detail_ID", d.PO_Detail_ID);
-            //            cmd.Parameters.AddWithValue("@Qty_Per_Sheet", d.Qty_Per_Sheet);
-            //            cmd.Parameters.AddWithValue("@MTRno", d.MTRno ?? (object)DBNull.Value);
-            //            cmd.Parameters.AddWithValue("@Heatno", d.Heatno ?? (object)DBNull.Value);
-            //            cmd.Parameters.AddWithValue("@Qty_Required", d.Qty_Required);
-            //            cmd.Parameters.AddWithValue("@Qty_Received", d.Qty_Received);
-            //            cmd.Parameters.AddWithValue("@Inspect_Result", d.Inspect_Result ?? "Accept");
-            //            cmd.Parameters.AddWithValue("@ID_Code", d.ID_Code ?? "");
-            //            cmd.Parameters.AddWithValue("@RIR_Detail_ID", d.RIR_Detail_ID);
-            //            cmd.Parameters.AddWithValue("@Remarks", d.Remarks);
-
-            //            try
-            //            {
-            //                await conn.OpenAsync();
-            //                int result = await cmd.ExecuteNonQueryAsync();
-
-            //                // Vì Procedure thực hiện cả Insert và Update nên result thường > 1
-            //                return result > 0;
-            //            }
-            //            catch (Exception ex)
-            //            {
-            //                // Log lỗi hoặc quăng ngoại lệ ra tầng UI
-            //                throw new Exception("Lỗi thực thi RIR & Update Stock: " + ex.Message);
-            //            }
-            //        }
-            //    }
-            //    else
-            //    {
-            //        try
-            //        {
-            //            InsertDetail(d, AppSession.CurrentUser?.Username ?? "Contact_Admin");
-            //            return true;
-            //        }
-            //        catch (SqlException ex)
-            //        {
-            //            throw new Exception("Lỗi thực thi RIR: " + ex.Message);
-            //        }
-            //        // Add RIR Detail
-            //    }
-            //}
         }
+
+        public void UpdateIDFormaterialForQC(WarehouseImport warehouseImport)
+        {
+            var targetPoDetailId = warehouseImport.PO_Detail_ID;        // ID chi tiết đơn hàng cần cập nhật QC
+            var qcCode = warehouseImport.QC_Code;     // Mã định danh kiểm định chất lượng
+            var qcStatus = warehouseImport.QC_Status;         // Trạng thái kiểm định chất lượng
+            var currentUser = AppSession.CurrentUser?.Full_Name ?? AppSession.CurrentDepartment; // Tài khoản kỹ sư QC thực hiện thay đổi
+
+            Console.WriteLine("=== TIẾN TRÌNH CẬP NHẬT TRẠNG THÁI QC TRÊN HỆ THỐNG KHO ===");
+
+            // 3. Khởi tạo và thực thi kết nối dưới khối using an toàn
+            using (SqlConnection connection = DatabaseHelper.GetConnection())
+            {
+                // Gọi đích danh Stored Procedure xử lý cập nhật theo tập hợp (Set-based)
+                using (SqlCommand command = new SqlCommand("dbo.sp_UpdateWarehouseQCStatus", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    // 🎯 KHAI BÁO CHI TIẾT PARAMETER (Khớp 100% kiểu dữ liệu và độ dài trong cấu trúc bảng gốc)
+                    command.Parameters.Add("@PO_Detail_ID", SqlDbType.Int).Value = targetPoDetailId;
+
+                    // Xử lý an toàn cho các trường cho phép NULL (Chuỗi rỗng sẽ được gán thành DBNull.Value)
+                    command.Parameters.Add("@QC_Code", SqlDbType.VarChar, 50).Value =
+                        string.IsNullOrEmpty(qcCode) ? DBNull.Value : qcCode;
+
+                    command.Parameters.Add("@QC_Status", SqlDbType.VarChar, 20).Value =
+                        string.IsNullOrEmpty(qcStatus) ? DBNull.Value : qcStatus;
+
+                    command.Parameters.Add("@Modified_By", SqlDbType.NVarChar, 100).Value =
+                        string.IsNullOrEmpty(currentUser) ? DBNull.Value : currentUser;
+
+                    try
+                    {
+                        // Mở băng thông kết nối đến SQL Server
+                        connection.Open();
+                        Console.WriteLine($"[Hệ thống] Đang truyền lệnh cập nhật thông tin QC cho PO_Detail_ID: {targetPoDetailId}...");
+
+                        // Thực thi câu lệnh tác động ghi (Write I/O) xuống đĩa cứng
+                        int rowsAffected = command.ExecuteNonQuery();
+
+                        Console.WriteLine("🎉 [Thành công] Trạng thái và mã định danh QC đã được đồng bộ đồng loạt xuống bảng Warehouse_Import!");
+                    }
+                    catch (SqlException ex)
+                    {
+                        // 🛠 BẪY LỖI CHUYÊN SÂU TỪ SQL SERVER (Bắt các lỗi RAISERROR từ Proc ném lên)
+                        Console.WriteLine($"❌ [Lỗi SQL Server - Số lỗi {ex.Number}]: {ex.Message}");
+                        Console.WriteLine($"Mức độ nghiêm trọng (Severity): {ex.Class}, Trạng thái lỗi (State): {ex.State}");
+                    }
+                    catch (Exception ex)
+                    {
+                        // Bẫy các lỗi phát sinh ở môi trường .NET Runtime hệ thống
+                        Console.WriteLine($"❌ [Lỗi ứng dụng C#]: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        public void UpdateIDFormaterial(List<int> poDetailIdList)
+        {
+            // 2. Tham số truyền vào hệ thống (Ví dụ: ID chi tiết đơn đặt hàng cần đồng bộ)
+            Console.WriteLine("=== BẮT ĐẦU QUY TRÌNH ĐỒNG BỘ DỮ LIỆU RIR SANG KHO NHẬP ===");
+
+            foreach (var item in poDetailIdList)
+            {
+                int targetPoDetailId = item;
+                string currentUser = AppSession.CurrentUser.Full_Name;
+                int currentWarehouseId = 0; // ID kho thực tế tại nhà máy
+
+                // 3. Thực thi kết nối dưới khối using để tự động đóng kết nối (Connection Closure) ngay cả khi xảy ra exception
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
+                {
+                    // Gọi đích danh Stored Procedure xử lý xóa và nạp lại theo tập hợp (Set-based)
+                    using (SqlCommand command = new SqlCommand("dbo.sp_SyncRIRToWarehouseImport", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+
+                        // 🎯 ĐỊNH NGHĨA CHÍNH XÁC THAM SỐ ĐẦU VÀO (Khớp 100% kiểu dữ liệu dưới DB)
+                        command.Parameters.Add("@PO_Detail_ID", SqlDbType.Int).Value = targetPoDetailId;
+                        command.Parameters.Add("@Created_By", SqlDbType.NVarChar, 100).Value = currentUser;
+
+                        // Xử lý tham số cho phép NULL: Nếu truyền số <= 0 thì gán DBNull.Value
+                        if (currentWarehouseId > 0)
+                            command.Parameters.Add("@Warehouse_ID", SqlDbType.Int).Value = currentWarehouseId;
+                        else
+                            command.Parameters.Add("@Warehouse_ID", SqlDbType.Int).Value = DBNull.Value;
+
+                        try
+                        {
+                            // Mở băng thông kết nối đến máy chủ cơ sở dữ liệu
+                            connection.Open();
+                            Console.WriteLine($"[Hệ thống] Đang xóa dữ liệu kho cũ và nạp lại từ biên bản RIR cho PO_Detail_ID: {targetPoDetailId}...");
+
+                            // Thực thi câu lệnh tác động ghi (Write I/O) xuống đĩa cứng
+                            int rowsAffected = command.ExecuteNonQuery();
+
+                            Console.WriteLine("🎉 [Thành công] Toàn bộ dữ liệu RIR đã được đồng bộ sang Warehouse_Import hoàn tất!");
+                        }
+                        catch (SqlException ex)
+                        {
+                            // 🛠 BẪY LỖI CHUYÊN SÂU TỪ SQL SERVER (Ví dụ: Lỗi RAISERROR từ Proc ném lên)
+                            Console.WriteLine($"❌ [Lỗi SQL Server - Mã lỗi {ex.Number}]: {ex.Message}");
+                            Console.WriteLine($"Mức độ nghiêm trọng (Severity): {ex.Class}, Trạng thái (State): {ex.State}");
+                        }
+                        catch (Exception ex)
+                        {
+                            // Bẫy các lỗi hệ thống khác ở tầng ứng dụng (.NET Runtime Error)
+                            Console.WriteLine($"❌ [Lỗi ứng dụng C#]: {ex.Message}");
+                        }
+                    }
+                }
+                Console.WriteLine("=== KẾT THÚC TIẾN TRÌNH ===");
+            }
+        }
+
 
         // ===== DELETE DETAIL =====
         public void DeleteDetail(int detailId)

@@ -299,6 +299,9 @@ namespace MPR_Managerment.Forms.RIRGUI
                     row.Cells["PO_Detail_ID"].Value = currentR.Cells["PO_Detail_ID"].Value;
 
                     row.Cells["IsAdded"].Value = "New";
+
+                    // Add new row to modified rows tracking
+                    _modifiedRows.Add(row);
                 }
             };
 
@@ -325,13 +328,13 @@ namespace MPR_Managerment.Forms.RIRGUI
                                 var currentRow = dgvRIR.CurrentRow;
                                 var rirDetailId = currentRow.Cells["RIR_Detail_ID"].Value?.ToString();
                                 var qtyToDelete = Convert.ToDecimal(currentRow.Cells["Qty_Required"].Value ?? 0);
-                                
+
                                 // Tìm dòng cha (dòng gốc có cùng RIR_Detail_ID và không phải là dòng mới thêm)
                                 DataGridViewRow parentRow = null;
                                 foreach (DataGridViewRow r in dgvRIR.Rows)
                                 {
-                                    if (r.Index != currentRow.Index && 
-                                        r.Cells["RIR_Detail_ID"].Value?.ToString() == rirDetailId && 
+                                    if (r.Index != currentRow.Index &&
+                                        r.Cells["RIR_Detail_ID"].Value?.ToString() == rirDetailId &&
                                         string.IsNullOrEmpty(r.Cells["IsAdded"].Value?.ToString()))
                                     {
                                         parentRow = r;
@@ -342,16 +345,16 @@ namespace MPR_Managerment.Forms.RIRGUI
                                 if (parentRow != null)
                                 {
                                     // Tạm thời tắt cờ bắt sự kiện CellValueChanged để không bị highlight lại
-                                    _isLoadingData = true; 
-                                    
+                                    _isLoadingData = true;
+
                                     // Cộng trả lại số lượng cho dòng cha
                                     parentRow.Cells["Qty_Required"].Value = Convert.ToDecimal(parentRow.Cells["Qty_Required"].Value ?? 0) + qtyToDelete;
-                                    
+
                                     // Xóa dòng cha khỏi danh sách modified và reset lại màu mặc định
                                     _modifiedRows.Remove(parentRow);
                                     parentRow.DefaultCellStyle.BackColor = Color.Empty;
                                     parentRow.DefaultCellStyle.SelectionBackColor = Color.Empty;
-                                    
+
                                     _isLoadingData = false;
                                 }
 
@@ -499,8 +502,8 @@ namespace MPR_Managerment.Forms.RIRGUI
                     row.Cells["RIR_No"].Value = dr.Table.Columns.Contains("RIR_No") ? dr["RIR_No"] : "";
                     row.Cells["RIR_ID"].Value = dr.Table.Columns.Contains("RIR_ID") ? dr["RIR_ID"] : "";
                     row.Cells["Item_No"].Value = dr.Table.Columns.Contains("Item_No") ? dr["Item_No"] : DBNull.Value;
-                    row.Cells["Item_Name"].Value = dr.Table.Columns.Contains("Item_Name") 
-                        ? dr["Item_Name"] 
+                    row.Cells["Item_Name"].Value = dr.Table.Columns.Contains("Item_Name")
+                        ? dr["Item_Name"]
                         : (dr.Table.Columns.Contains("item_name") ? dr["item_name"] : "");
                     row.Cells["Material"].Value = dr.Table.Columns.Contains("Material") ? dr["Material"] : "";
                     row.Cells["Size"].Value = dr.Table.Columns.Contains("Size") ? dr["Size"] : "";
@@ -514,6 +517,8 @@ namespace MPR_Managerment.Forms.RIRGUI
                     row.Cells["Inspect_Result"].Value = dr.Table.Columns.Contains("Inspect_Result") ? (dr["Inspect_Result"]?.ToString() ?? "") : "";
                     row.Cells["Remarks"].Value = dr.Table.Columns.Contains("Remarks") ? (dr["Remarks"]?.ToString() ?? "") : "";
                     row.Cells["IsAdded"].Value = "";
+
+                    StoreOriginalValues(row);
                 }
 
                 lblStatus.Text = $"Phiếu gồm {dgvRIR.Rows.Count} dòng";
@@ -530,6 +535,56 @@ namespace MPR_Managerment.Forms.RIRGUI
             }
         }
 
+        private void StoreOriginalValues(DataGridViewRow row)
+        {
+            var originalValues = new Dictionary<string, string>();
+            foreach (string colName in new[] { "Qty_Required", "MTRno", "Heatno", "ID_Code", "Inspect_Result", "Remarks" })
+            {
+                if (row.Cells[colName] != null)
+                {
+                    originalValues[colName] = row.Cells[colName].Value?.ToString() ?? "";
+                }
+            }
+            row.Tag = originalValues;
+        }
+
+        private bool IsRowActuallyModified(DataGridViewRow row)
+        {
+            // New rows are always considered modified
+            string isAdded = row.Cells["IsAdded"].Value?.ToString() ?? "";
+            if (isAdded == "New") return true;
+
+            // If there are no stored original values, assume modified
+            if (!(row.Tag is Dictionary<string, string> originalValues)) return true;
+
+            foreach (var kvp in originalValues)
+            {
+                string colName = kvp.Key;
+                string originalVal = kvp.Value;
+                string newVal = row.Cells[colName]?.Value?.ToString() ?? "";
+
+                if (colName == "Qty_Required")
+                {
+                    decimal origDec = 0, newDec = 0;
+                    bool parsedOrig = decimal.TryParse(originalVal, out origDec);
+                    bool parsedNew = decimal.TryParse(newVal, out newDec);
+
+                    if (parsedOrig && parsedNew)
+                    {
+                        if (origDec != newDec) return true;
+                        continue;
+                    }
+                }
+
+                if (originalVal != newVal)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void dgvRIR_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             if (_isLoadingData || e.RowIndex < 0) return;
@@ -537,19 +592,137 @@ namespace MPR_Managerment.Forms.RIRGUI
             var row = dgvRIR.Rows[e.RowIndex];
             string isAdded = row.Cells["IsAdded"].Value?.ToString() ?? "";
 
-            // Only track edits to existing rows (new rows are already highlighted in green)
-            if (string.IsNullOrEmpty(isAdded))
+            if (IsRowActuallyModified(row))
             {
                 _modifiedRows.Add(row);
-                row.DefaultCellStyle.BackColor = Color.LightYellow;
-                row.DefaultCellStyle.SelectionBackColor = Color.Yellow;
+                if (string.IsNullOrEmpty(isAdded))
+                {
+                    // Highlight modified existing rows in yellow
+                    row.DefaultCellStyle.BackColor = Color.LightYellow;
+                    row.DefaultCellStyle.SelectionBackColor = Color.Yellow;
+                }
+            }
+            else
+            {
+                _modifiedRows.Remove(row);
+                if (string.IsNullOrEmpty(isAdded))
+                {
+                    // Revert highlight
+                    row.DefaultCellStyle.BackColor = Color.Empty;
+                    row.DefaultCellStyle.SelectionBackColor = Color.Empty;
+                }
             }
         }
+
+        ///// <summary>
+        ///// Checks whether any rows in the grid have been modified (edited or newly added) since the last load/save.
+        ///// Cleans up stale references (rows that were removed from the grid) before checking.
+        ///// Returns true if there are pending changes that need to be saved.
+        ///// </summary>
+        //public bool HasModifiedRows()
+        //{
+        //    // Remove any rows that may have been deleted from the grid but still exist in the tracking set
+        //    _modifiedRows.RemoveWhere(r => r.DataGridView == null || r.Index < 0);
+        //    return _modifiedRows.Count > 0;
+        //}
+
+        ///// <summary>
+        ///// Collects all modified/new rows from the grid, converts them to RIRDetail objects,
+        ///// and persists each one to the database via RIRService.UpdateDetailForQC.
+        ///// Also updates ID codes for affected PO details and resets row highlights.
+        ///// Returns the number of rows successfully saved.
+        ///// Throws InvalidOperationException if validation fails (e.g. missing Item_Name).
+        ///// </summary>
+        //public async Task<int> SaveModifiedRowsToDatabase()
+        //{
+        //    // Clean up stale references
+        //    _modifiedRows.RemoveWhere(r => r.DataGridView == null || r.Index < 0);
+
+        //    if (_modifiedRows.Count == 0) return 0;
+
+        //    int savedCount = 0;
+
+        //    // 1. Validate and save each modified row
+        //    foreach (DataGridViewRow gvRow in _modifiedRows)
+        //    {
+        //        // Skip the placeholder new-row at the bottom of the grid
+        //        if (gvRow.IsNewRow) continue;
+
+        //        // Validate: Item_Name must not be empty
+        //        if (gvRow.Cells["Item_Name"].Value == null || string.IsNullOrWhiteSpace(gvRow.Cells["Item_Name"].Value.ToString()))
+        //        {
+        //            throw new InvalidOperationException(
+        //                $"Dòng thứ {gvRow.Index + 1} chưa nhập Tên vật tư. Vui lòng kiểm tra lại!");
+        //        }
+
+        //        // Build RIRDetail object from grid row values
+        //        var detail = new RIRDetail
+        //        {
+        //            RIR_Detail_ID = Convert.ToInt32(gvRow.Cells["RIR_Detail_ID"].Value ?? 0),
+        //            RIR_ID = Convert.ToInt32(gvRow.Cells["RIR_ID"].Value ?? 0),
+        //            Item_No = Convert.ToInt32(gvRow.Cells["Item_No"].Value ?? 0),
+        //            Item_Name = gvRow.Cells["Item_Name"].Value?.ToString() ?? "",
+        //            Material = gvRow.Cells["Material"].Value?.ToString() ?? "",
+        //            Size = gvRow.Cells["Size"].Value?.ToString() ?? "",
+        //            UNIT = gvRow.Cells["UNIT"].Value?.ToString() ?? "",
+        //            Qty_Required = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0),
+        //            Qty_Per_Sheet = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0),
+        //            MTRno = gvRow.Cells["MTRno"].Value?.ToString() ?? "",
+        //            Heatno = gvRow.Cells["Heatno"].Value?.ToString() ?? "",
+        //            ID_Code = gvRow.Cells["ID_Code"].Value?.ToString() ?? "",
+        //            Inspect_Result = gvRow.Cells["Inspect_Result"].Value?.ToString() ?? "",
+        //            Remarks = gvRow.Cells["Remarks"].Value?.ToString() ?? "",
+        //            PO_Detail_ID = Convert.ToInt32(gvRow.Cells["PO_Detail_ID"].Value ?? 0),
+        //            IsNewRow = string.IsNullOrEmpty(gvRow.Cells["IsAdded"].Value?.ToString()) ? "false" : "true",
+        //        };
+
+        //        // Persist to database (Insert or Update depending on RIR_Detail_ID)
+        //        await _rirServices.UpdateDetailForQC(detail);
+        //        savedCount++;
+        //    }
+
+        //    // 2. Update ID codes for affected PO details
+        //    var lstPODetailId = new List<int>();
+        //    foreach (DataGridViewRow item in _modifiedRows)
+        //    {
+        //        if (item.IsNewRow) continue;
+        //        int id = Convert.ToInt32(item.Cells["PO_Detail_ID"].Value ?? 0);
+        //        if (!lstPODetailId.Contains(id))
+        //        {
+        //            lstPODetailId.Add(id);
+        //        }
+        //    }
+        //    _rirServices.UpdateIDFormaterial(lstPODetailId);
+
+        //    // 3. Accept changes on the underlying DataTable if bound
+        //    if (dgvRIR.DataSource is DataTable dt)
+        //    {
+        //        dt.AcceptChanges();
+        //    }
+
+        //    // 4. Reset row highlights back to default
+        //    foreach (DataGridViewRow gvRow in _modifiedRows)
+        //    {
+        //        if (gvRow.DataGridView != null && gvRow.Index >= 0)
+        //        {
+        //            gvRow.DefaultCellStyle.BackColor = Color.Empty;
+        //            gvRow.DefaultCellStyle.SelectionBackColor = Color.Empty;
+        //        }
+        //    }
+
+        //    // 5. Clear tracking set after successful save
+        //    _modifiedRows.Clear();
+
+        //    return savedCount;
+        //}
 
         private async void btnSave_Click(object sender, EventArgs e)
         {
             if (!PermissionHelper.Check("Material Inspector Request", "Lưu chi tiết", "Lưu chi tiết")) return;
             if (!Common.Common.IsDataGridViewValid(dgvRIR)) return;
+
+            // Clean up deleted or stale row references
+            _modifiedRows.RemoveWhere(r => r.DataGridView == null || r.Index < 0);
 
             // 1. Kiểm tra xem có dòng nào thay đổi để lưu hay không
             if (_modifiedRows == null || _modifiedRows.Count == 0)
@@ -565,50 +738,75 @@ namespace MPR_Managerment.Forms.RIRGUI
                 // Giả định bạn đã có mã ID của chứng từ cha RIR_ID (ví dụ lấy từ TextBox hoặc biến toàn cục)
                 //int currentRIRHeadID = Convert.ToInt32(txtRIR_ID.Text);
 
-                 // 2. Duyệt qua tập hợp HashSet chứa các dòng đã sửa đổi/thêm mới
-                 foreach (DataGridViewRow gvRow in _modifiedRows)
-                 {
-                     // Bỏ qua dòng trống mới ở dưới cùng lưới dữ liệu (nếu AllowUserToAddRows = true)
-                     if (gvRow.IsNewRow) continue;
+                // 2. Duyệt qua tập hợp HashSet chứa các dòng đã sửa đổi/thêm mới
+                foreach (DataGridViewRow gvRow in _modifiedRows)
+                {
+                    // Bỏ qua dòng trống mới ở dưới cùng lưới dữ liệu (nếu AllowUserToAddRows = true)
+                    if (gvRow.IsNewRow) continue;
 
-                     // Kiểm tra tính hợp lệ sơ bộ (Ví dụ: tên mặt hàng không được trống)
-                     if (gvRow.Cells["Item_Name"].Value == null || string.IsNullOrWhiteSpace(gvRow.Cells["Item_Name"].Value.ToString()))
-                     {
-                         MessageBox.Show($"Dòng thứ {gvRow.Index + 1} chưa nhập Tên vật tư. Vui lòng kiểm tra lại!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                         return;
-                     }
+                    // Kiểm tra tính hợp lệ sơ bộ (Ví dụ: tên mặt hàng không được trống)
+                    if (gvRow.Cells["Item_Name"].Value == null || string.IsNullOrWhiteSpace(gvRow.Cells["Item_Name"].Value.ToString()))
+                    {
+                        MessageBox.Show($"Dòng thứ {gvRow.Index + 1} chưa nhập Tên vật tư. Vui lòng kiểm tra lại!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
 
-                     // Tạo đối tượng RIRDetail từ các giá trị trong DataGridViewRow
-                     var d = new RIRDetail
-                     {
-                         RIR_Detail_ID = Convert.ToInt32(gvRow.Cells["RIR_Detail_ID"].Value ?? 0),
-                         RIR_ID = Convert.ToInt32(gvRow.Cells["RIR_ID"].Value ?? 0),
-                         Item_No = Convert.ToInt32(gvRow.Cells["Item_No"].Value ?? 0),
-                         Item_Name = gvRow.Cells["Item_Name"].Value?.ToString() ?? "",
-                         Material = gvRow.Cells["Material"].Value?.ToString() ?? "",
-                         Size = gvRow.Cells["Size"].Value?.ToString() ?? "",
-                         UNIT = gvRow.Cells["UNIT"].Value?.ToString() ?? "",
-                         Qty_Required = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0),
-                         //Qty_Received = Convert.ToDecimal(gvRow.Cells["Qty_Received"].Value ?? 0),
-                         Qty_Per_Sheet = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0), // Same as Qty_Required for QC
-                         MTRno = gvRow.Cells["MTRno"].Value?.ToString() ?? "",
-                         Heatno = gvRow.Cells["Heatno"].Value?.ToString() ?? "",
-                         ID_Code = gvRow.Cells["ID_Code"].Value?.ToString() ?? "",
-                         Inspect_Result = gvRow.Cells["Inspect_Result"].Value?.ToString() ?? "",
-                         Remarks = gvRow.Cells["Remarks"].Value?.ToString() ?? "",
-                         PO_Detail_ID = Convert.ToInt32(gvRow.Cells["PO_Detail_ID"].Value ?? 0),
-                         IsNewRow = string.IsNullOrEmpty(gvRow.Cells["IsAdded"].Value?.ToString()) ? "false" : "true",
-                     };
+                    // Tạo đối tượng RIRDetail từ các giá trị trong DataGridViewRow
+                    var d = new RIRDetail
+                    {
+                        RIR_Detail_ID = Convert.ToInt32(gvRow.Cells["RIR_Detail_ID"].Value ?? 0),
+                        RIR_ID = Convert.ToInt32(gvRow.Cells["RIR_ID"].Value ?? 0),
+                        Item_No = Convert.ToInt32(gvRow.Cells["Item_No"].Value ?? 0),
+                        Item_Name = gvRow.Cells["Item_Name"].Value?.ToString() ?? "",
+                        Material = gvRow.Cells["Material"].Value?.ToString() ?? "",
+                        Size = gvRow.Cells["Size"].Value?.ToString() ?? "",
+                        UNIT = gvRow.Cells["UNIT"].Value?.ToString() ?? "",
+                        Qty_Required = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0),
+                        //Qty_Received = Convert.ToDecimal(gvRow.Cells["Qty_Received"].Value ?? 0),
+                        Qty_Per_Sheet = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0), // Same as Qty_Required for QC
+                        MTRno = gvRow.Cells["MTRno"].Value?.ToString() ?? "",
+                        Heatno = gvRow.Cells["Heatno"].Value?.ToString() ?? "",
+                        ID_Code = gvRow.Cells["ID_Code"].Value?.ToString() ?? "",
+                        Inspect_Result = gvRow.Cells["Inspect_Result"].Value?.ToString() ?? "",
+                        Remarks = gvRow.Cells["Remarks"].Value?.ToString() ?? "",
+                        PO_Detail_ID = Convert.ToInt32(gvRow.Cells["PO_Detail_ID"].Value ?? 0),
+                        IsNewRow = string.IsNullOrEmpty(gvRow.Cells["IsAdded"].Value?.ToString()) ? "false" : "true",
+                    };
 
-                     // Gọi hàm lưu động (Thêm mới/Cập nhật tùy thuộc vào RIR_Detail_ID)
-                     await _rirServices.UpdateDetailForQC(d);
-                 }
+                    // Gọi hàm lưu động (Thêm mới/Cập nhật tùy thuộc vào RIR_Detail_ID)
+                    await _rirServices.UpdateDetailForQC(d);
+                }
+
+                var lstPODetailId = new List<int>();
+                foreach (DataGridViewRow item in _modifiedRows)
+                {
+                    int id = Convert.ToInt32(item.Cells["PO_Detail_ID"].Value ?? 0);
+                    if (!lstPODetailId.Contains(id))
+                    {
+                        lstPODetailId.Add(id);
+                    }
+                }
+
+                _rirServices.UpdateIDFormaterial(lstPODetailId);
 
                 // 5. Đồng bộ hóa lại trạng thái dữ liệu trên DataTable gán với Grid
                 if (dgvRIR.DataSource is DataTable dt)
                 {
                     dt.AcceptChanges();
                 }
+
+                // Update original values and reset IsAdded status for newly saved rows
+                _isLoadingData = true;
+                foreach (DataGridViewRow gvRow in _modifiedRows)
+                {
+                    if (gvRow.IsNewRow) continue;
+                    if (gvRow.Cells["IsAdded"].Value?.ToString() == "New")
+                    {
+                        gvRow.Cells["IsAdded"].Value = "";
+                    }
+                    StoreOriginalValues(gvRow);
+                }
+                _isLoadingData = false;
 
                 // 6. Xóa sạch danh sách vết trong HashSet sau khi lưu thành công hoàn toàn
                 _modifiedRows.Clear();
@@ -703,6 +901,9 @@ namespace MPR_Managerment.Forms.RIRGUI
         {
             try
             {
+                _modifiedRows.Clear();
+                _isLoadingData = true;
+
                 _details = _rirServices.GetDetails(rirId);
                 dgvRIR.Rows.Clear();
 
@@ -727,6 +928,8 @@ namespace MPR_Managerment.Forms.RIRGUI
 
                     row.Cells["PO_Detail_ID"].Value = d.PO_Detail_ID;
 
+                    StoreOriginalValues(row);
+
                     lstRootItem.Add(Convert.ToInt32(d.PO_Detail_ID));
                     _rirId = d.RIR_ID;
                 }
@@ -734,6 +937,10 @@ namespace MPR_Managerment.Forms.RIRGUI
             catch (Exception ex)
             {
                 MessageBox.Show("Lỗi tải chi tiết: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _isLoadingData = false;
             }
         }
 
@@ -772,14 +979,14 @@ namespace MPR_Managerment.Forms.RIRGUI
 
         private void dgvRIR_CellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
-            var qtyRequireCell = Convert.ToInt32(dgvRIR.CurrentRow.Cells["Qty_Required"].Value);
-            var qtyRecivedCell = Convert.ToInt32(dgvRIR.CurrentRow.Cells["Qty_Received"].Value);
+            //var qtyRequireCell = Convert.ToInt32(dgvRIR.CurrentRow.Cells["Qty_Required"].Value);
+            //var qtyRecivedCell = Convert.ToInt32(dgvRIR.CurrentRow.Cells["Qty_Received"].Value);
 
-            if (qtyRecivedCell > qtyRequireCell)
-            {
-                MessageBox.Show("SL Thực nhận không được lớn hơn SL Yêu cầu!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                dgvRIR.CurrentCell.Value = qtyRequireCell;
-            }
+            //if (qtyRecivedCell > qtyRequireCell)
+            //{
+            //    MessageBox.Show("SL Thực nhận không được lớn hơn SL Yêu cầu!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            //    dgvRIR.CurrentCell.Value = qtyRequireCell;
+            //}
         }
 
         // =====================================================================
@@ -1667,6 +1874,114 @@ namespace MPR_Managerment.Forms.RIRGUI
             catch (Exception ex)
             {
                 MessageBox.Show("Lỗi trong quá trình ghi file Excel: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async void btnUpdateIDCode_QC_Click(object sender, EventArgs e)
+        {
+            if (!PermissionHelper.Check("Material Inspector Request", "Lưu chi tiết", "Lưu chi tiết")) return;
+            if (!Common.Common.IsDataGridViewValid(dgvRIR)) return;
+
+            // Clean up deleted or stale row references
+            _modifiedRows.RemoveWhere(r => r.DataGridView == null || r.Index < 0);
+
+            // 1. Kiểm tra xem có dòng nào thay đổi để lưu hay không
+            if (_modifiedRows == null || _modifiedRows.Count == 0)
+            {
+                MessageBox.Show("Không có dữ liệu nào thay đổi để cập nhật!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            try
+            {
+                this.Cursor = Cursors.WaitCursor;
+
+                // Giả định bạn đã có mã ID của chứng từ cha RIR_ID (ví dụ lấy từ TextBox hoặc biến toàn cục)
+                //int currentRIRHeadID = Convert.ToInt32(txtRIR_ID.Text);
+
+                // 2. Duyệt qua tập hợp HashSet chứa các dòng đã sửa đổi/thêm mới
+                foreach (DataGridViewRow gvRow in _modifiedRows)
+                {
+                    // Bỏ qua dòng trống mới ở dưới cùng lưới dữ liệu (nếu AllowUserToAddRows = true)
+                    if (gvRow.IsNewRow) continue;
+
+                    // Kiểm tra tính hợp lệ sơ bộ (Ví dụ: tên mặt hàng không được trống)
+                    if (gvRow.Cells["Item_Name"].Value == null || string.IsNullOrWhiteSpace(gvRow.Cells["Item_Name"].Value.ToString()))
+                    {
+                        MessageBox.Show($"Dòng thứ {gvRow.Index + 1} chưa nhập Tên vật tư. Vui lòng kiểm tra lại!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    // Tạo đối tượng RIRDetail từ các giá trị trong DataGridViewRow
+                    var d = new RIRDetail
+                    {
+                        RIR_Detail_ID = Convert.ToInt32(gvRow.Cells["RIR_Detail_ID"].Value ?? 0),
+                        RIR_ID = Convert.ToInt32(gvRow.Cells["RIR_ID"].Value ?? 0),
+                        Item_No = Convert.ToInt32(gvRow.Cells["Item_No"].Value ?? 0),
+                        Item_Name = gvRow.Cells["Item_Name"].Value?.ToString() ?? "",
+                        Material = gvRow.Cells["Material"].Value?.ToString() ?? "",
+                        Size = gvRow.Cells["Size"].Value?.ToString() ?? "",
+                        UNIT = gvRow.Cells["UNIT"].Value?.ToString() ?? "",
+                        Qty_Required = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0),
+                        //Qty_Received = Convert.ToDecimal(gvRow.Cells["Qty_Received"].Value ?? 0),
+                        Qty_Per_Sheet = Convert.ToDecimal(gvRow.Cells["Qty_Required"].Value ?? 0), // Same as Qty_Required for QC
+                        MTRno = gvRow.Cells["MTRno"].Value?.ToString() ?? "",
+                        Heatno = gvRow.Cells["Heatno"].Value?.ToString() ?? "",
+                        ID_Code = gvRow.Cells["ID_Code"].Value?.ToString() ?? "",
+                        Inspect_Result = gvRow.Cells["Inspect_Result"].Value?.ToString() ?? "",
+                        Remarks = gvRow.Cells["Remarks"].Value?.ToString() ?? "",
+                        PO_Detail_ID = Convert.ToInt32(gvRow.Cells["PO_Detail_ID"].Value ?? 0),
+                        IsNewRow = string.IsNullOrEmpty(gvRow.Cells["IsAdded"].Value?.ToString()) ? "false" : "true",
+                    };
+
+                    // Gọi hàm lưu động (Thêm mới/Cập nhật tùy thuộc vào RIR_Detail_ID)
+                    await _rirServices.UpdateDetailForQC(d);
+                }
+
+                var lstPODetailId = new List<int>();
+                foreach (DataGridViewRow item in _modifiedRows)
+                {
+                    int id = Convert.ToInt32(item.Cells["PO_Detail_ID"].Value ?? 0);
+                    _rirServices.UpdateIDFormaterialForQC(new WarehouseImport()
+                    {
+                        PO_Detail_ID = id,
+                        QC_Code = item.Cells["ID_Code"].Value?.ToString() ?? "",
+                        QC_Status = item.Cells["Inspect_Result"].Value?.ToString() ?? "",
+                        Notes = item.Cells["Remarks"].Value?.ToString() ?? "",
+                    });
+                }
+
+                // 5. Đồng bộ hóa lại trạng thái dữ liệu trên DataTable gán với Grid
+                if (dgvRIR.DataSource is DataTable dt)
+                {
+                    dt.AcceptChanges();
+                }
+
+                // Update original values and reset IsAdded status for newly saved rows
+                _isLoadingData = true;
+                foreach (DataGridViewRow gvRow in _modifiedRows)
+                {
+                    if (gvRow.IsNewRow) continue;
+                    if (gvRow.Cells["IsAdded"].Value?.ToString() == "New")
+                    {
+                        gvRow.Cells["IsAdded"].Value = "";
+                    }
+                    StoreOriginalValues(gvRow);
+                }
+                _isLoadingData = false;
+
+                // 6. Xóa sạch danh sách vết trong HashSet sau khi lưu thành công hoàn toàn
+                _modifiedRows.Clear();
+
+                MessageBox.Show("Đã lưu toàn bộ các dòng thay đổi thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Xảy ra lỗi trong quá trình lưu hàng loạt:\n{ex.Message}", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
             }
         }
     }

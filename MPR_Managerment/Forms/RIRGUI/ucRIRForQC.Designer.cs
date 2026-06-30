@@ -28,8 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            DataGridViewCellStyle dataGridViewCellStyle5 = new DataGridViewCellStyle();
-            DataGridViewCellStyle dataGridViewCellStyle6 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             panel1 = new Panel();
             cboProjectMaterial = new ComboBox();
             btnSearch = new Button();
@@ -60,6 +60,7 @@
             dgvWelding = new DataGridView();
             panel8 = new Panel();
             cboProjectForWelding = new ComboBox();
+            btnShowAllWelding = new Button();
             label4 = new Label();
             btnReportWeldingOfProject = new Button();
             cboRIRNoWelding = new ComboBox();
@@ -75,7 +76,7 @@
             btnClear = new Button();
             lblStatus = new Label();
             btnXoaRow = new Button();
-            btnShowAllWelding = new Button();
+            btnUpdateIDCode_QC = new Button();
             panel1.SuspendLayout();
             groupBox2.SuspendLayout();
             panel3.SuspendLayout();
@@ -286,15 +287,15 @@
             dgvPaint.BackgroundColor = Color.White;
             dgvPaint.BorderStyle = BorderStyle.None;
             dgvPaint.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
-            dataGridViewCellStyle5.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle5.BackColor = Color.DodgerBlue;
-            dataGridViewCellStyle5.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            dataGridViewCellStyle5.ForeColor = Color.White;
-            dataGridViewCellStyle5.Padding = new Padding(5);
-            dataGridViewCellStyle5.SelectionBackColor = SystemColors.Highlight;
-            dataGridViewCellStyle5.SelectionForeColor = SystemColors.HighlightText;
-            dataGridViewCellStyle5.WrapMode = DataGridViewTriState.True;
-            dgvPaint.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle5;
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle1.BackColor = Color.DodgerBlue;
+            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            dataGridViewCellStyle1.ForeColor = Color.White;
+            dataGridViewCellStyle1.Padding = new Padding(5);
+            dataGridViewCellStyle1.SelectionBackColor = SystemColors.Highlight;
+            dataGridViewCellStyle1.SelectionForeColor = SystemColors.HighlightText;
+            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
+            dgvPaint.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgvPaint.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvPaint.Dock = DockStyle.Fill;
             dgvPaint.EnableHeadersVisualStyles = false;
@@ -446,15 +447,15 @@
             dgvWelding.BackgroundColor = Color.White;
             dgvWelding.BorderStyle = BorderStyle.None;
             dgvWelding.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Sunken;
-            dataGridViewCellStyle6.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle6.BackColor = Color.DodgerBlue;
-            dataGridViewCellStyle6.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            dataGridViewCellStyle6.ForeColor = Color.White;
-            dataGridViewCellStyle6.Padding = new Padding(5);
-            dataGridViewCellStyle6.SelectionBackColor = SystemColors.Highlight;
-            dataGridViewCellStyle6.SelectionForeColor = SystemColors.HighlightText;
-            dataGridViewCellStyle6.WrapMode = DataGridViewTriState.True;
-            dgvWelding.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle6;
+            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle2.BackColor = Color.DodgerBlue;
+            dataGridViewCellStyle2.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            dataGridViewCellStyle2.ForeColor = Color.White;
+            dataGridViewCellStyle2.Padding = new Padding(5);
+            dataGridViewCellStyle2.SelectionBackColor = SystemColors.Highlight;
+            dataGridViewCellStyle2.SelectionForeColor = SystemColors.HighlightText;
+            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.True;
+            dgvWelding.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle2;
             dgvWelding.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvWelding.Dock = DockStyle.Fill;
             dgvWelding.EnableHeadersVisualStyles = false;
@@ -492,6 +493,21 @@
             cboProjectForWelding.Size = new Size(132, 23);
             cboProjectForWelding.TabIndex = 8;
             cboProjectForWelding.SelectedIndexChanged += cboProjectForWelding_SelectedIndexChanged;
+            // 
+            // btnShowAllWelding
+            // 
+            btnShowAllWelding.BackColor = Color.FromArgb(0, 120, 212);
+            btnShowAllWelding.FlatStyle = FlatStyle.Flat;
+            btnShowAllWelding.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnShowAllWelding.ForeColor = Color.White;
+            btnShowAllWelding.Location = new Point(420, 6);
+            btnShowAllWelding.Margin = new Padding(3, 2, 3, 2);
+            btnShowAllWelding.Name = "btnShowAllWelding";
+            btnShowAllWelding.Size = new Size(101, 29);
+            btnShowAllWelding.TabIndex = 7;
+            btnShowAllWelding.Text = "🔍 Tất cả";
+            btnShowAllWelding.UseVisualStyleBackColor = false;
+            btnShowAllWelding.Click += btnShowAllWelding_Click;
             // 
             // label4
             // 
@@ -590,6 +606,7 @@
             // 
             panel2.Controls.Add(btnSave);
             panel2.Controls.Add(label5);
+            panel2.Controls.Add(btnUpdateIDCode_QC);
             panel2.Controls.Add(btnExportListItem);
             panel2.Controls.Add(btnExport);
             panel2.Controls.Add(btnClear);
@@ -700,20 +717,21 @@
             btnXoaRow.Text = "🗑 Xóa dòng";
             btnXoaRow.UseVisualStyleBackColor = false;
             // 
-            // btnShowAllWelding
+            // btnUpdateIDCode_QC
             // 
-            btnShowAllWelding.BackColor = Color.FromArgb(0, 120, 212);
-            btnShowAllWelding.FlatStyle = FlatStyle.Flat;
-            btnShowAllWelding.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnShowAllWelding.ForeColor = Color.White;
-            btnShowAllWelding.Location = new Point(420, 6);
-            btnShowAllWelding.Margin = new Padding(3, 2, 3, 2);
-            btnShowAllWelding.Name = "btnShowAllWelding";
-            btnShowAllWelding.Size = new Size(101, 29);
-            btnShowAllWelding.TabIndex = 7;
-            btnShowAllWelding.Text = "🔍 Tất cả";
-            btnShowAllWelding.UseVisualStyleBackColor = false;
-            btnShowAllWelding.Click += btnShowAllWelding_Click;
+            btnUpdateIDCode_QC.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+            btnUpdateIDCode_QC.BackColor = Color.Purple;
+            btnUpdateIDCode_QC.FlatStyle = FlatStyle.Flat;
+            btnUpdateIDCode_QC.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnUpdateIDCode_QC.ForeColor = Color.White;
+            btnUpdateIDCode_QC.Location = new Point(1236, 4);
+            btnUpdateIDCode_QC.Margin = new Padding(3, 2, 3, 2);
+            btnUpdateIDCode_QC.Name = "btnUpdateIDCode_QC";
+            btnUpdateIDCode_QC.Size = new Size(150, 29);
+            btnUpdateIDCode_QC.TabIndex = 4;
+            btnUpdateIDCode_QC.Text = "📄 Cập nhật ID Code";
+            btnUpdateIDCode_QC.UseVisualStyleBackColor = false;
+            btnUpdateIDCode_QC.Click += btnUpdateIDCode_QC_Click;
             // 
             // ucRIRForQC
             // 
@@ -797,5 +815,6 @@
         private ComboBox cboRIRNoWelding;
         private Button btnReportWeldingOfProject;
         private Button btnShowAllWelding;
+        private Button btnUpdateIDCode_QC;
     }
 }

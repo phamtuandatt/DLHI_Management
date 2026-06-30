@@ -2459,9 +2459,9 @@ private IWin32Window GetActiveOwner() => this;
                                         ws.Cells[curRow, 7].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
                                         ws.Cells[curRow, 8].Value = d.UNIT ?? "";
                                         ws.Cells[curRow, 8].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                                        ws.Cells[curRow, 9].Value = d.Weight_kg; ws.Cells[curRow, 9].Style.Numberformat.Format = "#,##0.00";
+                                        ws.Cells[curRow, 9].Value = d.Weight_kg; ws.Cells[curRow, 9].Style.Numberformat.Format = "#,##0";
                                         ws.Cells[curRow, 9].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                                        ws.Cells[curRow, 10].Value = rp; ws.Cells[curRow, 10].Style.Numberformat.Format = "#,##0.00";
+                                        ws.Cells[curRow, 10].Value = rp; ws.Cells[curRow, 10].Style.Numberformat.Format = "#,##0";
                                         ws.Cells[curRow, 10].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
                                         ws.Cells[curRow, 11].Value = d.VAT; ws.Cells[curRow, 11].Style.Numberformat.Format = "#,##0";
                                         ws.Cells[curRow, 11].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
@@ -3030,10 +3030,10 @@ private IWin32Window GetActiveOwner() => this;
                         ws.Cells[row, 11].Style.Numberformat.Format = "dd/MM/yyyy";
 
                         ws.Cells[row, 13].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                        ws.Cells[row, 13].Style.Numberformat.Format = "#,##0.00";
+                        ws.Cells[row, 13].Style.Numberformat.Format = "#,##0";
 
                         ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                        ws.Cells[row, 14].Style.Numberformat.Format = "#,##0.00";
+                        ws.Cells[row, 14].Style.Numberformat.Format = "#,##0";
                     }
 
                     //// 4. TÍNH TỔNG (Dòng Sum sẽ bị đẩy xuống do lệnh InsertRow ở trên)
@@ -3065,9 +3065,9 @@ private IWin32Window GetActiveOwner() => this;
                     // Gán nhãn và tính tổng chưa thuế (Sub-total) bằng Formula Excel
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
                     ws.Cells[subTotalRow, 9].Formula = $"=SUM(I{startRow}:I{startRow + detailCount - 1})";
-                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
-                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[subTotalRow, 14].Style.Numberformat.Format = "#,##0";
 
                     // Gán nhãn cho dòng tổng thanh toán (đã bao gồm các mức thuế khác nhau)
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
@@ -3075,7 +3075,7 @@ private IWin32Window GetActiveOwner() => this;
                     // 3. CẬP NHẬT: Gán giá trị tổng sau thuế đã tính toán vào ô kết quả
                     // Chúng ta gán giá trị số trực tiếp và định dạng hiển thị cho chuyên nghiệp
                     ws.Cells[vatRow, 14].Value = totalAfterVAT;
-                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0.00"; // Định dạng dấu phân cách hàng nghìn
+                    ws.Cells[vatRow, 14].Style.Numberformat.Format = "#,##0"; // Định dạng dấu phân cách hàng nghìn
                     ws.Cells[vatRow, 14].Style.Font.Bold = true;
 
                     package.Save();
@@ -5144,7 +5144,7 @@ private IWin32Window GetActiveOwner() => this;
                     int subTotalRow = startRow + details.Count;
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
                     ws.Cells[subTotalRow, 9].Formula = $"=SUM(I{startRow}:I{startRow + details.Count - 1})";
-                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + details.Count - 1})";
                     ws.Cells[subTotalRow + 1, 3].Value = "Final Price Requested (Included VAT)";
                     ws.Cells[subTotalRow + 1, 14].Value = totalAfterVAT;
@@ -5347,7 +5347,7 @@ private IWin32Window GetActiveOwner() => this;
                         ws.Cells[row, 11].Style.Numberformat.Format = "dd/MM/yyyy";
 
                         ws.Cells[row, 13].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
-                        ws.Cells[row, 13].Style.Numberformat.Format = "#,##0.00";
+                        ws.Cells[row, 13].Style.Numberformat.Format = "#,##0";
 
                         ws.Cells[row, 14].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
                         ws.Cells[row, 14].Style.Numberformat.Format = amtFmt;
@@ -5357,7 +5357,7 @@ private IWin32Window GetActiveOwner() => this;
                     int vatRow = subTotalRow + 1;
                     ws.Cells[subTotalRow, 3].Value = "SUB-TOTAL";
                     ws.Cells[subTotalRow, 9].Formula = $"=SUM(I{startRow}:I{startRow + detailCount - 1})";
-                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[subTotalRow, 9].Style.Numberformat.Format = "#,##0";
                     ws.Cells[subTotalRow, 14].Formula = $"=SUM(N{startRow}:N{startRow + detailCount - 1})";
                     ws.Cells[subTotalRow, 14].Style.Numberformat.Format = amtFmt;
                     ws.Cells[vatRow, 3].Value = "Final Price Requested (Included VAT)";
