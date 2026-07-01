@@ -148,6 +148,30 @@ namespace MPR_Managerment.Services
         }
 
         // ===== GET DETAILS =====
+        public List<RIRDetail> GetDetailsForReportEX(string projectCode)
+        {
+            var list = new List<RIRDetail>();
+            using (var conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+                var cmd = new SqlCommand(@"
+                    SELECT RIR_Detail_ID, rd.RIR_ID, PO_Detail_ID, Item_No,
+                           item_name, Material, Size, UNIT,
+                           Qty_Per_Sheet, MTRno, Heatno, rd.Created_Date, Qty_Required, Qty_Received, Inspect_Result, ID_Code, Remarks
+                    FROM RIR_detail AS rd
+                    INNER JOIN RIR_head AS rh ON rd.RIR_ID = rh.RIR_ID
+                    WHERE rh.ProjectCode = @projectCode
+                    ORDER BY Item_No", conn);
+                cmd.Parameters.AddWithValue("@projectCode", projectCode);
+                using (var r = cmd.ExecuteReader())
+                    while (r.Read()) list.Add(MapDetail(r));
+            }
+            return list;
+        }
+
+
+
+        // ===== GET DETAILS =====
         public async Task<DataTable> GetRIRMaterialDetail(string projectCode = null,
             string rirNo = null,
             string projectName = null,

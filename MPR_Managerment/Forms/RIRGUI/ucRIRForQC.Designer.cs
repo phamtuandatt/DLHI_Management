@@ -31,6 +31,7 @@
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             panel1 = new Panel();
+            btnSave = new Button();
             cboProjectMaterial = new ComboBox();
             btnSearch = new Button();
             btnPrintReportMaterial = new Button();
@@ -69,14 +70,13 @@
             groupBox4 = new GroupBox();
             dgvRIR = new DataGridView();
             panel2 = new Panel();
-            btnSave = new Button();
             label5 = new Label();
+            btnUpdateIDCode_QC = new Button();
             btnExportListItem = new Button();
             btnExport = new Button();
             btnClear = new Button();
             lblStatus = new Label();
             btnXoaRow = new Button();
-            btnUpdateIDCode_QC = new Button();
             panel1.SuspendLayout();
             groupBox2.SuspendLayout();
             panel3.SuspendLayout();
@@ -99,8 +99,11 @@
             // 
             // panel1
             // 
+            panel1.Controls.Add(btnSave);
             panel1.Controls.Add(cboProjectMaterial);
             panel1.Controls.Add(btnSearch);
+            panel1.Controls.Add(btnClear);
+            panel1.Controls.Add(btnExport);
             panel1.Controls.Add(btnPrintReportMaterial);
             panel1.Controls.Add(cboRIRs);
             panel1.Controls.Add(lblCountRIR);
@@ -111,6 +114,21 @@
             panel1.Name = "panel1";
             panel1.Size = new Size(1630, 38);
             panel1.TabIndex = 0;
+            // 
+            // btnSave
+            // 
+            btnSave.BackColor = Color.FromArgb(255, 128, 0);
+            btnSave.FlatStyle = FlatStyle.Flat;
+            btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnSave.ForeColor = Color.White;
+            btnSave.Location = new Point(613, 5);
+            btnSave.Margin = new Padding(3, 2, 3, 2);
+            btnSave.Name = "btnSave";
+            btnSave.Size = new Size(109, 29);
+            btnSave.TabIndex = 4;
+            btnSave.Text = "💾 Lưu RIR";
+            btnSave.UseVisualStyleBackColor = false;
+            btnSave.Click += btnSave_Click;
             // 
             // cboProjectMaterial
             // 
@@ -145,7 +163,7 @@
             btnPrintReportMaterial.FlatStyle = FlatStyle.Flat;
             btnPrintReportMaterial.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnPrintReportMaterial.ForeColor = Color.White;
-            btnPrintReportMaterial.Location = new Point(902, 5);
+            btnPrintReportMaterial.Location = new Point(448, 5);
             btnPrintReportMaterial.Margin = new Padding(3, 2, 3, 2);
             btnPrintReportMaterial.Name = "btnPrintReportMaterial";
             btnPrintReportMaterial.Size = new Size(159, 29);
@@ -159,11 +177,12 @@
             cboRIRs.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
             cboRIRs.AutoCompleteSource = AutoCompleteSource.ListItems;
             cboRIRs.FormattingEnabled = true;
-            cboRIRs.Location = new Point(505, 8);
+            cboRIRs.Location = new Point(1136, 7);
             cboRIRs.Margin = new Padding(3, 2, 3, 2);
             cboRIRs.Name = "cboRIRs";
             cboRIRs.Size = new Size(238, 23);
             cboRIRs.TabIndex = 6;
+            cboRIRs.Visible = false;
             cboRIRs.SelectedIndexChanged += cboRIRs_SelectedIndexChanged;
             // 
             // lblCountRIR
@@ -171,20 +190,22 @@
             lblCountRIR.AutoSize = true;
             lblCountRIR.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblCountRIR.ForeColor = Color.LimeGreen;
-            lblCountRIR.Location = new Point(749, 12);
+            lblCountRIR.Location = new Point(1380, 11);
             lblCountRIR.Name = "lblCountRIR";
             lblCountRIR.Size = new Size(42, 15);
             lblCountRIR.TabIndex = 1;
             lblCountRIR.Text = "Status";
+            lblCountRIR.Visible = false;
             // 
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(456, 12);
+            label1.Location = new Point(1087, 11);
             label1.Name = "label1";
             label1.Size = new Size(43, 15);
             label1.TabIndex = 5;
             label1.Text = "RIR No";
+            label1.Visible = false;
             // 
             // label2
             // 
@@ -214,9 +235,9 @@
             // 
             panel3.Controls.Add(tableLayoutPanel1);
             panel3.Dock = DockStyle.Fill;
-            panel3.Location = new Point(3, 56);
+            panel3.Location = new Point(3, 53);
             panel3.Name = "panel3";
-            panel3.Size = new Size(1624, 704);
+            panel3.Size = new Size(1624, 707);
             panel3.TabIndex = 7;
             // 
             // tableLayoutPanel1
@@ -231,7 +252,7 @@
             tableLayoutPanel1.RowCount = 2;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 39.47826F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 60.52174F));
-            tableLayoutPanel1.Size = new Size(1624, 704);
+            tableLayoutPanel1.Size = new Size(1624, 707);
             tableLayoutPanel1.TabIndex = 6;
             // 
             // tableLayoutPanel2
@@ -242,11 +263,11 @@
             tableLayoutPanel2.Controls.Add(panel4, 0, 0);
             tableLayoutPanel2.Controls.Add(panel7, 1, 0);
             tableLayoutPanel2.Dock = DockStyle.Fill;
-            tableLayoutPanel2.Location = new Point(3, 280);
+            tableLayoutPanel2.Location = new Point(3, 282);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
             tableLayoutPanel2.RowCount = 1;
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel2.Size = new Size(1618, 421);
+            tableLayoutPanel2.Size = new Size(1618, 422);
             tableLayoutPanel2.TabIndex = 6;
             // 
             // panel4
@@ -256,7 +277,7 @@
             panel4.Dock = DockStyle.Fill;
             panel4.Location = new Point(3, 3);
             panel4.Name = "panel4";
-            panel4.Size = new Size(803, 415);
+            panel4.Size = new Size(803, 416);
             panel4.TabIndex = 1;
             // 
             // panel6
@@ -265,7 +286,7 @@
             panel6.Dock = DockStyle.Fill;
             panel6.Location = new Point(0, 42);
             panel6.Name = "panel6";
-            panel6.Size = new Size(803, 373);
+            panel6.Size = new Size(803, 374);
             panel6.TabIndex = 2;
             // 
             // groupBox1
@@ -274,7 +295,7 @@
             groupBox1.Dock = DockStyle.Fill;
             groupBox1.Location = new Point(0, 0);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(803, 373);
+            groupBox1.Size = new Size(803, 374);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             groupBox1.Text = "Danh sách sơn";
@@ -303,7 +324,7 @@
             dgvPaint.Margin = new Padding(3, 2, 3, 2);
             dgvPaint.Name = "dgvPaint";
             dgvPaint.RowHeadersWidth = 51;
-            dgvPaint.Size = new Size(797, 351);
+            dgvPaint.Size = new Size(797, 352);
             dgvPaint.TabIndex = 6;
             // 
             // panel5
@@ -416,7 +437,7 @@
             panel7.Dock = DockStyle.Fill;
             panel7.Location = new Point(812, 3);
             panel7.Name = "panel7";
-            panel7.Size = new Size(803, 415);
+            panel7.Size = new Size(803, 416);
             panel7.TabIndex = 2;
             // 
             // panel9
@@ -425,7 +446,7 @@
             panel9.Dock = DockStyle.Fill;
             panel9.Location = new Point(0, 42);
             panel9.Name = "panel9";
-            panel9.Size = new Size(803, 373);
+            panel9.Size = new Size(803, 374);
             panel9.TabIndex = 1;
             // 
             // groupBox3
@@ -434,7 +455,7 @@
             groupBox3.Dock = DockStyle.Fill;
             groupBox3.Location = new Point(0, 0);
             groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(803, 373);
+            groupBox3.Size = new Size(803, 374);
             groupBox3.TabIndex = 0;
             groupBox3.TabStop = false;
             groupBox3.Text = "Danh sách que hàn";
@@ -463,7 +484,7 @@
             dgvWelding.Margin = new Padding(3, 2, 3, 2);
             dgvWelding.Name = "dgvWelding";
             dgvWelding.RowHeadersWidth = 51;
-            dgvWelding.Size = new Size(797, 351);
+            dgvWelding.Size = new Size(797, 352);
             dgvWelding.TabIndex = 6;
             // 
             // panel8
@@ -575,7 +596,7 @@
             groupBox4.Dock = DockStyle.Fill;
             groupBox4.Location = new Point(3, 3);
             groupBox4.Name = "groupBox4";
-            groupBox4.Size = new Size(1618, 271);
+            groupBox4.Size = new Size(1618, 273);
             groupBox4.TabIndex = 7;
             groupBox4.TabStop = false;
             groupBox4.Text = "Danh sách vật tư";
@@ -595,7 +616,7 @@
             dgvRIR.Margin = new Padding(3, 2, 3, 2);
             dgvRIR.Name = "dgvRIR";
             dgvRIR.RowHeadersWidth = 51;
-            dgvRIR.Size = new Size(1612, 249);
+            dgvRIR.Size = new Size(1612, 251);
             dgvRIR.TabIndex = 5;
             dgvRIR.CellContentClick += dgvRIR_CellContentClick;
             dgvRIR.CellEndEdit += dgvRIR_CellEndEdit;
@@ -604,33 +625,15 @@
             // 
             // panel2
             // 
-            panel2.Controls.Add(btnSave);
             panel2.Controls.Add(label5);
             panel2.Controls.Add(btnUpdateIDCode_QC);
             panel2.Controls.Add(btnExportListItem);
-            panel2.Controls.Add(btnExport);
-            panel2.Controls.Add(btnClear);
             panel2.Controls.Add(lblStatus);
             panel2.Dock = DockStyle.Top;
             panel2.Location = new Point(3, 18);
             panel2.Name = "panel2";
-            panel2.Size = new Size(1624, 38);
+            panel2.Size = new Size(1624, 35);
             panel2.TabIndex = 6;
-            // 
-            // btnSave
-            // 
-            btnSave.BackColor = Color.FromArgb(255, 128, 0);
-            btnSave.FlatStyle = FlatStyle.Flat;
-            btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            btnSave.ForeColor = Color.White;
-            btnSave.Location = new Point(202, 2);
-            btnSave.Margin = new Padding(3, 2, 3, 2);
-            btnSave.Name = "btnSave";
-            btnSave.Size = new Size(109, 29);
-            btnSave.TabIndex = 4;
-            btnSave.Text = "💾 Lưu RIR";
-            btnSave.UseVisualStyleBackColor = false;
-            btnSave.Click += btnSave_Click;
             // 
             // label5
             // 
@@ -644,6 +647,22 @@
             label5.TabIndex = 0;
             label5.Text = "THÔNG TIN XUẤT KHO";
             // 
+            // btnUpdateIDCode_QC
+            // 
+            btnUpdateIDCode_QC.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+            btnUpdateIDCode_QC.BackColor = Color.Purple;
+            btnUpdateIDCode_QC.FlatStyle = FlatStyle.Flat;
+            btnUpdateIDCode_QC.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnUpdateIDCode_QC.ForeColor = Color.White;
+            btnUpdateIDCode_QC.Location = new Point(1349, 4);
+            btnUpdateIDCode_QC.Margin = new Padding(3, 2, 3, 2);
+            btnUpdateIDCode_QC.Name = "btnUpdateIDCode_QC";
+            btnUpdateIDCode_QC.Size = new Size(150, 26);
+            btnUpdateIDCode_QC.TabIndex = 4;
+            btnUpdateIDCode_QC.Text = "📄 Cập nhật ID Code";
+            btnUpdateIDCode_QC.UseVisualStyleBackColor = false;
+            btnUpdateIDCode_QC.Click += btnUpdateIDCode_QC_Click;
+            // 
             // btnExportListItem
             // 
             btnExportListItem.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
@@ -651,10 +670,10 @@
             btnExportListItem.FlatStyle = FlatStyle.Flat;
             btnExportListItem.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnExportListItem.ForeColor = Color.White;
-            btnExportListItem.Location = new Point(1392, 4);
+            btnExportListItem.Location = new Point(1505, 4);
             btnExportListItem.Margin = new Padding(3, 2, 3, 2);
             btnExportListItem.Name = "btnExportListItem";
-            btnExportListItem.Size = new Size(109, 29);
+            btnExportListItem.Size = new Size(109, 26);
             btnExportListItem.TabIndex = 4;
             btnExportListItem.Text = "📄 In báo cáo";
             btnExportListItem.UseVisualStyleBackColor = false;
@@ -667,13 +686,14 @@
             btnExport.FlatStyle = FlatStyle.Flat;
             btnExport.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnExport.ForeColor = Color.White;
-            btnExport.Location = new Point(1507, 4);
+            btnExport.Location = new Point(1481, 5);
             btnExport.Margin = new Padding(3, 2, 3, 2);
             btnExport.Name = "btnExport";
             btnExport.Size = new Size(109, 29);
             btnExport.TabIndex = 4;
             btnExport.Text = "📄 Xuất Excel";
             btnExport.UseVisualStyleBackColor = false;
+            btnExport.Visible = false;
             btnExport.Click += btnExport_Click;
             // 
             // btnClear
@@ -682,13 +702,14 @@
             btnClear.FlatStyle = FlatStyle.Flat;
             btnClear.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnClear.ForeColor = Color.White;
-            btnClear.Location = new Point(321, 2);
+            btnClear.Location = new Point(972, 4);
             btnClear.Margin = new Padding(3, 2, 3, 2);
             btnClear.Name = "btnClear";
             btnClear.Size = new Size(109, 29);
             btnClear.TabIndex = 4;
             btnClear.Text = "🔄 Xóa form";
             btnClear.UseVisualStyleBackColor = false;
+            btnClear.Visible = false;
             btnClear.Click += btnClear_Click;
             // 
             // lblStatus
@@ -696,7 +717,7 @@
             lblStatus.AutoSize = true;
             lblStatus.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblStatus.ForeColor = Color.LimeGreen;
-            lblStatus.Location = new Point(445, 10);
+            lblStatus.Location = new Point(188, 12);
             lblStatus.Name = "lblStatus";
             lblStatus.Size = new Size(42, 15);
             lblStatus.TabIndex = 1;
@@ -716,22 +737,6 @@
             btnXoaRow.TabIndex = 4;
             btnXoaRow.Text = "🗑 Xóa dòng";
             btnXoaRow.UseVisualStyleBackColor = false;
-            // 
-            // btnUpdateIDCode_QC
-            // 
-            btnUpdateIDCode_QC.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
-            btnUpdateIDCode_QC.BackColor = Color.Purple;
-            btnUpdateIDCode_QC.FlatStyle = FlatStyle.Flat;
-            btnUpdateIDCode_QC.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            btnUpdateIDCode_QC.ForeColor = Color.White;
-            btnUpdateIDCode_QC.Location = new Point(1236, 4);
-            btnUpdateIDCode_QC.Margin = new Padding(3, 2, 3, 2);
-            btnUpdateIDCode_QC.Name = "btnUpdateIDCode_QC";
-            btnUpdateIDCode_QC.Size = new Size(150, 29);
-            btnUpdateIDCode_QC.TabIndex = 4;
-            btnUpdateIDCode_QC.Text = "📄 Cập nhật ID Code";
-            btnUpdateIDCode_QC.UseVisualStyleBackColor = false;
-            btnUpdateIDCode_QC.Click += btnUpdateIDCode_QC_Click;
             // 
             // ucRIRForQC
             // 

@@ -65,6 +65,11 @@ namespace MPR_Managerment.Forms.RIRGUI
             BuildDetailColumns();
             ApplyPermissions();
 
+            if (AppSession.CurrentUser.Role_ID != 1)
+            {
+                btnSave.Visible = false;
+            }
+
             dgvRIR.BackgroundColor = Color.White;
             dgvRIR.BorderStyle = BorderStyle.None;
             dgvRIR.RowHeadersVisible = false;
@@ -598,8 +603,8 @@ namespace MPR_Managerment.Forms.RIRGUI
                 if (string.IsNullOrEmpty(isAdded))
                 {
                     // Highlight modified existing rows in yellow
-                    row.DefaultCellStyle.BackColor = Color.LightYellow;
-                    row.DefaultCellStyle.SelectionBackColor = Color.Yellow;
+                    row.DefaultCellStyle.BackColor = Color.FromArgb(72, 190, 165);
+                    row.DefaultCellStyle.SelectionBackColor = Color.FromArgb(72, 157, 92);
                 }
             }
             else
@@ -1114,11 +1119,13 @@ namespace MPR_Managerment.Forms.RIRGUI
 
         private async void btnExportListItem_Click(object sender, EventArgs e)
         {
-            var rirId = Convert.ToInt32(cboRIRs.SelectedValue ?? 1);
+            //var rirId = Convert.ToInt32(cboRIRs.SelectedValue ?? 1);
+            var rirId = Convert.ToInt32(dgvRIR.Rows[0].Cells["RIR_ID"].Value ?? 0);
 
             var dtHeader = await _rirServices.GetRIRHeaderByRIRId(rirId);
 
-            var dtDetail = _rirServices.GetDetails(rirId);
+            //var dtDetail = _rirServices.GetDetails(rirId);
+            var dtDetail = _rirServices.GetDetailsForReportEX(cboProjectMaterial.Text.Trim());
 
             ExportMaterialInspectionReport(dtHeader, dtDetail);
         }
@@ -1972,6 +1979,7 @@ namespace MPR_Managerment.Forms.RIRGUI
 
                 // 6. Xóa sạch danh sách vết trong HashSet sau khi lưu thành công hoàn toàn
                 _modifiedRows.Clear();
+                btnSearch.PerformClick();
 
                 MessageBox.Show("Đã lưu toàn bộ các dòng thay đổi thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
