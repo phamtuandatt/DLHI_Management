@@ -555,9 +555,7 @@ namespace MPR_Managerment.Forms
                 int supplierCount = new SupplierService().GetAll().Count;
                 int mprCount = new MPRService().GetAll().Count;
                 var allPO = new POService().GetAll();
-                int poCount = AppSession.CanViewAllPO()
-                    ? allPO.Count
-                    : GetPOCountForDepartment(allPO);
+                int poCount = GetPOCountForDepartment(allPO);
                 int rirCount = new RIRService().GetAll().Count;
                 int projectCount = new ProjectService().GetAll().Count;
 
@@ -962,16 +960,25 @@ namespace MPR_Managerment.Forms
         // Đếm PO thuộc phòng ban của user hiện tại
         private int GetPOCountForDepartment(List<POHead> all)
         {
-            string dept = AppSession.CurrentDepartment;
-            if (string.IsNullOrEmpty(dept)) return all.Count;
-            List<string> names;
-            try { names = new UserService().GetFullNamesByDepartment(dept); }
-            catch { names = new List<string>(); }
+            var allowedDepts = AppSession.GetPOAllowedDepartments();
+            if (allowedDepts == null) return all.Count; // xem tất cả
+
+            var svc = new UserService();
             string me = AppSession.CurrentUser?.Full_Name ?? "";
-            if (!string.IsNullOrEmpty(me) && !names.Contains(me))
-                names.Add(me);
-            return all.FindAll(p => names.Exists(n =>
-                string.Equals(p.Created_By, n, StringComparison.OrdinalIgnoreCase))).Count;
+            var allowedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(me)) allowedNames.Add(me);
+
+            string myDept = AppSession.CurrentDepartment;
+            if (!string.IsNullOrEmpty(myDept))
+            {
+                try { foreach (var n in svc.GetFullNamesByDepartment(myDept)) allowedNames.Add(n); } catch { }
+            }
+            foreach (var dept in allowedDepts)
+            {
+                if (string.Equals(dept, myDept, StringComparison.OrdinalIgnoreCase)) continue;
+                try { foreach (var n in svc.GetFullNamesByDepartment(dept)) allowedNames.Add(n); } catch { }
+            }
+            return all.FindAll(p => allowedNames.Contains(p.Created_By ?? "")).Count;
         }
 
         private void AddCard(string title, string value, Color color, int x, int y)
@@ -1930,23 +1937,28 @@ namespace MPR_Managerment.Forms
                     rRIR.Close();
                 }
 
-                // ── Lọc thông báo PO theo phòng ban (MPR/RIR hiển thị cho tất cả) ──
-                if (!AppSession.CanViewAllPO())
+                // ── Lọc thông báo PO theo phòng ban được phép xem ──
+                var allowedDepts = AppSession.GetPOAllowedDepartments();
+                if (allowedDepts != null)
                 {
-                    string dept = AppSession.CurrentDepartment;
-                    if (!string.IsNullOrEmpty(dept))
+                    var notifSvc = new UserService();
+                    string me = AppSession.CurrentUser?.Full_Name ?? "";
+                    var allowedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (!string.IsNullOrEmpty(me)) allowedNames.Add(me);
+                    string myDept = AppSession.CurrentDepartment;
+                    if (!string.IsNullOrEmpty(myDept))
                     {
-                        List<string> deptNames;
-                        try { deptNames = new UserService().GetFullNamesByDepartment(dept); }
-                        catch { deptNames = new List<string>(); }
-                        string me = AppSession.CurrentUser?.Full_Name ?? "";
-                        if (!string.IsNullOrEmpty(me) && !deptNames.Contains(me))
-                            deptNames.Add(me);
-                        msgs.RemoveAll(m =>
-                            m.StartsWith("[PO]") &&
-                            !deptNames.Exists(n => m.IndexOf(" - " + n + "@@",
-                                StringComparison.OrdinalIgnoreCase) >= 0));
+                        try { foreach (var n in notifSvc.GetFullNamesByDepartment(myDept)) allowedNames.Add(n); } catch { }
                     }
+                    foreach (var dept in allowedDepts)
+                    {
+                        if (string.Equals(dept, myDept, StringComparison.OrdinalIgnoreCase)) continue;
+                        try { foreach (var n in notifSvc.GetFullNamesByDepartment(dept)) allowedNames.Add(n); } catch { }
+                    }
+                    msgs.RemoveAll(m =>
+                        m.StartsWith("[PO]") &&
+                        !allowedNames.Any(n => m.IndexOf(" - " + n + "@@",
+                            StringComparison.OrdinalIgnoreCase) >= 0));
                 }
 
                 // Cap nhat moc thoi gian SAU khi da lay het data

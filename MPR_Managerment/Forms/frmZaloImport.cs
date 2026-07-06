@@ -16,6 +16,8 @@ namespace MPR_Managerment.Forms
         private Label lblFolder;
         private Button btnImportLatest, btnImportSelected, btnRefreshFiles, btnViewDB, btnMarkOldPaid;
         private TextBox txtSearchPO;
+        private DateTimePicker dtpPaidFrom, dtpPaidTo;
+        private CheckBox chkFilterPaidDate;
         private ListBox lstFiles;
         private DataGridView dgvPreview, dgvDB;
         private Panel panelTop, panelLeft, panelRight;
@@ -49,8 +51,8 @@ namespace MPR_Managerment.Forms
 
             SuspendLayout();
 
-            // ── Top toolbar: 2 hàng ──
-            panelTop = new Panel { Dock = DockStyle.Top, Height = 82, BackColor = Color.White };
+            // ── Top toolbar: 3 hàng ──
+            panelTop = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = Color.White };
             // Hàng 1: folder path
             lblFolder = new Label
             {
@@ -82,7 +84,36 @@ namespace MPR_Managerment.Forms
             txtSearchPO = new TextBox { Location = new Point(887, 36), Size = new Size(220, 26), Font = new Font("Segoe UI", 9), PlaceholderText = "Tìm theo PO No..." };
             txtSearchPO.TextChanged += (s, e) => FilterByPO();
 
-            panelTop.Controls.AddRange(new Control[] { btnRefreshFiles, btnImportLatest, btnImportSelected, btnViewDB, btnMarkOldPaid, chkAutoWatch, lblSearch, txtSearchPO });
+            // Hàng 3: tìm theo Paid Date
+            chkFilterPaidDate = new CheckBox
+            {
+                Text = "📅 Lọc theo Paid Date:",
+                Location = new Point(8, 70), Size = new Size(155, 26),
+                Font = new Font("Segoe UI", 9), TextAlign = ContentAlignment.MiddleLeft
+            };
+            dtpPaidFrom = new DateTimePicker
+            {
+                Location = new Point(166, 70), Size = new Size(130, 26),
+                Format = DateTimePickerFormat.Short, Font = new Font("Segoe UI", 9),
+                Enabled = false, Value = DateTime.Today.AddMonths(-1)
+            };
+            var lblPaidTo = new Label { Text = "→", Location = new Point(300, 70), Size = new Size(22, 26), TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 9) };
+            dtpPaidTo = new DateTimePicker
+            {
+                Location = new Point(325, 70), Size = new Size(130, 26),
+                Format = DateTimePickerFormat.Short, Font = new Font("Segoe UI", 9),
+                Enabled = false, Value = DateTime.Today
+            };
+            chkFilterPaidDate.CheckedChanged += (s, e) =>
+            {
+                dtpPaidFrom.Enabled = chkFilterPaidDate.Checked;
+                dtpPaidTo.Enabled = chkFilterPaidDate.Checked;
+                FilterByPO();
+            };
+            dtpPaidFrom.ValueChanged += (s, e) => FilterByPO();
+            dtpPaidTo.ValueChanged   += (s, e) => FilterByPO();
+
+            panelTop.Controls.AddRange(new Control[] { btnRefreshFiles, btnImportLatest, btnImportSelected, btnViewDB, btnMarkOldPaid, chkAutoWatch, lblSearch, txtSearchPO, chkFilterPaidDate, dtpPaidFrom, lblPaidTo, dtpPaidTo });
 
             // ── Watch label (Bottom) ──
             lblWatch = new Label
@@ -710,19 +741,50 @@ namespace MPR_Managerment.Forms
         private void FilterByPO()
         {
             string kw = (txtSearchPO?.Text ?? "").Trim().ToUpperInvariant();
+            bool filterDate = chkFilterPaidDate?.Checked ?? false;
+            DateTime dateFrom = filterDate ? dtpPaidFrom.Value.Date : DateTime.MinValue;
+            DateTime dateTo   = filterDate ? dtpPaidTo.Value.Date   : DateTime.MaxValue;
 
             // Lọc tab Preview
             foreach (DataGridViewRow row in dgvPreview.Rows)
             {
                 string po = (row.Cells["P_PO"].Value?.ToString() ?? "").ToUpperInvariant();
-                row.Visible = string.IsNullOrEmpty(kw) || po.Contains(kw);
+                bool poMatch = string.IsNullOrEmpty(kw) || po.Contains(kw);
+
+                bool dateMatch = true;
+                if (filterDate)
+                {
+                    string pdStr = row.Cells["P_PayDate"].Value?.ToString() ?? "";
+                    if (DateTime.TryParseExact(pdStr, "dd/MM/yyyy",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out DateTime pd))
+                        dateMatch = pd >= dateFrom && pd <= dateTo;
+                    else
+                        dateMatch = false;
+                }
+
+                row.Visible = poMatch && dateMatch;
             }
 
             // Lọc tab DB
             foreach (DataGridViewRow row in dgvDB.Rows)
             {
                 string po = (row.Cells["DB_PO"].Value?.ToString() ?? "").ToUpperInvariant();
-                row.Visible = string.IsNullOrEmpty(kw) || po.Contains(kw);
+                bool poMatch = string.IsNullOrEmpty(kw) || po.Contains(kw);
+
+                bool dateMatch = true;
+                if (filterDate)
+                {
+                    string pdStr = row.Cells["DB_PayDate"].Value?.ToString() ?? "";
+                    if (DateTime.TryParseExact(pdStr, "dd/MM/yyyy",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out DateTime pd))
+                        dateMatch = pd >= dateFrom && pd <= dateTo;
+                    else
+                        dateMatch = false;
+                }
+
+                row.Visible = poMatch && dateMatch;
             }
         }
 

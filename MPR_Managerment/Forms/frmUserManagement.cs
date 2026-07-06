@@ -21,6 +21,10 @@ namespace MPR_Managerment.Forms
         private int _selectedUserId = 0;
         // Track trạng thái thu gọn của từng module (code → collapsed)
         private readonly HashSet<string> _collapsedModules = new HashSet<string>();
+        // Track trạng thái thu gọn của các nhóm con trong module (groupKey → collapsed)
+        private readonly HashSet<string> _collapsedGroups = new HashSet<string>();
+        // Key nhóm con "Xem PO theo phòng ban" bên trong module PO
+        private const string PO_DEPT_GROUP_KEY = "PO::Xem PO theo phòng ban";
 
         // Controls
         private DataGridView dgvUsers;
@@ -67,7 +71,9 @@ namespace MPR_Managerment.Forms
                 new[]{ "Xem","Tạo MPR","Lưu Header","Xóa MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Tạo PO","Check All Items","Xuất Excel" }),
 
             new ModuleDef("PO",       "Đơn đặt hàng (PO)",
-                new[]{ "Xem","Tạo PO","Lưu PO","Xóa PO","Import MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Payment","Revise History","Tìm theo NCC","Check by size","Xuất Excel","Xem đơn giá","Xem TT trước thuế","Xem TT sau thuế","Xem tất cả PO" }),
+                new[]{ "Xem","Tạo PO","Lưu PO","Xóa PO","Import MPR","Thêm dòng","Lưu chi tiết","Xóa dòng","Payment","Revise History","Tìm theo NCC","Check by size","Xuất Excel","Xem đơn giá","Xem TT trước thuế","Xem TT sau thuế","Xem tất cả PO",
+                        "Xem PO - BOD","Xem PO - Hành chính - Kế toán","Xem PO - Dự án","Xem PO - Thiết kế",
+                        "Xem PO - Mua Hàng","Xem PO - Sản Xuất","Xem PO - QA-QC","Xem PO - Kho" }),
 
             new ModuleDef("PAYMENT",  "Thanh toán (Payment)",
                 new[]{ "Xem","Thêm đợt","Lưu","Xóa","Request to EC","In Request","Ghi nhận TT","Xuất Excel","Xem báo cáo","Xem TT trước thuế","Xem TT sau thuế",
@@ -397,22 +403,27 @@ namespace MPR_Managerment.Forms
 
             BuildPermissionColumns();
 
-            // Format màu cho dòng header module vs dòng action
+            // Format màu cho dòng header module / group / action
             dgvPermissions.CellFormatting += (s, e) =>
             {
                 if (e.RowIndex < 0) return;
                 var r = dgvPermissions.Rows[e.RowIndex];
-                if (r.Cells["Row_Type"].Value?.ToString() == "HEADER")
+                string rt = r.Cells["Row_Type"].Value?.ToString() ?? "";
+                if (rt == "HEADER")
                 {
                     e.CellStyle.BackColor = Color.FromArgb(0, 120, 212);
                     e.CellStyle.ForeColor = Color.White;
                     e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-                    // Dòng header: checkbox luôn là false (không cho tick)
                     if (dgvPermissions.Columns[e.ColumnIndex].Name == "Allowed")
-                    {
-                        e.Value = false;
-                        e.FormattingApplied = true;
-                    }
+                    { e.Value = false; e.FormattingApplied = true; }
+                }
+                else if (rt == "GROUP")
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(0, 80, 160);
+                    e.CellStyle.ForeColor = Color.FromArgb(200, 230, 255);
+                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold | FontStyle.Italic);
+                    if (dgvPermissions.Columns[e.ColumnIndex].Name == "Allowed")
+                    { e.Value = false; e.FormattingApplied = true; }
                 }
             };
 
@@ -430,23 +441,31 @@ namespace MPR_Managerment.Forms
                 dgvPermissions.CommitEdit(DataGridViewDataErrorContexts.Commit);
             };
 
-            // Click vào dòng HEADER → toggle collapse/expand
+            // Click vào dòng HEADER → toggle collapse module; GROUP → toggle collapse nhóm phòng ban
             dgvPermissions.CellClick += (s, e) =>
             {
                 if (e.RowIndex < 0) return;
                 var row = dgvPermissions.Rows[e.RowIndex];
-                if (row.Cells["Row_Type"].Value?.ToString() != "HEADER") return;
-                string modCode = row.Cells["Module_Code"].Value?.ToString() ?? "";
-                if (!string.IsNullOrEmpty(modCode))
-                    ToggleModuleCollapse(modCode);
+                string rt = row.Cells["Row_Type"].Value?.ToString() ?? "";
+                if (rt == "HEADER")
+                {
+                    string modCode = row.Cells["Module_Code"].Value?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(modCode)) ToggleModuleCollapse(modCode);
+                }
+                else if (rt == "GROUP")
+                {
+                    string gKey = row.Cells["Group_Key"].Value?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(gKey)) ToggleGroupCollapse(gKey);
+                }
             };
 
-            // Cursor dạng tay khi hover trên dòng HEADER
+            // Cursor dạng tay khi hover trên dòng HEADER hoặc GROUP
             dgvPermissions.CellMouseEnter += (s, e) =>
             {
                 if (e.RowIndex < 0) return;
                 var row = dgvPermissions.Rows[e.RowIndex];
-                dgvPermissions.Cursor = row.Cells["Row_Type"].Value?.ToString() == "HEADER"
+                string rt = row.Cells["Row_Type"].Value?.ToString() ?? "";
+                dgvPermissions.Cursor = (rt == "HEADER" || rt == "GROUP")
                     ? Cursors.Hand
                     : Cursors.Default;
             };
@@ -513,6 +532,12 @@ namespace MPR_Managerment.Forms
                 Name = "Action_Key",
                 Visible = false
             });
+            // Cột ẩn: nhóm con (dùng cho tree con, vd "PO::Xem PO theo phòng ban")
+            dgvPermissions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Group_Key",
+                Visible = false
+            });
             // Cột tên chức năng (hiển thị)
             dgvPermissions.Columns.Add(new DataGridViewTextBoxColumn
             {
@@ -570,8 +595,36 @@ namespace MPR_Managerment.Forms
 
                 // ── Dòng ACTION cho mỗi chức năng của module ───────────────
                 bool isOdd = false;
+                bool groupHeaderInserted = false;
+                bool groupCollapsed = _collapsedGroups.Contains(PO_DEPT_GROUP_KEY);
+
                 foreach (var action in mod.Actions)
                 {
+                    bool isDeptAction = mod.Code == "PO" && action.StartsWith("Xem PO - ");
+
+                    // Chèn dòng GROUP trước action phòng ban đầu tiên
+                    if (isDeptAction && !groupHeaderInserted)
+                    {
+                        groupHeaderInserted = true;
+                        string gIcon = groupCollapsed ? "    ▶  " : "    ▼  ";
+                        int gIdx = dgvPermissions.Rows.Add();
+                        var gRow = dgvPermissions.Rows[gIdx];
+                        gRow.Cells["Module_Code"].Value = mod.Code;
+                        gRow.Cells["Row_Type"].Value = "GROUP";
+                        gRow.Cells["Group_Key"].Value = PO_DEPT_GROUP_KEY;
+                        gRow.Cells["Action_Key"].Value = "";
+                        gRow.Cells["Action_Name"].Value = gIcon + "Xem PO theo phòng ban";
+                        gRow.Cells["Allowed"].Value = false;
+                        gRow.Cells["Allowed"].ReadOnly = true;
+                        gRow.Visible = !collapsed;
+                        gRow.DefaultCellStyle.BackColor = Color.FromArgb(0, 80, 160);
+                        gRow.DefaultCellStyle.ForeColor = Color.FromArgb(200, 230, 255);
+                        gRow.DefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold | FontStyle.Italic);
+                        gRow.DefaultCellStyle.SelectionBackColor = Color.FromArgb(0, 60, 130);
+                        gRow.DefaultCellStyle.SelectionForeColor = Color.White;
+                        gRow.Height = 27;
+                    }
+
                     string key = mod.Code + ":" + action;
                     bool granted = perms.ContainsKey(key) && perms[key];
 
@@ -579,18 +632,31 @@ namespace MPR_Managerment.Forms
                     var aRow = dgvPermissions.Rows[aIdx];
                     aRow.Cells["Module_Code"].Value = mod.Code;
                     aRow.Cells["Row_Type"].Value = "ACTION";
+                    aRow.Cells["Group_Key"].Value = isDeptAction ? PO_DEPT_GROUP_KEY : "";
                     aRow.Cells["Action_Key"].Value = action;
-                    aRow.Cells["Action_Name"].Value = "      " + action;
+                    aRow.Cells["Action_Name"].Value = isDeptAction
+                        ? "          └ " + action.Substring("Xem PO - ".Length)
+                        : "      " + action;
                     aRow.Cells["Allowed"].Value = granted;
                     aRow.Cells["Allowed"].ReadOnly = false;
-                    // Ẩn nếu module đang collapsed
-                    aRow.Visible = !collapsed;
+                    // Ẩn nếu module collapsed; action phòng ban ẩn thêm nếu group collapsed
+                    aRow.Visible = !collapsed && (!isDeptAction || !groupCollapsed);
 
                     // Zebra striping
-                    aRow.DefaultCellStyle.BackColor = isOdd
-                        ? Color.FromArgb(248, 252, 255)
-                        : Color.White;
-                    aRow.DefaultCellStyle.ForeColor = Color.FromArgb(40, 40, 40);
+                    if (isDeptAction)
+                    {
+                        aRow.DefaultCellStyle.BackColor = isOdd
+                            ? Color.FromArgb(235, 245, 255)
+                            : Color.FromArgb(220, 238, 255);
+                        aRow.DefaultCellStyle.ForeColor = Color.FromArgb(20, 60, 120);
+                    }
+                    else
+                    {
+                        aRow.DefaultCellStyle.BackColor = isOdd
+                            ? Color.FromArgb(248, 252, 255)
+                            : Color.White;
+                        aRow.DefaultCellStyle.ForeColor = Color.FromArgb(40, 40, 40);
+                    }
                     aRow.DefaultCellStyle.SelectionBackColor = Color.FromArgb(210, 230, 255);
                     aRow.DefaultCellStyle.SelectionForeColor = Color.Black;
                     isOdd = !isOdd;
@@ -618,6 +684,7 @@ namespace MPR_Managerment.Forms
                 nowCollapsed = true;
             }
 
+            bool groupCollapsed = _collapsedGroups.Contains(PO_DEPT_GROUP_KEY);
             string icon = nowCollapsed ? "▶  " : "▼  ";
 
             dgvPermissions.SuspendLayout();
@@ -629,14 +696,56 @@ namespace MPR_Managerment.Forms
                 string rowType = row.Cells["Row_Type"].Value?.ToString() ?? "";
                 if (rowType == "HEADER")
                 {
-                    // Cập nhật icon trên header
                     var mod = ModuleDefs.Find(m => m.Code == moduleCode);
                     if (mod != null)
                         row.Cells["Action_Name"].Value = icon + mod.DisplayName.ToUpper();
                 }
-                else if (rowType == "ACTION")
+                else if (rowType == "GROUP")
                 {
                     row.Visible = !nowCollapsed;
+                }
+                else if (rowType == "ACTION")
+                {
+                    bool isDept = !string.IsNullOrEmpty(row.Cells["Group_Key"].Value?.ToString());
+                    // Action dept ẩn nếu module collapsed HOẶC group collapsed
+                    row.Visible = !nowCollapsed && (!isDept || !groupCollapsed);
+                }
+            }
+            dgvPermissions.ResumeLayout();
+        }
+
+        private void ToggleGroupCollapse(string groupKey)
+        {
+            bool nowCollapsed;
+            if (_collapsedGroups.Contains(groupKey))
+            {
+                _collapsedGroups.Remove(groupKey);
+                nowCollapsed = false;
+            }
+            else
+            {
+                _collapsedGroups.Add(groupKey);
+                nowCollapsed = true;
+            }
+
+            string gIcon = nowCollapsed ? "    ▶  " : "    ▼  ";
+
+            dgvPermissions.SuspendLayout();
+            foreach (DataGridViewRow row in dgvPermissions.Rows)
+            {
+                string rowType = row.Cells["Row_Type"].Value?.ToString() ?? "";
+                string gKey = row.Cells["Group_Key"].Value?.ToString() ?? "";
+
+                if (rowType == "GROUP" && gKey == groupKey)
+                {
+                    row.Cells["Action_Name"].Value = gIcon + "Xem PO theo phòng ban";
+                }
+                else if (rowType == "ACTION" && gKey == groupKey)
+                {
+                    // Chỉ toggle nếu module cha đang mở
+                    string modCode = row.Cells["Module_Code"].Value?.ToString() ?? "";
+                    bool moduleCollapsed = _collapsedModules.Contains(modCode);
+                    row.Visible = !moduleCollapsed && !nowCollapsed;
                 }
             }
             dgvPermissions.ResumeLayout();

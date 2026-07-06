@@ -242,6 +242,29 @@ namespace MPR_Managerment.Models
             return HasPermission("PO", "Xem tất cả PO");
         }
 
+        // Danh sách phòng ban khớp với Departments trong frmUserManagement
+        private static readonly string[] _allDepartments = new[]
+        {
+            "BOD", "Hành chính - Kế toán", "Dự án", "Thiết kế",
+            "Mua Hàng", "Sản Xuất", "QA-QC", "Kho"
+        };
+
+        /// <summary>
+        /// Trả về danh sách phòng ban mà user được phép xem PO.
+        /// Nếu null → không giới hạn (xem tất cả). Nếu rỗng → chỉ xem của bản thân.
+        /// </summary>
+        public static List<string> GetPOAllowedDepartments()
+        {
+            if (CanViewAllPO()) return null; // null = không giới hạn
+            var allowed = new List<string>();
+            foreach (var dept in _allDepartments)
+            {
+                if (HasPermission("PO", "Xem PO - " + dept))
+                    allowed.Add(dept);
+            }
+            return allowed;
+        }
+
         // =====================================================================
         //  CLEAR — gọi khi logout
         // =====================================================================

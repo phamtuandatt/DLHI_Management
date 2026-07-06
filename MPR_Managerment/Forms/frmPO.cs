@@ -3981,22 +3981,50 @@ private IWin32Window GetActiveOwner() => this;
             }
         }
 
-        // Lọc danh sách PO theo phòng ban của user (trừ Admin / user có quyền "Xem tất cả PO")
+        // Lọc danh sách PO theo phòng ban được phép xem của user
         private List<POHead> FilterPOByDepartment(List<POHead> all)
         {
-            if (AppSession.CanViewAllPO()) return all;
-            string dept = AppSession.CurrentDepartment;
-            if (string.IsNullOrEmpty(dept)) return all;
-            // Lấy tên đầy đủ của tất cả user cùng phòng ban
-            List<string> sameNames;
-            try { sameNames = new UserService().GetFullNamesByDepartment(dept); }
-            catch { sameNames = new List<string>(); }
-            // Luôn bao gồm PO của chính user hiện tại
+            // null = không giới hạn (Admin hoặc có quyền "Xem tất cả PO")
+            var allowedDepts = AppSession.GetPOAllowedDepartments();
+            if (allowedDepts == null) return all;
+
+            var svc = new UserService();
             string me = AppSession.CurrentUser?.Full_Name ?? "";
-            if (!string.IsNullOrEmpty(me) && !sameNames.Contains(me))
-                sameNames.Add(me);
+
+            // Tập hợp tên user được phép xem — gộp từ tất cả phòng ban được cấp quyền
+            var allowedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Luôn thêm chính user hiện tại (xem PO của mình)
+            if (!string.IsNullOrEmpty(me))
+                allowedNames.Add(me);
+
+            // Thêm tên từ phòng ban của user hiện tại (quyền mặc định tối thiểu)
+            string myDept = AppSession.CurrentDepartment;
+            if (!string.IsNullOrEmpty(myDept))
+            {
+                try
+                {
+                    foreach (var n in svc.GetFullNamesByDepartment(myDept))
+                        allowedNames.Add(n);
+                }
+                catch { }
+            }
+
+            // Thêm tên từ các phòng ban được cấp quyền "Xem PO - <PhongBan>"
+            foreach (var dept in allowedDepts)
+            {
+                if (string.Equals(dept, myDept, StringComparison.OrdinalIgnoreCase))
+                    continue; // đã xử lý ở trên
+                try
+                {
+                    foreach (var n in svc.GetFullNamesByDepartment(dept))
+                        allowedNames.Add(n);
+                }
+                catch { }
+            }
+
             return all.FindAll(p =>
-                sameNames.Any(n => string.Equals(p.Created_By, n, StringComparison.OrdinalIgnoreCase)));
+                allowedNames.Contains(p.Created_By ?? ""));
         }
 
         private void LoadPO()
