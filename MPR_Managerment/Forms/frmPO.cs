@@ -3010,6 +3010,7 @@ private IWin32Window GetActiveOwner() => this;
                         {
                             ws.Cells[row, 16, row, 17].Merge = true;
                         }
+                        ws.Cells[row, 18].Value = d.ProductCode;
 
                         // Thiết lập Style cho hàng
                         using (var range = ws.Cells[row, 1, row, 17])
@@ -3283,6 +3284,8 @@ private IWin32Window GetActiveOwner() => this;
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "NhapKho", HeaderText = "Nhập kho", Visible = true, ReadOnly = true });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "PO_Detail_ID", HeaderText = "PO_ID", Visible = false });
             dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "MPR_Detail_ID", HeaderText = "MPR_Detail_ID", Visible = false });
+
+            dgvDetails.Columns.Add(new DataGridViewTextBoxColumn { Name = "ProductCode", HeaderText = "Mã vật tư", Visible = true }); // DISPLAY ITEM CODE
 
             // Header: wrap text, tự co giãn chiều cao
             dgvDetails.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
@@ -4254,6 +4257,7 @@ private IWin32Window GetActiveOwner() => this;
                     row.Cells["Received"].Value = d.Received; row.Cells["MPSNo"].Value = d.MPSNo; row.Cells["DeliveryLocation"].Value = d.DeliveryLocation;
                     row.Cells["Remarks"].Value = remarks;
                     row.Cells["Calc_Method"].Value = calcMethod; row.Cells["Ordered_PO"].Value = "";
+                    row.Cells["ProductCode"].Value = d.ProductCode;
                 }
                 dgvDetails.CellValueChanged += DgvDetails_CellValueChanged;
                 UpdateTotal(); AutoAdjustColumnWidths();
@@ -5983,6 +5987,8 @@ WHERE pod.MPR_Detail_ID IS NOT NULL AND ISNULL(poh.Status,'') <> 'Cancelled'";
                         r.Cells["Asize"].Value = aSize; r.Cells["Bsize"].Value = bSize; r.Cells["Csize"].Value = cSize; r.Cells["Qty"].Value = d.Qty_Per_Sheet; r.Cells["UNIT"].Value = d.UNIT; r.Cells["Weight"].Value = d.Weight_kg;
                         r.Cells["Price"].Value = 0; r.Cells["VAT"].Value = "10"; r.Cells["Amount"].Value = 0; r.Cells["Received"].Value = 0; r.Cells["MPSNo"].Value = d.MPS_Info; r.Cells["Remarks"].Value = d.Remarks;
                         r.Cells["Calc_Method"].Value = "Theo KG"; r.Cells["Ordered_PO"].Value = orderedPo; r.Cells["PO_Detail_ID"].Value = 0; r.Cells["MPR_Detail_ID"].Value = d.Detail_ID;
+
+                        r.Cells["ProductCode"].Value = d.ProductCode;
                     }
                     UpdateTotal();
                     AutoAdjustColumnWidths();
