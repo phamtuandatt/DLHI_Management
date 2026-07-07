@@ -49,10 +49,12 @@
             groupBox1 = new GroupBox();
             dgvHisExport = new DataGridView();
             flowLayoutPanel1 = new FlowLayoutPanel();
+            btnRandom = new Button();
             btnAddXK = new Button();
             btnInXK = new Button();
             btnUpdateStatus = new Button();
             btnExportExcel = new Button();
+            btnSaveServer = new Button();
             _statusMenu = new ContextMenuStrip(components);
             tsAccept = new ToolStripMenuItem();
             tsCancel = new ToolStripMenuItem();
@@ -276,19 +278,30 @@
             // 
             // flowLayoutPanel1
             // 
+            flowLayoutPanel1.Controls.Add(btnRandom);
             flowLayoutPanel1.Controls.Add(btnAddXK);
             flowLayoutPanel1.Controls.Add(btnInXK);
             flowLayoutPanel1.Controls.Add(btnUpdateStatus);
             flowLayoutPanel1.Controls.Add(btnExportExcel);
+            flowLayoutPanel1.Controls.Add(btnSaveServer);
             flowLayoutPanel1.Dock = DockStyle.Fill;
             flowLayoutPanel1.Location = new Point(3, 42);
             flowLayoutPanel1.Name = "flowLayoutPanel1";
             flowLayoutPanel1.Size = new Size(1353, 36);
             flowLayoutPanel1.TabIndex = 3;
             // 
+            // btnRandom
+            // 
+            btnRandom.Location = new Point(3, 3);
+            btnRandom.Name = "btnRandom";
+            btnRandom.Size = new Size(86, 33);
+            btnRandom.TabIndex = 0;
+            btnRandom.Text = "Chọn nhiều";
+            btnRandom.UseVisualStyleBackColor = true;
+            // 
             // btnAddXK
             // 
-            btnAddXK.Location = new Point(3, 3);
+            btnAddXK.Location = new Point(95, 3);
             btnAddXK.Name = "btnAddXK";
             btnAddXK.Size = new Size(155, 33);
             btnAddXK.TabIndex = 0;
@@ -298,7 +311,7 @@
             // 
             // btnInXK
             // 
-            btnInXK.Location = new Point(164, 3);
+            btnInXK.Location = new Point(256, 3);
             btnInXK.Name = "btnInXK";
             btnInXK.Size = new Size(184, 33);
             btnInXK.TabIndex = 0;
@@ -308,7 +321,7 @@
             // 
             // btnUpdateStatus
             // 
-            btnUpdateStatus.Location = new Point(354, 3);
+            btnUpdateStatus.Location = new Point(446, 3);
             btnUpdateStatus.Name = "btnUpdateStatus";
             btnUpdateStatus.Size = new Size(193, 33);
             btnUpdateStatus.TabIndex = 0;
@@ -318,13 +331,23 @@
             // 
             // btnExportExcel
             // 
-            btnExportExcel.Location = new Point(553, 3);
+            btnExportExcel.Location = new Point(645, 3);
             btnExportExcel.Name = "btnExportExcel";
             btnExportExcel.Size = new Size(184, 33);
             btnExportExcel.TabIndex = 0;
             btnExportExcel.Text = "Xuất lịch sử XK";
             btnExportExcel.UseVisualStyleBackColor = true;
             btnExportExcel.Click += btnExportExcel_Click;
+            // 
+            // btnSaveServer
+            // 
+            btnSaveServer.Location = new Point(835, 3);
+            btnSaveServer.Name = "btnSaveServer";
+            btnSaveServer.Size = new Size(184, 33);
+            btnSaveServer.TabIndex = 0;
+            btnSaveServer.Text = "Cập nhật Server";
+            btnSaveServer.UseVisualStyleBackColor = true;
+            btnSaveServer.Click += btnSaveServer_Click;
             // 
             // _statusMenu
             // 
@@ -411,5 +434,7 @@
         private ToolStripMenuItem tsCancel;
         private ToolStripMenuItem tsKeep;
         private Button btnExportExcel;
+        private Button btnSaveServer;
+        private Button btnRandom;
     }
 }

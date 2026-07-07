@@ -44,6 +44,7 @@ namespace MPR_Managerment.Forms.ExportGUI
             Common.Common.CreateButtonPrint(btnInXK, "🖨 In");
             Common.Common.CreateButtonSave(btnUpdateStatus, "Cập nhật trạng thái        ⏷");
             Common.Common.CreateButtonPrint(btnExportExcel, "⌛Lịch sử xuất kho");
+            Common.Common.CreateButtonSave_V2(btnSaveServer, "🛢 Cập nhật Server");
 
             // Initialize status dropdown menu
             btnUpdateStatus.Click += (s, e) =>
@@ -468,7 +469,7 @@ namespace MPR_Managerment.Forms.ExportGUI
         {
             try
             {
-                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pxk_template.xlsx");
+                string templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "pxk_ad_template.xlsx");
                 if (!File.Exists(templatePath))
                 {
                     MessageBox.Show("Không tìm thấy file template!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -529,22 +530,23 @@ namespace MPR_Managerment.Forms.ExportGUI
 
                         if (dtDetails.Rows.Count > 0)
                         {
-                            // Replace placeholders
-                            for (int r = 1; r <= 10; r++)
-                            {
-                                for (int c = 1; c <= 10; c++)
-                                {
-                                    if (ws.Cells[r, c].Text.Contains("<<DATE>>"))
-                                    {
-                                        ws.Cells[r, c].Value = ws.Cells[r, c].Text.Replace("<<DATE>>", createDate.ToString("dd/MM/yyyy"));
-                                    }
-                                }
-                            }
+                            //// Replace placeholders
+                            //for (int r = 1; r <= 10; r++)
+                            //{
+                            //    for (int c = 1; c <= 10; c++)
+                            //    {
+                            //        if (ws.Cells[r, c].Text.Contains("<<DATE>>"))
+                            //        {
+                            //            ws.Cells[r, c].Value = ws.Cells[r, c].Text.Replace("<<DATE>>", createDate.ToString("dd/MM/yyyy"));
+                            //        }
+                            //    }
+                            //}
 
-                            ReplaceCell(ws, "<<PROJECT-NAME>>", fromProject);
+                            ReplaceCell(ws, "<<EXPORT_NO>>", exportNo);
+                            ReplaceCell(ws, "<<DATE>>", createDate.ToString("dd/MM/yyyy"));
                             ReplaceCell(ws, "<<USER>>", createBy);
 
-                            int startRow = 11;
+                            int startRow = 8;
                             int detailCount = dtDetails.Rows.Count;
                             decimal totalQty = 0;
 
@@ -562,15 +564,15 @@ namespace MPR_Managerment.Forms.ExportGUI
                                 totalQty += slXuat;
 
                                 ws.Cells[currentRow, 1].Value = i + 1;
+
+                                ws.Cells[currentRow, 2, currentRow, 4].Merge = true;
                                 ws.Cells[currentRow, 2].Value = row["ID_Code"];
-                                ws.Cells[currentRow, 3].Value = row["Item_Name"];
-                                ws.Cells[currentRow, 4].Value = "";
-                                ws.Cells[currentRow, 5].Value = row["Size"];
-                                ws.Cells[currentRow, 6].Value = row["Material"];
+
+                                ws.Cells[currentRow, 5].Value = row["Item_Name"];
+                                ws.Cells[currentRow, 6].Value = $"{row["Size"]} - {row["Material"]}";
                                 ws.Cells[currentRow, 7].Value = slXuat;
                                 ws.Cells[currentRow, 8].Value = row["UNIT"];
-                                ws.Cells[currentRow, 9].Value = row["QC_Code"];
-                                ws.Cells[currentRow, 10].Value = row["Notes"];
+                                ws.Cells[currentRow, 9].Value = row["Notes"];
                             }
 
                             int searchEndRow = startRow + detailCount + 5;
@@ -873,6 +875,209 @@ namespace MPR_Managerment.Forms.ExportGUI
                     {
                         MessageBox.Show($"Lỗi khi xuất file Excel: {ex.Message}", "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
+                }
+            }
+        }
+
+        private void btnSaveServer_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Collect selected rows
+                var selectedExports = new List<(int ExportId, string ExportNo, DataRow HeaderRow)>();
+                foreach (DataGridViewRow row in dgvHisExport.Rows)
+                {
+                    if (row.Cells["Select"].Value is bool isSelected && isSelected)
+                    {
+                        int exportId = Convert.ToInt32(row.Cells["Export_ID"].Value);
+                        string exportNo = row.Cells["Export_No"].Value?.ToString() ?? "";
+                        DataRow headerRow = ((DataRowView)row.DataBoundItem).Row;
+                        selectedExports.Add((exportId, exportNo, headerRow));
+                    }
+                }
+
+                if (selectedExports.Count == 0)
+                {
+                    MessageBox.Show("Vui lòng chọn ít nhất một phiếu xuất kho để cập nhật!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var rs = 0;
+                foreach (var item_id in selectedExports)
+                {
+                    var _dtDetails = LoadDetails(item_id.ExportId);
+                    foreach (DataRow item in _dtDetails.Rows)
+                    {
+                        var model = new ExportWarehouseDetailModel()
+                        {
+                            Import_Id = Convert.ToInt32(item["Import_ID"].ToString() ?? "0"),
+                            Qty_Export = Convert.ToInt32(item["Qty_Export"].ToString() ?? "0"),
+                            Notes = item["Notes"]?.ToString()?.Trim() ?? "",
+                        };
+
+                        var isSave = _warehouseServices.InsertExportWarehouseHeader(model, item_id.ExportNo);
+                        rs++;
+                    }
+                    if (rs > 0)
+                    {
+                        _warehouseServices.UpdateStatusExportWarehouseHeader("Xác nhận", item_id.ExportId);
+                        MessageBox.Show("Đã cập nhật toàn bộ Phiếu Xuất và Chi Tiết lên Server thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show(" Cập nhật toàn bộ Phiếu Xuất và Chi Tiết lên Server không thành công!", "Thất bại", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi: " + ex.Message, "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        public void ExportIdCodeListFromDatabase(DataTable dtDetail)
+        {
+            try
+            {
+                if (dtDetail == null || dtDetail.Rows.Count == 0)
+                {
+                    MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string templatePath = @"D:\ERP_Final_Management\MPR_Managerment\Templates\pxk_ad_template.xlsx";
+                if (!File.Exists(templatePath))
+                {
+                    MessageBox.Show("Không tìm thấy file template (pxk_ad_template.xlsx)!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                var saveDialog = new SaveFileDialog
+                {
+                    Title = "Lưu Phiếu Xuất Kho",
+                    Filter = "Excel Files|*.xlsx",
+                    FileName = $"PXK_AD_{DateTime.Now:ddMMyyyy_HHmm}",
+                    InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+
+                if (saveDialog.ShowDialog() != DialogResult.OK) return;
+
+                File.Copy(templatePath, saveDialog.FileName, true);
+                ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
+                using (var package = new ExcelPackage(new FileInfo(saveDialog.FileName)))
+                {
+                    var ws = package.Workbook.Worksheets[0];
+
+                    // Replace header placeholders
+                    for (int r = 1; r <= 10; r++)
+                    {
+                        for (int c = 1; c <= 10; c++)
+                        {
+                            if (ws.Cells[r, c].Text.Contains("<<DATE>>"))
+                            {
+                                ws.Cells[r, c].Value = ws.Cells[r, c].Text.Replace("<<DATE>>", DateTime.Now.ToString("dd/MM/yyyy"));
+                            }
+                        }
+                    }
+
+                    int startRow = 11;
+                    int detailCount = dtDetail.Rows.Count;
+                    decimal totalQty = 0;
+
+                    if (detailCount > 1)
+                    {
+                        ws.InsertRow(startRow + 1, detailCount - 1, startRow);
+                    }
+
+                    for (int i = 0; i < detailCount; i++)
+                    {
+                        DataRow row = dtDetail.Rows[i];
+                        int currentRow = startRow + i;
+
+                        decimal slXuat = 0;
+                        if (dtDetail.Columns.Contains("Qty_Export") && row["Qty_Export"] != DBNull.Value)
+                            slXuat = Convert.ToDecimal(row["Qty_Export"]);
+                        totalQty += slXuat;
+
+                        ws.Cells[currentRow, 1].Value = i + 1; // No
+                        ws.Cells[currentRow, 2].Value = dtDetail.Columns.Contains("ID_Code") ? row["ID_Code"] : ""; // ID Code
+                        ws.Cells[currentRow, 3].Value = dtDetail.Columns.Contains("Item_Name") ? row["Item_Name"] : ""; // Item Name
+                        ws.Cells[currentRow, 4].Value = ""; // DWG No
+                        ws.Cells[currentRow, 5].Value = dtDetail.Columns.Contains("Size") ? row["Size"] : ""; // Size
+                        ws.Cells[currentRow, 6].Value = dtDetail.Columns.Contains("Material") ? row["Material"] : ""; // Material/Grade
+                        ws.Cells[currentRow, 7].Value = slXuat; // Qty
+                        ws.Cells[currentRow, 8].Value = dtDetail.Columns.Contains("UNIT") ? row["UNIT"] : ""; // Unit
+                        ws.Cells[currentRow, 9].Value = dtDetail.Columns.Contains("QC_Code") ? row["QC_Code"] : ""; // QC Code
+                        ws.Cells[currentRow, 10].Value = dtDetail.Columns.Contains("Notes") ? row["Notes"] : ""; // Notes
+                    }
+
+                    // Replace <<SUM>> placeholder
+                    int searchEndRow = startRow + detailCount + 5;
+                    for (int r = startRow + detailCount; r <= searchEndRow; r++)
+                    {
+                        for (int c = 1; c <= 10; c++)
+                        {
+                            if (ws.Cells[r, c].Text.Contains("<<SUM>>"))
+                            {
+                                ws.Cells[r, c].Value = totalQty;
+                                ws.Cells[r, c].Style.Font.Bold = true;
+                                ws.Cells[r, c].Style.Numberformat.Format = "#,##0";
+                            }
+                        }
+                    }
+
+                    package.Save();
+                }
+
+                var result = MessageBox.Show(
+                    $"✅ Xuất dữ liệu thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file ngay không?",
+                    "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (result == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = saveDialog.FileName,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi khi xuất file Excel: {ex.Message}", "Lỗi Hệ Thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private DataTable LoadDetails(int export_Id)
+        {
+            var _dtDetails = new DataTable();
+            string sql = @"SELECT 
+                            we.[Export_Detail_Id],
+                            we.[Export_ID],
+                            we.[Import_ID],
+                            wi.ID_Code,
+                            wi.Item_Name,
+                            wi.Material,
+                            wi.Size,
+                            we.[Qty_Export],
+                            wi.UNIT,
+                            we.[Notes],
+                            -- Lấy cột số lượng tồn kho hiện tại, dùng ISNULL để tránh trả về NULL nếu chưa có dữ liệu tồn
+                            ISNULL(stk.Qty_Stock, 0) AS [Qty_Stock]
+                        FROM [dbo].[ExportWarehouseDetail] we 
+                        INNER JOIN dbo.Warehouse_Import wi ON we.Import_ID = wi.Import_ID 
+                        -- Join với View tính toán tồn kho động của hệ thống
+                        LEFT OUTER JOIN dbo.vw_Warehouse_Stock stk ON we.Import_ID = stk.Import_ID
+                        WHERE we.Export_ID = @ExportID;";
+
+            using (SqlConnection conn = DatabaseHelper.GetConnection())
+            {
+                using (SqlCommand cmd = new SqlCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ExportID", export_Id);
+                    SqlDataAdapter da = new SqlDataAdapter(cmd);
+                    da.Fill(_dtDetails);
+                    return _dtDetails;
                 }
             }
         }
