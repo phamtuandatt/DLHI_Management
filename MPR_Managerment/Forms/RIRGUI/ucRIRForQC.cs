@@ -65,10 +65,10 @@ namespace MPR_Managerment.Forms.RIRGUI
             BuildDetailColumns();
             ApplyPermissions();
 
-            if (AppSession.CurrentUser.Role_ID != 1)
-            {
-                btnSave.Visible = false;
-            }
+            //if (AppSession.CurrentUser.Role_ID != 1)
+            //{
+            //    btnSave.Visible = false;
+            //}
 
             dgvRIR.BackgroundColor = Color.White;
             dgvRIR.BorderStyle = BorderStyle.None;
@@ -230,11 +230,12 @@ namespace MPR_Managerment.Forms.RIRGUI
             // Thêm các mục vào menu chung (bao gồm cả nút xóa)
             menuStock.Items.AddRange(new ToolStripItem[] { itemXemChiTiet, itemXoaVatTu });
 
-            // 3. Gắn menu vào DataGridView
-            if (AppSession.CurrentUser.Role_ID == 1)
-            {
-                dgvRIR.ContextMenuStrip = menuStock;
-            }
+            //// 3. Gắn menu vào DataGridView
+            //if (AppSession.CurrentUser.Role_ID == 1)
+            //{
+            //    dgvRIR.ContextMenuStrip = menuStock;
+            //}
+            dgvRIR.ContextMenuStrip = menuStock;
 
             // 4. Sự kiện khi click vào một mục trong menu
             itemXemChiTiet.Click += (s, e) =>

@@ -848,7 +848,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                             Qty_Import = !string.IsNullOrEmpty(qty) ? Convert.ToDecimal(qty.Trim()) : 0,
                             Size = sizeValue,
                             Item_Name = name,
-                            QC_Code = qcCode
+                            QC_Code = qcCode,
                         };
 
                         if (!string.IsNullOrEmpty(txtItemCode.Text))
@@ -861,6 +861,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                         }
                         if (!string.IsNullOrEmpty(txtWeight.Text))
                         {
+                            w.Weight_kg = Convert.ToDecimal(txtWeight.Text);
                             _service.ModifyWeightOfWarehouseImport(w);
                         }
                         if (!string.IsNullOrEmpty(txtSize.Text))
