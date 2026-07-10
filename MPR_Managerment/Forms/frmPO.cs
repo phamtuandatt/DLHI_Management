@@ -2882,6 +2882,7 @@ private IWin32Window GetActiveOwner() => this;
         //        var result = MessageBox.Show(GetActiveOwner(), $"✅ Xuất Excel thành công!\nFile: {saveDialog.FileName}\n\nBạn có muốn mở file không?", "Thành công", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
         //        if (result == DialogResult.Yes) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveDialog.FileName, UseShellExecute = true });
         //    }
+
         //    catch (Exception ex) { MessageBox.Show(GetActiveOwner(), "Lỗi xuất Excel: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         //}
 
