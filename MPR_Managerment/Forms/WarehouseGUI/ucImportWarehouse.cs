@@ -463,7 +463,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                     filtered = allPO.FindAll(p =>
                         (!string.IsNullOrEmpty(proj.WorkorderNo) && (p.WorkorderNo ?? "").Equals(proj.WorkorderNo, StringComparison.OrdinalIgnoreCase)) ||
                         (!string.IsNullOrEmpty(proj.MPRCode) && (p.MPR_No ?? "").Contains(proj.MPRCode, StringComparison.OrdinalIgnoreCase)) ||
-                        (!string.IsNullOrEmpty(proj.ProjectCode) && (p.WorkorderNo ?? "").Contains(proj.ProjectCode, StringComparison.OrdinalIgnoreCase)));
+                        (!string.IsNullOrEmpty(proj.ProjectCode) && (p.ProjectCode ?? "").Contains(proj.ProjectCode, StringComparison.OrdinalIgnoreCase)));
                 else
                     filtered = allPO.FindAll(p =>
                         (p.WorkorderNo ?? "").Contains(projectCode, StringComparison.OrdinalIgnoreCase) ||
@@ -683,6 +683,7 @@ namespace MPR_Managerment.Forms.WarehouseGUI
                         }
                         // Cột Tên vật tư căn trái cho dễ nhìn
                         ws.Cells[currentRow, 3].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+                        ws.Cells[currentRow, 4].Style.Numberformat.Format = "#,##0";
                     }
 
                     // 4. Cập nhật Footer Info (A18:J50 sau khi chèn dòng)
