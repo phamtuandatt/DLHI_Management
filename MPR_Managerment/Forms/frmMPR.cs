@@ -1879,9 +1879,10 @@ namespace MPR_Managerment.Forms
                     }
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                MessageBox.Show(TopOwner, "Lỗi lấy PO Mapping: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // Neu goi tu background thread thi khong duoc show MessageBox o day
+                // Exception se duoc bat o noi goi
             }
             return dict;
         }
@@ -6468,21 +6469,26 @@ ORDER BY DisplayName";
         // =====================================================================
         //  XUAT EXCEL CHI TIET VAT TU
         // =====================================================================
-        private void BtnExportDetail_Click(object sender, EventArgs e)
+        private async void BtnExportDetail_Click(object sender, EventArgs e)
         {
             var m = _mprList.Find(x => x.MPR_ID == _selectedMPR_ID);
             if (m != null && m.Status == "Hủy")
             {
-                SafeMsg("Phiếu MPR này đã bị Hủy, không thể xuất chi tiết!", "Thông báo", MessageBoxIcon.Warning);
+                MessageBox.Show(this, "Phiếu MPR này đã bị Hủy, không thể xuất chi tiết!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (dgvDetails.Rows.Count == 0)
             {
-                MessageBox.Show(TopOwner, "Khong co du lieu de xuat!", "Thong bao",
+                MessageBox.Show(this, "Khong co du lieu de xuat!", "Thong bao",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
+            // Khong check Directory.Exists truoc ShowDialog — co the block UI neu D: la network drive
+            // Luon dung Desktop lam InitialDirectory, an toan 100%
+            this.BringToFront();
+            this.Activate();
 
             using var sfd = new SaveFileDialog
             {
@@ -6490,216 +6496,202 @@ ORDER BY DisplayName";
                 FileName = "MPR_ChiTiet_" + (txtMPRNo?.Text.Trim() ?? "export")
                            + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
                 Title = "Luu file Excel",
-                InitialDirectory = Directory.Exists(@"D:\RÁC") ? @"D:\RÁC" : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
             };
-            if (sfd.ShowDialog() != DialogResult.OK) return;
+            if (sfd.ShowDialog(this) != DialogResult.OK) return;
 
+            // Thu thap tat ca du lieu tu UI thread truoc khi chuyen sang background
+            var visColInfos = new System.Collections.Generic.List<(string Name, string Header)>();
+            foreach (DataGridViewColumn col in dgvDetails.Columns)
+                if (col.Visible && col.Name != "Detail_ID")
+                    visColInfos.Add((col.Name, col.HeaderText));
+
+            var visibleIds = new System.Collections.Generic.HashSet<int>();
+            foreach (DataGridViewRow dgvRow in dgvDetails.Rows)
+            {
+                if (dgvRow.IsNewRow || !dgvRow.Visible) continue;
+                if (dgvRow.Tag?.ToString() == "deleted" || dgvRow.Cells["Item_No"]?.Value?.ToString() == "0") continue;
+                if (dgvRow.Cells["Detail_ID"]?.Value is int rid) visibleIds.Add(rid);
+                else if (int.TryParse(dgvRow.Cells["Detail_ID"]?.Value?.ToString(), out int rid2))
+                    visibleIds.Add(rid2);
+            }
+
+            var detailsSnapshot = _details.ToList();
+            int selectedMprId = _selectedMPR_ID;
+            string mprNoText = txtMPRNo?.Text ?? "";
+            string projectNameText = txtProjectName?.Text ?? "";
+            string filterInfo = _cboFilterPO?.SelectedItem?.ToString() ?? "Tat ca";
+            string saveFileName = sfd.FileName;
+
+            _btnExportDetail.Enabled = false;
             try
             {
-                OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
-                using var pkg = new OfficeOpenXml.ExcelPackage();
-                var ws = pkg.Workbook.Worksheets.Add("Chi tiet vat tu");
-
-                // Header row
-                var visCols = new System.Collections.Generic.List<DataGridViewColumn>();
-                foreach (DataGridViewColumn col in dgvDetails.Columns)
-                    if (col.Visible && col.Name != "Detail_ID")
-                        visCols.Add(col);
-
-                // Style header
-                for (int ci = 0; ci < visCols.Count; ci++)
+                await System.Threading.Tasks.Task.Run(() =>
                 {
-                    var cell = ws.Cells[1, ci + 1];
-                    cell.Value = visCols[ci].HeaderText;
-                    cell.Style.Font.Bold = true;
-                    cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                    cell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(0, 120, 212));
-                    cell.Style.Font.Color.SetColor(System.Drawing.Color.White);
-                    cell.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                    cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
-                }
+                    var poMap2 = GetPoMappingForMpr(selectedMprId);
+                    OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    using var pkg = new OfficeOpenXml.ExcelPackage();
+                    var ws = pkg.Workbook.Worksheets.Add("Chi tiet vat tu");
 
-                // Add Image column header
-                int imageColIndex = visCols.Count + 1;
-                var imageCell = ws.Cells[1, imageColIndex];
-                imageCell.Value = "Image";
-                imageCell.Style.Font.Bold = true;
-                imageCell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                imageCell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(0, 120, 212));
-                imageCell.Style.Font.Color.SetColor(System.Drawing.Color.White);
-                imageCell.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                imageCell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
-
-                // Lay gia tri truc tiep tu _details (so nguyen/decimal thuc)
-                // de tranh bi format string boi CellFormatting
-                var poMap2 = GetPoMappingForMpr(_selectedMPR_ID);
-                // Build map Detail_ID -> row.Visible de biet dong nao dang hien
-                var visibleIds = new System.Collections.Generic.HashSet<int>();
-                foreach (DataGridViewRow dgvRow in dgvDetails.Rows)
-                {
-                    if (dgvRow.IsNewRow || !dgvRow.Visible) continue;
-
-                    // --- BỎ QUA CÁC DÒNG ĐÃ BỊ XÓA (Gạch ngang / STT = 0) ---
-                    if (dgvRow.Tag?.ToString() == "deleted" || dgvRow.Cells["Item_No"]?.Value?.ToString() == "0") continue;
-
-                    if (dgvRow.Cells["Detail_ID"]?.Value is int rid) visibleIds.Add(rid);
-                    else if (int.TryParse(dgvRow.Cells["Detail_ID"]?.Value?.ToString(), out int rid2))
-                        visibleIds.Add(rid2);
-                }
-
-                int excelRow = 2;
-                foreach (var d in _details)
-                {
-                    if (!visibleIds.Contains(d.Detail_ID)) continue;
-
-                    string poNo = poMap2.ContainsKey(d.Detail_ID) ? poMap2[d.Detail_ID] : "";
-
-                    // Map gia tri theo ten cot
-                    var rowData = new System.Collections.Generic.Dictionary<string, object>
+                    // Style header
+                    for (int ci = 0; ci < visColInfos.Count; ci++)
                     {
-                        ["Item_No"] = d.Item_No,
-                        ["Item_Name"] = d.Item_Name ?? "",
-                        ["ProductCode"] = d.ProductCode ?? "",
-                        ["Description"] = d.Description ?? "",
-                        ["Material"] = d.Material ?? "",
-                        ["Thickness_mm"] = d.Thickness_mm,
-                        ["Depth_mm"] = d.Depth_mm,
-                        ["C_Width_mm"] = d.C_Width_mm,
-                        ["D_Web_mm"] = d.D_Web_mm,
-                        ["E_Flange_mm"] = d.E_Flange_mm,
-                        ["F_Length_mm"] = d.F_Length_mm,
-                        ["UNIT"] = d.UNIT ?? "",
-                        ["Qty"] = d.Qty_Per_Sheet,
-                        ["Weight"] = d.Weight_kg,
-                        ["MPS_Info"] = d.MPS_Info ?? "",
-                        ["Usage_Location"] = d.Usage_Location ?? "",
-                        ["REV"] = d.REV,
-                        ["Remarks"] = d.Remarks ?? "",
-                        ["PO_No"] = poNo
-                    };
+                        var cell = ws.Cells[1, ci + 1];
+                        cell.Value = visColInfos[ci].Header;
+                        cell.Style.Font.Bold = true;
+                        cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                        cell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(0, 120, 212));
+                        cell.Style.Font.Color.SetColor(System.Drawing.Color.White);
+                        cell.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                        cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
+                    }
+
+                    // Add Image column header
+                    var imageCell = ws.Cells[1, visColInfos.Count + 1];
+                    imageCell.Value = "Image";
+                    imageCell.Style.Font.Bold = true;
+                    imageCell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                    imageCell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(0, 120, 212));
+                    imageCell.Style.Font.Color.SetColor(System.Drawing.Color.White);
+                    imageCell.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                    imageCell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Thin);
 
                     var numericSet = new System.Collections.Generic.HashSet<string>
                         { "Thickness_mm","Depth_mm","C_Width_mm","D_Web_mm",
                           "E_Flange_mm","F_Length_mm","Qty","Weight" };
 
-                    for (int ci = 0; ci < visCols.Count; ci++)
+                    int excelRow = 2;
+                    foreach (var d in detailsSnapshot)
                     {
-                        string colN = visCols[ci].Name;
-                        var cell = ws.Cells[excelRow, ci + 1];
+                        if (!visibleIds.Contains(d.Detail_ID)) continue;
 
-                        if (!rowData.ContainsKey(colN)) { cell.Value = ""; continue; }
+                        string poNo = poMap2.ContainsKey(d.Detail_ID) ? poMap2[d.Detail_ID] : "";
 
-                        object rawVal = rowData[colN];
-
-                        if (numericSet.Contains(colN))
+                        var rowData = new System.Collections.Generic.Dictionary<string, object>
                         {
-                            // Set so thuc truc tiep - KHONG qua string
-                            double dbl = Convert.ToDouble(rawVal);
-                            cell.Value = dbl;
-                            // Format: hien so thap phan neu co, khong co separator
-                            cell.Style.Numberformat.Format = "0.##";
-                        }
-                        else
-                            cell.Value = rawVal;
+                            ["Item_No"] = d.Item_No,
+                            ["Item_Name"] = d.Item_Name ?? "",
+                            ["ProductCode"] = d.ProductCode ?? "",
+                            ["Description"] = d.Description ?? "",
+                            ["Material"] = d.Material ?? "",
+                            ["Thickness_mm"] = d.Thickness_mm,
+                            ["Depth_mm"] = d.Depth_mm,
+                            ["C_Width_mm"] = d.C_Width_mm,
+                            ["D_Web_mm"] = d.D_Web_mm,
+                            ["E_Flange_mm"] = d.E_Flange_mm,
+                            ["F_Length_mm"] = d.F_Length_mm,
+                            ["UNIT"] = d.UNIT ?? "",
+                            ["Qty"] = d.Qty_Per_Sheet,
+                            ["Weight"] = d.Weight_kg,
+                            ["MPS_Info"] = d.MPS_Info ?? "",
+                            ["Usage_Location"] = d.Usage_Location ?? "",
+                            ["REV"] = d.REV,
+                            ["Remarks"] = d.Remarks ?? "",
+                            ["PO_No"] = poNo
+                        };
 
-                        // Mau dong xen ke
-                        if (excelRow % 2 == 0)
+                        for (int ci = 0; ci < visColInfos.Count; ci++)
                         {
-                            cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                            cell.Style.Fill.BackgroundColor.SetColor(
-                                System.Drawing.Color.FromArgb(240, 248, 255));
+                            string colN = visColInfos[ci].Name;
+                            var cell = ws.Cells[excelRow, ci + 1];
+
+                            if (!rowData.ContainsKey(colN)) { cell.Value = ""; continue; }
+
+                            object rawVal = rowData[colN];
+
+                            if (numericSet.Contains(colN))
+                            {
+                                cell.Value = Convert.ToDouble(rawVal);
+                                cell.Style.Numberformat.Format = "0.##";
+                            }
+                            else
+                                cell.Value = rawVal;
+
+                            if (excelRow % 2 == 0)
+                            {
+                                cell.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                                cell.Style.Fill.BackgroundColor.SetColor(
+                                    System.Drawing.Color.FromArgb(240, 248, 255));
+                            }
+
+                            if (colN == "PO_No" && !string.IsNullOrWhiteSpace(poNo))
+                            {
+                                cell.Style.Font.Bold = true;
+                                cell.Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(40, 167, 69));
+                            }
+
+                            cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Hair);
                         }
 
-                        // Mau cot Da len PO
-                        if (colN == "PO_No" && !string.IsNullOrWhiteSpace(poNo))
-                        {
-                            cell.Style.Font.Bold = true;
-                            cell.Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(40, 167, 69));
-                        }
-
-                        cell.Style.Border.BorderAround(OfficeOpenXml.Style.ExcelBorderStyle.Hair);
-                    }
-
-                    // Add image if ProductCode exists
-                    if (!string.IsNullOrEmpty(d.ProductCode))
-                    {
-                        string imagePath = null;
-                        string basePath = @"\\Dlhivina\SHARE\Old\Stationery";
-                        
-                        // Try to find image with .jpg extension
-                        string jpgPath = System.IO.Path.Combine(basePath, d.ProductCode + ".jpg");
-                        if (System.IO.File.Exists(jpgPath))
-                            imagePath = jpgPath;
-                        
-                        // Try to find image with .png extension if jpg not found
-                        if (imagePath == null)
-                        {
-                            string pngPath = System.IO.Path.Combine(basePath, d.ProductCode + ".png");
-                            if (System.IO.File.Exists(pngPath))
-                                imagePath = pngPath;
-                        }
-                        
-                        // If image found, add to worksheet
-                        if (!string.IsNullOrEmpty(imagePath))
+                        // Add image if ProductCode exists
+                        if (!string.IsNullOrEmpty(d.ProductCode))
                         {
                             try
                             {
-                                var picture = ws.Drawings.AddPicture($"img_{d.ProductCode}_{excelRow}", new System.IO.FileInfo(imagePath));
-                                
-                                // Set position: row excelRow, column imageColIndex (visCols.Count + 1)
-                                picture.SetPosition(excelRow - 1, 0, visCols.Count, 0);
-                                
-                                // Set size to 80x80 pixels for better visibility
-                                picture.SetSize(80, 80);
-                                
-                                // Adjust row height to fit image (80 pixels ≈ 60 points)
-                                ws.Row(excelRow).Height = 65;
+                                string basePath = @"\\Dlhivina\SHARE\Old\Stationery";
+                                string imagePath = null;
+                                // Dung Task + timeout 2s de tranh block khi UNC path chet
+                                foreach (string ext in new[] { ".jpg", ".png" })
+                                {
+                                    string candidate = System.IO.Path.Combine(basePath, d.ProductCode + ext);
+                                    var checkTask = System.Threading.Tasks.Task.Run(() => System.IO.File.Exists(candidate));
+                                    if (checkTask.Wait(2000) && checkTask.Result)
+                                    {
+                                        imagePath = candidate;
+                                        break;
+                                    }
+                                }
+                                if (!string.IsNullOrEmpty(imagePath))
+                                {
+                                    var picture = ws.Drawings.AddPicture($"img_{d.ProductCode}_{excelRow}", new System.IO.FileInfo(imagePath));
+                                    picture.SetPosition(excelRow - 1, 0, visColInfos.Count, 0);
+                                    picture.SetSize(80, 80);
+                                    ws.Row(excelRow).Height = 65;
+                                }
                             }
-                            catch
-                            {
-                                // Silently ignore any errors in image loading/embedding
-                            }
+                            catch { }
                         }
+
+                        excelRow++;
                     }
 
-                    excelRow++;
-                }
+                    // Title MPR info
+                    ws.InsertRow(1, 2);
+                    ws.Cells[1, 1].Value = "BANG CHI TIET VAT TU MPR";
+                    ws.Cells[1, 1].Style.Font.Bold = true;
+                    ws.Cells[1, 1].Style.Font.Size = 13;
+                    ws.Cells[1, 1, 1, visColInfos.Count].Merge = true;
 
-                // Title MPR info
-                ws.InsertRow(1, 2);
-                ws.Cells[1, 1].Value = "BANG CHI TIET VAT TU MPR";
-                ws.Cells[1, 1].Style.Font.Bold = true;
-                ws.Cells[1, 1].Style.Font.Size = 13;
-                ws.Cells[1, 1, 1, visCols.Count].Merge = true;
+                    ws.Cells[2, 1].Value = "MPR No: " + mprNoText +
+                                           "   Du an: " + projectNameText +
+                                           "   Ngay: " + DateTime.Now.ToString("dd/MM/yyyy") +
+                                           "   Loc: " + filterInfo;
+                    ws.Cells[2, 1, 2, visColInfos.Count].Merge = true;
 
-                ws.Cells[2, 1].Value = "MPR No: " + (txtMPRNo?.Text ?? "") +
-                                       "   Du an: " + (txtProjectName?.Text ?? "") +
-                                       "   Ngay: " + DateTime.Now.ToString("dd/MM/yyyy");
-                ws.Cells[2, 1, 2, visCols.Count].Merge = true;
+                    ws.Cells[ws.Dimension.Address].AutoFitColumns(8, 50);
+                    ws.Column(visColInfos.Count + 2).Width = 12;
 
-                // Filter info
-                string filterInfo = _cboFilterPO?.SelectedItem?.ToString() ?? "Tat ca";
-                ws.Cells[2, 1].Value += "   Loc: " + filterInfo;
+                    pkg.SaveAs(new System.IO.FileInfo(saveFileName));
+                });
 
-                // Auto fit
-                ws.Cells[ws.Dimension.Address].AutoFitColumns(8, 50);
-
-                // Set image column width to accommodate 80x80 pixel images
-                int imageColIndexW = visCols.Count + 2; // +2 because column index starts at 1, and we need the column after all data columns
-                ws.Column(imageColIndexW).Width = 12;
-
-                pkg.SaveAs(new System.IO.FileInfo(sfd.FileName));
-
-                if (MessageBox.Show(TopOwner, "Xuat Excel thanh cong!\nMo file ngay?", "Thanh cong",
+                this.BringToFront();
+                this.Activate();
+                if (MessageBox.Show(this, "Xuat Excel thanh cong!\nMo file ngay?", "Thanh cong",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                     System.Diagnostics.Process.Start(
                         new System.Diagnostics.ProcessStartInfo
-                        { FileName = sfd.FileName, UseShellExecute = true });
+                        { FileName = saveFileName, UseShellExecute = true });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(TopOwner, "Loi xuat Excel: " + ex.Message, "Loi",
+                this.BringToFront();
+                this.Activate();
+                MessageBox.Show(this, "Loi xuat Excel: " + ex.Message, "Loi",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _btnExportDetail.Enabled = true;
             }
         }
 

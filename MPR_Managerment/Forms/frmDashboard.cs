@@ -891,7 +891,7 @@ namespace MPR_Managerment.Forms
             if (e.RowIndex < 0) return;
             var row = dgvMPR.Rows[e.RowIndex];
             int mprId = Convert.ToInt32(row.Cells["MPR_ID"].Value);
-            new frmMPR(mprId).Show();
+            new frmMPR(mprId).Show(this);
         }
 
         // Chọn dòng MPR → load danh sách PO vào dgvMPRPO

@@ -49,8 +49,7 @@ namespace MPR_Managerment.Forms
         private TextBox txtSearchPO;
         private ComboBox cboStatusFilter;
         private DataGridView dgvPO, dgvSchedule, dgvHistory;
-        private Label lblPOName, lblPOAmount, lblPOPaid, lblPORemain, lblPOStatus, lblPOProgress;
-        private Panel panelTop, panelInfo, panelSched, panelHist;
+        private Panel panelTop, panelSched, panelHist;
         private DataGridView dgvPaid;
         private ComboBox _cboHistStatus;   // Bộ lọc Status trong panelHist
         private DateTimePicker _paidFrom, _paidTo; // Bộ lọc thời gian trong popup History Paid
@@ -61,7 +60,6 @@ namespace MPR_Managerment.Forms
         private TextBox _txtPhNCC; // Bộ lọc NCC
         private DateTimePicker _schedDtp;              // DTP overlay cho cột Đến hạn
         private int _schedDtpRow = -1;                 // Row đang được DTP overlay
-        private ProgressBar progressPO;
 
         // Tab Debt
         private DateTimePicker dtpFrom, dtpTo;
@@ -172,7 +170,7 @@ namespace MPR_Managerment.Forms
             btnFTCash.Click += (s, e) => ShowFTCashListPopup();
             pFilter.Controls.Add(btnFTCash);
 
-            panelTop = P(tabPO, 5, 52, 0, 190, Color.White);
+            panelTop = P(tabPO, 5, 52, 0, 235, Color.White);
             panelTop.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             Lbl(panelTop, "DANH SÁCH ĐƠN PO", 8, 5, 350, 20, true, Color.FromArgb(0, 120, 212));
             dgvPO = Grid(panelTop, 28, 156);
@@ -182,39 +180,12 @@ namespace MPR_Managerment.Forms
             dgvPO.CellMouseLeave += DgvPO_CellMouseLeave;
             dgvPO.ColumnHeadersHeight = 60;
             dgvPO.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            dgvPO.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             BuildPOGridCols();
 
-            panelInfo = new Panel
-            {
-                Location = new Point(5, 247),
-                Size = new Size(0, 65),
-                BackColor = Color.FromArgb(0, 120, 212),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-            };
-            tabPO.Controls.Add(panelInfo);
 
-            lblPOName = InfoLbl(panelInfo, "", 8, 5, 700, 20, 10, true);
-            lblPOStatus = InfoLbl(panelInfo, "", 0, 5, 200, 20, 10, true);
-            lblPOStatus.TextAlign = ContentAlignment.MiddleRight;
-
-            lblPOAmount = InfoLbl(panelInfo, "Tổng PO: —", 8, 30, 200, 18, 9, false);
-            lblPOPaid = InfoLbl(panelInfo, "Đã TT: —", 215, 30, 200, 18, 9, false);
-            lblPORemain = InfoLbl(panelInfo, "Còn nợ: —", 422, 30, 220, 18, 9, false);
-            lblPOProgress = InfoLbl(panelInfo, "", 650, 30, 100, 18, 9, false);
-
-            progressPO = new ProgressBar
-            {
-                Location = new Point(640, 32),
-                Size = new Size(180, 14),
-                Minimum = 0,
-                Maximum = 100,
-                Value = 0,
-                Style = ProgressBarStyle.Continuous
-            };
-            panelInfo.Controls.Add(progressPO);
-
-            panelSched = P(tabPO, 5, 317, 0, 200, Color.White);
-            panelSched.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            panelSched = P(panelTop, 0, 25, 0, 205, Color.White);
+            panelSched.Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom;
             Lbl(panelSched, "📅  KẾ HOẠCH THANH TOÁN", 8, 5, 300, 20, true, Color.FromArgb(0, 120, 212));
 
             bool canEdit = AppSession.CanEdit("PO") || AppSession.CanCreate("PO");
@@ -300,7 +271,7 @@ namespace MPR_Managerment.Forms
             panelSched.Controls.Add(dgvDoc);
 
             // ── Danh sách PO đã in Request ──
-            panelPrintHistory = P(tabPO, 5, 317 + 200 + 5, 0, 0, Color.White);
+            panelPrintHistory = P(tabPO, 5, 362, 0, 0, Color.White);
             panelPrintHistory.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom;
             Lbl(panelPrintHistory, "🖨  DANH SÁCH PO ĐÃ IN REQUEST", 8, 5, 350, 20, true, Color.FromArgb(0, 150, 100));
 
@@ -314,6 +285,8 @@ namespace MPR_Managerment.Forms
                 Format = DateTimePickerFormat.Short,
                 Value = DateTime.Today.AddYears(-2)   // mặc định 2 năm để không mất dữ liệu cũ
             };
+            _phDateFrom.ValueChanged += (s, ev) =>
+                LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1));
             panelPrintHistory.Controls.Add(_phDateFrom);
 
             Lbl(panelPrintHistory, "Đến:", 155, 30, 30, 20);
@@ -325,10 +298,12 @@ namespace MPR_Managerment.Forms
                 Format = DateTimePickerFormat.Short,
                 Value = DateTime.Today
             };
+            _phDateTo.ValueChanged += (s, ev) =>
+                LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1));
             panelPrintHistory.Controls.Add(_phDateTo);
 
             var btnPhSearch = Btn("🔍 Lọc", Color.FromArgb(0, 120, 212), 308, 26, 70, 26);
-            btnPhSearch.Click += (s, ev) => LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1).AddSeconds(-1));
+            btnPhSearch.Click += (s, ev) => LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1));
             panelPrintHistory.Controls.Add(btnPhSearch);
 
             // Nút "Tất cả" — load toàn bộ lịch sử không giới hạn ngày
@@ -337,7 +312,7 @@ namespace MPR_Managerment.Forms
             {
                 _phDateFrom.Value = new DateTime(2000, 1, 1);
                 _phDateTo.Value = DateTime.Today;
-                LoadPrintHistory(new DateTime(2000, 1, 1), DateTime.Today.AddDays(1).AddSeconds(-1));
+                LoadPrintHistory(new DateTime(2000, 1, 1), DateTime.Today.AddDays(1));
             };
             panelPrintHistory.Controls.Add(btnPhAll);
 
@@ -347,7 +322,7 @@ namespace MPR_Managerment.Forms
                 _phDateFrom.Value = DateTime.Today.AddYears(-2);
                 _phDateTo.Value = DateTime.Today;
                 _txtPhNCC.Text = "";
-                LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1).AddSeconds(-1));
+                LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1));
             };
             panelPrintHistory.Controls.Add(btnPhReset);
 
@@ -361,7 +336,7 @@ namespace MPR_Managerment.Forms
                 PlaceholderText = "Tìm theo NCC..."
             };
             _txtPhNCC.TextChanged += (s, ev) =>
-                LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1).AddSeconds(-1));
+                LoadPrintHistory(_phDateFrom.Value.Date, _phDateTo.Value.Date.AddDays(1));
             panelPrintHistory.Controls.Add(_txtPhNCC);
 
             var btnPhDel = Btn("🗑 Xóa dòng", Color.FromArgb(220, 53, 69), 751, 26, 100, 26);
@@ -383,6 +358,7 @@ namespace MPR_Managerment.Forms
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Vat", HeaderText = "VAT", Width = 100, ReadOnly = true });
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Total", HeaderText = "Tổng sau VAT", Width = 120, ReadOnly = true });
             dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_Date", HeaderText = "Ngày in ▼", Width = 130, ReadOnly = true });
+            dgvPrintHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "PH_PrintCount", HeaderText = "Lần in", Width = 60, ReadOnly = true });
             foreach (DataGridViewColumn col in dgvPrintHistory.Columns)
                 col.SortMode = DataGridViewColumnSortMode.Programmatic;
             dgvPrintHistory.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 150, 100);
@@ -394,9 +370,16 @@ namespace MPR_Managerment.Forms
                 string col = dgvPrintHistory.Columns[ev.ColumnIndex].Name;
                 if (col == "PH_Net" || col == "PH_Vat" || col == "PH_Total")
                     ev.CellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                if (col == "PH_PrintCount")
+                {
+                    ev.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    ev.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    if (ev.Value != null && ev.Value != DBNull.Value && Convert.ToInt32(ev.Value) > 1)
+                        ev.CellStyle.ForeColor = Color.FromArgb(220, 53, 69);
+                }
             };
 
-            panelHist = P(tabPO, 0, 317, 0, 200, Color.White);
+            panelHist = P(tabPO, 0, 362, 0, 200, Color.White);
             panelHist.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             Lbl(panelHist, "📋  PAYMENT REQUEST PROGRESSING", 8, 5, 400, 20, true, Color.FromArgb(102, 51, 153));
 
@@ -465,12 +448,6 @@ namespace MPR_Managerment.Forms
             dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "TT_Status", DataPropertyName = "TT_Status", HeaderText = "Trạng thái", Width = 110, ReadOnly = true });
             dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Den_Han", DataPropertyName = "Den_Han", HeaderText = "Đến hạn", Width = 85, ReadOnly = true });
             dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = "Qua_Han", DataPropertyName = "Qua_Han", HeaderText = "Quá hạn", Width = 70, ReadOnly = true });
-            // ── Cột kế hoạch TT từng đợt (tối đa 5 đợt) ──
-            for (int i = 1; i <= 5; i++)
-            {
-                dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = $"Dot{i}_Amount", DataPropertyName = $"Dot{i}_Amount", HeaderText = $"Đợt {i} - Số tiền", Width = 110, ReadOnly = true });
-                dgvPO.Columns.Add(new DataGridViewTextBoxColumn { Name = $"Dot{i}_Status", DataPropertyName = $"Dot{i}_Status", HeaderText = $"Đợt {i} - T.Thái", Width = 95, ReadOnly = true });
-            }
         }
 
         private void BuildSchedCols()
@@ -864,7 +841,7 @@ namespace MPR_Managerment.Forms
                 await System.Threading.Tasks.Task.WhenAll(
                     LoadSuppliersAsync(),
                     LoadPOSummaryAsync(),
-                    LoadPrintHistoryAsync(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1).AddSeconds(-1))
+                    LoadPrintHistoryAsync(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1))
                 );
             }
             catch (Exception ex)
@@ -965,7 +942,7 @@ namespace MPR_Managerment.Forms
             }
             catch { }
             LoadPOSummary();
-            LoadPrintHistory(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1).AddSeconds(-1));
+            LoadPrintHistory(DateTime.Today.AddYears(-2), DateTime.Today.AddDays(1));
         }
 
         private async void LoadPOSummary()
@@ -1032,32 +1009,13 @@ namespace MPR_Managerment.Forms
                 bool isNew = p.PO_Date.HasValue && (DateTime.Now - p.PO_Date.Value).TotalDays <= 3;
                 string poDisplayObj = isNew ? $"🔥 {p.PONo} (Mới)" : p.PONo;
 
-                // ── Schedules từng đợt từ cache ──
-                var scheds = _allSchedulesCache.ContainsKey(p.PO_ID)
-                    ? _allSchedulesCache[p.PO_ID]
-                    : new List<PaymentSchedule>();
-                string d1a = "", d1s = "", d2a = "", d2s = "", d3a = "", d3s = "", d4a = "", d4s = "", d5a = "", d5s = "";
-                for (int idx = 0; idx < scheds.Count && idx < 5; idx++)
-                {
-                    string a = FormatAmt(scheds[idx].Amount_Plan);
-                    string t = scheds[idx].Status ?? "Chưa TT";
-                    switch (idx)
-                    {
-                        case 0: d1a = a; d1s = t; break;
-                        case 1: d2a = a; d2s = t; break;
-                        case 2: d3a = a; d3s = t; break;
-                        case 3: d4a = a; d4s = t; break;
-                        case 4: d5a = a; d5s = t; break;
-                    }
-                }
-
                 return new
                 {
                     ID = p.PO_ID,
                     PO_No = poDisplayObj,
                     Ngay_PO = p.PO_Date.HasValue ? p.PO_Date.Value.ToString("dd/MM/yyyy") : "",
-                    Ten_DA = p.Project_Name,
-                    NCC = p.Supplier_Name,
+                    Ten_DA = p.WorkorderNo,
+                    NCC = p.Supplier_Short,
                     Tong_PO = FormatAmt(totalPO),
                     Da_TT = FormatAmt(totalPaid),
                     Con_No = FormatAmt(remain),
@@ -1066,16 +1024,6 @@ namespace MPR_Managerment.Forms
                     Den_Han = p.Next_Due_Date.HasValue ? p.Next_Due_Date.Value.ToString("dd/MM/yyyy") : "—",
                     Qua_Han = p.Is_Overdue ? "⚠ Quá hạn" : "",
                     Is_Overdue = p.Is_Overdue,
-                    Dot1_Amount = d1a,
-                    Dot1_Status = d1s,
-                    Dot2_Amount = d2a,
-                    Dot2_Status = d2s,
-                    Dot3_Amount = d3a,
-                    Dot3_Status = d3s,
-                    Dot4_Amount = d4a,
-                    Dot4_Status = d4s,
-                    Dot5_Amount = d5a,
-                    Dot5_Status = d5s,
                 };
             });
 
@@ -2180,21 +2128,6 @@ namespace MPR_Managerment.Forms
             var p = _poSummaries.Find(x => x.PO_ID == _selectedPO_ID);
             if (p == null) return;
 
-            lblPOName.Text = $"PO: {p.PONo}  —  {p.Project_Name}  |  NCC: {p.Supplier_Name}";
-            lblPOAmount.Text = $"Tổng PO: {FormatAmt(p.Total_PO_Amount)} VNĐ";
-            lblPOPaid.Text = $"Đã TT: {FormatAmt(p.Total_Paid)} VNĐ";
-            lblPORemain.Text = $"Còn nợ: {FormatAmt(p.Amount_Remaining)} VNĐ";
-            lblPOStatus.Text = p.Is_Overdue ? "⚠ QUÁ HẠN" : p.Payment_Status;
-            lblPOStatus.ForeColor =
-                p.Is_Overdue ? Color.FromArgb(255, 100, 100) :
-                p.Payment_Status == "Đã TT đủ" ? Color.FromArgb(144, 238, 144) :
-                p.Payment_Status == "Một phần" ? Color.FromArgb(255, 200, 100) :
-                                                   Color.White;
-
-            int pct = (int)Math.Min(p.Percent_Paid, 100);
-            progressPO.Value = pct;
-            lblPOProgress.Text = $"{pct}%";
-
             // Load trực tiếp trên UI thread để tránh cross-thread khi cập nhật grid/label
             LoadSchedHist();
             LoadDocuments();
@@ -2223,20 +2156,6 @@ namespace MPR_Managerment.Forms
                 e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69);
                 e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             }
-            if (col.StartsWith("Dot") && col.EndsWith("_Status"))
-            {
-                string v = e.Value?.ToString() ?? "";
-                if (!string.IsNullOrEmpty(v))
-                {
-                    e.CellStyle.ForeColor =
-                        v == "Đã TT đủ" ? Color.FromArgb(40, 167, 69) :
-                        v == "Một phần" ? Color.FromArgb(255, 140, 0) :
-                                           Color.FromArgb(0, 120, 212);
-                    e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-                }
-            }
-            if (col.StartsWith("Dot") && col.EndsWith("_Amount") && string.IsNullOrEmpty(e.Value?.ToString()))
-                e.CellStyle.BackColor = Color.FromArgb(245, 245, 245);
         }
 
         private void DgvSched_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
@@ -2949,48 +2868,59 @@ private void ResizeAll()
         int w = tabs.ClientSize.Width;
         int h = tabs.ClientSize.Height;
 
-        if (panelTop != null) panelTop.Width = w - 10;
-        if (panelInfo != null) { panelInfo.Width = w - 10; lblPOStatus.Left = panelInfo.Width - 205; }
-
-        int leftW = w / 2 - 8;
-
-        // panelSched fixed height 200, full width on the left
-        if (panelSched != null)
+        // ── panelTop (DANH SÁCH ĐƠN PO + KẾ HOẠCH THANH TOÁN) ──
+        if (panelTop != null)
         {
+            panelTop.Width = w - 10;
+
+            // dgvPO chiếm ~58% width của panelTop, panelSched chiếm phần còn lại
             const int docW = 200;
-            panelSched.Width = leftW;
-            panelSched.Height = 200;
-            dgvSchedule.Width = panelSched.Width - docW - 15;
-            dgvSchedule.Height = panelSched.Height - 62;
-            if (dgvDoc != null)
+            int schedW = Math.Max(380, (int)(panelTop.Width * 0.42));
+            int dgvPOW = panelTop.Width - schedW - 15;
+
+            dgvPO.Width = dgvPOW;
+            dgvPO.Height = panelTop.Height - 33;
+
+            if (panelSched != null)
             {
-                dgvDoc.Left = panelSched.Width - docW - 5;
-                dgvDoc.Width = docW - 2;
-                dgvDoc.Height = panelSched.Height - 30;
-                foreach (Control c in panelSched.Controls)
-                    if (c is Label lbl && lbl.Text.Contains("Document"))
-                        lbl.Left = dgvDoc.Left;
+                panelSched.Left = dgvPOW + 10;
+                panelSched.Top = 25;
+                panelSched.Width = schedW;
+                panelSched.Height = panelTop.Height - 30;
+
+                dgvSchedule.Width = panelSched.Width - docW - 15;
+                dgvSchedule.Height = panelSched.Height - 62;
+                if (dgvDoc != null)
+                {
+                    dgvDoc.Left = panelSched.Width - docW - 5;
+                    dgvDoc.Width = docW - 2;
+                    dgvDoc.Height = panelSched.Height - 30;
+                    foreach (Control c in panelSched.Controls)
+                        if (c is Label lbl && lbl.Text.Contains("Document"))
+                            lbl.Left = dgvDoc.Left;
+                }
             }
         }
 
-        // panelPrintHistory moved to below panelSched (left side)
+        int panelBelowTop = (panelTop?.Bottom ?? 292) + 5;
+        int leftW = w / 2 - 8;
+
+        // panelPrintHistory: bên trái, bên dưới panelInfo
         if (panelPrintHistory != null)
         {
-            panelPrintHistory.Top = (panelSched?.Bottom ?? 0) + 5;
+            panelPrintHistory.Top = panelBelowTop;
             panelPrintHistory.Left = 5;
             panelPrintHistory.Width = leftW;
             panelPrintHistory.Height = Math.Max(100, h - panelPrintHistory.Top - 10);
             dgvPrintHistory.Width = panelPrintHistory.Width - 10;
             dgvPrintHistory.Height = panelPrintHistory.Height - 63;
-            if (_phDateTo != null)
-                _phDateTo.Width = Math.Min(115, (panelPrintHistory.Width - 470) / 2);
         }
 
-        // panelHist now sits on the right side, occupying the full height
+        // panelHist: bên phải, bên dưới panelInfo
         if (panelHist != null)
         {
             panelHist.Left = w / 2 + 3;
-            panelHist.Top = 317;
+            panelHist.Top = panelBelowTop;
             panelHist.Width = w / 2 - 8;
             panelHist.Height = Math.Max(200, h - panelHist.Top - 10);
             dgvHistory.Width = panelHist.Width - 10;
@@ -3259,6 +3189,24 @@ private void ResizeAll()
                     System.Diagnostics.Debug.WriteLine("AddPrintHistory DB error: " + ex.Message);
                 }
 
+                // Đếm số lần in của PO này sau khi đã insert
+                int printCount = 0;
+                try
+                {
+                    using var conn2 = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
+                    conn2.Open();
+                    var cntCmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        "SELECT COUNT(*) FROM PO_PrintRequestHistory WHERE PONo = @poNo", conn2);
+                    cntCmd.Parameters.AddWithValue("@poNo", poNo);
+                    printCount = Convert.ToInt32(cntCmd.ExecuteScalar());
+                }
+                catch { }
+
+                // Cập nhật số lần in cho tất cả dòng cùng PONo đang hiển thị trong grid
+                foreach (DataGridViewRow existingRow in dgvPrintHistory.Rows)
+                    if (existingRow.Cells["PH_PONo"].Value?.ToString() == poNo)
+                        existingRow.Cells["PH_PrintCount"].Value = printCount;
+
                 // ── Thêm vào đầu grid (mới nhất lên trên) ──
                 dgvPrintHistory.Rows.Insert(0);
                 dgvPrintHistory.Rows[0].Cells["PH_ID"].Value = DBNull.Value;
@@ -3270,6 +3218,7 @@ private void ResizeAll()
                 dgvPrintHistory.Rows[0].Cells["PH_Vat"].Value = FormatAmt(vat);
                 dgvPrintHistory.Rows[0].Cells["PH_Total"].Value = FormatAmt(total);
                 dgvPrintHistory.Rows[0].Cells["PH_Date"].Value = dateStr;
+                dgvPrintHistory.Rows[0].Cells["PH_PrintCount"].Value = printCount;
             }
 
             if (dgvPrintHistory.Rows.Count > 0)
@@ -3282,7 +3231,7 @@ private void ResizeAll()
             if (dgvPrintHistory == null) return;
             dgvPrintHistory.Rows.Clear();
             DateTime dtFrom = from ?? DateTime.Today.AddYears(-2);
-            DateTime dtTo = to ?? DateTime.Today.AddDays(1).AddSeconds(-1);
+            DateTime dtTo = to ?? DateTime.Today.AddDays(1);
 
             // Từ khoá lọc NCC (không phân biệt hoa/thường)
             string nccFilter = _txtPhNCC?.Text.Trim() ?? "";
@@ -3292,19 +3241,25 @@ private void ResizeAll()
                 using var conn = MPR_Managerment.Helpers.DatabaseHelper.GetConnection();
                 conn.Open();
                 var cmd = new Microsoft.Data.SqlClient.SqlCommand(@"
-                    SELECT Print_ID, PONo,
-                           ISNULL(Supplier_Short, '') AS Supplier_Short,
-                           ISNULL(Project_Name,   '') AS Project_Name,
-                           ISNULL(Dot_Label,      '') AS Dot_Label,
-                           ISNULL(Amount_Net,     0)  AS Amount_Net,
-                           ISNULL(Amount_VAT,     0)  AS Amount_VAT,
-                           ISNULL(Amount_Total,   0)  AS Amount_Total,
-                           ISNULL(Printed_By,     '') AS Printed_By,
-                           CONVERT(NVARCHAR(16), Printed_Date, 103) + ' '
-                           + SUBSTRING(CONVERT(NVARCHAR(8), Printed_Date, 108), 1, 5) AS Printed_Date
-                    FROM PO_PrintRequestHistory
-                    WHERE Printed_Date BETWEEN @from AND @to
-                    ORDER BY Printed_Date DESC", conn);
+                    SELECT p.Print_ID, p.PONo,
+                           ISNULL(p.Supplier_Short, '') AS Supplier_Short,
+                           ISNULL(p.Project_Name,   '') AS Project_Name,
+                           ISNULL(p.Dot_Label,      '') AS Dot_Label,
+                           ISNULL(p.Amount_Net,     0)  AS Amount_Net,
+                           ISNULL(p.Amount_VAT,     0)  AS Amount_VAT,
+                           ISNULL(p.Amount_Total,   0)  AS Amount_Total,
+                           ISNULL(p.Printed_By,     '') AS Printed_By,
+                           CONVERT(NVARCHAR(16), p.Printed_Date, 103) + ' '
+                           + SUBSTRING(CONVERT(NVARCHAR(8), p.Printed_Date, 108), 1, 5) AS Printed_Date,
+                           ISNULL(c.PrintCount, 0) AS PrintCount
+                    FROM PO_PrintRequestHistory p
+                    LEFT JOIN (
+                        SELECT PONo, COUNT(*) AS PrintCount
+                        FROM PO_PrintRequestHistory
+                        GROUP BY PONo
+                    ) c ON c.PONo = p.PONo
+                    WHERE p.Printed_Date >= @from AND p.Printed_Date < @to
+                    ORDER BY p.Printed_Date DESC", conn);
                 cmd.Parameters.AddWithValue("@from", dtFrom);
                 cmd.Parameters.AddWithValue("@to", dtTo);
 
@@ -3343,6 +3298,7 @@ private void ResizeAll()
                     dgvPrintHistory.Rows[i].Cells["PH_Vat"].Value = FormatAmt(vat);
                     dgvPrintHistory.Rows[i].Cells["PH_Total"].Value = FormatAmt(total);
                     dgvPrintHistory.Rows[i].Cells["PH_Date"].Value = reader["Printed_Date"]?.ToString() ?? "";
+                    dgvPrintHistory.Rows[i].Cells["PH_PrintCount"].Value = reader["PrintCount"];
                 }
             }
             catch (Exception ex)

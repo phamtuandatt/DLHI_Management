@@ -279,7 +279,8 @@ namespace MPR_Managerment.Forms
 
             // Đăng ký các sự kiện để AI luôn bám theo form hiện hành
             parentForm.Load += (s, e) => ensureAttached();
-            parentForm.Activated += (s, e) => ensureAttached();
+            // Chi re-attach khi form thuc su enabled (khong co modal dialog dang mo)
+            parentForm.Activated += (s, e) => { if (parentForm.Enabled) ensureAttached(); };
             parentForm.Resize += (s, e) => {
                 if (_btnInst != null && !_btnInst.IsDisposed && _btnInst.Parent == parentForm)
                     _btnInst.SnapToCorner();
