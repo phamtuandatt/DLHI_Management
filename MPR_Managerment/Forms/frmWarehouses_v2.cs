@@ -33,7 +33,7 @@ namespace MPR_Managerment.Forms
     public partial class frmWarehouses_v2 : Form
     {
         private TabControl mainTabControl;
-        private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo, pageFillInvoiceNo_v2, pageExportWarehouse_V2;
+        private TabPage pageImport, pageExport, pageWarehouse, pageFillInvoiceNo, pageFillInvoiceNo_v2, pageExportWarehouse_V2, pageTrackDelivery;
         private TabPage pageSaveDelivertNote;
         private List<ProjectInfo> _dtProject = new List<ProjectInfo>();
         private DateTimePicker dtpFromDate, dtpToDate;
@@ -98,6 +98,7 @@ namespace MPR_Managerment.Forms
             SetupFillInvoiceNoLayout_v2(pageFillInvoiceNo_v2);
             SetupSaveDeliveryNotetLayout(pageSaveDelivertNote);
             SetupExportWarehouseLayout_V2(pageExportWarehouse_V2);
+            SetupTrackDeliveryLayout(pageTrackDelivery);
             TrackButtonClick();
             LoadComboboxProject();
             HandleComboBoxIndexChange();
@@ -181,6 +182,10 @@ namespace MPR_Managerment.Forms
             pageExportWarehouse_V2.Text = "  📤  Xuất kho  ";
             pageExportWarehouse_V2.BackColor = Color.White;
 
+            pageTrackDelivery = new TabPage();
+            pageTrackDelivery.Text = "  🚚  Theo dõi giao hàng  ";
+            pageTrackDelivery.BackColor = Color.White;
+
             // 5. Thêm các Page vào TabControl
             if (AppSession.CurrentUser.Role_ID == 1)
             {
@@ -191,6 +196,7 @@ namespace MPR_Managerment.Forms
                 mainTabControl.TabPages.Add(pageFillInvoiceNo);
                 mainTabControl.TabPages.Add(pageSaveDelivertNote);
                 mainTabControl.TabPages.Add(pageExportWarehouse_V2);
+                mainTabControl.TabPages.Add(pageTrackDelivery);
             }
             else
             {
@@ -894,6 +900,14 @@ namespace MPR_Managerment.Forms
             ucDelivery.Dock = DockStyle.Fill;
             parent.Controls.Add(ucDelivery);
             ucDelivery.BringToFront();
+        }
+
+        public void SetupTrackDeliveryLayout(TabPage parent)
+        {
+            ucTrackDelivery ucTrackDelivery = new ucTrackDelivery();
+            ucTrackDelivery.Dock = DockStyle.Fill;
+            parent.Controls.Add(ucTrackDelivery);
+            ucTrackDelivery.BringToFront();
         }
 
         public void SetupExportWarehouseLayout_V2(TabPage parent)
